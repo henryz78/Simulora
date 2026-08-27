@@ -1,0 +1,148 @@
+direction: down
+
+classes: {
+  world: {style: {fill: "#14324A"; stroke: "#62C5E5"; font-color: "#FFFFFF"; font-size: 22; border-radius: 14}}
+  place: {style: {fill: "#EAF6F8"; stroke: "#4F9BB3"; font-color: "#173042"; font-size: 14; border-radius: 8}}
+  pressure: {style: {fill: "#FBE4D5"; stroke: "#D16B46"; font-color: "#5B2414"; font-size: 14; border-radius: 8}}
+  resource: {style: {fill: "#EAF1D6"; stroke: "#729A3D"; font-color: "#314617"; font-size: 14; border-radius: 8}}
+}
+
+market: { 
+  label: "W-17 桥下周六市集｜社区商业地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  kitchen: "公共厨房\n照护与共同采购"; class: place
+  market: "主市集\n价格、信用、客流"; class: world
+  warehouse: "夜间仓库\n储货与临时庇护"; class: place
+  garden: "桥墩菜园\n食物与学校实践"; class: resource
+  construction: "桥改工程\n封闭压力与收购"; class: pressure
+  market -> kitchen: "轮班 / 食材"
+  market -> warehouse: "库存 / 雨天容量"
+  garden -> kitchen: "低价食材"
+  construction -> market: "租约倒计时"
+}
+
+regatta: {
+  label: "W-18 晴川划船联赛｜体育与公共河道"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  boathouse: "晴川船坞\n训练与修船"; class: place
+  canal: "城市运河\n比赛、污染、公共空间"; class: world
+  tower: "浮动裁判塔\n规则与预算数据"; class: place
+  embankment: "居民观赛堤\n舆论与救援"; class: resource
+  sponsor: "赞助条件\n混龄组存废"; class: pressure
+  boathouse -> canal: "训练 / 竞赛"
+  tower -> canal: "赛制 / 安全评分"
+  embankment -> canal: "支持 / 监督"
+  sponsor -> tower: "资金压力"
+}
+
+stage: {
+  label: "W-19 双层舞台｜创作劳动地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  mainstage: "上层主舞台\n票房与公众评价"; class: world
+  writers: "地下实时编剧室\n版本与共同署名"; class: place
+  corridor: "替补走廊\n排练、照护、竞争"; class: place
+  echo: "观众回声厅\n共创与反馈"; class: resource
+  model: "评分模型\n选角偏见风险"; class: pressure
+  writers -> mainstage: "改写 / 线索"
+  corridor -> mainstage: "替补上场"
+  echo -> writers: "反馈"
+  model -> mainstage: "排班压力"
+}
+
+zero: {
+  label: "W-20 零号楼 365｜垂直社区地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  rooftop: "屋顶议会\n代表与预算"; class: place
+  kitchen2: "35层共厨\n食物与工时"; class: world
+  care: "夜班托育室\n照护缺口"; class: place
+  elevator: "旧电梯机房\n维修与通行"; class: pressure
+  garden2: "天井农园\n互助与休息"; class: resource
+  rooftop -> kitchen2: "制度落地"
+  kitchen2 -> care: "照护排班"
+  elevator -> rooftop: "参与门槛"
+  garden2 -> kitchen2: "食物 / 社交"
+}
+
+republic: {
+  label: "W-21 琥珀共和国｜战后建国地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  assembly: "制宪大厅\n权利与紧急权"; class: world
+  camp: "复员营地\n安置与创伤"; class: place
+  route: "北方粮道\n冬粮与运输"; class: resource
+  forum: "流动部族议场\n迁徙与共治"; class: place
+  archives: "缺页征兵册\n记忆与追责"; class: pressure
+  camp -> assembly: "土地 / 就业诉求"
+  route -> assembly: "危机 / 预算"
+  forum -> assembly: "迁徙权"
+  archives -> assembly: "合法性冲击"
+}
+
+home: {
+  label: "W-22 桦树街 77 号｜代际共居地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  kitchen3: "共用厨房\n家务与晚餐"; class: world
+  attic: "阁楼工作室\n梦想与产权"; class: place
+  store: "半扇门小店\n收入与邻里"; class: resource
+  tree: "后院梨树\n记忆与交换"; class: place
+  roof: "屋顶维修\n预算倒计时"; class: pressure
+  attic -> kitchen3: "私人 / 共同边界"
+  store -> kitchen3: "家庭现金流"
+  tree -> kitchen3: "庆典 / 记忆"
+  roof -> kitchen3: "紧急决策"
+}
+
+survey: {
+  label: "W-23 赤道测绘社｜探险与命名地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  camp2: "雾谷营地\n补给与协商"; class: world
+  market2: "多语市集\n命名与意见"; class: place
+  station: "移动气象站\n天气与救援"; class: resource
+  plateau: "高原盐湖\n通行与生态"; class: place
+  mining: "矿权申请\n数据外流"; class: pressure
+  market2 -> camp2: "地方许可"
+  station -> camp2: "天气窗"
+  plateau -> market2: "季节知识"
+  mining -> camp2: "收益 / 风险"
+}
+
+stone: {
+  label: "W-24 石眠者的城市｜双时制文明地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  resonance: "共振广场\n醒者表决"; class: world
+  sleep: "静眠庭\n未来公民权"; class: place
+  bridge: "回声峡桥\n贸易与封锁"; class: resource
+  archive: "慢讯档案壁\n跨代信息"; class: place
+  quake: "早醒地震\n时间冲突"; class: pressure
+  sleep -> resonance: "延时同意"
+  archive -> resonance: "共振记忆"
+  bridge -> resonance: "外来期限"
+  quake -> sleep: "提前苏醒"
+}
+
+fleet: {
+  label: "W-25 小行星拾荒舰队｜太空劳动地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  flagship: "慢航号\n船员与家庭"; class: world
+  hospital: "旧医院船\n救援与记忆"; class: place
+  port: "自由港拍卖所\n许可与债务"; class: resource
+  drones: "无人机合作社\n维修与人格"; class: place
+  fuel: "燃料 / 债务\n航线压力"; class: pressure
+  hospital -> flagship: "求救信号"
+  port -> flagship: "竞价 / 许可"
+  drones -> flagship: "维修 / 协作"
+  fuel -> flagship: "生计倒计时"
+}
+
+apartment: {
+  label: "W-26 五条世界线的合租合同｜多世界日常地图"
+  style: {fill: "#F9FCFD"; stroke: "#62C5E5"; border-radius: 16}
+  hallway: "五扇门走廊\n相遇与交换"; class: world
+  ledger: "公共账本\n劳动与货币折算"; class: place
+  roofwash: "楼顶洗衣房\n日常亲密"; class: resource
+  desk: "跨线物业柜台\n身份与封门"; class: place
+  sixth: "第六份账单\n不存在的世界"; class: pressure
+  ledger -> hallway: "规则 / 欠款"
+  roofwash -> hallway: "非正式互助"
+  desk -> hallway: "通行许可"
+  sixth -> ledger: "资源异常"
+}

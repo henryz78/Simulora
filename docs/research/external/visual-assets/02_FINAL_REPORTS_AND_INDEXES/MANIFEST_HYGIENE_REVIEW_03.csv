@@ -1,0 +1,81 @@
+id,title,source,tier,url,issues
+A06,Fog blankets a mountain range,Unsplash+,C-灵感参考,https://unsplash.com/plus,http_error
+A07,JWST Southern Ring Nebula,The Planetary Society / NASA-JWST 图像线索,M-待核验,https://webbtelescope.org/,platform_root_url
+C02,Stylized Character Creation,Vertex School,C-灵感参考,https://www.vertexschool.com/,platform_root_url
+E01,Landscape Photography of Green Grass and Sea,Pexels,A-可实际使用,https://www.pexels.com/,duplicate_url; http_error; platform_root_url
+E02,Green Grass Field,Pexels,A-可实际使用,https://www.pexels.com/,duplicate_url; http_error; platform_root_url
+E03,Forest Lake Environment,Pexels,A-可实际使用,https://www.pexels.com/,duplicate_url; http_error; platform_root_url
+E04,Cinematic Nature Valley,Unsplash,A-可实际使用,https://unsplash.com/,duplicate_url; http_error; platform_root_url
+E05,Misty Valley,Unsplash,A-可实际使用,https://unsplash.com/,duplicate_url; http_error; platform_root_url
+E06,Vertical Mountain Landscape,Unsplash,A-可实际使用,https://unsplash.com/,duplicate_url; http_error; platform_root_url
+E07,Landscape Painting,Wikimedia Commons,A-PD候选,https://commons.wikimedia.org/,duplicate_url; platform_root_url
+E08,Sunset Photograph,Wikimedia Commons,A-PD候选,https://commons.wikimedia.org/,duplicate_url; platform_root_url
+E09,Climate Essentials,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E10,Climate Spiral 1880-Present,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E11,Milky Way Habitable Zone,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E12,The Andromeda Galaxy,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E13,Global Temperature Anomalies 1880–2025,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E14,Astrophysics Galaxy Listing,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E15,Global Temperature Anomalies 1880–2019,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E16,Anciente Mappe of Fairyland,Public Domain Review,A-PD候选,https://publicdomainreview.org/,duplicate_url; platform_root_url
+E17,1831 World Map by Marianne S Fernald,Smithsonian NMAH,A-PD候选,https://americanhistory.si.edu/,http_error; platform_root_url
+E18,Maps of Cities Illustrated,Library of Congress,A-PD候选,https://www.loc.gov/free-to-use/maps-of-cities/,duplicate_url
+E19,Birdseye City Map,Library of Congress,A-PD候选,https://www.loc.gov/free-to-use/maps-of-cities/,duplicate_url
+E20,Public Domain Review Map Collection A,Public Domain Review,A-PD候选,https://publicdomainreview.org/collections/maps/,duplicate_url; http_error
+E21,Public Domain Review Map Collection B,Public Domain Review,A-PD候选,https://publicdomainreview.org/collections/maps/,duplicate_url; http_error
+E22,Anthropology and Film Archives,Smithsonian NMNH,M-待确认,https://naturalhistory.si.edu/,http_error; platform_root_url
+E23,Ptolemy's Geographia,NYPL,A-PD候选,https://digitalcollections.nypl.org/,platform_root_url
+E24,Mini Characters,Kenney,A-可实际使用,https://kenney.nl/assets,duplicate_url
+E25,Animated Characters Protagonists,Kenney,A-可实际使用,https://kenney.nl/assets,duplicate_url
+E26,Tiny Characters Set,OpenGameArt,M-待确认,https://opengameart.org/,duplicate_url; platform_root_url
+E27,Ultimate Animated Character Pack,Quaternius,A-可实际使用,https://quaternius.com/,duplicate_url; platform_root_url
+E28,Modular Character Outfits Fantasy,Quaternius,A-可实际使用,https://quaternius.com/,duplicate_title; duplicate_url; platform_root_url
+E29,Kenney Character Assets,Kenney,A-可实际使用,https://kenney.nl/assets,duplicate_url
+E30,Spritesheet of a Man CC0,OpenGameArt,A-可实际使用,https://opengameart.org/,duplicate_url; platform_root_url
+E31,Modular Character Outfits Fantasy Alternate,Quaternius,A-可实际使用,https://quaternius.com/,duplicate_url; platform_root_url
+E32,Fantasy Village Environment,Quaternius,A-可实际使用,https://quaternius.com/,duplicate_url; platform_root_url
+E33,Nature Kit GLB Pack,Eclair Assets itch.io,A-可实际使用,https://eclair-assets.itch.io/,platform_root_url
+E34,Stylized Nature MegaKit,Quaternius,A-可实际使用,https://quaternius.com/,duplicate_url; platform_root_url
+E35,Survival Kit,Kenney,A-可实际使用,https://kenney.nl/assets,duplicate_url
+E36,Hidden Alley Community Project,Poly Haven,A-可实际使用,https://polyhaven.com/,duplicate_url; platform_root_url
+E38,Fantasy Props Mega Kit,Quaternius,A-可实际使用,https://quaternius.com/,duplicate_title; duplicate_url; platform_root_url
+E39,Hidden Alley Community Project Alternate,Poly Haven,A-可实际使用,https://polyhaven.com/,duplicate_url; platform_root_url
+E40,Curved Highway Mountain Range,Mixkit,A-可实际使用,https://mixkit.co/free-stock-video/,duplicate_url
+E41,Waterfall in Forest,Mixkit,A-可实际使用,https://mixkit.co/free-stock-video/,duplicate_url
+E42,Countryside Meadow,Mixkit,A-可实际使用,https://mixkit.co/free-stock-video/,duplicate_url
+E43,Scenic Mountain Lake Timelapse,Pexels,A-可实际使用,https://www.pexels.com/videos/,duplicate_url; http_error
+E44,Clouds Moving Above Water Timelapse,Pexels,A-可实际使用,https://www.pexels.com/videos/,duplicate_url; http_error
+E45,Nature Timelapse Video,Pexels,A-可实际使用,https://www.pexels.com/videos/,duplicate_url; http_error
+E46,Draining the Oceans,NASA SVS,A-条件可用,https://svs.gsfc.nasa.gov/,duplicate_url; platform_root_url
+E47,Aerial Night Cityscape Video,Pexels,A-可实际使用,https://www.pexels.com/videos/,duplicate_url; http_error
+E48,Futuristic City Picture,Unsplash,A-可实际使用,https://unsplash.com/,duplicate_url; http_error; platform_root_url
+E49,Urban Aerial Public Domain Lead,Wikimedia Commons,M-待确认,https://commons.wikimedia.org/,duplicate_url; platform_root_url
+E50,Aerial Night City Skyline Video,Pexels,A-可实际使用,https://www.pexels.com/videos/,duplicate_url; http_error
+E51,Modern City at Night,Unsplash,A-可实际使用,https://unsplash.com/,duplicate_url; http_error; platform_root_url
+E52,Aerial Photography City at Night,Pexels,A-可实际使用,https://www.pexels.com/,duplicate_url; http_error; platform_root_url
+E53,Futuristic Buildings Picture,Unsplash,A-可实际使用,https://unsplash.com/,duplicate_url; http_error; platform_root_url
+E54,Animated Fantasy Night Landscape,Envato,L-可采购,https://elements.envato.com/,duplicate_url; platform_root_url
+E55,Fantasy Forest Watermill Animation,Envato,L-可采购,https://elements.envato.com/,duplicate_url; platform_root_url
+E56,Stylized Village Modular Environment,Fab,L-可采购,https://www.fab.com/,duplicate_url; http_error; platform_root_url
+E57,Fantasy Concept Images,Adobe Stock,L-可采购,https://stock.adobe.com/,duplicate_url; http_error; platform_root_url
+E58,Fantasy Town Images,Adobe Stock,L-可采购,https://stock.adobe.com/,duplicate_url; http_error; platform_root_url
+E59,Unreal Marketplace Free Content,Unreal Marketplace,L-可获取,https://www.fab.com/,duplicate_url; http_error; platform_root_url
+E60,Fantasy Watermill Town,Adobe Stock,L-可采购,https://stock.adobe.com/,duplicate_url; http_error; platform_root_url
+E61,Fantasy Adventure Village,Fab,L-可采购,https://www.fab.com/,duplicate_url; http_error; platform_root_url
+M04,Megacity 2050 Future Green City,Rod Hunt / 作品展示,C-灵感参考,https://www.rodhunt.com/,platform_root_url
+M06,A Fantasy Campaign Map Arvyre,2-Minute Tabletop,M-待核验,https://2minutetabletop.com/,platform_root_url
+M07,Map of Delfur Fantasy Worldbuilding,ArtStation,C-灵感参考,https://www.artstation.com/,duplicate_url; http_error; platform_root_url
+OPEN-01,Smithsonian Open Access CC0,Smithsonian,A-可优先探索,https://www.si.edu/openaccess/faq,http_error
+Q04,Fantasy Props MegaKit,Quaternius / 官方单项 pack page,A-可实际使用,https://quaternius.com/packs/fantasypropsmegakit.html,duplicate_title
+Q09,Modular Character Outfits - Fantasy,Quaternius / 官方单项 pack page,A-可实际使用,https://quaternius.com/packs/modularcharacteroutfitsfantasy.html,duplicate_title
+S01,The Open Fields of Lyrimidia,Kevin Catalan / r/worldbuilding,C-灵感参考,https://www.kevincatalan.com/,platform_root_url
+S05,Those Who Mourn 3D environment,作品名来源于搜索结果,C-灵感参考,,missing_url
+S08,CRATER Earth Simulation Hall Activated,ArtStation 搜索结果,C-灵感参考,https://www.artstation.com/,duplicate_url; http_error; platform_root_url
+U01,Simulation Dashboard UI AirlineSim,Phenomenon Studio / Dribbble,C-灵感参考,https://dribbble.com/phenomenon,http_error
+U03,AI Procedural RPG Content Generator,Hex Worldbuilding Tool / 搜索结果,C-灵感参考,,missing_url
+U05,Map UI Design Best Practices,文章示例页,C-灵感参考,,missing_url
+V05,Seamless Looping Countryside Landscape,Vecteezy,M-待核验,https://www.vecteezy.com/,platform_root_url
+V07,Procedural Generation,Autodesk,C-灵感参考,https://www.autodesk.com/,platform_root_url
+X01,Open Access Put a Bird On It,Smithsonian Institution Archives,M-待核验,https://siarchives.si.edu/,http_error; platform_root_url
+X03,Cabinet of Curiosities,The Public Domain Review,C-灵感参考,https://publicdomainreview.org/,duplicate_url; platform_root_url
+X07,Shells and Marine Life from Seba Cabinet,The Public Domain Review,C-灵感参考,https://publicdomainreview.org/,duplicate_url; platform_root_url

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <rect width="640" height="640" rx="128" fill="#14b8a6"/>
+  <circle cx="320" cy="254" r="138" fill="#f8fafc"/>
+  <path d="M112 608c22-136 96-204 208-204s186 68 208 204" fill="#f8fafc"/>
+  <text x="320" y="288" text-anchor="middle" font-family="Arial, sans-serif" font-size="84" font-weight="700" fill="#0f766e">T17B</text>
+</svg>

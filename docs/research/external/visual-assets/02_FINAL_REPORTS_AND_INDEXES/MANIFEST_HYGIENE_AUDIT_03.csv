@@ -1,0 +1,104 @@
+id,severity,issue,detail,suggested_action
+S01,medium,platform_root_url,仅记录平台或站点主页：https://www.kevincatalan.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+S05,high,missing_url,来源链接为空,补充具体对象页；无法补充则降级为 M 或 C。
+S08,medium,platform_root_url,仅记录平台或站点主页：https://www.artstation.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+M04,medium,platform_root_url,仅记录平台或站点主页：https://www.rodhunt.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+M06,medium,platform_root_url,仅记录平台或站点主页：https://2minutetabletop.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+M07,medium,platform_root_url,仅记录平台或站点主页：https://www.artstation.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+C02,medium,platform_root_url,仅记录平台或站点主页：https://www.vertexschool.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+A07,medium,platform_root_url,仅记录平台或站点主页：https://webbtelescope.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+U03,high,missing_url,来源链接为空,补充具体对象页；无法补充则降级为 M 或 C。
+U05,high,missing_url,来源链接为空,补充具体对象页；无法补充则降级为 M 或 C。
+V05,medium,platform_root_url,仅记录平台或站点主页：https://www.vecteezy.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+V07,medium,platform_root_url,仅记录平台或站点主页：https://www.autodesk.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+X01,medium,platform_root_url,仅记录平台或站点主页：https://siarchives.si.edu/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+X03,medium,platform_root_url,仅记录平台或站点主页：https://publicdomainreview.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+X07,medium,platform_root_url,仅记录平台或站点主页：https://publicdomainreview.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E01,medium,platform_root_url,仅记录平台或站点主页：https://www.pexels.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E02,medium,platform_root_url,仅记录平台或站点主页：https://www.pexels.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E03,medium,platform_root_url,仅记录平台或站点主页：https://www.pexels.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E04,medium,platform_root_url,仅记录平台或站点主页：https://unsplash.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E05,medium,platform_root_url,仅记录平台或站点主页：https://unsplash.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E06,medium,platform_root_url,仅记录平台或站点主页：https://unsplash.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E07,medium,platform_root_url,仅记录平台或站点主页：https://commons.wikimedia.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E08,medium,platform_root_url,仅记录平台或站点主页：https://commons.wikimedia.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E09,medium,platform_root_url,仅记录平台或站点主页：https://svs.gsfc.nasa.gov/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E11,medium,platform_root_url,仅记录平台或站点主页：https://svs.gsfc.nasa.gov/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E12,medium,platform_root_url,仅记录平台或站点主页：https://svs.gsfc.nasa.gov/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E13,medium,platform_root_url,仅记录平台或站点主页：https://svs.gsfc.nasa.gov/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E14,medium,platform_root_url,仅记录平台或站点主页：https://svs.gsfc.nasa.gov/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E15,medium,platform_root_url,仅记录平台或站点主页：https://svs.gsfc.nasa.gov/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E16,medium,platform_root_url,仅记录平台或站点主页：https://publicdomainreview.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E22,medium,platform_root_url,仅记录平台或站点主页：https://naturalhistory.si.edu/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E23,medium,platform_root_url,仅记录平台或站点主页：https://digitalcollections.nypl.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E26,medium,platform_root_url,仅记录平台或站点主页：https://opengameart.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E30,medium,platform_root_url,仅记录平台或站点主页：https://opengameart.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E31,medium,platform_root_url,仅记录平台或站点主页：https://quaternius.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E32,medium,platform_root_url,仅记录平台或站点主页：https://quaternius.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E48,medium,platform_root_url,仅记录平台或站点主页：https://unsplash.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E49,medium,platform_root_url,仅记录平台或站点主页：https://commons.wikimedia.org/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E51,medium,platform_root_url,仅记录平台或站点主页：https://unsplash.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E52,medium,platform_root_url,仅记录平台或站点主页：https://www.pexels.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E53,medium,platform_root_url,仅记录平台或站点主页：https://unsplash.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E54,medium,platform_root_url,仅记录平台或站点主页：https://elements.envato.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E55,medium,platform_root_url,仅记录平台或站点主页：https://elements.envato.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E56,medium,platform_root_url,仅记录平台或站点主页：https://www.fab.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E57,medium,platform_root_url,仅记录平台或站点主页：https://stock.adobe.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E58,medium,platform_root_url,仅记录平台或站点主页：https://stock.adobe.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E59,medium,platform_root_url,仅记录平台或站点主页：https://www.fab.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E60,medium,platform_root_url,仅记录平台或站点主页：https://stock.adobe.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+E61,medium,platform_root_url,仅记录平台或站点主页：https://www.fab.com/,优先补充单件资源／对象页；A 类在未补齐前改为 M。
+"S08, M07",low,duplicate_url,2 条记录共享 URL：https://www.artstation.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"X03, X07, E16",low,duplicate_url,3 条记录共享 URL：https://publicdomainreview.org,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E01, E02, E03, E52",low,duplicate_url,4 条记录共享 URL：https://www.pexels.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E04, E05, E06, E48, E51, E53",low,duplicate_url,6 条记录共享 URL：https://unsplash.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E07, E08, E49",low,duplicate_url,3 条记录共享 URL：https://commons.wikimedia.org,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E09, E11, E12, E13, E14, E15",low,duplicate_url,6 条记录共享 URL：https://svs.gsfc.nasa.gov,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E18, E19",low,duplicate_url,2 条记录共享 URL：https://www.loc.gov/free-to-use/maps-of-cities,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E20, E21",low,duplicate_url,2 条记录共享 URL：https://publicdomainreview.org/collections/maps,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E25, E29, E35",low,duplicate_url,3 条记录共享 URL：https://kenney.nl/assets,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E26, E30",low,duplicate_url,2 条记录共享 URL：https://opengameart.org,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E28, Q09",low,duplicate_url,2 条记录共享 URL：https://quaternius.com/packs/modularcharacteroutfitsfantasy.html,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E31, E32",low,duplicate_url,2 条记录共享 URL：https://quaternius.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E36, E39",low,duplicate_url,2 条记录共享 URL：https://blog.polyhaven.com/hidden-alley,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E38, Q04",low,duplicate_url,2 条记录共享 URL：https://quaternius.com/packs/fantasypropsmegakit.html,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E40, E41, E42",low,duplicate_url,3 条记录共享 URL：https://mixkit.co/free-stock-video,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E43, E44, E45, E47, E50",low,duplicate_url,5 条记录共享 URL：https://www.pexels.com/videos,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E54, E55",low,duplicate_url,2 条记录共享 URL：https://elements.envato.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E56, E59, E61",low,duplicate_url,3 条记录共享 URL：https://www.fab.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E57, E58, E60",low,duplicate_url,3 条记录共享 URL：https://stock.adobe.com,可保留为同一平台不同资产的临时来源，但应逐条改为单件 URL。
+"E25, KX01",medium,duplicate_title,2 条记录标题归一化后相同：Animated Characters Protagonists,核验是否为同一资源的重复记录；同一资源仅保留最佳单件来源。
+"E28, Q09",medium,duplicate_title,2 条记录标题归一化后相同：Modular Character Outfits Fantasy,核验是否为同一资源的重复记录；同一资源仅保留最佳单件来源。
+"E38, Q04",medium,duplicate_title,2 条记录标题归一化后相同：Fantasy Props Mega Kit,核验是否为同一资源的重复记录；同一资源仅保留最佳单件来源。
+"K15, QX17",medium,duplicate_title,2 条记录标题归一化后相同：Pirate Kit,核验是否为同一资源的重复记录；同一资源仅保留最佳单件来源。
+S08,high,http_error,URL 返回 HTTP 403：https://www.artstation.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+M07,high,http_error,URL 返回 HTTP 403：https://www.artstation.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+A06,high,http_error,URL 返回 HTTP 401：https://unsplash.com/plus,寻找可用的单件页；若无有效来源，降级 M 或 C。
+U01,high,http_error,URL 返回 HTTP 404：https://dribbble.com/phenomenon,寻找可用的单件页；若无有效来源，降级 M 或 C。
+X01,high,http_error,URL 返回 HTTP 403：https://siarchives.si.edu/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+OPEN-01,high,http_error,URL 返回 HTTP 403：https://www.si.edu/openaccess/faq,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E01,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E02,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E03,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E04,high,http_error,URL 返回 HTTP 401：https://unsplash.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E05,high,http_error,URL 返回 HTTP 401：https://unsplash.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E06,high,http_error,URL 返回 HTTP 401：https://unsplash.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E17,high,http_error,URL 返回 HTTP 403：https://americanhistory.si.edu/collections/object/nmah_1692385,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E20,high,http_error,URL 返回 HTTP 404：https://publicdomainreview.org/collections/maps/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E21,high,http_error,URL 返回 HTTP 404：https://publicdomainreview.org/collections/maps/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E22,high,http_error,URL 返回 HTTP 403：https://naturalhistory.si.edu/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E43,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/videos/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E44,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/videos/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E45,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/videos/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E47,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/videos/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E48,high,http_error,URL 返回 HTTP 401：https://unsplash.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E50,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/videos/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E51,high,http_error,URL 返回 HTTP 401：https://unsplash.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E52,high,http_error,URL 返回 HTTP 403：https://www.pexels.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E53,high,http_error,URL 返回 HTTP 401：https://unsplash.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E56,high,http_error,URL 返回 HTTP 403：https://www.fab.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E57,high,http_error,URL 返回 HTTP 403：https://stock.adobe.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E58,high,http_error,URL 返回 HTTP 403：https://stock.adobe.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E59,high,http_error,URL 返回 HTTP 403：https://www.fab.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E60,high,http_error,URL 返回 HTTP 403：https://stock.adobe.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。
+E61,high,http_error,URL 返回 HTTP 403：https://www.fab.com/,寻找可用的单件页；若无有效来源，降级 M 或 C。

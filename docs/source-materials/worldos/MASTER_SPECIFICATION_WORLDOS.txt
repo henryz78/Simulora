@@ -1,0 +1,2654 @@
+# MASTER TASK — WorldOS 全站产品级黑盒逆向调查
+
+目标网站：
+
+https://worldos.cc
+
+---
+
+# 0. 最终目标
+
+我要开发一个属于我们自己的、全新品牌的 AI 世界模拟平台。
+
+WorldOS 是核心参考产品。
+
+我的目标不是：
+
+* 做一个外观类似的网站
+* 模仿几个页面
+* 做一个简单 AI Chat
+* 做一个只有 World + Character 的简化版本
+* 根据首页介绍猜测它的功能
+* 做一个所谓 MVP 后就停止
+
+我的目标是：
+
+> **完整理解 WorldOS 当前整个产品是如何工作的，并把它所有公开可使用的产品能力、用户流程、玩法、系统、编辑器、内容组织方式和交互机制整理成一套足够详细、可以重新实现的产品规格。**
+
+之后，我们将在这个研究结果基础上设计一个：
+
+> **拥有我们自己的品牌、视觉、代码和内容，但在产品能力和使用体验上与 WorldOS 达到完整功能对等的新平台。**
+
+---
+
+# 1. 最终验收标准
+
+这次研究是否成功，不看文档写得多不多。
+
+唯一真正的标准是：
+
+> 如果未来同时打开 WorldOS 和我们的产品，对两边执行相同的用户任务，我们是否已经掌握足够的信息，让自己的产品能够提供基本相同的功能、流程、交互能力和模拟体验？
+
+例如：
+
+WorldOS 可以：
+
+创建某种东西
+→ 我们也应该知道如何设计对应能力。
+
+WorldOS 可以：
+
+修改某项东西
+→ 我们也应该存在对应流程。
+
+WorldOS 点击某按钮会出现某种状态变化
+→ 我们必须知道这个状态变化。
+
+WorldOS 一个 Simulation 运行 20 个 Turn 后发生某种行为
+→ 我们必须研究并记录。
+
+WorldOS 某个 App 与其他 App 联动
+→ 我们必须调查这种联动。
+
+WorldOS 某种对象可以：
+
+创建
+浏览
+搜索
+安装
+编辑
+复制
+Remix
+运行
+保存
+分享
+发布
+删除
+恢复
+
+那么这些生命周期行为都必须调查。
+
+最终目标是：
+
+## Functional Parity
+
+功能对应。
+
+## Workflow Parity
+
+完成同一任务所需的流程对应。
+
+## Behavioral Parity
+
+执行同一操作以后产生的系统行为对应。
+
+## Simulation Parity
+
+世界运行、角色反应、状态变化、App 联动等核心体验对应。
+
+## Creator Parity
+
+World / Character / App / Map 等创作者能力对应。
+
+## Persistence Parity
+
+保存、恢复、历史、版本、Rewind 等行为对应。
+
+## Platform Parity
+
+探索、搜索、社区、个人内容、发布、商业化等外围平台能力对应。
+
+---
+
+# 2. 一个极其重要的原则
+
+## 不要只调查我在这个 Prompt 中提到的功能。
+
+下面出现的所有功能名称都只是：
+
+> 最低调查范围。
+
+你必须主动寻找：
+
+> **还有什么我不知道的功能？**
+
+每进入一个页面都问：
+
+* 还有没有菜单？
+* 还有没有二级菜单？
+* 有没有右键或更多菜单？
+* 有没有隐藏设置？
+* 有没有 hover 才出现的操作？
+* 有没有创建入口？
+* 有没有编辑入口？
+* 有没有删除入口？
+* 有没有分享入口？
+* 有没有复制入口？
+* 有没有 Remix？
+* 有没有 Import / Export？
+* 有没有历史？
+* 有没有版本？
+* 有没有权限？
+* 有没有高级设置？
+* 有没有移动端行为？
+* 有没有只在 Simulation 中出现的功能？
+* 有没有只在 Creator 中出现的功能？
+* 有没有只有某种 World 才出现的功能？
+* 有没有只有安装某个 App 后才出现的功能？
+* 有没有登录后才出现的功能？
+* 有没有付费用户才显示的功能？
+* 有没有空状态下和有数据状态下不同的功能？
+* 有没有错误状态？
+* 有没有第一次使用时的 onboarding？
+* 有没有弹窗？
+* 有没有 Context Menu？
+* 有没有 Keyboard Shortcut？
+* 有没有拖拽？
+* 有没有排序？
+* 有没有筛选？
+* 有没有推荐？
+* 有没有通知？
+* 有没有分享与邀请？
+* 有没有删除后的恢复？
+
+不要因为我没有写出来就忽略。
+
+---
+
+# 3. 调查规则
+
+本阶段：
+
+# 禁止开始实现产品。
+
+不要创建：
+
+* React 页面
+* Next.js 页面
+* 数据库
+* API
+* Simulation Engine
+* UI Clone
+* Backend
+* Prototype
+
+现在唯一任务：
+
+> 调查。
+
+在研究没有完成以前，不允许进入开发。
+
+---
+
+# 4. 调查方式
+
+使用浏览器真实操作 WorldOS。
+
+不要只使用：
+
+* 首页文字
+* Google 搜索结果
+* SEO 页面
+* FAQ
+* 网站介绍
+
+这些只能作为辅助资料。
+
+真正的重要信息来自：
+
+> 实际操作。
+
+需要：
+
+* 打开页面
+* 点击按钮
+* 展开菜单
+* 创建测试内容
+* 开始 Simulation
+* 连续运行 Turn
+* 修改配置
+* 保存
+* 返回
+* 重新进入
+* Remix
+* 安装 App
+* 切换 App
+* 测试 Character
+* 测试 Map
+* 测试 Creator
+* 测试各种状态
+
+如果正常操作需要登录，可以使用已经合法登录的测试账户。
+
+不得：
+
+* 绕过身份验证
+* 绕过权限
+* 利用漏洞
+* 获取其他用户私人数据
+* 获取服务器源代码
+* 窃取密钥
+* 复制其非公开代码
+
+这是：
+
+> 产品行为黑盒研究。
+
+而不是服务器攻击或源码复制。
+
+---
+
+# 5. 建立完整 Site Map
+
+从首页开始遍历整个产品。
+
+记录所有：
+
+* 顶级页面
+* 二级页面
+* 三级页面
+* 动态页面
+* Detail Page
+* Editor Page
+* Settings Page
+* Simulation Page
+* Modal
+* Drawer
+* Dropdown
+* Context Menu
+* Dialog
+* Empty State
+* Loading State
+* Error State
+
+建立：
+
+`FULL_SITE_MAP.md`
+
+格式至少包含：
+
+```text
+Route / Entry
+├─ Page
+│  ├─ Section
+│  ├─ Section
+│  │  ├─ Action
+│  │  └─ Action
+│  └─ Modal
+└─ Related Route
+```
+
+不要只记录 URL。
+
+还要记录：
+
+> 用户是怎样到这里的。
+
+---
+
+# 6. 建立完整 Feature Inventory
+
+建立：
+
+`MASTER_FEATURE_INVENTORY.md`
+
+这个文件应该成为整个研究最重要的索引。
+
+每发现一个功能都编号。
+
+例如：
+
+```text
+WORLD-001
+WORLD-002
+
+SIM-001
+SIM-002
+
+CHAR-001
+
+APP-001
+
+MAP-001
+
+SOCIAL-001
+
+ACCOUNT-001
+```
+
+每项必须包含：
+
+```text
+Feature ID:
+Feature Name:
+Location:
+Entry Point:
+Purpose:
+Preconditions:
+User Action:
+UI Reaction:
+Backend-visible Result:
+Persistent State Change:
+Related Features:
+Edge Cases:
+Confidence:
+Evidence:
+```
+
+最终要求：
+
+> WorldOS 中任何一个你发现的按钮、菜单、操作或主要系统行为，都应该能够对应到 Feature Inventory 中某一项。
+
+---
+
+# 7. Worlds 系统
+
+完整研究 World。
+
+不仅是 World Detail。
+
+研究 World 的完整生命周期：
+
+```text
+Discover
+→ View
+→ Start
+→ Create
+→ Configure
+→ Save Draft
+→ Preview
+→ Publish
+→ Edit
+→ Update
+→ Version
+→ Remix
+→ Share
+→ Unpublish
+→ Delete
+```
+
+如果其中某一步不存在，明确记录。
+
+研究 World 的所有属性。
+
+不要先假定字段。
+
+通过实际产品反推数据结构。
+
+包括但不限于：
+
+* identity
+* slug
+* title
+* description
+* images
+* tags
+* categories
+* creator
+* visibility
+* rules
+* lore
+* setting
+* scenario
+* timeline
+* characters
+* player
+* apps
+* maps
+* variables
+* stats
+* objectives
+* win conditions
+* lose conditions
+* model settings
+* starting state
+* generation rules
+* content rating
+* version
+* remix ancestry
+
+建立：
+
+`WORLD_SYSTEM.md`
+
+以及：
+
+`WORLD_SCHEMA_INFERRED.md`
+
+---
+
+# 8. World Discovery / Explore
+
+调查完整内容发现机制：
+
+* For You
+* Trending
+* Today
+* Recently Updated
+* Most Turns
+* Featured
+* Categories
+* Tags
+* Collections
+* Creators
+* Search
+* Filters
+* Sorting
+* Recommendations
+
+研究：
+
+World Card 上有什么？
+
+哪些数据影响：
+
+* 排名
+* Trending
+* Recommendations
+* Popularity
+
+如果无法确认算法：
+
+不要猜。
+
+记录：
+
+`UNKNOWN`
+
+并设计实验尝试验证。
+
+---
+
+# 9. World Detail Page
+
+逐元素调查 World Detail。
+
+包括：
+
+* Cover
+* Title
+* Description
+* Creator
+* Follow
+* Stats
+* Rating
+* Categories
+* Tags
+* Zaps / cost
+* Play
+* New Simulation
+* Existing Saves
+* Characters
+* Apps
+* Map
+* Preview
+* Version History
+* Remix
+* Share
+* Report
+* Comments / social signals
+* Related worlds
+
+以及所有其他发现的元素。
+
+每个按钮：
+
+> 都实际点一次。
+
+---
+
+# 10. Remix 系统
+
+这是重点。
+
+完整测试：
+
+```text
+Original World
+↓
+Remix
+↓
+New Draft
+↓
+Modify
+↓
+Publish
+↓
+Remixed World
+```
+
+确定：
+
+Remix 到底复制什么？
+
+例如：
+
+* World setting
+* Character
+* Character configuration
+* Apps
+* App settings
+* Map
+* Rules
+* Prompt
+* Stats
+* Assets
+* Metadata
+
+什么不会复制？
+
+研究：
+
+* 原作者关系
+* Remix chain
+* attribution
+* version relationships
+* 更新关系
+* 收益关系
+* 删除原 World 后行为
+* 多层 Remix
+
+建立：
+
+`REMIX_SYSTEM.md`
+
+---
+
+# 11. World Creator / Editor
+
+完整走一遍：
+
+> 从空白创建 World 到正式发布。
+
+然后再走一遍：
+
+> AI-assisted 创建 World。
+
+如果存在模板创建，也测试：
+
+> Template → Customize → Publish。
+
+记录每一步：
+
+```text
+Screen
+Fields
+Defaults
+Validation
+Optional / Required
+AI Assistance
+Preview
+Save behavior
+Navigation behavior
+```
+
+重点研究：
+
+World Creator 是：
+
+一步表单？
+
+多步 Wizard？
+
+自由 Editor？
+
+AI Generator？
+
+还是它们组合？
+
+调查全部。
+
+建立：
+
+`WORLD_CREATOR_COMPLETE_FLOW.md`
+
+---
+
+# 12. Templates
+
+专门调查：
+
+是否存在：
+
+* World templates
+* App templates
+* Character templates
+* Map templates
+* Genre templates
+* Starter worlds
+* AI presets
+
+模板：
+
+* 怎样选择
+* 怎样预览
+* 怎样创建
+* 创建后哪些东西还可以修改
+* Template 和 Remix 有什么区别
+
+建立：
+
+`TEMPLATE_SYSTEM.md`
+
+---
+
+# 13. Character Library
+
+完整研究 Character 系统。
+
+至少区分：
+
+```text
+Global Character
+World Character
+NPC
+Player Character
+Custom Character
+Imported Character
+```
+
+如果 WorldOS 实际分类不同，以真实行为为准。
+
+调查：
+
+* Browse
+* Search
+* Filter
+* Create
+* AI Generate
+* Edit
+* Duplicate
+* Add to World
+* Remove from World
+* Publish
+* Private / Public
+* Remix
+* Delete
+
+---
+
+# 14. Character Data Model
+
+通过 Editor 和 Simulation 行为反推 Character Schema。
+
+可能包括：
+
+```text
+identity
+name
+avatar
+appearance
+personality
+background
+speech style
+relationships
+memories
+goals
+secrets
+knowledge
+stats
+location
+inventory
+current state
+```
+
+但不要直接假定这些一定存在。
+
+实际验证。
+
+特别研究：
+
+## Character Definition
+
+角色原始设定。
+
+与：
+
+## Character Runtime State
+
+某一个 Simulation 中角色当前状态。
+
+两者是否分离。
+
+建立：
+
+`CHARACTER_SYSTEM.md`
+
+---
+
+# 15. Player Character
+
+研究 Simulation 开始前：
+
+玩家能设置什么？
+
+例如：
+
+* Name
+* Identity
+* Role
+* Personality
+* Appearance
+* Background
+* Relationships
+* Starting position
+* Custom instructions
+
+研究：
+
+不同 World 是否提供不同 Character Setup。
+
+这些字段是：
+
+World 作者定义？
+
+平台统一定义？
+
+AI 自动生成？
+
+建立：
+
+`PLAYER_SETUP_SYSTEM.md`
+
+---
+
+# 16. Simulation 系统
+
+这是整个项目最高优先级。
+
+至少挑选：
+
+* 简单世界
+* Character-heavy 世界
+* Social-heavy 世界
+* Map 世界
+* Strategy 世界
+* Inventory / economy 世界
+
+分别建立 Simulation。
+
+不能只测试一个 World。
+
+---
+
+# 17. Simulation 初始化
+
+研究点击：
+
+`New Simulation`
+
+以后完整发生什么。
+
+记录：
+
+```text
+World version selection
+Player setup
+Initial characters
+Initial world state
+Initial time
+Initial map state
+Initial inventory
+Initial relationships
+Initial story
+Initial social content
+Initial apps
+Initial stats
+```
+
+研究：
+
+哪些是预先定义？
+
+哪些是 AI 初始化？
+
+哪些是动态生成？
+
+---
+
+# 18. Simulation Main UI
+
+逐像素级别不要求复制视觉设计。
+
+但必须完整调查：
+
+* 页面区域
+* Navigation
+* Apps
+* Panels
+* Toolbar
+* Input
+* History
+* Settings
+* World information
+* Character access
+* Turn controls
+* Model controls
+* Theme
+* fullscreen
+* mobile adaptation
+* loading
+* streaming
+* generation state
+
+以及其他任何存在的控件。
+
+建立：
+
+`SIMULATION_UI_SPEC.md`
+
+---
+
+# 19. Turn Engine
+
+这是整个研究最重要的问题：
+
+> 用户按下 Send 以后，到下一个稳定状态之间，到底发生了什么？
+
+连续执行大量不同类型动作。
+
+例如：
+
+* 对话
+* 移动
+* 等待
+* 购买
+* 发送消息
+* 对 NPC 做出行动
+* 调查
+* 旅行
+* 改变计划
+* 长时间推进
+
+观察所有 App。
+
+建立：
+
+```text
+User Action
+↓
+Turn Begins
+↓
+???
+↓
+World Changes
+↓
+Character Changes
+↓
+App Updates
+↓
+Persistence
+↓
+Turn Ends
+```
+
+必须尽可能补完整 `???`。
+
+---
+
+# 20. Cross-App State Synchronization
+
+这是最容易漏掉、但最重要的东西之一。
+
+例如：
+
+玩家做了一件事以后：
+
+Story 是否改变？
+
+Time 是否改变？
+
+Character Stats 是否改变？
+
+Chat 是否出现消息？
+
+Instagram 是否出现内容？
+
+Wallet 是否扣钱？
+
+Inventory 是否增加？
+
+Map 是否改变？
+
+Quest 是否推进？
+
+World Stats 是否改变？
+
+必须研究：
+
+> 一个事件如何传播给多个 App。
+
+建立：
+
+`CROSS_APP_EVENT_MATRIX.md`
+
+格式：
+
+| Action/Event | Story | Time | Chat | Stats | Wallet | Social | Map | Inventory | Quest |
+| ------------ | ----- | ---- | ---- | ----- | ------ | ------ | --- | --------- | ----- |
+
+---
+
+# 21. Apps 系统
+
+完整遍历 App Market。
+
+注意：
+
+> 不要只研究热门 App。
+
+需要列出研究时能够发现的全部 App。
+
+对于每一个 App：
+
+记录：
+
+```text
+Name
+Creator
+Category
+Purpose
+Install behavior
+Configuration
+Simulation UI
+Input
+Output
+State
+Turn interaction
+Other App interaction
+Uninstall behavior
+Permissions
+Cost behavior
+```
+
+对于明显属于年龄限制或成人内容的模块，只记录其存在、分类、权限/安全边界和产品层面的接入方式，不进入或复现其中的露骨内容。
+
+建立：
+
+`ALL_APPS_CATALOG.md`
+
+---
+
+# 22. App Runtime Architecture
+
+反推：
+
+App 到底是什么？
+
+它可能同时包含：
+
+```text
+UI
+Schema
+State
+Prompt
+Tools
+Actions
+Events
+Permissions
+Renderer
+```
+
+判断：
+
+安装 App 后 World 增加了什么。
+
+重点回答：
+
+> 一个第三方 App 怎样参与 Simulation？
+
+以及：
+
+> 我们未来能否设计一种 Plugin Architecture，让新增 App 不需要修改 World Engine？
+
+建立：
+
+`APP_RUNTIME_ARCHITECTURE.md`
+
+---
+
+# 23. App Creator
+
+完整研究：
+
+`Create App`
+
+包括：
+
+* AI generation
+* prompt
+* schema
+* UI creation
+* preview
+* test
+* publish
+* version
+* install
+* permissions
+* editing
+* marketplace
+
+如果存在 SDK：
+
+调查开发模型及公开文档。
+
+建立：
+
+`APP_CREATOR_SYSTEM.md`
+
+---
+
+# 24. Map 系统
+
+完整调查 Maps。
+
+包括：
+
+* Map Library
+* Search
+* Categories
+* Create
+* Use
+* Install into World
+* Start World from Map
+* Edit
+* Locations
+* Regions
+* Actions
+* Movement
+* Distance
+* Time
+* Travel
+
+WorldOS 公开页面显示 Map 可以作为创建 World 的起点，也可以加入已有 World，因此两条流程都必须实际调查。
+
+研究 Map 如何参与 World Engine。
+
+特别测试：
+
+移动很远距离时：
+
+* 时间是否变化
+* NPC 是否移动
+* Events 是否受到距离影响
+
+建立：
+
+`MAP_SYSTEM.md`
+
+---
+
+# 25. Story
+
+研究：
+
+Story 与普通 Chat Transcript 有什么区别。
+
+例如：
+
+* Cards
+* chapters
+* summaries
+* narration
+* historical entries
+* generated imagery
+* rewind relation
+
+建立：
+
+`STORY_SYSTEM.md`
+
+---
+
+# 26. Chats
+
+研究：
+
+* DM
+* Group
+* contacts
+* unread
+* history
+* NPC initiated messages
+* player initiated messages
+* async behavior
+* relationship effects
+
+重点：
+
+NPC 是否会主动联系玩家？
+
+为什么？
+
+什么时候？
+
+建立：
+
+`CHAT_SYSTEM.md`
+
+---
+
+# 27. Social Simulation
+
+调查所有 social 类 App 的共同机制。
+
+例如：
+
+* feeds
+* posts
+* replies
+* comments
+* likes
+* trends
+* creators
+* images
+* short posts
+* private messages
+
+重点：
+
+世界事件如何影响社交内容？
+
+NPC 是否知道自己之前发布的内容？
+
+不同 NPC 是否会互相回复？
+
+建立：
+
+`SOCIAL_SIMULATION_SYSTEM.md`
+
+---
+
+# 28. Economy
+
+调查：
+
+* Wallet
+* money
+* transactions
+* market
+* shops
+* purchases
+* salaries
+* prices
+* assets
+
+如果不同 World 行为不同：
+
+记录差异。
+
+建立：
+
+`ECONOMY_SYSTEM.md`
+
+---
+
+# 29. Inventory / Equipment / Objects
+
+研究：
+
+```text
+Acquire
+Use
+Transfer
+Lose
+Equip
+Unequip
+Consume
+Inspect
+```
+
+物品是否有：
+
+* metadata
+* quantity
+* attributes
+* effects
+* ownership
+
+建立：
+
+`ITEM_SYSTEM.md`
+
+---
+
+# 30. Stats
+
+区分：
+
+* World Stats
+* Player Stats
+* Character Stats
+
+研究：
+
+Stat：
+
+* 如何创建
+* 初始值
+* 最小最大值
+* AI 是否可以改变
+* 玩家是否可以改变
+* 是否触发规则
+* 是否影响剧情
+
+建立：
+
+`STAT_SYSTEM.md`
+
+---
+
+# 31. Time Engine
+
+研究 Time App 不是只看 UI。
+
+测试：
+
+* normal turn
+* wait
+* fast forward
+* hours
+* days
+* months
+* years
+
+观察：
+
+时间推进后：
+
+NPC 是否变化？
+
+世界事件是否发生？
+
+Social 是否更新？
+
+经济是否变化？
+
+任务是否变化？
+
+建立：
+
+`TIME_ENGINE.md`
+
+---
+
+# 32. Quest / Objective / Win-Lose
+
+调查：
+
+* objectives
+* quests
+* main quests
+* side quests
+* progression
+* completion
+* failure
+* rewards
+* win
+* lose
+* ending
+
+建立：
+
+`PROGRESSION_SYSTEM.md`
+
+---
+
+# 33. Memory System
+
+这是最高优先级之一。
+
+WorldOS 强调长期世界状态和角色连续性，因此必须设计实验验证长期记忆行为。
+
+测试：
+
+Turn 1：
+
+告诉 NPC 信息 A。
+
+很多 Turn 后：
+
+检查 NPC 是否记得 A。
+
+测试：
+
+* Personal memory
+* shared memory
+* secret
+* relationship
+* past event
+* item ownership
+* location
+* promise
+* conversation
+
+研究：
+
+```text
+Transcript
+Recent Context
+Long-term Memory
+Character Memory
+World State
+Event History
+Summary
+```
+
+之间可能是什么关系。
+
+无法知道内部实现没有关系。
+
+我们需要的是：
+
+> 行为等价模型。
+
+建立：
+
+`MEMORY_BEHAVIOR_SPEC.md`
+
+---
+
+# 34. Persistence
+
+彻底测试：
+
+* refresh page
+* close browser
+* sign out
+* return later
+* switch device if possible
+* resume simulation
+
+判断哪些状态持久化。
+
+建立：
+
+`PERSISTENCE_SYSTEM.md`
+
+---
+
+# 35. Save System
+
+调查：
+
+一个 World：
+
+是否可以拥有多个独立 Simulation？
+
+每个 Simulation 是否拥有独立：
+
+* world state
+* NPC state
+* inventory
+* money
+* story
+* time
+* memory
+
+建立：
+
+`SAVE_MODEL.md`
+
+---
+
+# 36. Rewind / Timeline
+
+彻底测试 Rewind。
+
+例如：
+
+```text
+Turn 1
+Turn 2
+Turn 3
+Turn 4
+Turn 5
+```
+
+Rewind 到 Turn 2。
+
+检查：
+
+* Story
+* Time
+* Character
+* Chat
+* Social
+* Inventory
+* Wallet
+* Map
+* Quest
+* Memory
+
+是否全部恢复。
+
+然后继续产生 Turn。
+
+研究：
+
+原来的 Turn 3–5：
+
+删除？
+
+隐藏？
+
+保留分支？
+
+建立：
+
+`TIMELINE_REWIND_SYSTEM.md`
+
+---
+
+# 37. Version System
+
+调查 World Version History。
+
+研究：
+
+World v1：
+
+创建 Simulation A。
+
+Creator 发布 v2。
+
+那么：
+
+Simulation A：
+
+继续使用 v1？
+
+自动升级 v2？
+
+可以选择？
+
+重新初始化？
+
+同时研究：
+
+Remix 与 Version 的关系。
+
+建立：
+
+`VERSION_SYSTEM.md`
+
+---
+
+# 38. Mine
+
+完整调查个人内容区域。
+
+可能包括：
+
+* Worlds
+* Drafts
+* Simulations
+* Characters
+* Apps
+* Maps
+* Collections
+* Likes
+* Saved
+* Following
+
+以实际网站为准。
+
+记录：
+
+内容生命周期和管理操作。
+
+建立：
+
+`MINE_SYSTEM.md`
+
+---
+
+# 39. Community
+
+完整调查 Community：
+
+* creators
+* rankings
+* activity
+* collections
+* following
+* followers
+* discovery
+* sharing
+* engagement
+
+建立：
+
+`COMMUNITY_SYSTEM.md`
+
+---
+
+# 40. Creator Profile
+
+调查：
+
+* profile
+* worlds
+* characters
+* apps
+* followers
+* following
+* stats
+* bio
+* social
+* creator metrics
+
+建立：
+
+`PROFILE_SYSTEM.md`
+
+---
+
+# 41. Collections
+
+调查：
+
+* Create collection
+* Add world
+* Remove
+* Order
+* Public/private
+* Follow
+* Share
+
+如果存在。
+
+建立：
+
+`COLLECTION_SYSTEM.md`
+
+---
+
+# 42. Search
+
+测试搜索：
+
+* World
+* Character
+* App
+* Map
+* User
+* Collection
+
+研究：
+
+* autocomplete
+* filters
+* ranking
+* typo tolerance
+* tags
+
+建立：
+
+`SEARCH_SYSTEM.md`
+
+---
+
+# 43. Recommendation
+
+观察首页和发现页。
+
+研究：
+
+* personalized
+* trending
+* following
+* recent
+* category
+
+如果无法确定算法：
+
+只记录行为。
+
+不要伪造算法。
+
+---
+
+# 44. Account
+
+完整调查：
+
+* Sign up
+* Login
+* Logout
+* Forgot password
+* Profile
+* Settings
+* Preferences
+* Language
+* Theme
+* Safety
+* Privacy
+* Account deletion
+
+建立：
+
+`ACCOUNT_SYSTEM.md`
+
+---
+
+# 45. Settings
+
+逐项记录所有 Settings。
+
+尤其是：
+
+* World Model
+* OpenRouter / BYOK
+* Enabled models
+* Simulation model selection
+* Theme
+* language
+* privacy
+* content settings
+
+以及调查中发现的其他设置。
+
+---
+
+# 46. AI Model System
+
+调查：
+
+用户是否可以：
+
+* 选择模型
+* 自带 API Key
+* 为不同 Simulation 选择模型
+* 调整模型
+* 切换模型
+
+研究：
+
+切换模型以后 Simulation State 是否保持。
+
+建立：
+
+`MODEL_SYSTEM.md`
+
+---
+
+# 47. Zaps / Credits
+
+完整调查 Zaps。
+
+包括：
+
+```text
+earn
+free allowance
+spend
+turn cost
+different model cost
+different world cost
+subscription
+packs
+creator revenue
+remix revenue
+BYOK
+```
+
+重点研究：
+
+什么操作消耗 Turn / Zap。
+
+例如普通 Turn 之外：
+
+* Advisor
+* Console
+* Browser
+* regeneration
+
+如果存在，都记录。
+
+建立：
+
+`CREDIT_SYSTEM.md`
+
+---
+
+# 48. Creator Economy
+
+调查：
+
+* creator earnings
+* paid usage
+* remix revenue
+* attribution chain
+* referral / sharing
+* payout logic if publicly described
+
+建立：
+
+`CREATOR_ECONOMY.md`
+
+---
+
+# 49. Export / Import
+
+搜索所有：
+
+* Export
+* Transcript Export
+* Import
+* Backup
+* Download
+* Share
+
+测试格式。
+
+建立：
+
+`IMPORT_EXPORT_SYSTEM.md`
+
+---
+
+# 50. Notifications
+
+检查：
+
+* notifications
+* badges
+* unread states
+* creator notifications
+* follow
+* comments
+* updates
+* system notifications
+
+建立：
+
+`NOTIFICATION_SYSTEM.md`
+
+---
+
+# 51. Sharing
+
+检查：
+
+* World share
+* Simulation share
+* Character share
+* App share
+* Map share
+* Creator share
+* social share
+* direct links
+
+建立：
+
+`SHARING_SYSTEM.md`
+
+---
+
+# 52. Privacy / Visibility
+
+调查所有对象是否支持：
+
+```text
+Public
+Unlisted
+Private
+Draft
+```
+
+以及其他等级。
+
+研究：
+
+谁可以：
+
+* view
+* remix
+* simulate
+* edit
+* share
+
+建立：
+
+`PERMISSION_VISIBILITY_SYSTEM.md`
+
+---
+
+# 53. Mobile
+
+使用至少：
+
+Desktop
+
+和：
+
+Mobile viewport
+
+分别检查主要流程。
+
+记录：
+
+* navigation differences
+* Simulation layout
+* App switching
+* Creator
+* responsive behavior
+
+建立：
+
+`RESPONSIVE_BEHAVIOR.md`
+
+---
+
+# 54. Onboarding
+
+使用新用户视角检查：
+
+第一次进入：
+
+会发生什么？
+
+第一次创建：
+
+会发生什么？
+
+第一次 Simulation：
+
+会发生什么？
+
+记录：
+
+* onboarding
+* tooltips
+* tutorials
+* examples
+* defaults
+
+建立：
+
+`ONBOARDING.md`
+
+---
+
+# 55. Empty / Loading / Error States
+
+不能只调查 Happy Path。
+
+主动测试：
+
+* Empty
+* Loading
+* Network failure if naturally encountered
+* AI failure
+* insufficient credits
+* invalid input
+* no search result
+* deleted content
+* inaccessible content
+
+记录恢复机制。
+
+建立：
+
+`SYSTEM_STATES.md`
+
+---
+
+# 56. UX Interaction Inventory
+
+专门建立：
+
+`INTERACTION_INVENTORY.md`
+
+记录所有：
+
+* button
+* menu
+* modal
+* drawer
+* tabs
+* dropdown
+* drag
+* scroll
+* hover
+* pagination
+* infinite scroll
+* keyboard interaction
+* editor
+* toast
+* confirmation
+* loading indicator
+
+我们不需要复制视觉素材。
+
+但是：
+
+> 不能漏掉交互能力。
+
+---
+
+# 57. 状态机
+
+对主要对象分别画 State Machine。
+
+例如：
+
+## World
+
+```text
+Draft
+↓
+Published
+↓
+Updated
+↓
+Unlisted
+↓
+Deleted
+```
+
+## Simulation
+
+```text
+Initializing
+↓
+Running
+↓
+Generating
+↓
+Saved
+↓
+Rewound
+```
+
+按照实际行为修正。
+
+建立：
+
+`STATE_MACHINES.md`
+
+---
+
+# 58. 数据关系图
+
+调查完以后建立：
+
+`DOMAIN_MODEL.md`
+
+至少反映实际观察到的：
+
+```text
+User
+World
+WorldVersion
+Character
+WorldCharacter
+App
+WorldApp
+Map
+Simulation
+Turn
+Event
+State
+Memory
+Snapshot
+Collection
+Creator
+```
+
+不要照抄这个列表。
+
+根据真实研究修改。
+
+输出 Entity Relationship Diagram。
+
+---
+
+# 59. Event Model
+
+根据 Simulation 行为反推事件模型。
+
+例如：
+
+```text
+PlayerAction
+CharacterAction
+Dialogue
+Movement
+Transaction
+ItemChange
+StatChange
+RelationshipChange
+WorldEvent
+SocialEvent
+TimeAdvance
+QuestEvent
+```
+
+根据真实行为补充。
+
+建立：
+
+`EVENT_MODEL.md`
+
+---
+
+# 60. 同一动作对照测试
+
+为后续 Clone 验收创建：
+
+`PARITY_TEST_SUITE.md`
+
+每一个核心功能设计：
+
+```text
+TEST-PARITY-001
+```
+
+内容：
+
+```text
+Precondition
+Steps on WorldOS
+Expected WorldOS behavior
+
+Steps on Our Product
+Expected Our Product behavior
+
+Parity criteria
+```
+
+---
+
+# 61. End-to-End 用户任务
+
+至少建立这些 E2E：
+
+### E2E-01
+
+新用户注册 → 找 World → 开始 Simulation → 玩 10 Turn → 退出 → 恢复。
+
+### E2E-02
+
+创建 World → Character → Apps → Publish → Simulation。
+
+### E2E-03
+
+找到别人 World → Remix → 修改 → Publish。
+
+### E2E-04
+
+Character Library → 添加 Character → World → Simulation。
+
+### E2E-05
+
+App Market → 安装 App → 配置 → Simulation → App 响应。
+
+### E2E-06
+
+Map → 创建/使用 World → Simulation → 地图变化。
+
+### E2E-07
+
+Simulation → 多 Turn → Rewind → 新时间线。
+
+### E2E-08
+
+World 更新 → Version → 已有 Simulation 行为。
+
+再根据调查结果添加更多。
+
+---
+
+# 62. Parity Matrix
+
+建立：
+
+`WORLDOS_PARITY_MATRIX.md`
+
+这是整个项目最终最重要的文件之一。
+
+格式：
+
+| ID | WorldOS Feature | Location | Behavior | Required In Ours | Research Complete | Implementation | Parity Test |
+| -- | --------------- | -------- | -------- | ---------------- | ----------------- | -------------- | ----------- |
+
+研究阶段：
+
+`Implementation`
+
+保持：
+
+`NOT STARTED`
+
+---
+
+# 63. Coverage Matrix
+
+建立：
+
+`RESEARCH_COVERAGE.md`
+
+分类：
+
+```text
+Worlds
+Characters
+Simulation
+Apps
+Maps
+Creator
+Community
+Search
+Mine
+Account
+Settings
+Credits
+Models
+Mobile
+...
+```
+
+每项状态只能是：
+
+```text
+NOT STARTED
+PARTIAL
+TESTED
+VERIFIED
+BLOCKED
+```
+
+禁止因为：
+
+“看起来差不多”
+
+就标记 VERIFIED。
+
+---
+
+# 64. Unknowns
+
+任何无法确定的东西统一放：
+
+`OPEN_QUESTIONS.md`
+
+格式：
+
+```text
+Question:
+Why it matters:
+What we observed:
+What remains unknown:
+Experiment required:
+Current confidence:
+```
+
+不要自行脑补 WorldOS 后端实现。
+
+---
+
+# 65. Evidence
+
+每一个重要判断必须尽可能附：
+
+* URL
+* 页面
+* 操作步骤
+* screenshot reference
+* before state
+* after state
+
+建立：
+
+`EVIDENCE_INDEX.md`
+
+目的：
+
+几周以后开发时仍然可以知道：
+
+> 当时为什么认为 WorldOS 是这样工作的。
+
+---
+
+# 66. 不要复制品牌和专有素材
+
+我们的最终产品必须拥有自己的：
+
+* Name
+* Logo
+* Brand
+* Icons where appropriate
+* Copywriting
+* Design language
+* Assets
+* Codebase
+
+不要复制 WorldOS：
+
+* Logo
+* 商标
+* 原创图片
+* 大段文字
+* 私有代码
+* 私有数据
+
+我们复制的是：
+
+> 产品能力和产品思路。
+
+不是他们的知识产权素材。
+
+---
+
+# 67. 从 WorldOS 思路推导我们的系统
+
+研究完成以后，再建立：
+
+`OUR_PRODUCT_BLUEPRINT.md`
+
+对于每一个 WorldOS 功能：
+
+分析：
+
+```text
+What WorldOS does
+Why it exists
+Underlying product concept
+What users gain from it
+How our own product should implement the same capability
+How we can improve it
+```
+
+这里才开始从：
+
+> 调查
+
+转向：
+
+> 产品设计。
+
+---
+
+# 68. 不要做缩水版本
+
+如果发现功能：
+
+不要因为：
+
+* 实现困难
+* AI Agent 认为“不重要”
+* 可以以后再做
+* 技术栈不好实现
+
+就在研究报告里删掉。
+
+研究阶段的原则是：
+
+> 先完整知道 WorldOS 有什么。
+
+以后才决定开发顺序。
+
+---
+
+# 69. Investigation Loop
+
+第一次调查完成后：
+
+不要直接宣布完成。
+
+执行第二轮：
+
+# Missing Feature Audit
+
+重新从首页开始。
+
+逐页问：
+
+> 第一次调查有没有漏东西？
+
+然后执行第三轮：
+
+# Cross-System Audit
+
+重点检查：
+
+```text
+World ↔ Character
+World ↔ App
+World ↔ Map
+World ↔ Remix
+World ↔ Version
+
+Simulation ↔ Apps
+Simulation ↔ Memory
+Simulation ↔ Time
+Simulation ↔ Rewind
+
+Creator ↔ Publish
+Creator ↔ Community
+Creator ↔ Economy
+```
+
+寻找第一次按页面调查时容易漏掉的跨系统行为。
+
+---
+
+# 70. Final Completeness Audit
+
+最后执行一次：
+
+## Functional Completeness Audit
+
+假设你现在必须删除 WorldOS，然后只依靠自己的研究文档重新开发。
+
+问自己：
+
+> 我是否知道用户能做什么？
+
+> 我是否知道每个入口在哪里？
+
+> 我是否知道点击以后发生什么？
+
+> 我是否知道对象之间如何关联？
+
+> 我是否知道 Simulation 怎样运行？
+
+> 我是否知道状态如何保存？
+
+> 我是否知道不同 Apps 怎样联动？
+
+> 我是否知道 World 怎样创建？
+
+> 我是否知道 Character 怎样创建？
+
+> 我是否知道 App 怎样创建？
+
+> 我是否知道 Map 怎样工作？
+
+> 我是否知道 Remix 怎样工作？
+
+> 我是否知道 Version 怎样工作？
+
+> 我是否知道 Rewind 怎样工作？
+
+> 我是否知道平台外围系统怎样工作？
+
+任何答案如果是：
+
+“No”
+
+就继续调查。
+
+---
+
+# 71. 最终目录
+
+研究完成后至少应该存在：
+
+```text
+docs/worldos-research/
+
+00_RESEARCH_INDEX.md
+01_MASTER_FEATURE_INVENTORY.md
+02_FULL_SITE_MAP.md
+03_RESEARCH_COVERAGE.md
+04_WORLDOS_PARITY_MATRIX.md
+05_PARITY_TEST_SUITE.md
+06_OPEN_QUESTIONS.md
+07_EVIDENCE_INDEX.md
+
+worlds/
+WORLD_SYSTEM.md
+WORLD_SCHEMA_INFERRED.md
+WORLD_CREATOR_COMPLETE_FLOW.md
+TEMPLATE_SYSTEM.md
+REMIX_SYSTEM.md
+VERSION_SYSTEM.md
+
+characters/
+CHARACTER_SYSTEM.md
+PLAYER_SETUP_SYSTEM.md
+
+simulation/
+SIMULATION_ARCHITECTURE.md
+SIMULATION_UI_SPEC.md
+TURN_ENGINE.md
+EVENT_MODEL.md
+CROSS_APP_EVENT_MATRIX.md
+MEMORY_BEHAVIOR_SPEC.md
+TIME_ENGINE.md
+PERSISTENCE_SYSTEM.md
+SAVE_MODEL.md
+TIMELINE_REWIND_SYSTEM.md
+
+apps/
+ALL_APPS_CATALOG.md
+APP_RUNTIME_ARCHITECTURE.md
+APP_CREATOR_SYSTEM.md
+STORY_SYSTEM.md
+CHAT_SYSTEM.md
+SOCIAL_SIMULATION_SYSTEM.md
+ECONOMY_SYSTEM.md
+ITEM_SYSTEM.md
+STAT_SYSTEM.md
+PROGRESSION_SYSTEM.md
+
+maps/
+MAP_SYSTEM.md
+
+platform/
+EXPLORE_SYSTEM.md
+SEARCH_SYSTEM.md
+RECOMMENDATION_SYSTEM.md
+MINE_SYSTEM.md
+COMMUNITY_SYSTEM.md
+PROFILE_SYSTEM.md
+COLLECTION_SYSTEM.md
+ACCOUNT_SYSTEM.md
+MODEL_SYSTEM.md
+CREDIT_SYSTEM.md
+CREATOR_ECONOMY.md
+NOTIFICATION_SYSTEM.md
+SHARING_SYSTEM.md
+PERMISSION_VISIBILITY_SYSTEM.md
+IMPORT_EXPORT_SYSTEM.md
+
+ux/
+INTERACTION_INVENTORY.md
+STATE_MACHINES.md
+SYSTEM_STATES.md
+ONBOARDING.md
+RESPONSIVE_BEHAVIOR.md
+
+architecture/
+DOMAIN_MODEL.md
+OUR_PRODUCT_BLUEPRINT.md
+```
+
+如果调查发现新的大型系统：
+
+> 自己增加文件。
+
+不要受到这个目录限制。
+
+---
+
+# 72. 最终报告
+
+所有调查完成以后建立：
+
+`FINAL_WORLDOS_RESEARCH_REPORT.md`
+
+报告开头必须回答：
+
+## 1. WorldOS 到底是什么？
+
+不能使用营销语言。
+
+从产品架构解释。
+
+## 2. 它最核心的机制是什么？
+
+## 3. 一个 World 到底包含什么？
+
+## 4. 一个 Simulation 到底包含什么？
+
+## 5. 一个 Turn 完整发生什么？
+
+## 6. Character 如何持续存在？
+
+## 7. App 如何参与世界？
+
+## 8. World State 如何保持一致？
+
+## 9. Memory 如何表现？
+
+## 10. Remix 是怎么工作的？
+
+## 11. Creator 如何工作？
+
+## 12. Map 如何工作？
+
+## 13. Community 如何工作？
+
+## 14. 它完整有哪些系统？
+
+## 15. 哪些内容已经 VERIFIED？
+
+## 16. 哪些仍然 UNKNOWN？
+
+## 17. 如果今天开始重新实现，需要哪些系统？
+
+## 18. 我们怎样做到完整 Feature Parity？
+
+---
+
+# 73. 最后的真正验收标准
+
+研究完成时做最终判断：
+
+假设有两个浏览器窗口。
+
+左边：
+
+WorldOS
+
+右边：
+
+我们的未来产品。
+
+给同一个测试用户一组任务：
+
+```text
+寻找一个世界
+查看世界
+选择人物
+开始新的 Simulation
+输入行动
+和人物聊天
+查看剧情
+推进时间
+查看属性
+使用世界中的 Apps
+使用地图
+保存退出
+恢复游戏
+回退时间线
+
+创建人物
+创建世界
+安装 Apps
+加入地图
+编辑规则
+发布世界
+
+找到别人的世界
+Remix
+修改
+再次发布
+
+管理自己的 Worlds
+Characters
+Apps
+Maps
+Simulations
+
+浏览社区
+搜索内容
+查看 Creator
+分享内容
+管理账户和模型
+```
+
+如果 WorldOS 能完成，而我们的产品规格里根本没有对应能力：
+
+# 研究不完整。
+
+如果两边完成同一个任务的核心体验完全不同：
+
+# Parity 不达标。
+
+如果我们只能模拟页面，但无法模拟 WorldOS 的世界状态、人物连续性、Turn、Apps 联动：
+
+# 项目失败。
+
+我们的最终目标是：
+
+> **一个熟悉 WorldOS 的用户进入我们的产品以后，即使品牌和视觉完全不同，也应该很快发现：他以前能做的事情，这里基本都能做；以前知道怎样玩的，这里也知道怎样玩。**
+
+这就是最终的：
+
+# PRODUCT EXPERIENCE PARITY
+
+---
+
+# 74. STOP CONDITION
+
+只有同时满足以下条件才能停止研究：
+
+* Site Map 完成
+* Feature Inventory 完成
+* World 完成
+* Character 完成
+* Simulation 完成
+* Turn Engine 完成
+* App 系统完成
+* App Market 完成
+* Creator 完成
+* Map 完成
+* Remix 完成
+* Version 完成
+* Save 完成
+* Rewind 完成
+* Memory 行为完成
+* Community 完成
+* Mine 完成
+* Search 完成
+* Account 完成
+* Credits / Models 完成
+* Mobile 完成
+* 所有主要跨系统关系完成
+* Missing Feature Audit 完成
+* Cross-System Audit 完成
+* Parity Test Suite 完成
+* 所有无法确认的问题已经进入 OPEN_QUESTIONS
+
+然后：
+
+# STOP.
+
+不要开始编码。
+
+向我报告研究结果并等待下一阶段指令。

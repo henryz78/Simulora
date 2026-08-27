@@ -1,0 +1,177 @@
+# AGENTS.md
+
+本文件适用于整个仓库。它是未来 Codex / Coding Agent 的长期项目导航与操作规则，不是 WorldOS 功能规格，也不替代后续原创产品需求。
+
+仓库文档总导航见 `docs/README.md`；主研究会话最终交接见 `docs/coordination/FINAL_MAIN_AGENT_HANDOFF.md`；历史迁移与路径例外见 `docs/REORGANIZATION_MANIFEST.md`。
+
+## Repository Layout
+
+- `docs/research/worldos/` — 已冻结的主 WorldOS 黑盒研究与系统级证据。
+- `docs/research/external/` — Manus、Marvis、Anonymous 等外部 Agent 原始资料与证据包。
+- `docs/product/` — 已冻结的原创 Product Definition V1（Principles、Positioning、JTBD、MVP、PRD 与交接）。
+- `docs/system-design/` — 已冻结的原创 System Design V1、领域/状态模型、API/安全/运行契约、ADR、验证策略与架构交接。
+- `docs/deliverables/` — 面向后续产品设计与开发的封版交付物。
+- `docs/coordination/` — 保留给未来仍在进行的外部 Agent 协作；当前已完成的委派与交接已归档。
+- `docs/source-materials/` — Master Specification 等任务原始材料。
+- `docs/archive/` — 被新版本取代但仍需保留的历史材料，包括已完成协作、过时构建工具、复现实用脚本和历史证据变体；默认不要把它当作最新结论。
+- `outputs/`、`work/` — 保留给后续阶段使用，目前不属于研究 Source of Truth。
+
+## Research Status
+
+- WorldOS product-level black-box research: `STOP`。
+- Original Product Definition V1: `FROZEN`。
+- Original System Design V1: `FROZEN`; Architecture Audit: `PASSED`。
+- Original product implementation: `NOT STARTED`。
+- 研究封版基线：70 个 Feature ID、64 个 Parity Test、47 个 Open Question、251 条主证据（截至 `EVD-0251`）、30 个页面/嵌套控件面、37 条跨系统关系。
+- `UNKNOWN`、`BLOCKED`、`NOT_DISCOVERABLE_IN_NORMAL_UI` 和已确认 defect/quirk 仍然存在；它们已被明确归档，不阻塞研究封版。
+- 不要自行恢复全站黑盒调查。只有当某个未决问题真正影响已批准的原创设计时，才进行范围明确的 targeted validation。
+- 研究阶段结束不等于批准开发。开始产品代码前必须先有用户批准的原创产品 requirements / architecture。
+
+## Source of Truth
+
+先从以下文件进入，不要依赖对旧会话的记忆：
+
+1. `docs/deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md` — 产品架构级结论与 18 个最终问题。
+2. `docs/research/worldos/04_WORLDOS_PARITY_MATRIX.md` — Feature ID、WorldOS 行为、重要性、研究状态与对应测试。
+3. `docs/research/worldos/05_PARITY_TEST_SUITE.md` — 可复现的用户任务、前置状态、步骤、预期结果与证据。
+4. `docs/research/worldos/06_OPEN_QUESTIONS.md` — 所有保留的 UNKNOWN/BLOCKED、原因和可验证实验。
+5. `docs/research/worldos/07_EVIDENCE_INDEX.md` — `EVD-*` 操作路径、前后状态、结果和 confidence。
+6. `docs/research/worldos/01_MASTER_FEATURE_INVENTORY.md` — 70 个研究功能的完整索引。
+7. `docs/research/worldos/02_FULL_SITE_MAP.md` — 路由、入口、页面层级和主要嵌套表面。
+8. `docs/research/worldos/08_MISSING_FEATURE_AUDIT.md` — 最终缺口分类和停止依据。
+9. `docs/research/worldos/09_CROSS_SYSTEM_AUDIT.md` — 37 条跨系统关系及残余边界。
+10. `docs/research/worldos/10_FINAL_COMPLETENESS_AUDIT.md` — Master Specification STOP-condition 验收。
+
+实现具体机制时继续查阅对应子目录：
+
+- `docs/research/worldos/worlds/`
+- `docs/research/worldos/characters/`
+- `docs/research/worldos/simulation/`
+- `docs/research/worldos/apps/`
+- `docs/research/worldos/maps/`
+- `docs/research/worldos/platform/`
+- `docs/research/worldos/ux/`
+- `docs/research/worldos/architecture/DOMAIN_MODEL.md`
+- `docs/research/worldos/architecture/OUR_PRODUCT_BLUEPRINT.md`
+- `docs/research/worldos/ux/PAGE_CONTROL_AUDIT.md`
+
+外部 Agent 证据的 provenance/冲突限制见：
+
+- `docs/research/worldos/11_PARALLEL_AUDIT_MERGE.md`
+- `docs/research/worldos/12_MANUS_CROSS_AGENT_MERGE.md`
+
+原创产品与系统设计的当前 Source of Truth：
+
+1. `docs/product/PRODUCT_DEFINITION_HANDOFF.md` — 冻结的产品定位、范围、PRD 和开放产品决策交接。
+2. `docs/product/PRODUCT_REQUIREMENTS.md` — 18 个 PR、7 个 NFR、验收条件和证据/原则追踪。
+3. `docs/system-design/SYSTEM_DESIGN_HANDOFF.md` — 当前架构冻结状态、绑定系统真值和下一阶段边界。
+4. `docs/system-design/SYSTEM_DESIGN_V1.md` — 架构姿态、模块、权威状态、技术基线和 PRD 映射。
+5. `docs/system-design/DOMAIN_STATE_AND_DATA_MODEL.md` — 原创领域语言、状态边界、约束和逻辑数据模型。
+6. `docs/system-design/RUNTIME_MODEL_AND_PERSISTENCE.md` — Action/Commit、模型编排、分支/恢复、导入导出和故障语义。
+7. `docs/system-design/API_SECURITY_AND_OPERATIONS.md` — API、授权、隐私、安全、可靠性和运维边界。
+8. `docs/system-design/ARCHITECTURE_DECISIONS.md` — 17 项已接受 ADR；变更必须通过后继 ADR。
+9. `docs/system-design/VALIDATION_STRATEGY.md` — 需求验收、30 天/20 Session 场景、故障与安全验证。
+10. `docs/system-design/ARCHITECTURE_CONSISTENCY_AUDIT.md` — `ARCHITECTURE AUDIT: PASSED`。
+
+## Evidence Rules
+
+- `VERIFIED` 只证明文档写明的身份、对象、URL、时间和状态范围；不要把单个样本外推成全平台规则。
+- `TESTED`、`PARTIAL` 不是 `VERIFIED`。实现前读取该结论的 Remaining/Edge Cases/Confidence。
+- `UNKNOWN` 必须继续保持未知，除非新增直接证据；合理猜测不能升级为事实。
+- `BLOCKED` 表示会员、付款、凭证、设备、独立环境或工具边界；不要把未触发等同于功能不存在。
+- `NOT_DISCOVERABLE_IN_NORMAL_UI` 表示正常产品路径无入口；不得猜测隐藏 URL、后台 API 或内部对象操作。
+- `DEFECT-BASELINE` / reproducible quirk 只描述已观察行为，不证明根因，也不自动要求原创产品复制缺陷。
+- Manus/Marvis/Guest 证据必须保留原 provenance。`REPORT_ONLY`、截图错配或缺 raw artifact 的结论不得升级成主账号直接证据。
+- 黑盒没有证明的数据库结构、队列、缓存层、索引实现、模型 prompt、Memory 检索机制和算法权重不得写成事实。
+- 如果结论会影响数据模型、账本、权限或不可逆迁移，必须回查原始 `EVD-*`，不能只读最终报告摘要。
+
+## Original Product Boundary
+
+- WorldOS 是研究参考和体验比较对象，不是未来产品的设计规范。
+- 不复制 WorldOS 的 UI、页面布局、品牌、图标、文案、命名、代码、素材或可识别视觉表达。
+- 后续产品必须形成原创定位、信息架构、交互语言、视觉系统和技术实现。
+- 不因为 WorldOS 存在某功能就默认我们的产品必须实现；是否纳入由用户批准的原创 requirements 决定。
+- 一旦原创 Product Requirements / Architecture 被批准，它们是产品行为的最高依据。若与 WorldOS 不同，不得擅自“修回 WorldOS”。
+- 将新的原创规格放在独立目录（建议 `docs/product/`）；不得混入或改写 `docs/research/worldos/`。
+- `docs/research/worldos/` 是冻结的历史研究记录。实现方便、技术限制或产品取舍都不是篡改历史证据的理由。新增 targeted validation 应追加独立证据和日期，不得覆盖原观察。
+
+## Implementation-Critical Lessons
+
+### 1. 先定义身份与投影，再做页面
+
+同一概念可能是不同对象：全局 Character、World-local Character 和 Simulation runtime Character 不可合并；App definition、World App configuration 与 Simulation App state 也不可合并。Direct URL、Search、Market、Mine、Profile 和 History 是不同投影，可能异步收敛或产生孤立记录。
+
+### 2. World Version 与 Simulation state 必须分层
+
+Published World、Draft、Version snapshot、Simulation baseline 和玩家 dirty state 是不同层。已观察到的更新接近路径级三方合并，并对 stable-ID 对象数组做身份合并。不要用“新版 JSON 覆盖存档 JSON”实现升级；无 ID/重复 ID、tombstone 和类型冲突仍是 OQ，需由原创规格明确决定。
+
+### 3. Turn 是跨系统事务，不是一条聊天消息
+
+一个 Turn 可能同时产生模型输出、Story、Events、Time、Wallet、Inventory、Stats、Relationships、Quest、Map 和 App state 变化，并伴随能量结算与生成期锁定。定义原子提交、失败回滚、幂等和派生投影刷新；不要让各 App 私自维护互相冲突的真值。
+
+### 4. App Runtime 有三层状态和动态成本
+
+App 可在 World 中配置，也可在单个 Simulation 动态安装。额外 App 会改变后续 Turn 成本；Rewind 可恢复 active App 集合和价格，但 UI Dock 曾暂时 ghost 到 reload。计费应从权威 active state 派生，不能从当前渲染的 Dock 推断。
+
+### 5. Save、Checkpoint、Branch 与 Rewind 不是同义词
+
+Checkpoint 是可继续运行的独立 Simulation 副本；Rewind 是同一 UUID 内截断未来并恢复选定快照。必须逐字段定义 snapshot membership。已验证 Story/Time/Chat/Relations/Social/active Apps 可回滚，而已消耗 Credits 不退款；Important Facts、一次性 `playerSetup` 和 Account×World Achievement ownership 位于已验证的 Rewind 边界之外。
+
+### 6. Memory 不是一个字段
+
+至少区分隐藏上下文召回、可见 Character 自动摘要、手工编辑摘要、World Memory、Important Facts 和 `playerSetup`。可见摘要按批生成并有 tail lag；看不到 Memory 不代表模型没有召回。分支隔离、手工内容长期合并和跨模型优先级必须由原创产品明确设计，不能假设固定 T20/T25 阈值。
+
+### 7. 删除、下架和失联是不同状态机
+
+删除 source Character 不会级联删除已有 World-local/Remix 副本；删除 World 可使 runtime 404，却暂留可重命名/删除的 orphan History；删除或下架 App 对 owner/public/installed World 的投影不同。所有删除都应明确确认、级联范围、tombstone、索引收敛、恢复和 Undo 策略。
+
+### 8. Remix 是深复制加 lineage，不是引用别名
+
+副本有独立 owner、slug、version 和运行能力。公开 attribution 只指向直接父级；中间父级删除后，后代可存活而 attribution 消失。许可检查应发生在复制事务提交前；不要因父级消失级联删除后代。
+
+### 9. Map 横跨目录、Creator、Version 和 Turn
+
+Map 是目录资产、World 定义和 runtime App。导入既有 World 只写 Draft并要求 Publish；区域、阵营、Character alias 和 marker 要跨版本、旧/新存档及 Rewind传播。一个新建路径曾先公开无 Map 的 v1，再把 Map 留在 v2 Draft；不要假定“使用地图创建 World”是原子操作。
+
+### 10. 权限与发现面必须分开测试
+
+Owner、logged-in non-owner 和 Guest 的控件与结果不同。Public、link-visible、only-me、Unlisted、Private，以及 direct access、directory/search inclusion、Share、Start、Remix、Rating、Comment、Favorite、Follow 都是独立维度。登录不等于拥有者权限；直链可访问也不等于可搜索。
+
+## Reproducible Defects / Quirks to Recheck Before Designing
+
+这些行为有直接证据，但原创产品应明确选择“兼容、修复或重新设计”，不要无意识复制：
+
+- 正余额不足以支付 Turn 时仍可能提交并进入负数，下一次才阻断。
+- Rewind 后 active App 与价格已恢复，但 Dock 可能 ghost 到 reload。
+- Character Share 生成的 `/worlds/char:<uuid>` 在测试样本中 404。
+- 官方和社区 App Gift 均出现失败；一个失败序列出现无法解释的 `-5`。
+- App Direct、App Market 和 Unified Search 可长期不同步或按身份分裂。
+- 删除 parent World 可留下 dead-UUID orphan History。
+- Map “装入并编辑”成功写 Draft 后仍停留在 `/maps`。
+- Social setup 的手机模式选择器可 no-op，而 Simulation 内切换正常。
+- 畸形 App JSON 可无错误保存并在 reload 后规范化为 `{}`。
+- Time 任意目标接受明显无效文本，将其作为普通付费 Turn 执行。
+- Important Facts 清空是无确认、无 Undo 的直接持久写入。
+- Achievement ownership 与定义/Simulation 快照分离，部分投影需 reload 收敛且不随 Rewind撤销。
+
+需要精确复现、修复或写回归测试时，先在 `docs/research/worldos/07_EVIDENCE_INDEX.md` 查对应 EVD，再查 Matrix/Test Suite；不要只凭本节概述实现。
+
+## Working Rules for Future Coding Agents
+
+1. 实现任何机制前，先用 Feature ID 在 Inventory/Parity Matrix 定位，再读对应 subsystem spec、Parity Test、EVD 和 OQ。
+2. 在原创规格中明确记录：`WorldOS observed behavior`、`our product decision`、`reason`、`acceptance test`。两者可以不同。
+3. 数据模型、版本合并、Rewind、账本、权限和删除级联属于架构决策；未获得原创规格批准前不要用临时 UI 状态替代。
+4. 对 `UNKNOWN` 选择原创行为时，标为产品决策，不要改写成 WorldOS 已验证结论。
+5. 如果某个 OQ 真正阻塞设计，先写最小 targeted-validation proposal：对象、身份、前置状态、操作、预期可区分结果、停止条件和外部副作用。不要重新全站爬取。
+6. 实现测试以原创产品规格为准；Parity Test Suite 是研究输入，不是自动覆盖原创决策的最终验收标准。
+7. 不要为“看起来像 WorldOS”牺牲数据一致性、隐私、安全、可访问性或原创性。
+8. 不要在研究文档中记录真实 API Key、支付信息或其他秘密；不要执行真实付款、权限绕过或隐藏接口探测。
+
+## Quick Start for a New Agent
+
+1. 阅读本文件。
+2. 阅读 Final Report、Parity Matrix、Open Questions 和 Final Completeness Audit。
+3. 根据任务涉及的 Feature ID 打开对应 subsystem 文档、Parity Test 和 `EVD-*`。
+4. 读取 `docs/product/PRODUCT_DEFINITION_HANDOFF.md` 与 `docs/system-design/SYSTEM_DESIGN_HANDOFF.md`，确认用户当前授权的是 Experience Design、Prototype 还是 Implementation；不要把“架构已冻结”误当成自动批准实现。
+5. 实现相关任务必须同时遵循 PRD requirement、对应 ADR、系统契约和 Validation Strategy；有冲突时停止并通过明确的产品决策或后继 ADR 处理，不能自行弱化。
+6. 保持 `docs/research/worldos/` 冻结，将新的原创产品决策、后继 ADR、实现计划和测试放在研究目录之外。

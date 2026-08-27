@@ -1,0 +1,19 @@
+{
+  "created_at_utc": "2026-08-26T04:14:45+00:00",
+  "handoff_root": "AI_World_Visual_Asset_Pool_Handoff",
+  "file_count": 543,
+  "folder_counts": {
+    "01_START_HERE": 4,
+    "02_FINAL_REPORTS_AND_INDEXES": 10,
+    "03_CONTACT_SHEETS": 19,
+    "04_VISUAL_REFERENCE_ASSETS": 300,
+    "05_RESEARCH_LOGS_AND_SOURCE_DATA": 2,
+    "06_REPRODUCIBILITY_SCRIPTS": 20,
+    "archive": 185
+  },
+  "root_files": [
+    "ARCHIVE_INVENTORY.json",
+    "FINAL_HANDOFF.md",
+    "README.md"
+  ]
+}

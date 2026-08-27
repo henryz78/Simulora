@@ -1,0 +1,12 @@
+{
+  "changed_records": 60,
+  "field_changes": 135,
+  "final_tiers": {
+    "A-可实际使用": 100,
+    "A-条件可用": 25,
+    "C-灵感参考": 23,
+    "M-待核验": 4,
+    "M-待确认": 48
+  },
+  "a_or_l_records_with_root_url": 0
+}

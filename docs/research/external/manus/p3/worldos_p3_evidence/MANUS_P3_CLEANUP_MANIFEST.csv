@@ -1,0 +1,12 @@
+task,asset,identity_or_url,final_state,reason_or_visible_evidence,primary_evidence
+3,Published P3 App v1,https://worldos.cc/apps/manus-p3-merge-runtime-edge,CLEANED,Owner page showed 0 worlds use this; visible irreversible Delete confirmation clicked; original public URL subsequently rendered 404,/home/ubuntu/screenshots/worldos_cc_2026-08-25_11-02-35_1605.webp; /home/ubuntu/screenshots/worldos_cc_2026-08-25_11-02-55_8417.webp
+3,Intended P3 World,MANUS-P3-MERGE-WORLD-*,ALREADY_ABSENT,Required cover upload prerequisite never completed; no World URL created,MANUS_P3_APP_MERGE_EDGE_MATRIX.md
+3,Intended Simulation A,Fresh dirty runtime fixture,ALREADY_ABSENT,Could not exist without absent P3 World and App installation,MANUS_P3_APP_MERGE_EDGE_MATRIX.md
+3,Intended Simulation B,Fresh clean runtime fixture,ALREADY_ABSENT,Could not exist without absent P3 World and App installation,MANUS_P3_APP_MERGE_EDGE_MATRIX.md
+3,App versions v2-v5,Runtime migration updates,ALREADY_ABSENT,Not published,MANUS_P3_APP_MERGE_EDGE_MATRIX.md
+3,Local cover fixture,manus_p3_merge_world_cover.jpg,RETAINED_FOR_EVIDENCE,Local-only benign fixture never uploaded and documents upload tooling blocker,manus_p3_merge_world_cover.jpg
+2,A T20 checkpoint branch,https://worldos.cc/sim/f9302cfd-9c74-44d7-bb5c-c28a22430a24,CLEANUP_BLOCKED,Visible Settings Saves and Details views exposed no delete or remove action,/home/ubuntu/screenshots/worldos_cc_2026-08-25_11-03-20_3124.webp; /home/ubuntu/screenshots/worldos_cc_2026-08-25_11-03-33_7717.webp
+2,Sample A Character chat,https://worldos.cc/sim/fa53cd75-4e45-4812-993f-d83c08423626,RETAINED_FOR_EVIDENCE,Bounded transcript and no safe visible deletion path established,MANUS_P3_CHARACTER_MEMORY_LONGRUN.md
+2,Sample B Character chat,https://worldos.cc/sim/6062b6fa-f28c-4406-ac79-3092e05f8f29,RETAINED_FOR_EVIDENCE,Only confirmed T20-T35 Memory edit reload and recall evidence; no safe visible deletion path established,MANUS_P3_CHARACTER_MEMORY_LONGRUN.md
+1,Task 1 controls fixtures,No separate MANUS-P3-CONTROLS remote asset,ALREADY_ABSENT,No dedicated controls asset was created,MANUS_P3_PAGE_CONTROL_LEDGER.md
+4,P3 Maps asset,No P3 Map created,ALREADY_ABSENT,Task 4 only browsed third-party catalogues and performed non-writing interactions,MANUS_P3_MAP_CATALOG_DIFF.md

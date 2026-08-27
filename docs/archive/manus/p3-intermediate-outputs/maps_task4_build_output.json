@@ -1,0 +1,8 @@
+{
+  "interactions_csv": "/home/ubuntu/worldos_p3_evidence/MAP_ONLY_ALL_SAMPLE_INTERACTIONS.csv",
+  "interactions_md": "/home/ubuntu/worldos_p3_evidence/MAP_ONLY_ALL_SAMPLE_INTERACTIONS.md",
+  "genre_csv": "/home/ubuntu/worldos_p3_evidence/MAP_GENRE_COMPARISON.csv",
+  "report": "/home/ubuntu/worldos_p3_evidence/MANUS_P3_MAP_CATALOG_DIFF.md",
+  "samples": 10,
+  "genre_rows": 4
+}

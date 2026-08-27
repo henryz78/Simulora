@@ -1,0 +1,1 @@
+This is intentionally not an image. It is a benign fixture for WorldOS avatar validation.

@@ -1,0 +1,13 @@
+only_all_universe: 96
+seed: 20260825
+01 | 2030：第三次世界大战 | Kate Lee | /worlds/2030-po-sui-zhi-xu-2fb77c | title-count=1
+02 | 博人传：新时代 | Jincox03 | /worlds/boruto-next-generations-bisa | title-count=14
+03 | 博人传：新时代 | Daniel-ff0688 | /worlds/boruto-next-generations-efvz | title-count=14
+04 | 维多利亚吸血鬼模拟器 | flor | /worlds/crimson-op82 | title-count=3
+05 | DC 宇宙 | Yania marcela | /worlds/dc-universo-w64s | title-count=1
+06 | 日本高中模拟器2018 | Fisiajgdjqosiwiand | /worlds/japanese-high-2l6e | title-count=33
+07 | 日本高中模拟器2018 | Go kitty go! | /worlds/japanese-high-5214 | title-count=33
+08 | 星空高中仓鼠交换 | mery angela | /worlds/japanese-high-cuo0 | title-count=1
+09 | 日本高中模拟器2018 | Go kitty go! | /worlds/japanese-high-mdzm | title-count=33
+10 | 宝可梦 (帕希欧) | rin phonny (Ririn) | /worlds/pok-mon-passio-xlq0 | title-count=2
+output: /home/ubuntu/worldos_p3_evidence/MAP_ONLY_ALL_SAMPLE_SELECTION.csv

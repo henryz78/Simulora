@@ -1,0 +1,549 @@
+/home/ubuntu/.bash_logout	4 KB	2024-03-31 08:41:03.0000000000
+/home/ubuntu/.bashrc	8 KB	2026-08-07 06:52:07.1417450950
+/home/ubuntu/.browser_data_dir/ActorSafetyLists/9.5220.3721/listdata.json	2584 KB	2026-07-22 10:35:20.0000000000
+/home/ubuntu/.browser_data_dir/ActorSafetyLists/9.5220.3721/manifest.json	4 KB	2026-07-22 10:35:20.0000000000
+/home/ubuntu/.browser_data_dir/AmountExtractionHeuristicRegexes/4/heuristic_regexes.binarypb	4 KB	2025-10-14 17:20:04.0000000000
+/home/ubuntu/.browser_data_dir/AmountExtractionHeuristicRegexes/4/manifest.json	4 KB	2025-10-14 17:20:04.0000000000
+/home/ubuntu/.browser_data_dir/BrowserMetrics-spare.pma	4096 KB	2026-08-25 13:01:24.7062010750
+/home/ubuntu/.browser_data_dir/CaptchaProviders/8.5419.4434/captcha_providers.json	4 KB	2026-01-12 06:23:36.0000000000
+/home/ubuntu/.browser_data_dir/CaptchaProviders/8.5419.4434/manifest.json	4 KB	2026-01-12 06:23:36.0000000000
+/home/ubuntu/.browser_data_dir/CertificateRevocation/10735/LICENSE	4 KB	2026-08-25 12:38:03.6639844280
+/home/ubuntu/.browser_data_dir/CertificateRevocation/10735/crl-set	1440 KB	2026-08-25 12:38:03.6602342100
+/home/ubuntu/.browser_data_dir/CertificateRevocation/10735/manifest.json	4 KB	2026-08-25 12:38:03.6637236420
+/home/ubuntu/.browser_data_dir/Crowd Deny/2026.8.24.61/Preload Data	296 KB	2026-08-25 12:38:03.7150029360
+/home/ubuntu/.browser_data_dir/Crowd Deny/2026.8.24.61/manifest.json	4 KB	2026-08-25 12:38:03.7156396530
+/home/ubuntu/.browser_data_dir/Default/.org.chromium.Chromium.7MyyCq	4 KB	2026-08-06 09:08:25.0000000000
+/home/ubuntu/.browser_data_dir/Default/.org.chromium.Chromium.JRlt3k	0 KB	2026-08-06 09:08:25.0000000000
+/home/ubuntu/.browser_data_dir/Default/Account Web Data	76 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Account Web Data-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Affiliation Database	52 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Affiliation Database-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/AutofillAiModelCache/LOCK	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/AutofillAiModelCache/LOG	0 KB	2026-08-25 13:00:02.4972415430
+/home/ubuntu/.browser_data_dir/Default/AutofillAiModelCache/LOG.old	0 KB	2026-08-07 06:52:19.4185322060
+/home/ubuntu/.browser_data_dir/Default/AutofillStrikeDatabase/LOCK	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/AutofillStrikeDatabase/LOG	0 KB	2026-08-25 13:00:02.4972415430
+/home/ubuntu/.browser_data_dir/Default/AutofillStrikeDatabase/LOG.old	0 KB	2026-08-07 06:52:19.4185322060
+/home/ubuntu/.browser_data_dir/Default/BookmarkMergedSurfaceOrdering	4 KB	2026-08-25 13:00:02.4972415430
+/home/ubuntu/.browser_data_dir/Default/BudgetDatabase/LOCK	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/BudgetDatabase/LOG	0 KB	2026-08-25 13:00:02.4972415430
+/home/ubuntu/.browser_data_dir/Default/BudgetDatabase/LOG.old	0 KB	2026-08-07 06:52:19.4185322060
+/home/ubuntu/.browser_data_dir/Default/ClientCertificates/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/ClientCertificates/LOG	0 KB	2026-08-25 12:59:54.9619872670
+/home/ubuntu/.browser_data_dir/Default/ClientCertificates/LOG.old	0 KB	2026-08-07 06:52:11.7264347690
+/home/ubuntu/.browser_data_dir/Default/Cookies	20 KB	2026-08-25 13:00:02.6388722620
+/home/ubuntu/.browser_data_dir/Default/Cookies-journal	0 KB	2026-08-25 13:00:02.6388722620
+/home/ubuntu/.browser_data_dir/Default/DIPS	36 KB	2026-08-25 12:59:54.2665497040
+/home/ubuntu/.browser_data_dir/Default/DIPS-wal	28 KB	2026-08-25 13:00:02.6376147210
+/home/ubuntu/.browser_data_dir/Default/DawnGraphiteCache/data_0	8 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/DawnGraphiteCache/data_1	264 KB	2026-08-25 13:10:26.1972397570
+/home/ubuntu/.browser_data_dir/Default/DawnGraphiteCache/data_2	8 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/DawnGraphiteCache/data_3	8 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/DawnGraphiteCache/index	260 KB	2026-08-25 12:59:55.9287032060
+/home/ubuntu/.browser_data_dir/Default/DawnWebGPUCache/data_0	8 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/DawnWebGPUCache/data_1	264 KB	2026-08-25 13:10:26.1972397570
+/home/ubuntu/.browser_data_dir/Default/DawnWebGPUCache/data_2	8 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/DawnWebGPUCache/data_3	8 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/DawnWebGPUCache/index	260 KB	2026-08-25 12:59:55.9259885630
+/home/ubuntu/.browser_data_dir/Default/Extension Rules/000003.log	4 KB	2026-08-25 12:59:55.9662966500
+/home/ubuntu/.browser_data_dir/Default/Extension Rules/CURRENT	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension Rules/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension Rules/LOG	4 KB	2026-08-25 12:59:55.9662966500
+/home/ubuntu/.browser_data_dir/Default/Extension Rules/LOG.old	4 KB	2026-08-07 06:52:12.7316141510
+/home/ubuntu/.browser_data_dir/Default/Extension Rules/MANIFEST-000001	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension Scripts/000003.log	4 KB	2026-08-25 12:59:55.9683692610
+/home/ubuntu/.browser_data_dir/Default/Extension Scripts/CURRENT	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension Scripts/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension Scripts/LOG	4 KB	2026-08-25 12:59:55.9683692610
+/home/ubuntu/.browser_data_dir/Default/Extension Scripts/LOG.old	4 KB	2026-08-07 06:52:12.7333606960
+/home/ubuntu/.browser_data_dir/Default/Extension Scripts/MANIFEST-000001	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension State/000003.log	4 KB	2026-08-25 12:59:56.0397175630
+/home/ubuntu/.browser_data_dir/Default/Extension State/CURRENT	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension State/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Extension State/LOG	4 KB	2026-08-25 12:59:56.0397175630
+/home/ubuntu/.browser_data_dir/Default/Extension State/LOG.old	4 KB	2026-08-07 06:52:12.7694304640
+/home/ubuntu/.browser_data_dir/Default/Extension State/MANIFEST-000001	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Favicons	20 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Favicons-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/GCM Store/000003.log	4 KB	2026-08-25 13:00:08.1544536010
+/home/ubuntu/.browser_data_dir/Default/GCM Store/CURRENT	4 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/GCM Store/LOCK	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/GCM Store/LOG	4 KB	2026-08-25 13:00:02.4732492170
+/home/ubuntu/.browser_data_dir/Default/GCM Store/LOG.old	4 KB	2026-08-07 06:52:19.3922590940
+/home/ubuntu/.browser_data_dir/Default/GCM Store/MANIFEST-000001	4 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/GPUCache/data_0	8 KB	2026-08-07 06:52:12.6659807060
+/home/ubuntu/.browser_data_dir/Default/GPUCache/data_1	12 KB	2026-08-25 13:10:26.1972397570
+/home/ubuntu/.browser_data_dir/Default/GPUCache/data_2	8 KB	2026-08-07 06:52:12.6659807060
+/home/ubuntu/.browser_data_dir/Default/GPUCache/data_3	8 KB	2026-08-07 06:52:12.6659807060
+/home/ubuntu/.browser_data_dir/Default/GPUCache/index	260 KB	2026-08-25 12:59:55.9229393020
+/home/ubuntu/.browser_data_dir/Default/History	160 KB	2026-08-25 12:59:54.2541782300
+/home/ubuntu/.browser_data_dir/Default/History-journal	12 KB	2026-08-25 13:00:54.9772415860
+/home/ubuntu/.browser_data_dir/Default/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/LOG	0 KB	2026-08-25 12:59:54.9700518780
+/home/ubuntu/.browser_data_dir/Default/LOG.old	0 KB	2026-08-07 06:52:11.7504387240
+/home/ubuntu/.browser_data_dir/Default/Login Data	40 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Login Data For Account	40 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Login Data For Account-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Login Data-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/MediaDeviceSalts	24 KB	2026-08-25 13:00:02.6388722620
+/home/ubuntu/.browser_data_dir/Default/MediaDeviceSalts-journal	0 KB	2026-08-25 13:00:02.6388722620
+/home/ubuntu/.browser_data_dir/Default/Network Action Predictor	52 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/Network Action Predictor-journal	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/Network Persistent State	4 KB	2026-08-25 13:09:41.0812399140
+/home/ubuntu/.browser_data_dir/Default/PersistentOriginTrials/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/PersistentOriginTrials/LOG	0 KB	2026-08-25 12:59:54.9700518780
+/home/ubuntu/.browser_data_dir/Default/PersistentOriginTrials/LOG.old	0 KB	2026-08-07 06:52:11.7504387240
+/home/ubuntu/.browser_data_dir/Default/Preferences	32 KB	2026-08-25 13:01:06.1972415530
+/home/ubuntu/.browser_data_dir/Default/PreferredApps	4 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/README	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Reporting and NEL	36 KB	2026-08-25 13:00:32.6572416600
+/home/ubuntu/.browser_data_dir/Default/Reporting and NEL-journal	0 KB	2026-08-25 13:00:32.6572416600
+/home/ubuntu/.browser_data_dir/Default/SCT Auditing Pending Reports	4 KB	2026-08-25 12:59:55.9646970150
+/home/ubuntu/.browser_data_dir/Default/Secure Preferences	4 KB	2026-08-25 13:00:04.9540617320
+/home/ubuntu/.browser_data_dir/Default/ServerCertificate	20 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/ServerCertificate-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Session Storage/000003.log	4 KB	2026-08-25 12:59:57.5512338420
+/home/ubuntu/.browser_data_dir/Default/Session Storage/CURRENT	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Session Storage/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Session Storage/LOG	4 KB	2026-08-25 12:59:55.9518886130
+/home/ubuntu/.browser_data_dir/Default/Session Storage/LOG.old	4 KB	2026-08-07 06:52:12.7145080800
+/home/ubuntu/.browser_data_dir/Default/Session Storage/MANIFEST-000001	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Sessions/Session_13430559134233265	8 KB	2026-08-25 12:59:54.2376829310
+/home/ubuntu/.browser_data_dir/Default/Sessions/Session_13432136397480782	4 KB	2026-08-25 12:59:59.9812347580
+/home/ubuntu/.browser_data_dir/Default/Sessions/Tabs_13430559136950986	4 KB	2026-08-25 12:59:54.2500544060
+/home/ubuntu/.browser_data_dir/Default/Sessions/Tabs_13432136398469514	4 KB	2026-08-25 12:59:58.4651846400
+/home/ubuntu/.browser_data_dir/Default/Shared Dictionary/db	44 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Shared Dictionary/db-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/SharedStorage	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/SharedStorage-wal	0 KB	2026-08-25 12:59:54.9700518780
+/home/ubuntu/.browser_data_dir/Default/Shortcuts	20 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/Shortcuts-journal	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/Site Characteristics Database/000003.log	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Site Characteristics Database/CURRENT	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Site Characteristics Database/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Site Characteristics Database/LOG	4 KB	2026-08-25 12:59:54.9671025950
+/home/ubuntu/.browser_data_dir/Default/Site Characteristics Database/LOG.old	4 KB	2026-08-07 06:52:11.7312100780
+/home/ubuntu/.browser_data_dir/Default/Site Characteristics Database/MANIFEST-000001	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Top Sites	20 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Top Sites-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/TransportSecurity	4 KB	2026-08-25 13:09:56.0732398640
+/home/ubuntu/.browser_data_dir/Default/Trust Tokens	36 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Trust Tokens-journal	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/Web Data	152 KB	2026-08-06 09:08:09.0000000000
+/home/ubuntu/.browser_data_dir/Default/Web Data-journal	0 KB	2026-08-06 09:08:09.0000000000
+/home/ubuntu/.browser_data_dir/Default/WebStorage/QuotaManager	40 KB	2026-08-25 13:00:26.0892416830
+/home/ubuntu/.browser_data_dir/Default/WebStorage/QuotaManager-journal	0 KB	2026-08-25 13:00:26.0892416830
+/home/ubuntu/.browser_data_dir/Default/chrome_cart_db/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/chrome_cart_db/LOG	0 KB	2026-08-25 12:59:54.9671025950
+/home/ubuntu/.browser_data_dir/Default/chrome_cart_db/LOG.old	0 KB	2026-08-07 06:52:11.7312100780
+/home/ubuntu/.browser_data_dir/Default/commerce_subscription_db/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/commerce_subscription_db/LOG	0 KB	2026-08-25 12:59:54.9671025950
+/home/ubuntu/.browser_data_dir/Default/commerce_subscription_db/LOG.old	0 KB	2026-08-07 06:52:11.7312100780
+/home/ubuntu/.browser_data_dir/Default/declarative_performance_observer.db	32 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/declarative_performance_observer.db-journal	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/discount_infos_db/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/discount_infos_db/LOG	0 KB	2026-08-25 12:59:54.9671025950
+/home/ubuntu/.browser_data_dir/Default/discount_infos_db/LOG.old	0 KB	2026-08-07 06:52:11.7312100780
+/home/ubuntu/.browser_data_dir/Default/discounts_db/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/discounts_db/LOG	0 KB	2026-08-25 12:59:54.9671025950
+/home/ubuntu/.browser_data_dir/Default/discounts_db/LOG.old	0 KB	2026-08-07 06:52:11.7312100780
+/home/ubuntu/.browser_data_dir/Default/engine_allowlist.bf	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/heavy_ad_intervention_opt_out.db	16 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/heavy_ad_intervention_opt_out.db-journal	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/optimization_guide_hint_cache_store/LOCK	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/Default/optimization_guide_hint_cache_store/LOG	0 KB	2026-08-25 13:00:02.4972415430
+/home/ubuntu/.browser_data_dir/Default/optimization_guide_hint_cache_store/LOG.old	0 KB	2026-08-07 06:52:19.4185322060
+/home/ubuntu/.browser_data_dir/Default/parcel_tracking_db/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/parcel_tracking_db/LOG	0 KB	2026-08-25 12:59:54.9671025950
+/home/ubuntu/.browser_data_dir/Default/parcel_tracking_db/LOG.old	0 KB	2026-08-07 06:52:11.7312100780
+/home/ubuntu/.browser_data_dir/Default/shared_proto_db/000003.log	32 KB	2026-08-25 13:04:57.4652408210
+/home/ubuntu/.browser_data_dir/Default/shared_proto_db/CURRENT	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/shared_proto_db/LOCK	0 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/shared_proto_db/LOG	4 KB	2026-08-25 12:59:55.9683692610
+/home/ubuntu/.browser_data_dir/Default/shared_proto_db/LOG.old	4 KB	2026-08-07 06:52:12.7325459410
+/home/ubuntu/.browser_data_dir/Default/shared_proto_db/MANIFEST-000001	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/Default/trusted_vault.pb	4 KB	2026-08-25 12:59:56.0784175000
+/home/ubuntu/.browser_data_dir/Dictionaries/en-US-10-1.bdic	444 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.browser_data_dir/FileTypePolicies/145.0.7584.0/download_file_types.pb	8 KB	2025-12-18 00:39:44.0000000000
+/home/ubuntu/.browser_data_dir/FileTypePolicies/145.0.7584.0/manifest.json	4 KB	2025-12-18 00:39:44.0000000000
+/home/ubuntu/.browser_data_dir/FirstPartySetsPreloaded/2025.7.24.0/LICENSE	4 KB	1980-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/FirstPartySetsPreloaded/2025.7.24.0/manifest.json	4 KB	1980-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/FirstPartySetsPreloaded/2025.7.24.0/sets.json	12 KB	1980-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/Last Version	4 KB	2026-08-25 12:59:54.8181701800
+/home/ubuntu/.browser_data_dir/Local State	8 KB	2026-08-25 13:01:06.0052415530
+/home/ubuntu/.browser_data_dir/MEIPreload/1.1.0.3/manifest.json	4 KB	2000-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/MEIPreload/1.1.0.3/preloaded_data.pb	12 KB	2000-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/OnDeviceHeadSuggestModel/20251024.824731831.14/cr_en-us_500000_index.bin	7744 KB	2025-10-31 08:38:04.0000000000
+/home/ubuntu/.browser_data_dir/OnDeviceHeadSuggestModel/20251024.824731831.14/manifest.json	4 KB	2025-10-31 08:38:04.0000000000
+/home/ubuntu/.browser_data_dir/OptimizationHints/732/manifest.json	4 KB	2026-08-25 12:38:02.8488684750
+/home/ubuntu/.browser_data_dir/OptimizationHints/732/optimization-hints.pb	556 KB	2026-08-25 12:38:02.8463376050
+/home/ubuntu/.browser_data_dir/PKIMetadata/1754/crs.pb	348 KB	2026-08-25 12:38:02.8999006160
+/home/ubuntu/.browser_data_dir/PKIMetadata/1754/ct_config.pb	56 KB	2026-08-25 12:38:02.9024095340
+/home/ubuntu/.browser_data_dir/PKIMetadata/1754/kp_pinslist.pb	12 KB	2026-08-25 12:38:02.9017739370
+/home/ubuntu/.browser_data_dir/PKIMetadata/1754/manifest.json	4 KB	2026-08-25 12:38:02.9031538350
+/home/ubuntu/.browser_data_dir/PKIMetadata/1754/mtc_config.pb	4 KB	2026-08-25 12:38:02.8994256550
+/home/ubuntu/.browser_data_dir/PrivacySandboxAttestationsPreloaded/2025.6.16.0/manifest.json	4 KB	1980-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/PrivacySandboxAttestationsPreloaded/2025.6.16.0/privacy-sandbox-attestations.dat	8 KB	1980-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/SSLErrorAssistant/7/manifest.json	4 KB	1980-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/SSLErrorAssistant/7/ssl_error_assistant.pb	4 KB	2018-12-18 10:09:10.0000000000
+/home/ubuntu/.browser_data_dir/SafetyTips/3091/manifest.json	4 KB	2026-01-07 11:49:18.0000000000
+/home/ubuntu/.browser_data_dir/SafetyTips/3091/safety_tips.pb	184 KB	2026-01-07 11:49:18.0000000000
+/home/ubuntu/.browser_data_dir/TrustTokenKeyCommitments/2026.8.3.1/LICENSE	4 KB	2026-08-03 06:56:22.0000000000
+/home/ubuntu/.browser_data_dir/TrustTokenKeyCommitments/2026.8.3.1/keys.json	12 KB	2026-08-03 06:56:22.0000000000
+/home/ubuntu/.browser_data_dir/TrustTokenKeyCommitments/2026.8.3.1/manifest.json	4 KB	2026-08-03 06:56:22.0000000000
+/home/ubuntu/.browser_data_dir/Variations	4 KB	2026-08-25 12:59:54.6945819070
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/background_compiled.js	20 KB	2026-08-25 12:38:03.6023633000
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/bindings_main.js	248 KB	2026-08-25 12:38:03.6012692130
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/bindings_main.wasm	22440 KB	2026-08-25 12:38:03.5996396530
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/manifest.json	4 KB	2026-08-25 12:38:03.6028421300
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/offscreen.html	4 KB	2026-08-25 12:38:03.5526630810
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/offscreen_compiled.js	68 KB	2026-08-25 12:38:03.5523109950
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/streaming_worklet_processor.js	4 KB	2026-08-25 12:38:03.5520778960
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/voices.json	52 KB	2026-08-25 12:38:03.5517227220
+/home/ubuntu/.browser_data_dir/WasmTtsEngine/20260820.1/wasm_tts_manifest_v3.json	4 KB	2026-08-25 12:38:03.5513216450
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/english_wikipedia.txt	272 KB	2020-06-02 08:10:56.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/female_names.txt	28 KB	2020-06-02 08:10:56.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/male_names.txt	8 KB	2020-06-02 08:10:58.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/manifest.json	4 KB	2023-02-21 23:20:38.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/passwords.txt	240 KB	2020-06-02 08:10:58.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/ranked_dicts	868 KB	2023-02-21 23:20:38.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/surnames.txt	76 KB	2020-06-02 08:11:00.0000000000
+/home/ubuntu/.browser_data_dir/ZxcvbnData/3/us_tv_and_film.txt	164 KB	2020-06-02 08:11:02.0000000000
+/home/ubuntu/.browser_data_dir/component_crx_cache/44f285608104fc4a8b1d52385c1122b6e817c8f1f8bc4c7f0ec6614284653902	560 KB	2026-08-25 12:38:02.7836396560
+/home/ubuntu/.browser_data_dir/component_crx_cache/68d171933e851e9ef53dec06ba3ce8adeb209d57a0f9b8a8a34ea6e93de88ed5	420 KB	2026-08-25 12:38:02.8876396550
+/home/ubuntu/.browser_data_dir/component_crx_cache/c3e0981747a623f016fb41b1f3827f62701913e45141639f5415bc4f63a59cf6	1444 KB	2026-08-25 12:38:03.6436396530
+/home/ubuntu/.browser_data_dir/component_crx_cache/df1ff014fae8ffae6a7193805c087bbc553c13bf7332ad785840846bccb9a462	300 KB	2026-08-25 12:38:03.7036396530
+/home/ubuntu/.browser_data_dir/component_crx_cache/e49893b98c83dc690e096b143f7a84ad0e3a5a140c7503238e9f439584176afb	22824 KB	2026-08-25 12:38:03.4596396530
+/home/ubuntu/.browser_data_dir/component_crx_cache/metadata.json	4 KB	2026-08-25 12:38:12.7956396180
+/home/ubuntu/.browser_data_dir/extensions_crx_cache/metadata.json	4 KB	2026-08-06 09:08:17.0000000000
+/home/ubuntu/.browser_data_dir/first_party_sets.db	48 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/first_party_sets.db-journal	0 KB	2026-08-06 09:08:07.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-af.hyb	72 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-as.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-be.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-bg.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-bn.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-cs.hyb	64 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-cu.hyb	52 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-cy.hyb	36 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-da.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-de-1901.hyb	120 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-de-1996.hyb	120 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-de-ch-1901.hyb	120 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-el.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-en-gb.hyb	48 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-en-us.hyb	60 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-es.hyb	16 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-et.hyb	24 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-eu.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-fr.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-ga.hyb	36 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-gl.hyb	12 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-gu.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-hi.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-hr.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-hu.hyb	312 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-hy.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-it.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-ka.hyb	12 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-kn.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-la.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-lt.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-lv.hyb	40 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-ml.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-mn-cyrl.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-mr.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-mul-ethi.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-nb.hyb	144 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-nl.hyb	76 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-nn.hyb	144 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-or.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-pa.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-pt.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-ru.hyb	20 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-sk.hyb	64 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-sl.hyb	8 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-sq.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-sv.hyb	72 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-ta.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-te.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-tk.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-uk.hyb	20 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/hyph-und-ethi.hyb	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/hyphen-data/120.0.6050.0/manifest.json	4 KB	2001-01-01 00:00:00.0000000000
+/home/ubuntu/.browser_data_dir/segmentation_platform/ukm_db	48 KB	2026-08-25 12:59:54.2583020550
+/home/ubuntu/.browser_data_dir/segmentation_platform/ukm_db-wal	0 KB	2026-08-25 13:01:54.8212414020
+/home/ubuntu/.cache/dconf/user	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.cache/fontconfig/CACHEDIR.TAG	4 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.cache/fontconfig/e13b20fdb08344e0e664864cc2ede53d-le64.cache-9	56 KB	2026-08-06 09:08:04.0000000000
+/home/ubuntu/.cache/gstreamer-1.0/registry.x86_64.bin	1312 KB	2026-08-07 06:52:11.2583467840
+/home/ubuntu/.cache/pnpm/lockfile-verified.jsonl	4 KB	2026-08-25 13:00:00.0012349160
+/home/ubuntu/.config/chromium/Crash Reports/settings.dat	4 KB	2026-08-25 12:59:54.8181701800
+/home/ubuntu/.config/matplotlib/matplotlibrc	4 KB	2026-08-06 08:05:01.0000000000
+/home/ubuntu/.config/state-sync/state-sync-config.yaml	4 KB	2026-08-26 06:43:33.6507460540
+/home/ubuntu/.env	4 KB	2026-08-25 12:37:24.3937812210
+/home/ubuntu/.local/state/gh/device-id	4 KB	2026-08-25 12:37:24.6577811820
+/home/ubuntu/.local/state/pnpm/pnpm-state.json	4 KB	2026-08-25 13:00:00.0612353920
+/home/ubuntu/.manus/config/multiAccounts.json	4 KB	2026-08-26 06:43:33.8107460530
+/home/ubuntu/.npm/_logs/2026-08-06T09_08_32_004Z-debug-0.log	4 KB	2026-08-06 09:08:33.0000000000
+/home/ubuntu/.npm/_update-notifier-last-checked	0 KB	2026-08-06 09:08:32.0000000000
+/home/ubuntu/.nvm/.dockerignore	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.editorconfig	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/FETCH_HEAD	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.git/HEAD	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.git/config	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.git/description	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/applypatch-msg.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/commit-msg.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/fsmonitor-watchman.sample	8 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/post-update.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/pre-applypatch.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/pre-commit.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/pre-merge-commit.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/pre-push.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/pre-rebase.sample	8 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/pre-receive.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/prepare-commit-msg.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/push-to-checkout.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/sendemail-validate.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/hooks/update.sample	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/index	44 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.git/info/exclude	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.git/logs/HEAD	0 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.git/packed-refs	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.git/shallow	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.gitattributes	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.github/FUNDING.yml	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.github/ISSUE_TEMPLATE.md	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/SECURITY.md	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/THREAT_MODEL.md	12 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/external-threat-actor.png	136 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.github/insider-threat-actor-and-libs.png	56 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.github/workflows/latest-npm.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/lint.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/nvm-install-test.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/rebase.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/release.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/require-allow-edits.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/shellcheck.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/tests.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/toc.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.github/workflows/windows-npm.yml	8 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.gitignore	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.gitmodules	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/.mailmap	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.npmrc	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/.travis.yml	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/CODE_OF_CONDUCT.md	8 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/CONTRIBUTING.md	8 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/Dockerfile	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/GOVERNANCE.md	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/LICENSE.md	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/Makefile	8 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/PROJECT_CHARTER.md	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/README.md	48 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/ROADMAP.md	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/alias/default	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/*	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/argon	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/boron	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/carbon	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/dubnium	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/erbium	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/fermium	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/gallium	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/hydrogen	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/iron	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/jod	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/alias/lts/krypton	4 KB	2026-08-06 09:08:30.0000000000
+/home/ubuntu/.nvm/bash_completion	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/install.sh	20 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/nvm-exec	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/nvm.sh	148 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/package.json	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/rename_test.sh	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/common.sh	8 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm alias' should create a file in the alias directory	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm current' should display current nvm environment	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm deactivate' should unset the nvm environment variables	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm install' with '--reinstall-packages-from' requires a valid version	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm install' with an invalid version fails nicely	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm unalias' should remove the alias file	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm uninstall' should remove the appropriate directory	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm uninstall' with incorrect file permissions fails nicely	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm unload' should unset all function and variables	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm use foo' where 'foo' is circular aborts	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm use iojs' uses latest io.js version	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm use system' should work as expected	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm use x' should create and change the 'current' symlink	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm use x' should not create the 'current' symlink if $NVM_SYMLINK_CURRENT is false	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Running 'nvm use' should drop CR char automatically	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Sourcing nvm.sh should make the nvm command available	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/Sourcing nvm.sh should not modify parameters of caller	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/nvm should remove the last trailing slash in $NVM_DIR	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/fast/setup	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/fast/setup_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/fast/teardown	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/fast/teardown_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/install_nvm_from_git	8 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_check_global_modules	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_detect_profile	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_do_install	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_download	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_install_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_install_with_aliased_dot	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_install_with_node_version	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_profile_is_bash_or_zsh	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_reset	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/install_script/nvm_source	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install already installed uses it	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install from binary	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install from source	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install two versions and use the latest one	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install version specified in .nvmrc from binary	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install version specified in .nvmrc from source	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/install while reinstalling packages	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/nvm install v1 works	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/setup_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_iojs/teardown_dir	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_node/default-packages	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install LTS	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_node/install already installed uses it	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install from binary	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_node/install from binary with binary flag set	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_node/install from source	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install from source with thread parameter	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install from source without V8 snapshot for ARM	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install hook	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install latest npm	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install on bash with ERR trap and set -E	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install two versions and use the latest one	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install version specified in .nvmrc from binary	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install while reinstalling packages	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/installation_node/install with --alias	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install with --default	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/install with --latest-npm	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/setup_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/installation_node/teardown_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/isainfo_amd64	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/isainfo_x86	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/pkg_info_amd64	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/pkg_info_fail	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/pkg_info_x86	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/uname_linux_armv8l	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/uname_osx_amd64	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/uname_osx_x86	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/uname_smartos_amd64	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/mocks/uname_smartos_x86	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/slow/Running 'nvm current' should display current nvm environment	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh global alias bug	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh should keep version if one is active	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh should use the default if available and no nvm node is loaded	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh with --install and .nvmrc should install it	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh with --install should install the default	4 KB	2026-08-06 09:08:27.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh with --no-use should not use anything	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/Sourcing nvm.sh with no default should return 0	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/setup_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/sourcing/teardown_dir	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/install from source	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/install from source implicitly	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/install from source with thread parameter	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/install from source without V8 snapshot for ARM	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/install hook	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/install version specified in .nvmrc from source	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/test/xenial/node 0.6.21 should install 0.6.21-pre	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.nvm/update_test_mocks.sh	4 KB	2026-08-06 09:08:26.0000000000
+/home/ubuntu/.profile	4 KB	2024-03-31 08:41:03.0000000000
+/home/ubuntu/.safety_warning.md	8 KB	2026-08-25 12:37:24.6678251040
+/home/ubuntu/.secrets/sandbox_api_token	4 KB	2026-08-25 12:37:24.3937812210
+/home/ubuntu/.sudo_as_admin_successful	0 KB	2026-08-06 09:08:44.0000000000
+/home/ubuntu/.user_env	4 KB	2026-08-26 06:43:33.8427460530
+/home/ubuntu/.zshrc	4 KB	2026-08-07 06:52:07.1457450950
+/home/ubuntu/conversation_file_inventory.tsv	0 KB	2026-08-26 06:43:45.8144066300
+/home/ubuntu/creator_starter_template_library.md	72 KB	2026-08-25 13:01:54.5983216670
+/home/ubuntu/sandbox.txt	4 KB	2026-08-06 09:08:54.0000000000
+/home/ubuntu/skills/.skill_versions.json	4 KB	2026-08-26 06:43:45.2398904890
+/home/ubuntu/skills/automation-and-scheduling/.DS_Store	8 KB	2026-08-25 12:37:25.0048538330
+/home/ubuntu/skills/automation-and-scheduling/SKILL.md	20 KB	2026-08-25 12:37:25.0054929420
+/home/ubuntu/skills/automation-and-scheduling/references/implementation-patterns.md	12 KB	2026-08-25 12:37:25.0054929420
+/home/ubuntu/skills/builtin-llm-models/SKILL.md	16 KB	2026-08-25 12:37:24.8810110200
+/home/ubuntu/skills/builtin-llm-models/scripts/llm_batch.py	8 KB	2026-08-25 12:37:24.8816745020
+/home/ubuntu/skills/data-backup-restoration/SKILL.md	8 KB	2026-08-25 12:37:24.7513746910
+/home/ubuntu/skills/data-backup-restoration/references/mobile-apps.md	12 KB	2026-08-25 12:37:24.7531206280
+/home/ubuntu/skills/data-backup-restoration/references/websites.md	12 KB	2026-08-25 12:37:24.7537774240
+/home/ubuntu/skills/finance-pro-playbooks/SKILL.md	24 KB	2026-08-25 12:37:25.0462966030
+/home/ubuntu/skills/finance-pro-playbooks/formats/document_standards.md	8 KB	2026-08-25 12:37:25.0469856830
+/home/ubuntu/skills/finance-pro-playbooks/formats/excel_standards.md	8 KB	2026-08-25 12:37:25.0470769940
+/home/ubuntu/skills/finance-pro-playbooks/formats/metric_disambiguation.md	8 KB	2026-08-25 12:37:25.0471517600
+/home/ubuntu/skills/finance-pro-playbooks/references/company_analysis.md	72 KB	2026-08-25 12:37:25.0476688400
+/home/ubuntu/skills/finance-pro-playbooks/references/deal_materials.md	96 KB	2026-08-25 12:37:25.0484046880
+/home/ubuntu/skills/finance-pro-playbooks/references/due_diligence.md	120 KB	2026-08-25 12:37:25.0493386560
+/home/ubuntu/skills/finance-pro-playbooks/references/financial_models.md	84 KB	2026-08-25 12:37:25.0503806220
+/home/ubuntu/skills/finance-pro-playbooks/references/lbo_structuring.md	116 KB	2026-08-25 12:37:25.0510595540
+/home/ubuntu/skills/finance-pro-playbooks/references/market_research.md	60 KB	2026-08-25 12:37:25.0524040390
+/home/ubuntu/skills/finance-pro-playbooks/references/returns_analysis.md	60 KB	2026-08-25 12:37:25.0524040390
+/home/ubuntu/skills/finance-pro-playbooks/references/valuation.md	64 KB	2026-08-25 12:37:25.0531198940
+/home/ubuntu/skills/game-dev/LICENSE.txt	4 KB	2026-08-25 12:37:24.8041974340
+/home/ubuntu/skills/game-dev/NOTICE.md	4 KB	2026-08-25 12:37:24.8043085520
+/home/ubuntu/skills/game-dev/SKILL.md	8 KB	2026-08-25 12:37:24.8043491280
+/home/ubuntu/skills/game-dev/references/manus-adaptations.md	8 KB	2026-08-25 12:37:24.8078695310
+/home/ubuntu/skills/game-dev/templates/GameCanvas.tsx	4 KB	2026-08-25 12:37:24.8080560360
+/home/ubuntu/skills/gws-best-practices/SKILL.md	8 KB	2026-08-25 12:37:25.0122532340
+/home/ubuntu/skills/imagegen/LICENSE.txt	12 KB	2026-08-25 12:37:25.0589447660
+/home/ubuntu/skills/imagegen/SKILL.md	20 KB	2026-08-25 12:37:25.0591103410
+/home/ubuntu/skills/imagegen/references/prompt-recipes.md	16 KB	2026-08-25 12:37:25.0593125550
+/home/ubuntu/skills/imagegen/references/quality-checklist.md	8 KB	2026-08-25 12:37:25.0594682490
+/home/ubuntu/skills/imagegen/references/scene-decision-matrix.md	12 KB	2026-08-25 12:37:25.0595513350
+/home/ubuntu/skills/manus-api/SKILL.md	12 KB	2026-08-25 12:37:24.9014347200
+/home/ubuntu/skills/manus-config/SKILL.md	20 KB	2026-08-25 12:37:25.0524040390
+/home/ubuntu/skills/manus-pptx/.DS_Store	8 KB	2026-08-25 12:37:24.8839008850
+/home/ubuntu/skills/manus-pptx/SKILL.md	32 KB	2026-08-25 12:37:24.8839819670
+/home/ubuntu/skills/music-prompter/SKILL.md	12 KB	2026-08-25 12:37:24.7708219810
+/home/ubuntu/skills/persistent-computing/SKILL.md	12 KB	2026-08-25 12:37:25.0191046870
+/home/ubuntu/skills/persistent-computing/references/cloud-computer-reference.md	8 KB	2026-08-25 12:37:25.0193726850
+/home/ubuntu/skills/persistent-computing/references/migrate-webdev-to-cloud-computer.md	12 KB	2026-08-25 12:37:25.0191046870
+/home/ubuntu/skills/persistent-computing/references/reserved-hosting-reference.md	4 KB	2026-08-25 12:37:25.0195313090
+/home/ubuntu/skills/persistent-computing/references/work-with-connectors.md	8 KB	2026-08-25 12:37:25.0194583350
+/home/ubuntu/skills/read-special-images/SKILL.md	8 KB	2026-08-25 12:37:24.9719500150
+/home/ubuntu/skills/read-special-images/agents/openai.yaml	4 KB	2026-08-25 12:37:24.9716130380
+/home/ubuntu/skills/read-special-images/scripts/slice_image.py	8 KB	2026-08-25 12:37:24.9719500150
+/home/ubuntu/skills/skill-creator/.DS_Store	8 KB	2026-08-25 12:37:24.8014071280
+/home/ubuntu/skills/skill-creator/LICENSE.txt	12 KB	2026-08-25 12:37:24.8019437630
+/home/ubuntu/skills/skill-creator/SKILL.md	12 KB	2026-08-25 12:37:24.8018203440
+/home/ubuntu/skills/skill-creator/references/output-patterns.md	4 KB	2026-08-25 12:37:24.8021712400
+/home/ubuntu/skills/skill-creator/references/progressive-disclosure-patterns.md	4 KB	2026-08-25 12:37:24.8021204700
+/home/ubuntu/skills/skill-creator/references/workflows.md	4 KB	2026-08-25 12:37:24.8019437630
+/home/ubuntu/skills/skill-creator/scripts/init_skill.py	12 KB	2026-08-25 12:37:24.8021712400
+/home/ubuntu/skills/skill-creator/scripts/quick_validate.py	8 KB	2026-08-25 12:37:24.8027087830
+/home/ubuntu/skills/tts-prompter/SKILL.md	16 KB	2026-08-25 12:37:24.7996593150
+/home/ubuntu/skills/typst-pdf-maker/SKILL.md	24 KB	2026-08-25 12:37:24.8152150730
+/home/ubuntu/skills/typst-pdf-maker/assets/markdown-entry.typ	4 KB	2026-08-25 12:37:24.8156085030
+/home/ubuntu/skills/typst-pdf-maker/assets/report-entry.typ	4 KB	2026-08-25 12:37:24.8156562480
+/home/ubuntu/skills/typst-pdf-maker/assets/report-theme.typ	4 KB	2026-08-25 12:37:24.8156926360
+/home/ubuntu/skills/typst-pdf-maker/references/layout-rhythm.md	8 KB	2026-08-25 12:37:24.8158233330
+/home/ubuntu/skills/typst-pdf-maker/references/production-workflow.md	8 KB	2026-08-25 12:37:24.8159267550
+/home/ubuntu/skills/typst-pdf-maker/references/routing-catalog.json	20 KB	2026-08-25 12:37:24.8160354710
+/home/ubuntu/skills/typst-pdf-maker/references/typst-patterns.md	12 KB	2026-08-25 12:37:24.8162790090
+/home/ubuntu/skills/typst-pdf-maker/scripts/generate_pdf.py	4 KB	2026-08-25 12:37:24.8171915940
+/home/ubuntu/skills/typst-pdf-maker/scripts/plan_document.py	16 KB	2026-08-25 12:37:24.8183676090
+/home/ubuntu/skills/typst-pdf-maker/scripts/prepare_document.py	8 KB	2026-08-25 12:37:24.8184940720
+/home/ubuntu/skills/typst-pdf-maker/scripts/render_review.py	8 KB	2026-08-25 12:37:24.8185587880
+/home/ubuntu/skills/typst-pdf-maker/scripts/verify_pdf.py	8 KB	2026-08-25 12:37:24.8186476360
+/home/ubuntu/skills/webdev-custom-dockerfile/SKILL.md	12 KB	2026-08-25 12:37:24.9570518800
+/home/ubuntu/skills/webdev-data-api/SKILL.md	4 KB	2026-08-25 12:37:24.9647663210
+/home/ubuntu/skills/webdev-file-storage/SKILL.md	4 KB	2026-08-25 12:37:24.9830350230
+/home/ubuntu/skills/webdev-image-generation/SKILL.md	4 KB	2026-08-25 12:37:24.9248933710
+/home/ubuntu/skills/webdev-llm-integration/SKILL.md	8 KB	2026-08-25 12:37:24.9999199470
+/home/ubuntu/skills/webdev-manus-oauth/SKILL.md	8 KB	2026-08-25 12:37:24.9298079360
+/home/ubuntu/skills/webdev-maps-integration/SKILL.md	4 KB	2026-08-25 12:37:24.9421521660
+/home/ubuntu/skills/webdev-owner-notifications/SKILL.md	4 KB	2026-08-25 12:37:25.0112220740
+/home/ubuntu/skills/webdev-periodic-updates/SKILL.md	16 KB	2026-08-25 12:37:24.9627501440
+/home/ubuntu/skills/webdev-readme-fullstack/SKILL.md	36 KB	2026-08-25 12:37:24.8920076990
+/home/ubuntu/skills/webdev-readme-mobile-backend/SKILL.md	40 KB	2026-08-25 12:37:24.8706625530
+/home/ubuntu/skills/webdev-readme-mobile/SKILL.md	32 KB	2026-08-25 12:37:24.9421521660
+/home/ubuntu/skills/webdev-readme-static/SKILL.md	32 KB	2026-08-25 12:37:24.9664962000
+/home/ubuntu/skills/webdev-ssr-conversion/SKILL.md	28 KB	2026-08-25 12:37:25.0232330430
+/home/ubuntu/skills/webdev-ssr-conversion/references/pitfalls.md	32 KB	2026-08-25 12:37:25.0235663310
+/home/ubuntu/skills/webdev-ssr-conversion/references/ssr-playbook.md	56 KB	2026-08-25 12:37:25.0239435100
+/home/ubuntu/skills/webdev-ssr-conversion/scripts/verify-ssr.sh	20 KB	2026-08-25 12:37:25.0248918010
+/home/ubuntu/skills/webdev-voice-transcription/SKILL.md	4 KB	2026-08-25 12:37:24.9727115230

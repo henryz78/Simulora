@@ -1,0 +1,13 @@
+# App Runtime Architecture
+
+Status: `PARTIAL / black-box inferred`
+
+Apps are versioned reusable modules installed/configured in Worlds and instantiated in Simulations. A module can render built-in UI or community iframe HTML, carry initial JSON, inject AI instructions, define refresh/action prompts and Event text templates. Runtime App data participates in shared Turn/Event Delta; iframe-local UI may remain local until it invokes an App action.
+
+Published-App draft isolation is currently broken or semantically mislabeled: saving a v4 draft immediately changed the public App detail iframe before the separate Publish action. A World published after that point consumed the same v4 HTML in a fresh Simulation. A later v5 save, after that Simulation already existed, changed its iframe to v5 without a World version increment, Turn, or update prompt; reload preserved v5. Thus iframe source is dynamically resolved by App slug/latest content rather than pinned to the World snapshot. A v6 save then changed AI instruction and Event templates; using the existing Simulation's App `refresh` produced Event Delta entries `🧩set CONFIG_EVENT_V6 status`, `🧩set CONFIG_EVENT_V6 configMarker`, and `🧩push CONFIG_EVENT_V6`, confirming configuration hot-update beyond HTML. The separate contribution of Initial JSON versus AI instruction is still UNKNOWN.
+
+Official phone Apps use the same action contract: `预言家日报` refresh consumed a full Turn/Energy and regenerated structured newspaper fields and visible issue content. The phone shell's refresh button is therefore an App action trigger, not browser navigation.
+
+World v5 application (EVD-0110) first established field-level preservation: a new v5 Simulation seeded `clicks:999`, while an existing v4 save retained runtime `clicks:0` and merged new metadata without a Turn restart. EVD-0155 narrowed this to a three-way merge against the previous seed. EVD-0235 then proves the merge is deep/path-aware: a dirty nested leaf survives while an unchanged sibling updates and a new sibling is added; object arrays merge by stable `id`, retaining dirty/omitted existing members and appending new IDs; a clean field adopts explicit `null` while a dirty field rejects the conflicting null; omission is not deletion; runtime-only fields survive. A fresh v7 save uses the v7 seed literally. Parity therefore needs `install missing Apps + deep three-way merge new initialization config + preserve runtime modifications`, not a shallow overwrite.
+
+Evidence: EVD-0016, EVD-0023, EVD-0031–0032, EVD-0043, EVD-0057–0058, EVD-0062, EVD-0105, EVD-0110, EVD-0155, EVD-0235.

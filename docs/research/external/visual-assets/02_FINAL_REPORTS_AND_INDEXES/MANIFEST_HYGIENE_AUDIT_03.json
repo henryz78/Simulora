@@ -1,0 +1,24 @@
+{
+  "row_count": 314,
+  "unique_nonempty_urls": 273,
+  "issue_count": 103,
+  "issues_by_type": {
+    "duplicate_title": 4,
+    "duplicate_url": 19,
+    "http_error": 31,
+    "missing_url": 3,
+    "platform_root_url": 46
+  },
+  "issues_by_severity": {
+    "high": 34,
+    "low": 19,
+    "medium": 50
+  },
+  "http_status_buckets": {
+    "200": 259,
+    "206": 1,
+    "401": 2,
+    "403": 9,
+    "404": 2
+  }
+}

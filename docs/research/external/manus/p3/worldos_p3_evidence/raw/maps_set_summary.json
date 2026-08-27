@@ -1,0 +1,15 @@
+{
+  "base_card_rows": 1085,
+  "base_unique_hrefs": 1085,
+  "all_card_rows": 1181,
+  "all_unique_hrefs": 1181,
+  "intersection": 1085,
+  "only_all": 96,
+  "only_base": 0,
+  "base_repeated_href_occurrences_beyond_first": 0,
+  "all_repeated_href_occurrences_beyond_first": 0,
+  "base_same_title_different_href_groups": 91,
+  "duplicate_csv_rows": 194,
+  "note": "Membership is determined solely by visible, rendered stable World hrefs captured in each terminal scope. A href only in All is a set-membership result, not a backend claim about map existence or map IDs.",
+  "all_same_title_different_href_groups": 103
+}

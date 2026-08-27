@@ -1,0 +1,16 @@
+{
+  "previous_manifest_rows": 87,
+  "new_rows": 113,
+  "updated_manifest_rows": 200,
+  "new_by_source_prefix": {
+    "K": 33,
+    "N": 20,
+    "PH": 30,
+    "Q": 30
+  },
+  "new_by_rights_tier": {
+    "A-可实际使用": 93,
+    "A-条件可用": 20
+  },
+  "preview_files_copied": 113
+}

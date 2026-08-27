@@ -1,0 +1,1 @@
+MANUS-P2 harmless wrong-MIME upload validation fixture.

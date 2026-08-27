@@ -1,0 +1,87 @@
+=== loreloom.com ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName":"LORELOOM.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/loreloom.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/loreloom.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/loreloom.com","rel":"relat
+=== loreloom.ai ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName": "loreloom.ai",
+"ldhName": "dns1.registrar-servers.com",
+"status": [
+"ldhName": "dns2.registrar-servers.com",
+"status": [
+"status": [
+
+=== echora.com ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName":"ECHORA.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/echora.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/echora.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/echora.com","rel":"related","hre
+=== echora.ai ===
+DNS: resolves
+RDAP HTTP: 000
+=== forklight.com ===
+DNS: no resolution
+RDAP HTTP: 000
+=== forklight.ai ===
+DNS: no resolution
+RDAP HTTP: 200
+"ldhName": "forklight.ai",
+"ldhName": "donna.ns.cloudflare.com",
+"status": [
+"ldhName": "garret.ns.cloudflare.com",
+"status": [
+"status": [
+
+=== statecraft.com ===
+DNS: no resolution
+RDAP HTTP: 200
+"ldhName":"STATECRAFT.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/statecraft.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/statecraft.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/statecraft.com","rel
+=== statecraft.ai ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName": "statecraft.ai",
+"ldhName": "ns-120.awsdns-15.com",
+"status": [
+"ldhName": "ns-653.awsdns-17.net",
+"status": [
+"ldhName": "ns-1135.awsdns-13.org",
+"status": [
+"ldhName": "ns-1863.awsdns-40.co.uk",
+"status": [
+"status": [
+
+=== worldline.com ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName":"WORLDLINE.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/worldline.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/worldline.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/worldline.com","rel":"r
+=== worldline.ai ===
+DNS: resolves
+RDAP HTTP: 000
+=== paracosm.com ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName":"PARACOSM.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/paracosm.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/paracosm.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/paracosm.com","rel":"relat
+=== paracosm.ai ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName": "paracosm.ai",
+"ldhName": "ns67.domaincontrol.com",
+"status": [
+"ldhName": "ns68.domaincontrol.com",
+"status": [
+"status": [
+
+=== simulora.com ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName":"SIMULORA.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/simulora.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/simulora.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/simulora.com","rel":"relat
+=== simulora.ai ===
+DNS: no resolution
+RDAP HTTP: 404
+=== morroway.com ===
+DNS: resolves
+RDAP HTTP: 200
+"ldhName":"MORROWAY.COM","links":[{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/morroway.com","rel":"self","href":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/morroway.com","type":"application\/rdap+json"},{"value":"https:\/\/rdap.verisign.com\/com\/v1\/domain\/morroway.com","rel":"relat
+=== morroway.ai ===
+DNS: no resolution
+RDAP HTTP: 404

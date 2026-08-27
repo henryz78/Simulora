@@ -1,0 +1,6 @@
+id,主题,标题或描述,来源线索,来源链接,适合用在哪里,可借鉴的视觉特点,风格关键词,权利分级,使用边界
+KV01,VFX与动态表现资产,Particle Pack,Kenney / 官方单件资产页,https://kenney.nl/assets/particle-pack,天气、魔法、资源收集、世界事件和状态变化的粒子反馈,80 个 512×512 粒子资源且标注 VFX，可作为程序化事件反馈基底,粒子 shader VFX 2D Kenney CC0,A-可实际使用,官方单件页标注 Creative Commons CC0；下载包与许可文件为最终依据，不得使用 Kenney logo。
+KV02,VFX与动态表现资产,Splat Pack,Kenney / 官方单件资产页,https://kenney.nl/assets/splat-pack,命中、污渍、生态扩散、战斗或灾变事件的动态图层,可与粒子系统组合为事件可视化贴图,溅射 VFX 2D Kenney CC0,A-可实际使用,官方资产页游戏资源采用 CC0；下载时保留单件页和包内 license 文件。
+KV03,VFX与动态表现资产,Foliage Sprites,Kenney / 官方单件资产页,https://kenney.nl/assets/foliage-sprites,风吹植被、林地前景和生态活性背景,适合构造低成本但有层次的自然动态前景,植被 精灵 自然 VFX 2D Kenney CC0,A-可实际使用,官方资产页游戏资源采用 CC0；下载时保留单件页和包内 license 文件。
+KV04,VFX与动态表现资产,Smoke Particles,Kenney / 官方单件资产页,https://kenney.nl/assets/smoke-particles,火灾、工业污染、雾气、蒸汽和灾变状态,烟雾层可对接天气和文明状态系统,烟雾 粒子 工业 天气 VFX Kenney CC0,A-可实际使用,官方资产页游戏资源采用 CC0；下载时保留单件页和包内 license 文件。
+KV05,VFX与动态表现资产,Light Masks,Kenney / 官方单件资产页,https://kenney.nl/assets/light-masks,夜景城市、魔法区域、室内灯光和状态高亮,低成本光晕和遮罩适合世界画布热点表达,光罩 夜景 高亮 VFX Kenney CC0,A-可实际使用,官方资产页游戏资源采用 CC0；下载时保留单件页和包内 license 文件。

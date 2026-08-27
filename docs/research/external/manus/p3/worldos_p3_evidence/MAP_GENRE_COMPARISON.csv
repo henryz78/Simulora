@@ -1,0 +1,5 @@
+﻿comparison_ordinal,genre,volume_role,base_scope_terminal_unique_hrefs,all_scope_terminal_unique_hrefs,all_minus_base,terminal_evidence,status
+1,DnD,sparse,0,0,0,Both scopes immediately showed 暂无地图; no scrolling needed.,CONFIRMED
+2,动漫,high-volume,272,334,62,Each scope reached 3+ consecutive zero-growth current-end scrolls.,CONFIRMED
+3,科幻,typical,54,57,3,Each scope reached 3+ consecutive zero-growth current-end scrolls.,CONFIRMED
+4,恋爱,typical,92,140,48,Each scope reached 3+ consecutive zero-growth current-end scrolls.,CONFIRMED

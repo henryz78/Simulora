@@ -1,0 +1,1 @@
+No CSV/XLSX files were generated in prior rounds; data/README.md documents this explicitly.
