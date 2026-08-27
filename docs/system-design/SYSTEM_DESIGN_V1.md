@@ -1,6 +1,6 @@
 # System Design V1
 
-Status: `SYSTEM DESIGN V1: FROZEN`
+Status: `SYSTEM DESIGN V1: FROZEN AFTER INDEPENDENT REPAIR`
 
 Date: `2026-08-27` (`Asia/Shanghai`)
 
@@ -95,7 +95,7 @@ The following classification is binding.
 | Commit and Domain Event | Authoritative record of an accepted transition and its causal explanation | Append-only; content subject to governed redaction/purge rules. |
 | Conversation history | Historical record of committed user and system-facing output | Append-only per commit; not canonical truth by itself. |
 | User-authored or confirmed memory | Authoritative only within its declared scope | Corrected by a new commit that supersedes the old item. |
-| Model-generated memory candidate | Non-authoritative proposal | May be rejected, expired or promoted through policy and audit. |
+| Model-generated memory candidate | Non-authoritative proposal | May be rejected, expired or remain/rebuild as L1 while non-canonical; a promotion or supersession that changes canonical continuity requires the closed L3 direct-user confirmation path. |
 | Derived summary, embedding, search index or cache | Rebuildable projection | Never used as sole authority; safe to discard and rebuild. |
 | Streaming/generated draft | Non-authoritative until its Action is committed | A failed draft cannot mutate state or appear as committed history. |
 | Account permission, entitlement and usage ledger | Authoritative in its owning module | Changes require audited domain operations; never inferred from world state. |
@@ -118,6 +118,10 @@ That final transaction:
 
 A unique constraint on `action_id` permits at most one Commit. Provider requests and workers may be retried; the product commitment may not be duplicated. This provides product-level once-only commitment without claiming distributed exactly-once delivery.
 
+### 6.1 Closed impact classification
+
+The deterministic validator, not a model-provided label, assigns the final L1/L2/L3 consequence level using the closed decision table in [DOMAIN_STATE_AND_DATA_MODEL.md](DOMAIN_STATE_AND_DATA_MODEL.md). The validator may raise a level for safety or uncertainty but may never lower the table’s minimum. It rejects an automatic transition that supersedes, removes or widens a protected canonical continuity record without the direct user authorization required for L3.
+
 ## 7. Participation and autonomy boundary
 
 The architecture stores two independent values; it never combines them into one mode enum:
@@ -128,6 +132,12 @@ The architecture stores two independent values; it never combines them into one 
 Both are versioned in the Branch state. The default is `GUIDED + OPEN_ENDED`.
 
 All modes reserve these actions to the user unless a future product decision explicitly reopens the boundary: user-avatar speech/action, identity changes, external sharing, resource spending, paid usage, permission changes, deletion and other irreversible commitments. A model may propose these actions but cannot commit them.
+
+### 7.1 Participation Contract Transition
+
+`participationExpectation` on an ordinary Action is **match-only**. It expresses the client’s expected current `initiative_mode` and `structure_mode`; it cannot change either value. Before an ordinary Action is acknowledged or generated, the server compares that expectation with the authoritative expected-head State Revision. A mismatch produces a recoverable stale-contract/head result and creates no Commit.
+
+Only the explicit, user-initiated `CHANGE_PARTICIPATION_CONTRACT` Action may change the two values. It carries the requested complete two-axis contract and `expected_head_commit_id`, validates the requested transition against product policy, gives the user a clear direct disclosure of the before/after authority effect, and commits through the normal Action → Commit path. Its Commit contains a `PARTICIPATION_CONTRACT_CHANGED` Domain Event with prior and resulting contracts. A direct, exact user request is the authorization for this configuration action; an additional confirmation is required only if a future policy elevates the specific transition. A model proposal, draft, `participationExpectation`, stale client state or generated prose can never modify participation authority or world structure.
 
 V1 `WORLD_ACTIVE` may advance bounded background world activity during a user-initiated orchestration cycle or explicit session-boundary continuation. It does not authorize unattended off-session mutation. That limitation reduces silent change and scheduler complexity while preserving a future extension point.
 
@@ -158,13 +168,13 @@ Automatic commit persistence is not presented as the same promise as a user-crea
 
 | Requirement | Primary design owner | Contract / validation anchor |
 |---|---|---|
-| PR-001 | Continuity Runtime, Action Coordinator | Separate initiative/structure fields; protected-action validator |
+| PR-001 | Continuity Runtime, Action Coordinator | Separate initiative/structure fields; match-only expectation and user-authorized contract-transition Action |
 | PR-002 | World Authoring | Draft-to-playable-revision contract |
 | PR-003 | Context & Memory, Continuity Runtime | Current-state projection and return-orientation query |
-| PR-004 | State & Consequence, Context & Memory | Scoped state items, provenance and correction Commit |
+| PR-004 | State & Consequence, Context & Memory | Scoped state items, closed impact classification, authorized explanation projection and correction Commit |
 | PR-005 | State & Consequence | Causal Domain Events and validated transition proposal |
 | PR-006 | Character Runtime, Governance | identity/knowledge scopes and protected user-authority rules |
-| PR-007 | State & Consequence, Governance & Audit | source/cause/scope recorded on consequential changes |
+| PR-007 | State & Consequence, Governance & Audit | source/cause/scope recorded on consequential changes; closed impact classification and correction path |
 | PR-008 | Recovery & Portability | distinct recovery-point, branch, restore and delete contracts |
 | PR-009 | Recovery & Portability | versioned readable export and lifecycle status |
 | PR-010 | Model Gateway, State & Consequence | provider-independent state and recorded Generation Attempts |
@@ -180,7 +190,7 @@ Automatic commit persistence is not presented as the same promise as a user-crea
 | NFR-002 | Client/API contracts | semantic output, keyboard/screen-reader/no-audio/reduced-motion paths |
 | NFR-003 | Client projection boundary | core loop has no sensory dependency |
 | NFR-004 | Governance & Audit, Model Gateway | material-change records and model capability profile history |
-| NFR-005 | Identity & Access, Context & Memory | scope authorization before retrieval and provider calls |
+| NFR-005 | Identity & Access, Context & Memory | scope authorization before retrieval/provider calls and authorized explanation projection |
 | NFR-006 | All core runtime modules | long-horizon scenario suite |
 | NFR-007 | Action Coordinator, SSE contract | durable acknowledgement metric and recoverable wait states |
 
@@ -211,7 +221,7 @@ These are not implementation defaults. They require the product or specialist de
 
 ## 13. Phase boundary
 
-`SYSTEM DESIGN V1: FROZEN`
+`SYSTEM DESIGN V1: FROZEN AFTER INDEPENDENT REPAIR`
 
 `PRODUCT IMPLEMENTATION: NOT STARTED`
 

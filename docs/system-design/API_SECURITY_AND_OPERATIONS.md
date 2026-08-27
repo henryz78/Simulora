@@ -1,6 +1,6 @@
 # API, Security and Operations
 
-Status: `FROZEN WITH SYSTEM DESIGN V1`
+Status: `FROZEN WITH SYSTEM DESIGN V1 AFTER INDEPENDENT REPAIR`
 
 ## 1. Contract style
 
@@ -47,17 +47,19 @@ This is a contract inventory, not a UI map.
 | `GET /v1/continuities/{id}/orientation` | current return orientation | includes authoritative source head and freshness |
 | `GET /v1/branches/{id}/state` | authorized view of authoritative current state | identifies source State Revision/head; scope-filtered response is not a second canonical revision |
 | `GET /v1/branches/{id}/commits` | paged causal/history navigation | stable cursor; visibility filtered |
-| `POST /v1/branches/{id}/actions` | submit a world/state/action intent | durable acknowledgement; idempotency required |
+| `GET /v1/branches/{id}/explanations/{targetType}/{targetId}` | explain an accessible fact or committed change | presentation-neutral projection of permitted source class/Commit, scope, source head/freshness and correction path; never raw prompt, provider reasoning or excluded private context |
+| `POST /v1/branches/{id}/actions` | submit a world/state/action intent | durable acknowledgement; idempotency required; ordinary `PARTICIPATE` expectation is match-only and cannot mutate participation axes |
 | `GET /v1/actions/{id}` | recover truth after timeout/reconnect | returns lifecycle, Commit or recoverable error |
 | `POST /v1/actions/{id}/confirm` | confirm exact protected proposal | proposal digest and expected head required |
 | `POST /v1/actions/{id}/cancel` | cancel if no Commit exists | terminal response; cannot undo a Commit |
 | `GET /v1/actions/{id}/events` | SSE progress/output | resumable cursor; provisional frames labeled |
 
-### 2.4 Correction and recovery
+### 2.4 Participation contract, correction and recovery
 
 | Method and resource | Purpose | Important contract |
 |---|---|---|
-| `POST /v1/branches/{id}/corrections` | supersede/remove scoped fact or state item | normal Action/Commit protocol; reason/provenance retained |
+| `POST /v1/branches/{id}/participation-contract` | directly change the two-axis contract | explicit user-only `CHANGE_PARTICIPATION_CONTRACT` Action; full before/after contract and expected head required; produces Commit plus typed Event; model/client expectation cannot change it |
+| `POST /v1/branches/{id}/corrections` | supersede or remove a scoped canonical fact, relationship state or user note | explicit direct-user `CORRECT_CONTINUITY` / `REMOVE_CONTINUITY` Action with final exact confirmation; target, scope, before/after effect and reason are bound; closed L3 handling and audited Commit/Event required |
 | `POST /v1/branches/{id}/recovery-points` | name current or accessible Commit | no state copy or mutation |
 | `POST /v1/continuities/{id}/branches` | branch from a selected Commit | source unchanged; new Branch ID returned |
 | `POST /v1/branches/{id}/restore-proposals` | calculate restore effect | read-only diff, scope and digest |
@@ -104,6 +106,8 @@ Example request shape:
 }
 ```
 
+For `PARTICIPATE`, `participationExpectation` is a match-only assertion about the authoritative contract at `expectedHeadCommitId`; it is not a mode-change request. A mismatch returns a recoverable stale-contract/head result and writes no Commit. `CHANGE_PARTICIPATION_CONTRACT` is a separate direct-user Action with a complete replacement two-axis contract. `CORRECT_CONTINUITY` and `REMOVE_CONTINUITY` are separate direct-user Actions that bind the target, scope and requested effect to a final exact confirmation before Commit. No model proposal or client expectation can reclassify one operation into another.
+
 Acknowledgement response:
 
 ```json
@@ -143,7 +147,9 @@ Required distinctions include:
 - ineligible;
 - unauthorized/hidden resource (without leaking existence);
 - head conflict;
+- participation-contract/head mismatch or invalid mode transition;
 - policy/safety boundary;
+- closed-impact-table classification or canonical-change authorization failure;
 - confirmation required/expired;
 - usage quote expired or insufficient allowance;
 - model unavailable/degraded;
@@ -178,7 +184,9 @@ Every request evaluates:
 4. requested operation and role;
 5. content visibility/privacy scope;
 6. active consent/policy restrictions;
-7. protected-action confirmation when relevant.
+7. direct user authority or protected-action confirmation when relevant, including user-only contract change/canonical correction operations;
+8. for any canonical continuity mutation, deterministic closed impact classification before Commit; and
+9. for an Explanation Projection, target/source visibility filtering before projection assembly.
 
 Authorization occurs in application services for every resource access. Database query scoping and optional row-level controls provide defense in depth; neither replaces domain checks.
 
@@ -214,7 +222,7 @@ Scope is stored with canonical and derived items. A scope transformation is a pr
 - Context is minimized to the task and filtered before retrieval/ranking.
 - Account identifiers, eligibility data, payment data, access tokens and unrelated private history are excluded.
 - Provider configuration must meet approved retention/training policy; its profile and material changes are versioned.
-- Provider output is untrusted input and passes the same schema, authorization, safety and state validators as any external input.
+- Provider output is untrusted input and passes the same schema, authorization, closed impact and state validators as any external input; it cannot mutate participation axes or perform an L3 canonical continuity change.
 - Logs store request/response identifiers and safe metrics; raw content logging is disabled by default and tightly controlled when diagnosis requires sampled access.
 
 ### 6.3 Import and creator-content isolation
@@ -230,6 +238,7 @@ Imported files and creator-authored fields may contain prompt injection, malform
 - No client-supplied object key, SQL fragment, prompt role or policy expression is trusted.
 - Secrets are rotated and excluded from exports, traces and model context.
 - Confirmation tokens bind actor, action/proposal digest, expected Branch head, protected scope and expiry.
+- An Explanation Projection is scoped at both the target and each cited source; it cannot disclose excluded context, raw prompt text or provider reasoning through causal explanation.
 - Administrative/operator access is least-privilege, time-bounded where practical and audited.
 
 ## 7. Safety and governance boundary
@@ -283,7 +292,8 @@ Minimum telemetry, without raw private content by default:
 - acknowledgement, queue, provider-first-output, validation and commit latency;
 - Action counts and terminal/recoverable outcomes by reason code;
 - duplicate idempotency hits and prevented duplicate commits/settlements;
-- Branch conflicts;
+- Branch conflicts, stale participation-contract expectations and rejected invalid contract transitions;
+- closed impact-level outcomes and blocked unconfirmed canonical continuity changes as aggregate metrics;
 - context scope exclusions and policy blocks as aggregate metrics;
 - projection lag by head distance;
 - job retry/dead-letter rate;

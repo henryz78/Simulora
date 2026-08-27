@@ -1,6 +1,6 @@
 # Architecture Decision Record
 
-Status: `ADR SET V1: ACCEPTED / FROZEN WITH SYSTEM DESIGN V1`
+Status: `ADR SET V1: ACCEPTED / FROZEN WITH SYSTEM DESIGN V1 AFTER INDEPENDENT REPAIR`
 
 Each decision is original and derived from frozen Product Definition. An ADR may be superseded later by a new dated ADR; accepted history is not rewritten.
 
@@ -139,6 +139,14 @@ Each decision is original and derived from frozen Product Definition. An ADR may
 - **Decision:** System Design defines only the projection boundary: any later sensory layer reads committed state and must degrade away. No audio, map, motion, 3D or rendering subsystem is selected for MVP.
 - **Consequences:** Core architecture remains text/control complete. A future selected sensory feature requires an experience decision and technology-specific ADR.
 - **Trace:** PR-018, NFR-002–NFR-003; Principle 8.
+
+## ADR-018 — Enforce user-authorized participation transitions and closed canonical-continuity impact classification
+
+- **Status:** Accepted
+- **Context:** The original design stored independent participation axes and separated canonical state from derived memory, but it did not explicitly close the mutation authority for the axes or the minimum confirmation level for high-impact canonical continuity changes. PR-001, PR-004 and PR-007 require user authority, inspectable continuity and non-silent high-impact change.
+- **Decision:** An ordinary `PARTICIPATE` Action treats `participationExpectation` as match-only against the authoritative expected-head State Revision. Only a direct user `CHANGE_PARTICIPATION_CONTRACT` Action can change the complete two-axis contract and it records a Commit plus `PARTICIPATION_CONTRACT_CHANGED` Domain Event. The deterministic validator applies the closed L1/L2/L3 decision table to canonical targets, effect and scope; models cannot alter participation axes or lower the table’s minimum. User-authored/confirmed canonical continuity removal, supersession, semantic rewrite and scope widening are L3 direct-user-authorized operations. An Explanation Projection reads existing authorized State Revision, Commit/Event and permitted Context Manifest records; it is not a store or new authority.
+- **Consequences:** Routine low-risk world evolution remains L2 and does not become confirmation-heavy. High-impact canonical changes have a consistent user-authority/audit path. No new service, database authority, worker, provider privilege or architecture component is introduced. API, validation and Experience Design must expose the direct operation, stale-head behavior, closed impact result and scope-filtered explanation without showing private/model-only context.
+- **Trace:** PR-001, PR-004, PR-007, NFR-001, NFR-005; Principles 1, 2, 5, 7 and 10; IR-IMP-01, IR-IMP-02, IR-MIN-01.
 
 ## Decision trigger for added infrastructure
 

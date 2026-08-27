@@ -1,6 +1,6 @@
 # Domain, State and Data Model
 
-Status: `FROZEN WITH SYSTEM DESIGN V1`
+Status: `FROZEN WITH SYSTEM DESIGN V1 AFTER INDEPENDENT REPAIR`
 
 ## 1. Purpose
 
@@ -47,6 +47,7 @@ flowchart TD
 | Conversation Entry | A committed user or system-facing historical entry | History, not canonical fact merely because text states it. |
 | Recovery Point | A named reference to a Commit | Does not duplicate or mutate state. |
 | Derived Memory | Rebuildable summary/index over committed sources | Non-authoritative and scope-limited. |
+| Explanation Projection | Filtered explanation of an accessible fact or committed change | Presentation-neutral read model derived from existing state, Commit/Event and Context Manifest records; never canonical and never a raw prompt dump. |
 | Export Package | Versioned portable representation of selected authorized content | Immutable generated artifact with manifest/checksum. |
 
 ## 4. Aggregate boundaries and invariants
@@ -88,7 +89,10 @@ Invariants:
 - a Continuity pins one World Revision in V1;
 - every Continuity has at least one Branch and one active Branch;
 - each Branch has exactly one current head Commit after initialization, and that head Commit belongs to the Branch;
-- `initiative_mode` and `structure_mode` are independent required fields;
+- `initiative_mode` and `structure_mode` are independent required fields in the head State Revision; no Branch column or client field is a second authority;
+- an ordinary Action’s `participationExpectation` must equal the two authoritative values at its `expected_head_commit_id` and can never mutate them;
+- only a direct user `CHANGE_PARTICIPATION_CONTRACT` Action may change either axis; it specifies the complete requested contract and current expected head, creates one Commit and records one `PARTICIPATION_CONTRACT_CHANGED` Domain Event;
+- a model proposal, generated prose or stale client expectation cannot change either axis;
 - a state-mutating Action specifies `expected_head_commit_id`;
 - a Commit may advance a Branch only if the expected head still matches;
 - branching never changes the source Branch;
@@ -156,7 +160,7 @@ Character knowledge is allow-listed by scope. A retrieval result never grants kn
 
 ### 5.1 Canonical state
 
-Canonical state answers: **what is true now in this Branch?** It includes current facts, current relationship values/qualitative states, current entity/location/resource state, active/open threads, optional objectives, and participation/consent settings.
+Canonical state answers: **what is true now in this Branch?** It includes current facts, current relationship values/qualitative states, current entity/location/resource state, active/open threads, optional objectives, participation settings and Branch-local interaction boundaries. Account eligibility, legal consent, grants and governance decisions are account-domain authority, not Branch state.
 
 It excludes raw prompts, uncommitted generated prose, embeddings and provider reasoning.
 
@@ -190,18 +194,25 @@ Partial streamed drafts are kept only as Generation Attempt diagnostics under sh
 | User note | explicit user input | Canonical within declared scope | user can edit/remove through Commit |
 | Derived summary | model/system synthesis | Non-authoritative | rebuild, expire or remove without changing canon |
 | Retrieval index | facts/events/history-derived | Non-authoritative | rebuildable; never displayed as truth by itself |
-| Memory candidate | generated proposed fact/summary | Non-authoritative until promoted | reject, expire, auto-promote only under approved impact policy |
+| Memory candidate | generated proposed fact/summary | Non-authoritative until promoted | reject, expire or remain/replace as L1 when non-canonical; any promotion/supersession that changes canonical continuity follows the closed L3 decision table and direct user authorization |
 
-### 5.5 Consequence impact levels
+### 5.5 Closed consequence-impact decision table
 
-| Level | Examples | Commit behavior |
-|---|---|---|
-| L0 Ephemeral | ranking, token budgeting, temporary draft plan | no canonical mutation |
-| L1 Derived | recap, embedding, search projection | automatic and rebuildable; source links required |
-| L2 Ordinary world change | location change, earned relationship shift, open-thread update | may commit automatically within active participation contract; causal trace and correction path required |
-| L3 Protected | avatar action, identity/consent change, external sharing, spend, delete, permission, irreversible commitment | explicit user confirmation bound to the exact proposal |
+The table below is the minimum classification rule for V1. The deterministic validator derives the final level from operation, target authority, prior scope and effect; a model’s requested label is advisory only. Safety policy or a user-selected stricter world boundary may raise a level but may never lower the listed minimum. `L3` means a direct user confirmation bound to the exact target and resulting change. For an explicit user correction/removal Action, the final direct confirmation of that Action supplies the authorization; the system must show the target, scope and effect before Commit and require renewed confirmation if the expected head or resulting effect changes.
 
-Safety policy may raise an operation's level; model output may never lower it.
+| Change class | Minimum level | Required handling |
+|---|---:|---|
+| Ranking, token budgeting, provisional draft plans or uncommitted generation | L0 | No canonical mutation or committed-history claim. |
+| Derived summaries, embeddings, retrieval indexes, search/return projections and a Memory Candidate that remains non-canonical | L1 | May rebuild, expire, replace or be removed automatically. It must retain permitted source links/freshness and cannot itself alter canonical facts, relationship state, scope or authority. |
+| Low-risk, validated world evolution: location/resource updates, an earned relationship shift within declared non-protected bounds, an open-thread update, or a new system/character/world fact that remains within its existing allowed scope and does not supersede a user-owned/confirmed record | L2 | May Commit inside the active participation contract. It requires a causal Event, visible explanation/correction path and an authorized expected-head transition. |
+| User-authored canonical fact or user-confirmed canonical fact: removal, replacement, supersession, semantic rewrite or scope/visibility reclassification | L3 | Never silently performed by a model or ordinary L2 evolution. It requires a direct user-authorized Action/Commit with target, before/after effect, scope and provenance. |
+| Scope or visibility widening of any canonical record; any scope transformation that could newly expose a private record | L3 | Requires exact direct user authorization and audit. The validator rejects implicit copies or model-proposed widening. |
+| Identity, legal consent, permission, external sharing, spend, deletion or other irreversible commitment | L3 | Requires its protected account/lifecycle operation and exact user confirmation; Branch Restore or ordinary world Actions cannot perform it. |
+| High-consequence relationship redefinition that changes a declared protected, identity-bound or long-term commitment state | L3 | Requires exact user authorization. Routine L2 relationship evolution remains allowed only outside this protected class. |
+| Memory Candidate promotion/supersession that would create, replace, remove, widen or otherwise change a canonical fact or protected relationship state | L3 | Treat as a protected canonical change; a derived summary may still be L1 if it does not make or alter canon. |
+| User correction or removal of a canonical fact, relationship state or user note | L3 | Must use an explicit user `CORRECT_CONTINUITY` or `REMOVE_CONTINUITY` Action and one audited Commit; it cannot be inferred from model prose or a generic turn. |
+
+This table does not make every ordinary world change interrupt-driven. It preserves L2 for low-risk, explainable evolution while closing the boundary against silent high-impact changes to user-owned or confirmed continuity.
 
 ## 6. Logical PostgreSQL schema
 
@@ -255,6 +266,8 @@ All IDs are opaque, server-generated, time-sortable UUIDs. All mutable rows incl
 | `retrieval_documents` | source type/id, branch, scope labels, derived text/vector reference, source revision; rebuildable |
 | `return_orientation_projections` | branch/head commit, recent changes/open threads/relationship summary; rebuildable |
 
+An Explanation Projection introduces no new authoritative store or independent state table. It is a scoped response assembled from existing accessible State Revision items, Commit/Domain Event provenance and, where applicable, Context Manifest source IDs. It returns only the target fact/change, permitted source class and Commit reference, permitted scope, current source head/freshness and authorized correction path. It never returns raw prompts, provider reasoning, excluded source identities/counts beyond approved aggregate disclosure, or records unavailable to the requesting user/character.
+
 Derived tables may lag. Every projection response includes the authoritative head it represents. The client must not present a stale projection as current without a stale/loading marker.
 
 ### 6.5 Jobs, usage and portability
@@ -280,6 +293,8 @@ Minimum database-enforced constraints:
 - World Revision number and content hash are immutable;
 - source and target of a Branch belong to the same Continuity;
 - protected action confirmation digest matches the current proposal and expected head;
+- an ordinary Action may not change participation axes; a `CHANGE_PARTICIPATION_CONTRACT` Commit must be directly user-authorized, retain the expected-head match and emit its typed Domain Event;
+- validator impact level may not be below the closed decision-table minimum for target/effect/scope, and L3 canonical continuity changes require the direct user authorization bound to the target/effect;
 - derived rows cannot be referenced as canonical source revisions;
 - usage settlement/release is unique per Action;
 - visibility/scope values use closed registries, not arbitrary model strings;
@@ -297,4 +312,4 @@ Application services additionally validate domain document schemas, authorizatio
 
 ## 9. Clean-room boundary
 
-This domain model is derived from the original PRD. Generic terms such as World, Character, Branch, Commit and Event describe the problem domain; no competitor route, page hierarchy, JSON structure, Memory threshold, version merge behavior or feature bundle is adopted. Creator templates remain test/mechanism references and do not define these schemas.
+This domain model is derived from the original PRD. Generic terms such as World, Character, Branch, Commit and Event describe the problem domain; no competitor route, page hierarchy, JSON structure, Memory threshold, version merge behavior or feature bundle is adopted. The closed participation-transition and continuity-impact rules are original authority/recovery decisions, not competitor behavior. Creator templates remain test/mechanism references and do not define these schemas.

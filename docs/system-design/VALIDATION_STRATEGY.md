@@ -1,6 +1,6 @@
 # System Design Validation Strategy
 
-Status: `FROZEN WITH SYSTEM DESIGN V1`
+Status: `FROZEN WITH SYSTEM DESIGN V1 AFTER INDEPENDENT REPAIR`
 
 ## 1. Purpose
 
@@ -37,13 +37,13 @@ Interrupt at every stage after durable acknowledgement. Assert Action truth is r
 
 Process two Actions against the same expected head. Assert at most one commits; the other becomes an explicit conflict and no auto-merge occurs.
 
-### INV-04 — Participation axes remain independent
+### INV-04 — Participation axes remain independent and user-authorized
 
-Round-trip and execute all six initiative/structure combinations. Assert no serializer, database field, API or routing decision collapses them.
+Round-trip and execute all six initiative/structure combinations. Assert no serializer, database field, API or routing decision collapses them. Submit an ordinary `PARTICIPATE` Action with a matching expectation and assert that it cannot mutate either axis; submit a mismatched/stale expectation and assert no Commit. Submit one direct user `CHANGE_PARTICIPATION_CONTRACT` Action against the expected head and assert one Commit plus `PARTICIPATION_CONTRACT_CHANGED` Event with complete before/after two-axis values. Repeat against a stale head and assert conflict/no mutation. Inject a model proposal, generated prose and client expectation that attempt to change an axis; assert each is rejected and neither axis changes.
 
-### INV-05 — Protected user authority
+### INV-05 — Protected user authority and closed continuity impact classification
 
-Inject model proposals for avatar speech/action, spend, sharing, deletion, identity/consent or permission change without a valid confirmation. Assert zero protected mutation and a reason-coded proposal/block.
+Inject model proposals for avatar speech/action, spend, sharing, deletion, identity/consent, permission change, participation-axis change, user-authored/confirmed canonical fact supersession/removal, canonical scope widening and protected relationship redefinition without the required direct authorization. Assert zero protected mutation and a reason-coded proposal/block. Assert the deterministic validator never accepts an impact label below the closed decision-table minimum, while a routine allowed L2 location/resource/thread or non-protected relationship evolution retains causal Event and correction path without unnecessary confirmation.
 
 ### INV-06 — Model output is not truth
 
@@ -53,9 +53,9 @@ Generate prose that contradicts canonical state and a malformed structured trans
 
 Seed private facts across Accounts, Continuities and Characters. Assert unauthorized records are absent from retrieval candidates, context manifests, model calls, summaries, logs and responses.
 
-### INV-08 — Correction supersedes future behavior
+### INV-08 — Direct correction/removal and canonical continuity protection
 
-Commit a wrong scoped fact, correct it, rebuild derived memory and change model profile. Assert later context uses the correction and old derived data cannot reassert the superseded fact.
+Commit a wrong scoped fact, correct it through explicit direct-user `CORRECT_CONTINUITY` or `REMOVE_CONTINUITY` Action, rebuild derived memory and change model profile. Assert the target, scope and before/after effect are bound to the expected head and produce one audited Commit/Event; later context uses the correction and old derived data cannot reassert the superseded fact. Assert a Memory Candidate may remain/rebuild as L1 when non-canonical but cannot be promoted/superseded into canonical continuity without the closed L3 path.
 
 ### INV-09 — Recovery is non-destructive
 
@@ -73,17 +73,21 @@ Delay projection jobs after a Commit. Assert projection responses disclose their
 
 Export a selected scope; verify manifest, checksums, schema versions, omissions and human-readable material. Assert unauthorized/private/provider data is absent.
 
+### INV-13 — Authorized explanation projection is useful without leaking context
+
+For an accessible fact and committed change, request the Explanation Projection. Assert it identifies only the permitted target, source class/Commit reference, permitted scope, source head/freshness and correction path. Seed private or character-inaccessible sources and assert they, raw prompts, provider reasoning, excluded source identities and unfiltered context never appear. Delay a source projection and assert stale/freshness state remains visible without making the projection authoritative.
+
 ## 4. PRD acceptance mapping
 
 | Requirement | Validation IDs | Required proof |
 |---|---|---|
-| PR-001 | INV-04, INV-05, E2E-AGENCY | separate active contracts, allowed initiative and override |
+| PR-001 | INV-04, INV-05, E2E-AGENCY, E2E-CONTRACT-TRANSITION | separate active contracts, user-authorized change, allowed initiative and override |
 | PR-002 | E2E-START | non-expert premise-to-play without hidden prompt setup |
 | PR-003 | E2E-RETURN, LONG-01 | return orientation from committed sources after interruption |
-| PR-004 | INV-07, INV-08, E2E-CORRECT | scoped inspection/correction and future compliance |
+| PR-004 | INV-07, INV-08, INV-13, E2E-CORRECT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | scoped inspection/explanation/correction and future compliance |
 | PR-005 | E2E-CAUSE | causal state change and transformed failure |
 | PR-006 | INV-05, INV-07, MODEL-CHAR | differentiated stance without user takeover |
-| PR-007 | E2E-AUDIT | consequential change shows source, reason, scope and recovery |
+| PR-007 | INV-05, INV-08, INV-13, E2E-AUDIT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | consequential change shows source, reason, scope, impact handling and recovery |
 | PR-008 | INV-09, E2E-RECOVERY | recovery point/branch/restore/delete remain distinct |
 | PR-009 | INV-12, E2E-EXIT | selected usable export plus retained original and clear deletion |
 | PR-010 | INV-06, MODEL-FALLBACK, FAULT-PROVIDER | model change/outage preserves state and exposes change |
@@ -99,9 +103,17 @@ Export a selected scope; verify manifest, checksums, schema versions, omissions 
 | NFR-002 | A11Y-CORE | desktop/mobile, keyboard, screen reader, reduced motion, no audio |
 | NFR-003 | A11Y-NO-SENSORY, FAULT-OPTIONAL | state/control/recovery work without optional layers |
 | NFR-004 | CHANGE-NOTICE, MODEL-FALLBACK | material effect, timing and recovery disclosed |
-| NFR-005 | INV-07, SEC-ACCESS | accurate private/shared/operator visibility answers |
+| NFR-005 | INV-07, INV-13, SEC-ACCESS, E2E-EXPLANATION | accurate private/shared/operator visibility and scope-filtered explanation answers |
 | NFR-006 | LONG-01 | complete frozen long-horizon envelope |
 | NFR-007 | PERF-ACK, FAULT-SLOW, INV-01 | one-second p95 acknowledgement and ten-second recovery state |
+
+### 4.1 Required repair scenarios
+
+| Scenario | Required proof |
+|---|---|
+| `E2E-CONTRACT-TRANSITION` | A direct user changes one axis while retaining the other, then changes the other axis; ordinary turns with stale/mismatched expectations fail before generation/Commit; the successful change is committed/audited; model output cannot change either axis. |
+| `E2E-CONTINUITY-IMPACT` | A routine L2 world change commits with causal explanation; user-authored/confirmed fact removal, scope widening, protected relationship redefinition and canonical Memory Candidate promotion are blocked unless directly user-authorized against the current head; direct correction/removal creates exactly one audited Commit/Event. |
+| `E2E-EXPLANATION` | The authorized user inspects an accessible fact/change and receives target, permitted source class/Commit, scope, freshness and correction path. A different account or character cannot infer excluded private sources, raw prompts or provider reasoning. |
 
 ## 5. Long-horizon scenario (`LONG-01`)
 
@@ -124,7 +136,8 @@ The fixture is an evaluation asset, not launch-content positioning and not the m
 Run at least twenty sessions across a simulated or real thirty-day interval. The schedule includes:
 
 - ordinary short and long gaps;
-- one deliberate wrong-fact correction before later sessions;
+- one deliberate wrong-fact correction through the direct L3 correction path before later sessions;
+- one user-authorized participation-contract transition and one stale expectation check;
 - one Branch from a mid-scenario Commit;
 - one Restore on the experimental Branch;
 - one interruption after acknowledgement and before model completion;
@@ -139,6 +152,7 @@ Time may be simulated for automation, but at least one wall-clock interruption/r
 - all five character identities remain distinguishable by rubric;
 - character-private facts do not leak to unauthorized characters;
 - the corrected fact governs all later compiled contexts;
+- the user-authorized participation transition retains independent before/after axes and model output does not alter either axis;
 - five relationship changes retain their cause links;
 - three threads remain correctly open/resolved by their final state;
 - Branch divergence does not alter source Branch;
@@ -157,7 +171,7 @@ Model prose is scored separately from structural pass/fail. A less elegant fallb
 Every supported capability profile must meet hard gates for:
 
 - valid structured proposal rate after bounded repair;
-- zero accepted protected-action bypasses;
+- zero accepted protected-action, participation-axis or L3 canonical-continuity bypasses;
 - zero cross-scope knowledge leaks in the test corpus;
 - grounding of proposed state changes to included sources/current input;
 - correct handling of unknown/ambiguous information;
@@ -200,6 +214,8 @@ Generation Attempt records allow before/after comparison without treating provid
 | worker after provider call | attempt can retry; no Commit yet |
 | during validation | recoverable failure; state unchanged |
 | just before Commit | retry rechecks expected head |
+| ordinary Action has stale/mismatched participation expectation | recoverable stale-contract/head result before generation/Commit; no axis mutation |
+| direct mode/correction/removal Action has stale head or changed exact effect | conflict or renewed direct authorization required; no mutation |
 | after Commit before client final frame | Action query/SSE resume returns existing Commit; no duplicate |
 | after outbox insert before delivery | outbox redelivery safe |
 | after usage reservation | terminal no-Commit releases once |
@@ -216,6 +232,9 @@ Generation Attempt records allow before/after comparison without treating provid
 - character knowledge isolation before retrieval and after derived-summary rebuild;
 - malicious import/creator fields attempting prompt-role and authorization injection;
 - confirmation replay, expired digest, changed Branch head and changed proposal;
+- ordinary Action expectation, model proposal and stale client state attempting participation-axis change;
+- closed impact table across L1 derived replacement, L2 ordinary change and every listed L3 canonical/scope/relationship operation;
+- Explanation Projection access across account/character scope, including absence of raw prompts, provider reasoning and excluded private sources;
 - logs/traces/export inspected for secrets, raw sensitive content and cross-scope data;
 - tombstone blocks mutations and deletion propagates to projections/object artifacts under policy;
 - operator access generates an audit record and respects scoped purpose;
