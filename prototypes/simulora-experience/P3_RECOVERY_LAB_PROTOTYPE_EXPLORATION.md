@@ -58,9 +58,9 @@ Desktop uses a single recovery reading plane with an intent rail at the edge of 
 
 ## Frozen contract references
 
-- [Text Wireframes V0 — W-08 Recovery Lab](../Simulora_repair_main/docs/deliverables/experience-structure/TEXT_WIREFRAMES_V0.md)
-- [Interaction States V0 — Recovery Lab](../Simulora_repair_main/docs/deliverables/experience-structure/INTERACTION_STATES_V0.md)
-- [Runtime/Persistence — Recovery Points, Branch and Restore](../Simulora_repair_main/docs/system-design/RUNTIME_MODEL_AND_PERSISTENCE.md)
+- [Text Wireframes V0 — W-08 Recovery Lab](../../docs/deliverables/experience-structure/TEXT_WIREFRAMES_V0.md)
+- [Interaction States V0 — Recovery Lab](../../docs/deliverables/experience-structure/INTERACTION_STATES_V0.md)
+- [Runtime/Persistence — Recovery Points, Branch and Restore](../../docs/system-design/RUNTIME_MODEL_AND_PERSISTENCE.md)
 
 ## Validation result
 

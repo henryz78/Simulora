@@ -27,6 +27,8 @@ pnpm dev
 
 The prototype uses the existing Vite configuration and serves the clickable experience locally. It may be inspected and extended for future prototype slices, but any behavior promoted to the product must be re-derived from the frozen Product Definition, System Design and Experience Structure documents.
 
+The orbit mark and world hero currently resolve from the prototype environment's `/manus-storage/...` paths. They are not vendored into this repository because their source/provenance is environment-specific; a standalone clone may therefore fall back to the CSS treatment when the Manus storage proxy is not configured. This does not represent product asset availability or a product implementation decision.
+
 ## Continuation rule
 
 The repository now uses `main` as the single daily development line. New prototype work should live under this directory (or a clearly named sibling under `prototypes/`) and must retain an explicit prototype-only boundary. P4 World Studio starts from this approved snapshot and must not revive the abandoned earlier P4 exploration.
