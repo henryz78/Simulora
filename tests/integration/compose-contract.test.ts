@@ -14,4 +14,17 @@ describe("local dependency composition", () => {
     expect(document.services?.postgres?.ports).toContain("127.0.0.1:5432:5432");
     expect(document.services?.minio?.ports).toContain("127.0.0.1:9000:9000");
   });
+
+  it("uses pnpm deploy artifacts for runnable API and worker images", async () => {
+    const [apiDockerfile, workerDockerfile] = await Promise.all([
+      readFile("deploy/containers/api.Dockerfile", "utf8"),
+      readFile("deploy/containers/worker.Dockerfile", "utf8"),
+    ]);
+    expect(apiDockerfile).toContain("pnpm deploy --filter @simulora/api --prod --legacy /out");
+    expect(workerDockerfile).toContain(
+      "pnpm deploy --filter @simulora/worker --prod --legacy /out",
+    );
+    expect(apiDockerfile).toContain("COPY --from=build /out ./");
+    expect(workerDockerfile).toContain("COPY --from=build /out ./");
+  });
 });

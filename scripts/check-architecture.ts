@@ -21,6 +21,7 @@ const allowedInternalImports: Record<string, ReadonlySet<string>> = {
   "apps/worker": new Set([
     "@simulora/application",
     "@simulora/config",
+    "@simulora/contracts",
     "@simulora/database",
     "@simulora/jobs",
     "@simulora/model-gateway",
@@ -35,7 +36,7 @@ const allowedInternalImports: Record<string, ReadonlySet<string>> = {
   "packages/model-gateway": new Set(),
   "packages/storage": new Set(),
   "packages/observability": new Set(),
-  "packages/database": new Set(["@simulora/domain"]),
+  "packages/database": new Set(["@simulora/config", "@simulora/domain"]),
   "packages/jobs": new Set(["@simulora/domain"]),
   "packages/ui": new Set(),
   "packages/testkit": new Set(["@simulora/domain"]),

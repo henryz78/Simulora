@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@simulora/config": "workspace:*",
+    "@simulora/contracts": "workspace:*",
     "@simulora/jobs": "workspace:*",
     "@simulora/model-gateway": "workspace:*",
     "@simulora/observability": "workspace:*"

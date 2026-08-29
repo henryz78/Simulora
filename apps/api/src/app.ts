@@ -16,12 +16,20 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
   });
 
   app.addHook("onRequest", async (request, reply) => {
+    const incomingCorrelation = request.headers["x-correlation-id"];
+    const correlationId =
+      typeof incomingCorrelation === "string" &&
+      /^[A-Za-z0-9._:-]{1,128}$/.test(incomingCorrelation)
+        ? incomingCorrelation
+        : request.id;
     reply.header("x-request-id", request.id);
+    reply.header("x-correlation-id", correlationId);
   });
 
   app.addHook("onResponse", async (request, reply) => {
     logger.info("request.complete", {
       request_id: request.id,
+      correlation_id: reply.getHeader("x-correlation-id"),
       method: request.method,
       route: request.routeOptions.url,
       status_code: reply.statusCode,

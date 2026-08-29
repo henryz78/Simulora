@@ -29,4 +29,6 @@ pnpm db:migrate
 pnpm dev
 ```
 
+The API, worker and migration CLI load `.env.local` explicitly for local development. Explicit process environment variables take precedence. IP-1 intentionally rejects `preview`, `staging` and `production` startup until approved non-development adapters exist.
+
 The local dependency instructions are detailed in [`deploy/local/README.md`](deploy/local/README.md). IP-1 contains no World, Continuity or Action product semantics, no live model provider and no production deployment.

@@ -5,13 +5,24 @@ const sensitiveKeys = /authorization|cookie|content|prompt|secret|token|password
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type LogFields = Readonly<Record<string, unknown>>;
 
-export function redactFields(fields: LogFields): Record<string, unknown> {
+function redactValue(value: unknown, seen: WeakSet<object>): unknown {
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, seen));
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Error) return { name: value.name, message: "[redacted error message]" };
+  if (value === null || typeof value !== "object") return value;
+  if (seen.has(value)) return "[circular]";
+  seen.add(value);
+
   return Object.fromEntries(
-    Object.entries(fields).map(([key, value]) => [
+    Object.entries(value).map(([key, nested]) => [
       key,
-      sensitiveKeys.test(key) ? "[redacted]" : value,
+      sensitiveKeys.test(key) ? "[redacted]" : redactValue(nested, seen),
     ]),
   );
+}
+
+export function redactFields(fields: LogFields): Record<string, unknown> {
+  return redactValue(fields, new WeakSet()) as Record<string, unknown>;
 }
 
 export function createLogger(service: string, minimumLevel: LogLevel = "info") {

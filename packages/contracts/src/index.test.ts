@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foundationResponseSchema, healthStatusSchema } from "./index.js";
+import { foundationResponseSchema, healthStatusSchema, workEnvelopeSchema } from "./index.js";
 
 describe("foundation contracts", () => {
   it("rejects a foundation response that claims product semantics started", () => {
@@ -18,5 +18,14 @@ describe("foundation contracts", () => {
       status: "ok",
       version: "0.0.0",
     });
+  });
+
+  it("preserves a generic correlation carrier for future API-to-worker work", () => {
+    const envelope = workEnvelopeSchema.parse({
+      jobId: "job-1",
+      correlation: { requestId: "request-1", traceId: "trace-1" },
+      payload: { kind: "foundation-check" },
+    });
+    expect(envelope.correlation.requestId).toBe("request-1");
   });
 });

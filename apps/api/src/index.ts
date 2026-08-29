@@ -1,7 +1,8 @@
-import { loadServerConfig, redactConfig } from "@simulora/config";
+import { loadLocalEnvironment, loadServerConfig, redactConfig } from "@simulora/config";
 import { createLogger } from "@simulora/observability";
 import { createApiApp } from "./app.js";
 
+loadLocalEnvironment();
 const config = loadServerConfig();
 const logger = createLogger("api", config.SIMULORA_LOG_LEVEL);
 const app = createApiApp({ logLevel: config.SIMULORA_LOG_LEVEL });

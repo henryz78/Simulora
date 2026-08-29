@@ -4,12 +4,11 @@ RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @simulora/worker... build
+RUN pnpm deploy --filter @simulora/worker --prod --legacy /out
 
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/apps/worker/dist ./dist
-COPY --from=build /app/apps/worker/package.json ./package.json
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /out ./
 USER node
 CMD ["node", "dist/index.js"]

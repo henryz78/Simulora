@@ -14,6 +14,19 @@ export class FakeClock {
   }
 }
 
+export class FaultInjector {
+  readonly #armed = new Set<string>();
+
+  arm(point: string): void {
+    this.#armed.add(point);
+  }
+
+  consume(point: string): void {
+    if (!this.#armed.delete(point)) return;
+    throw new Error(`Injected failure at ${point}`);
+  }
+}
+
 export type FakeModelResult = {
   task: string;
   structured: boolean;

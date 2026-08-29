@@ -141,7 +141,9 @@ Product implementation is authorized only through IP-1 Engineering Foundation. T
 
 Start with the [IP-1 Engineering Foundation Report](implementation-planning/IP1_ENGINEERING_FOUNDATION_REPORT.md).
 
-`IP-1 ENGINEERING FOUNDATION: COMPLETE`; `GATE G1: PASSED — READY FOR INDEPENDENT REVIEW`; `IP-2: NOT STARTED`.
+The focused repair is recorded in [IP-1 Engineering Foundation Repair Report](implementation-planning/IP1_ENGINEERING_FOUNDATION_REPAIR_REPORT.md).
+
+`IP-1 ENGINEERING FOUNDATION: COMPLETE`; `G1 REPAIR: COMPLETE / READY FOR INDEPENDENT REVIEW`; `IP-2: NOT STARTED`.
 
 ## Supporting Material
 

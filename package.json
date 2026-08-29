@@ -25,6 +25,7 @@
     "dev:api": "pnpm --filter @simulora/api dev",
     "dev:worker": "pnpm --filter @simulora/worker dev",
     "db:migrate": "pnpm --filter @simulora/database migrate",
+    "db:verify": "pnpm --filter @simulora/database verify:migrations",
     "local:up": "docker compose -f deploy/local/compose.yaml up -d",
     "local:down": "docker compose -f deploy/local/compose.yaml down",
     "local:reset": "docker compose -f deploy/local/compose.yaml down -v"

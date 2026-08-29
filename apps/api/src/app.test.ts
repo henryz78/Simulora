@@ -16,7 +16,29 @@ describe("API composition root", () => {
     const response = await app.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
     expect(response.headers["x-request-id"]).toBeTruthy();
+    expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
     expect(response.json()).toEqual({ service: "api", status: "ok", version: "0.0.0" });
+  });
+
+  it("preserves an incoming correlation id for future worker envelopes", async () => {
+    app = createApiApp({ logLevel: "error" });
+    const response = await app.inject({
+      method: "GET",
+      url: "/health",
+      headers: { "x-correlation-id": "correlation-1" },
+    });
+    expect(response.headers["x-correlation-id"]).toBe("correlation-1");
+  });
+
+  it("rejects an unsafe correlation header and generates a safe replacement", async () => {
+    app = createApiApp({ logLevel: "error" });
+    const response = await app.inject({
+      method: "GET",
+      url: "/health",
+      headers: { "x-correlation-id": "unsafe value" },
+    });
+    expect(response.headers["x-correlation-id"]).not.toBe("unsafe value");
+    expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
   it("states that product semantics have not started", async () => {

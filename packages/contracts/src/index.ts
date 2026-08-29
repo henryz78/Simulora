@@ -19,5 +19,27 @@ export const foundationResponseSchema = z.object({
   capabilities: z.array(foundationCapabilitySchema),
 });
 
+export const correlationContextSchema = z.object({
+  requestId: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9._:-]+$/),
+  traceId: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9._:-]+$/)
+    .optional(),
+});
+
+export const workEnvelopeSchema = z.object({
+  jobId: z.string().min(1),
+  correlation: correlationContextSchema,
+  payload: z.unknown(),
+});
+
 export type HealthStatus = z.infer<typeof healthStatusSchema>;
 export type FoundationResponse = z.infer<typeof foundationResponseSchema>;
+export type CorrelationContext = z.infer<typeof correlationContextSchema>;
+export type WorkEnvelope = z.infer<typeof workEnvelopeSchema>;

@@ -1,6 +1,8 @@
 # IP-1 Engineering Foundation Report
 
-**Status:** `GATE G1: PASSED — READY FOR INDEPENDENT REVIEW`
+**Status:** `INITIAL G1 SELF-ASSESSMENT — SUPERSEDED BY INDEPENDENT REVIEW AND REPAIR`
+
+The independent review found `1 BLOCKER / 5 IMPORTANT / 1 MINOR`. The focused corrections and current validation evidence are recorded in [IP-1 Engineering Foundation Repair Report](IP1_ENGINEERING_FOUNDATION_REPAIR_REPORT.md). This document is retained as the original implementation evidence rather than rewritten as if the first review had passed.
 
 **Validation date:** `2026-08-29` (`Asia/Shanghai`)
 

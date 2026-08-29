@@ -1,7 +1,8 @@
-import { loadServerConfig, redactConfig } from "@simulora/config";
+import { loadLocalEnvironment, loadServerConfig, redactConfig } from "@simulora/config";
 import { createLogger } from "@simulora/observability";
 import { createWorkerComposition } from "./worker.js";
 
+loadLocalEnvironment();
 const config = loadServerConfig();
 const logger = createLogger("worker", config.SIMULORA_LOG_LEVEL);
 const composition = createWorkerComposition();
