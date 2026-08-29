@@ -1,5 +1,5 @@
 /**
- * Quiet Observatory prototype shell — approved P1/P2 baseline plus P3 Recovery Lab.
+ * Quiet Observatory prototype shell — approved P1/P2/P3 baseline plus P4 World Studio.
  * Design reminder: facts and confirmations remain clearer than atmosphere.
  */
 import { Toaster } from "@/components/ui/sonner";

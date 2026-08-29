@@ -1,12 +1,13 @@
 /**
- * Quiet Observatory — approved P1/P2 baseline plus P3 Recovery Lab exploration.
+ * Quiet Observatory — approved P1/P2/P3 baseline plus P4 World Studio exploration.
  * One prototype-level current-world truth drives every surface. This is static mock state, not product runtime or persistence.
  */
 import { useState } from "react";
 import RecoveryLab from "@/components/RecoveryLab";
+import WorldStudio from "@/components/WorldStudio";
 
 type ActionStage = "ready" | "acknowledged" | "proposal" | "interrupted";
-type View = "action" | "return" | "recovery";
+type View = "action" | "return" | "recovery" | "studio";
 type LensTarget = "beacon" | "maren" | "boat";
 type RecordId = "C-118" | "C-119";
 
@@ -132,7 +133,7 @@ function MobileNav({ active, onWorld, onLens, onMore }: { active: "World" | "Con
 export default function Home() {
   const preview = new URLSearchParams(window.location.search);
   const requestedSlice = preview.get("slice");
-  const initialView: View = requestedSlice === "return" || requestedSlice === "recovery" ? requestedSlice : "action";
+  const initialView: View = requestedSlice === "return" || requestedSlice === "recovery" || requestedSlice === "studio" ? requestedSlice : "action";
   const [view, setView] = useState<View>(initialView);
   const fixture = preview.get("fixture");
   const requestedLens = preview.get("lens");
@@ -145,5 +146,6 @@ export default function Home() {
   const openLens = (target: LensTarget) => { setLensTarget(target); setContextOpen(false); };
   const openContext = () => { setContextOpen(true); setLensTarget(null); };
   const openRecovery = () => { setView("recovery"); setLensTarget(null); setContextOpen(false); };
-  return <div className={`prototype-shell ${view === "recovery" ? "recovery-active" : ""}`}><header className="app-header"><div className="brand-lockup"><img className="brand-mark" src="/manus-storage/simulora-orbit-mark_09d38538.png" alt="Simulora orbit mark" /><span className="brand-name">Simulora</span><span className="prototype-tag">Prototype exploration</span></div><nav className="slice-tabs" aria-label="Prototype observation slices"><button className={`slice-tab ${view === "action" ? "active" : ""}`} onClick={openWorld}><span className="slice-index">OBS 01</span>Action truth</button><button className={`slice-tab ${view === "return" ? "active" : ""}`} onClick={() => { setView("return"); setLensTarget(null); setContextOpen(false); }}><span className="slice-index">OBS 02</span>Return & continuity</button><button className={`slice-tab ${view === "recovery" ? "active" : ""}`} onClick={openRecovery}><span className="slice-index">OBS 03</span>Recovery lab</button></nav><div className="header-actions"><button className="quiet-button" onClick={openContext}>World context</button></div></header>{view === "action" ? <P1Action world={world} setWorld={setWorld} onOpenLens={openLens} onOpenContext={openContext} /> : view === "return" ? <P2Return world={world} onOpenLens={openLens} onOpenContext={openContext} onEnterWorld={openWorld} /> : <RecoveryLab currentRecord={world.currentRecord} history={world.history} initialMode={preview.get("recovery") === "stale" ? "stale" : "overview"} onReturnWorld={openWorld} onOpenLens={() => openLens("beacon")} />}{lensTarget && <ContinuityLens world={world} setWorld={setWorld} target={lensTarget} onClose={() => setLensTarget(null)} />}{contextOpen && <WorldContextSheet world={world} onClose={() => setContextOpen(false)} />}<MobileNav active={lensTarget ? "Continuity" : "World"} onWorld={openWorld} onLens={() => openLens("beacon")} onMore={openContext} /></div>;
+  const openStudio = () => { setView("studio"); setLensTarget(null); setContextOpen(false); };
+  return <div className={`prototype-shell ${view === "recovery" ? "recovery-active" : ""}`}><header className="app-header"><div className="brand-lockup"><img className="brand-mark" src="/manus-storage/simulora-orbit-mark_09d38538.png" alt="Simulora orbit mark" /><span className="brand-name">Simulora</span><span className="prototype-tag">Prototype exploration</span></div><nav className="slice-tabs" aria-label="Prototype observation slices"><button className={`slice-tab ${view === "action" ? "active" : ""}`} onClick={openWorld}><span className="slice-index">OBS 01</span>Action truth</button><button className={`slice-tab ${view === "return" ? "active" : ""}`} onClick={() => { setView("return"); setLensTarget(null); setContextOpen(false); }}><span className="slice-index">OBS 02</span>Return & continuity</button><button className={`slice-tab ${view === "recovery" ? "active" : ""}`} onClick={openRecovery}><span className="slice-index">OBS 03</span>Recovery lab</button><button className={`slice-tab ${view === "studio" ? "active" : ""}`} onClick={openStudio}><span className="slice-index">OBS 04</span>World Studio</button></nav><div className="header-actions"><button className="quiet-button" onClick={openContext}>World context</button></div></header>{view === "action" ? <P1Action world={world} setWorld={setWorld} onOpenLens={openLens} onOpenContext={openContext} /> : view === "return" ? <P2Return world={world} onOpenLens={openLens} onOpenContext={openContext} onEnterWorld={openWorld} /> : view === "recovery" ? <RecoveryLab currentRecord={world.currentRecord} history={world.history} initialMode={preview.get("recovery") === "stale" ? "stale" : "overview"} onReturnWorld={openWorld} onOpenLens={() => openLens("beacon")} /> : <WorldStudio currentRecord={world.currentRecord} onReturnWorld={openWorld} />}{lensTarget && <ContinuityLens world={world} setWorld={setWorld} target={lensTarget} onClose={() => setLensTarget(null)} />}{contextOpen && <WorldContextSheet world={world} onClose={() => setContextOpen(false)} />}<MobileNav active={lensTarget ? "Continuity" : "World"} onWorld={openWorld} onLens={() => openLens("beacon")} onMore={openContext} /></div>;
 }

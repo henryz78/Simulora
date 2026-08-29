@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>P4 Direction 01 — Living Draft</title>
+  <!-- Assumption: editing should feel adjacent to a living world, not like leaving it for an admin console. -->
+  <style>
+    *{box-sizing:border-box} :root{--ink:#091019;--ink2:#111d29;--moon:#f1ece1;--paper:#fbf7ee;--amber:#d9a441;--amber2:#f4cf78;--sea:#6aa2a5;--line:rgba(255,255,255,.12);--muted:#91a0ad}
+    body{margin:0;background:var(--ink);color:var(--moon);font:14px/1.45 Manrope,ui-sans-serif,system-ui,sans-serif;min-width:320px}
+    button{font:inherit;cursor:pointer}.shell{height:100vh;min-height:760px;display:grid;grid-template-rows:68px 1fr;background:radial-gradient(circle at 18% 32%,rgba(106,162,165,.16),transparent 30rem),linear-gradient(120deg,#0f1924,#080e15 65%)}
+    header{display:flex;align-items:center;gap:24px;padding:0 28px;border-bottom:1px solid var(--line);background:rgba(7,11,17,.82)}
+    .brand{font:600 20px/1 Georgia,serif;letter-spacing:-.04em}.tag{font-size:10px;color:#aab5bf;letter-spacing:.12em;text-transform:uppercase}.spacer{flex:1}
+    .current-pill{display:flex;gap:10px;align-items:center;border:1px solid rgba(135,181,155,.32);background:rgba(135,181,155,.08);padding:9px 12px;border-radius:8px;color:#cde0d5;font-size:11px}.dot{width:7px;height:7px;border-radius:50%;background:#87b59b;box-shadow:0 0 0 4px rgba(135,181,155,.09)}
+    .layout{display:grid;grid-template-columns:minmax(520px,1.12fr) minmax(470px,.88fr);min-height:0}.world{padding:34px 32px 28px;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line)}
+    .crumb{font-size:10px;color:#8e9ba7;letter-spacing:.04em}.eyebrow{margin-top:28px;color:var(--amber2);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    h1{font:600 clamp(38px,4vw,60px)/1 Georgia,serif;letter-spacing:-.055em;margin:12px 0 12px;max-width:740px}.sub{color:#b7c0c8;font-size:15px;max-width:620px;margin:0}
+    .scene{margin-top:26px;min-height:250px;padding:28px;display:flex;flex-direction:column;justify-content:end;border:1px solid rgba(255,255,255,.14);border-radius:15px;background:radial-gradient(circle at 72% 26%,rgba(217,164,65,.26),transparent 2%,rgba(106,162,165,.10) 13%,transparent 14%),linear-gradient(150deg,#162938,#101b28 58%,#261a1b);box-shadow:0 26px 70px rgba(0,0,0,.22)}
+    .scene small{color:#a9b8c2;text-transform:uppercase;letter-spacing:.1em}.scene strong{font:500 24px/1.3 Georgia,serif;margin-top:10px;max-width:560px}.scene p{color:#aeb9c2;margin:12px 0 0}
+    .playbar{margin-top:auto;padding-top:18px;display:flex;align-items:center;gap:13px}.playbar span{font-size:11px;color:#aeb8c0}.btn{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:var(--moon);border-radius:8px;padding:10px 14px}.btn.primary{background:var(--moon);color:#15222b;border-color:var(--moon);font-weight:800}
+    .studio{background:var(--moon);color:#22313a;padding:26px 28px;overflow:auto}.studio-top{display:flex;gap:18px;align-items:flex-start;padding-bottom:19px;border-bottom:1px solid #d2cabd}.studio h2{font:600 34px/1.05 Georgia,serif;letter-spacing:-.045em;margin:5px 0 4px}.studio-top p{margin:0;color:#6c777d;font-size:12px}.draft-state{margin-left:auto;text-align:right;font-size:10px;color:#8c6821;text-transform:uppercase;letter-spacing:.08em}.draft-state strong{display:block;color:#3f4b50;font-size:12px;letter-spacing:0;text-transform:none;margin-top:5px}
+    .truth{margin:18px 0;padding:13px 14px;border-left:2px solid var(--amber);background:#e9dfcb;color:#66562f;font-size:11px}.truth strong{color:#55451f}
+    .steps{display:grid;gap:10px}.step{border:1px solid #d2cabd;border-radius:10px;background:var(--paper);overflow:hidden}.step-head{width:100%;display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;border:0;background:transparent;padding:14px 15px;text-align:left;color:#23323a}.num{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;border:1px solid #c7b679;color:#87661f;font-size:10px;font-weight:900}.step h3{font:600 17px/1.15 Georgia,serif;margin:0}.step small{display:block;color:#747e82;margin-top:3px}.status{font-size:10px;font-weight:900;color:#3f6758;text-transform:uppercase;letter-spacing:.08em}.step-body{display:none;padding:0 16px 16px 59px;color:#56636a;font-size:12px}.step.open .step-body{display:block}.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}.chip{border:1px solid #c9c1b3;border-radius:6px;background:#fffaf1;padding:7px 9px;color:#4c5b61;font-size:10px}.optional{opacity:.67}.proposal{margin-top:16px;padding:14px;border:1px solid #b9ccb9;background:#e7eee4;border-radius:10px;display:flex;gap:12px;align-items:center}.proposal strong{font:600 16px Georgia,serif}.proposal p{margin:3px 0 0;color:#597067;font-size:10px}.proposal .btn{margin-left:auto;background:#20362f;color:#f2efe6;border-color:#36584b;padding:9px 12px;font-size:11px}
+    @media(max-width:900px){.shell{height:auto}.layout{grid-template-columns:1fr}.world{min-height:720px;border-right:0}.studio{min-height:760px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header><div class="brand">Simulora</div><div class="tag">P4 direction 01 · Living draft</div><div class="spacer"></div><div class="current-pill"><i class="dot"></i><b>Current Continuity</b> stays on Greyhaven R-03</div></header>
+  <div class="layout">
+    <section class="world">
+      <div class="crumb">Greyhaven · Personal world · Playable Revision R-03</div>
+      <div class="eyebrow">Playable now</div>
+      <h1>The harbor already knows how to begin.</h1>
+      <p class="sub">A first scene, a person with a stance, and a boundary you can trust. Shape what comes next without interrupting the world you already have.</p>
+      <article class="scene"><small>First scene · East breakwater</small><strong>Maren watches the dark beacon while the tide closes the harbor road.</strong><p>Your role: an arriving keeper. Guided initiative · Open-ended structure.</p></article>
+      <div class="playbar"><button class="btn primary">Return to playable world</button><span>Nothing in the Studio changes this Continuity silently.</span></div>
+    </section>
+    <aside class="studio">
+      <div class="studio-top"><div><div class="tag">World Studio</div><h2>Shape the next revision.</h2><p>Start from what already plays. Add only what earns its place.</p></div><div class="draft-state">Editable draft<strong>Proposed R-04 · not applied</strong></div></div>
+      <div class="truth"><strong>Revision boundary:</strong> edits below affect a future playable revision. Personal Continuity 01 remains pinned to R-03.</div>
+      <div class="steps">
+        <article class="step open"><button class="step-head" onclick="this.parentElement.classList.toggle('open')"><span class="num">01</span><span><h3>Playable core</h3><small>Premise, first situation, Maren and your authority boundary.</small></span><span class="status">Ready</span></button><div class="step-body">Greyhaven is already playable. You can resume now, or use the next layer to make its behavior more intentional.</div></article>
+        <article class="step"><button class="step-head" onclick="this.parentElement.classList.toggle('open')"><span class="num">02</span><span><h3>Meaningful structure</h3><small>Give one motive, one pressure and one consequence a durable shape.</small></span><span class="status">1 change</span></button><div class="step-body">Maren wants the harbor to remain neutral. If the beacon is lit before the tide turns, the northbound crews treat it as an endorsement.<div class="chips"><span class="chip">Motive · protect neutrality</span><span class="chip">Constraint · tide in 43 min</span><span class="chip">Consequence · crews act on signal</span></div></div></article>
+        <article class="step optional"><button class="step-head" onclick="this.parentElement.classList.toggle('open')"><span class="num">03</span><span><h3>Optional depth</h3><small>Stable facts, contextual knowledge, dynamic state and goal framing.</small></span><span class="status">Closed</span></button><div class="step-body">Open only when the playable core needs more precision. None of these controls is required for the first scene.</div></article>
+      </div>
+      <div class="proposal"><div><strong>World Revision proposal R-04</strong><p>Draft changes are ready to review. No existing Continuity has changed.</p></div><button class="btn">Review effects</button></div>
+    </aside>
+  </div>
+</div>
+</body>
+</html>
+
