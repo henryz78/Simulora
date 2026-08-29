@@ -118,10 +118,14 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
 .interrupted .status-indicator { background: var(--danger); }
 .status-panel p { margin: 7px 0 0 17px; max-width: 600px; color: inherit; opacity: .86; font-size: 11px; line-height: 1.55; }
 .status-actions { display: flex; gap: 9px; margin: 11px 0 0 17px; }
+.pending-action-ribbon { position: relative; z-index: 18; display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 42px; padding: 8px 24px; border-bottom: 1px solid rgba(217,164,65,.25); background: rgba(217,164,65,.1); color: #d8c9a8; font-size: 10px; line-height: 1.4; }
+.pending-action-ribbon strong { color: #f4d58f; font-size: 11px; }
+.pending-action-ribbon button { border: 0; border-bottom: 1px solid rgba(244,207,120,.45); padding: 2px 0; background: transparent; color: var(--amber-light); font-size: 10px; font-weight: 800; }
 
 .proposal-card { padding: 25px; background-color: #f1eadf; margin-top: 18px; border-color: #ddc98d; animation: raise .28s var(--ease-out); }
 .proposal-card .button-ghost { color: #4c5d66; border-color: #c9c0af; background: transparent; }
 .proposal-card .button-ghost:hover { color: #283a43; border-color: #9f7a2d; background: rgba(217,164,65,.08); }
+.proposal-cancelled-note { margin: -5px 0 17px; padding: 9px 11px; border: 1px solid #d1b46d; border-radius: 7px; background: rgba(217,164,65,.09); color: #72591f; font-size: 10px; font-weight: 800; }
 .proposal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .proposal-title { margin: 4px 0 0; font-family: "Fraunces", Georgia, serif; font-size: 24px; letter-spacing: -.04em; }
 .proposal-status { flex: 0 0 auto; padding: 6px 8px; border: 1px solid #cab274; border-radius: 999px; color: #665321; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
@@ -204,6 +208,10 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
 .source-safe { margin-top: 20px; padding: 15px 16px; border-left: 2px solid #d0a552; background: #e8dfcc; color: #62552f; font-size: 11px; line-height: 1.58; }
 .empty-record-note { margin-top: 16px; color: #65747c; font-size: 11px; line-height: 1.6; }
 .lens-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+.continuity-current-card { margin-top: 24px; padding: 18px; border: 1px solid #cfc5b5; border-radius: 10px; background: #fbf8f1; }
+.continuity-current-card strong { display: block; margin-top: 11px; color: #24343d; font-family: "Fraunces", Georgia, serif; font-size: 21px; line-height: 1.25; }
+.continuity-current-card p { margin: 8px 0 0; color: #62717b; font-size: 11px; line-height: 1.55; }
+.continuity-fact-list { margin-top: 16px; padding: 4px 15px; border: 1px solid #d5ccbe; border-radius: 10px; background: rgba(255,255,255,.28); }
 
 .dialog-backdrop { position: fixed; z-index: 40; inset: 0; padding: 24px; background: rgba(2, 6, 10, .68); display: grid; place-items: center; backdrop-filter: blur(6px); }
 .dialog-card { width: min(550px, 100%); max-height: min(720px, 92vh); overflow-y: auto; background: var(--moon); color: #213039; border: 1px solid #faeed4; border-radius: 14px; box-shadow: 0 32px 100px rgba(0,0,0,.45); padding: 27px; animation: raise .25s var(--ease-out); }
@@ -285,6 +293,8 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
   .mobile-bottom-nav { display: flex; position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; height: 70px; padding: 8px 16px max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line-dark); justify-content: space-around; background: rgba(8,13,20,.94); backdrop-filter: blur(18px); }
   .mobile-bottom-nav button { border: 0; background: transparent; color: #8f9cac; padding: 2px 7px; font-size: 10px; font-weight: 800; }
   .mobile-bottom-nav button.active { color: var(--amber-light); }
+  .pending-action-ribbon { align-items: flex-start; flex-wrap: wrap; justify-content: flex-start; padding: 9px 16px; }
+  .pending-action-ribbon span:not(.status-indicator) { flex: 1 1 210px; }
 }
 
 /* Focused refinement: the world owns the desktop plane; support enters through deliberate, contextual surfaces. */
@@ -319,6 +329,14 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
 .context-destination b { flex: 0 0 auto; color: #9b7428; font-size: 10px; white-space: nowrap; }
 .context-destination:hover strong { color: #87631e; }
 .trace-detail { margin: 26px 4px 0; }
+.context-panel .trace-time { color: #6b7780; }
+.context-panel .trace-title { color: #263840; font-size: 12px; }
+.context-panel .trace-copy { color: #5f6f78; font-size: 11px; }
+.context-panel .trace-line.committed .trace-title { color: #315d50; }
+.context-panel .last-record { border-top-color: #d4ccbf; }
+.context-panel .record-title { color: #2e453f; }
+.context-panel .record-meta { color: #64747c; }
+.context-pending { border-color: #d8bd79; background: #f5ecd8; }
 .return-view .world-coordinate-bar { margin-bottom: 18px; }
 .return-hero { min-height: 292px; }
 .orientation-action { gap: 9px; justify-content: flex-end; flex-wrap: wrap; }

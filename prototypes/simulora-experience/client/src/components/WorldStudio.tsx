@@ -6,10 +6,19 @@
  */
 import { useState } from "react";
 
-type RecordId = "C-118" | "C-119";
+type RecordId = `C-${number}`;
+type StudioDraftState = {
+  structureEnabled: boolean;
+  kept: boolean;
+};
 
 type WorldStudioProps = {
   currentRecord: RecordId | null;
+  beacon: "unlit" | "lit";
+  maren: "watching" | "waiting";
+  watchPledged: boolean;
+  draft: StudioDraftState;
+  onDraftChange: (draft: StudioDraftState) => void;
   onReturnWorld: () => void;
 };
 
@@ -30,12 +39,8 @@ function ContinuityBadge({ currentRecord }: { currentRecord: RecordId | null }) 
   );
 }
 
-function WorldFirstPanel({ currentRecord, onReturnWorld }: WorldStudioProps) {
-  const stateCopy = currentRecord === "C-119"
-    ? "The beacon is unlit and Maren is watching the north water. Your latest correction still governs this path."
-    : currentRecord === "C-118"
-      ? "The beacon is lit and Maren is waiting in the lamp room. Your confirmed choice still governs this path."
-      : "The beacon is unlit and Maren is watching the north water. No confirmed change has been recorded yet.";
+function WorldFirstPanel({ currentRecord, beacon, maren, watchPledged, onReturnWorld }: WorldStudioProps) {
+  const stateCopy = `${beacon === "lit" ? "The beacon is lit" : "The beacon is unlit"} and Maren is ${watchPledged ? "holding the north-water watch" : maren}. ${currentRecord ? `${currentRecord} is the latest record on this path.` : "No confirmed change has been recorded yet."}`;
 
   return (
     <section className="studio-world-panel" aria-labelledby="studio-world-title">
@@ -47,7 +52,7 @@ function WorldFirstPanel({ currentRecord, onReturnWorld }: WorldStudioProps) {
         </div>
         <ContinuityBadge currentRecord={currentRecord} />
       </div>
-      <div className={`studio-scene ${currentRecord === "C-118" ? "studio-scene-lit" : ""}`}>
+      <div className={`studio-scene ${beacon === "lit" ? "studio-scene-lit" : ""}`}>
         <div className="studio-scene-glow" />
         <div className="studio-scene-label">East breakwater · Day 18, dusk</div>
         <p>The harbor waits for the tide to decide.</p>
@@ -143,20 +148,18 @@ function RevisionReview({ currentRecord, onBack, onKeep, onReturnWorld }: { curr
   );
 }
 
-export default function WorldStudio({ currentRecord, onReturnWorld }: WorldStudioProps) {
+export default function WorldStudio({ currentRecord, beacon, maren, watchPledged, draft, onDraftChange, onReturnWorld }: WorldStudioProps) {
   const [panel, setPanel] = useState<StudioPanel>("draft");
-  const [structureEnabled, setStructureEnabled] = useState(false);
   const [depthOpen, setDepthOpen] = useState(false);
-  const [draftNotice, setDraftNotice] = useState<string | null>(null);
 
   if (panel === "review") {
-    return <main className="main-stage studio-stage"><div className="studio-stage-inner"><WorldFirstPanel currentRecord={currentRecord} onReturnWorld={onReturnWorld} /><RevisionReview currentRecord={currentRecord} onBack={() => { setDraftNotice(null); setPanel("draft"); }} onKeep={() => { setDraftNotice(`${proposedRevision} proposal kept locally · not applied`); setPanel("draft"); }} onReturnWorld={onReturnWorld} /></div></main>;
+    return <main className="main-stage studio-stage"><div className="studio-stage-inner"><WorldFirstPanel currentRecord={currentRecord} beacon={beacon} maren={maren} watchPledged={watchPledged} draft={draft} onDraftChange={onDraftChange} onReturnWorld={onReturnWorld} /><RevisionReview currentRecord={currentRecord} onBack={() => setPanel("draft")} onKeep={() => { onDraftChange({ structureEnabled: true, kept: true }); setPanel("draft"); }} onReturnWorld={onReturnWorld} /></div></main>;
   }
 
   return (
     <main className="main-stage studio-stage">
       <div className="studio-stage-inner">
-        <WorldFirstPanel currentRecord={currentRecord} onReturnWorld={onReturnWorld} />
+        <WorldFirstPanel currentRecord={currentRecord} beacon={beacon} maren={maren} watchPledged={watchPledged} draft={draft} onDraftChange={onDraftChange} onReturnWorld={onReturnWorld} />
         <section className="studio-rail" aria-labelledby="studio-title">
           <div className="studio-rail-heading">
             <div>
@@ -166,8 +169,8 @@ export default function WorldStudio({ currentRecord, onReturnWorld }: WorldStudi
             <span className="studio-draft-label">Local draft</span>
           </div>
           <p className="studio-rail-intro">The world stays playable while you add only the structure that earns its place.</p>
-          {draftNotice && <div className="studio-draft-notice" role="status"><span className="studio-status-dot" /><strong>{draftNotice}</strong><small>Current Continuity remains {continuityRevision}.</small></div>}
-          <StructureSection enabled={structureEnabled} onToggle={() => setStructureEnabled((value) => !value)} onReview={() => setPanel("review")} />
+          {draft.kept && <div className="studio-draft-notice" role="status"><span className="studio-status-dot" /><strong>{proposedRevision} proposal kept in this prototype session · not applied</strong><small>It survives navigation and refresh in this open prototype tab. It is not a durable save, cloud sync, or published revision. Current Continuity remains {continuityRevision}.</small></div>}
+          <StructureSection enabled={draft.structureEnabled} onToggle={() => onDraftChange({ structureEnabled: !draft.structureEnabled, kept: false })} onReview={() => setPanel("review")} />
           <OptionalDepth open={depthOpen} onToggle={() => setDepthOpen((value) => !value)} />
           <div className="studio-footnote"><span className="coordinate-dot" />Current Continuity is pinned to {continuityRevision}. Studio changes in this prototype are proposals only.</div>
         </section>
