@@ -1,13 +1,13 @@
 # Simulora Experience Prototype Archive
 
-Status: `APPROVED P1/P2/P3 BASELINE + P4 WORLD STUDIO PROTOTYPE`
+Status: `APPROVED P1/P2/P3 BASELINE + P4 WORLD STUDIO FROZEN`
 
 This directory contains the React/Vite clickable prototype used to explore the approved P1, P2 and P3 experience slices:
 
 - P1 — Action Truth
 - P2 — Return Orientation, Continuity Lens and correction
 - P3 — Recovery Lab
-- P4 — World Studio (Living Draft + Fieldbook clarity)
+- P4 — World Studio (Living Draft + Fieldbook clarity), independently re-gated and frozen against implementation baseline `bf04f5227dec213f45d4c75433b4e570f411e3cb`
 
 The snapshot was imported into the repository's single `main` development line from the independent prototype history at commit `9d87170ec2c48c4359db355535b3c6df9bc66b05` (`prototype: freeze approved P3 recovery lab baseline`). That source commit is recorded here as provenance; the imported files in this directory are the maintained readable snapshot after retiring the separate prototype branch.
 
@@ -32,4 +32,4 @@ The orbit mark and world hero currently resolve from the prototype environment's
 
 ## Continuation rule
 
-The repository now uses `main` as the single daily development line. New prototype work should live under this directory (or a clearly named sibling under `prototypes/`) and must retain an explicit prototype-only boundary. The approved P4 slice is documented in [`P4_WORLD_STUDIO_PROTOTYPE_EXPLORATION.md`](./P4_WORLD_STUDIO_PROTOTYPE_EXPLORATION.md); it starts from this approved P1/P2/P3 snapshot and does not revive the abandoned earlier P4 exploration.
+The repository now uses `main` as the single daily development line. New prototype work should live under this directory (or a clearly named sibling under `prototypes/`) and must retain an explicit prototype-only boundary. The approved and frozen P4 slice is documented in [`P4_WORLD_STUDIO_PROTOTYPE_EXPLORATION.md`](./P4_WORLD_STUDIO_PROTOTYPE_EXPLORATION.md) and [`P4_WORLD_STUDIO_PROTOTYPE_REPORT.md`](./P4_WORLD_STUDIO_PROTOTYPE_REPORT.md); it starts from the approved P1/P2/P3 snapshot and does not revive the abandoned earlier P4 exploration. Future work must not silently alter this baseline without a new explicit review decision.

@@ -1,6 +1,6 @@
 # P4 World Studio — Prototype Exploration
 
-**Status:** `P4 PROTOTYPE EXPLORATION: COMPLETE · INDEPENDENT GATE REPAIR IMPLEMENTED`
+**Status:** `P4 WORLD STUDIO: FROZEN`
 **Direction:** `Living Draft foundation + Fieldbook clarity`
 **Scope:** static, clickable comprehension prototype for the first World Studio authoring path.
 **Explicitly not:** `NOT PRODUCT IMPLEMENTATION` · `NOT RUNTIME OR PERSISTENCE` · `NOT A SETUP WIZARD` · `NOT A CREATOR DASHBOARD`
@@ -38,10 +38,14 @@ The component reads the shared prototype `WorldTruth` (`C-118`, `C-119`, or no r
 
 ## Validation result
 
-The initial prototype was checked with the repository TypeScript check and production build, then exercised through a focused browser path. A later independent review correctly found that mobile secondary surfaces were not reachable from ordinary UI, desktop relied too heavily on reviewer OBS chrome, URL state remained stale after Return, and two review interactions needed clarification. Those issues have now received the scoped repair documented in [`P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md`](./P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md), including real 390×844 pointer navigation from World to Studio.
+The initial prototype was checked with the repository TypeScript check and production build, then exercised through a focused browser path. A later independent review correctly found that mobile secondary surfaces were not reachable from ordinary UI, desktop relied too heavily on reviewer OBS chrome, URL state remained stale after Return, and two review interactions needed clarification. Those issues received the scoped repair documented in [`P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md`](./P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md).
 
-`P4 WORLD STUDIO PROTOTYPE REPAIR: SELF-VERIFIED`
-`INDEPENDENT P4 RE-REVIEW: PENDING`
+The same independent Reviewer then completed a focused Re-Gate against implementation commit `bf04f5227dec213f45d4c75433b4e570f411e3cb`. Desktop and real 390×844 mobile reachability, Studio/Recovery URL return semantics, inline review semantics, Keep acknowledgement, P1/P2/P3 regression and cross-surface C-119 truth all passed. The Re-Gate reported `0 BLOCKER / 0 IMPORTANT / 0 MINOR` and approved the slice for Freeze.
+
+`P4 WORLD STUDIO RE-GATE: PASS`
+`READY FOR P4 FREEZE: YES`
+`P4 WORLD STUDIO: FROZEN`
+`APPROVED IMPLEMENTATION BASELINE: bf04f5227dec213f45d4c75433b4e570f411e3cb`
 `P1/P2/P3 APPROVED BASELINE: PRESERVED`
 `PRODUCT IMPLEMENTATION: NOT STARTED`
 

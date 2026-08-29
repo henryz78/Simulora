@@ -1,9 +1,9 @@
 # P4 World Studio — Independent Gate Repair Report
 
-**Status:** `ALL REPORTED ISSUES REPAIRED · SELF-VERIFIED · INDEPENDENT RE-REVIEW PENDING`
+**Status:** `ALL REPORTED ISSUES CLOSED · INDEPENDENT RE-GATE PASSED`
 **Input:** Independent Experience / UX Gate Review against `db1c119`
 **Scope:** minimal prototype navigation, provenance and interaction repair only.
-**Not performed:** redesign, P4 Freeze, P5, backend, persistence or product implementation.
+**Not performed by the repair:** redesign, P5, backend, persistence or product implementation.
 
 ## Repairs
 
@@ -36,7 +36,26 @@
 - Studio and Recovery remain secondary surfaces.
 - P1/P2/P3 approved product semantics are unchanged.
 
+## Independent focused Re-Gate
+
+The same independent Reviewer re-tested the repaired build at implementation commit `bf04f5227dec213f45d4c75433b4e570f411e3cb`. All five original findings were closed. The Reviewer reported:
+
+```text
+P4 COMPREHENSION: PASS
+CREATOR / REVISION SEMANTICS: PASS
+P1/P2/P3 REGRESSION: PASS
+CROSS-SURFACE TRUTH: PASS
+MOBILE REACHABILITY: PASS
+NAVIGATION / HIERARCHY: PASS
+VISUAL DIRECTION: PASS
+
+BLOCKERS / IMPORTANT / MINOR: 0 / 0 / 0
+P4 WORLD STUDIO RE-GATE: PASS
+READY FOR P4 FREEZE: YES
+```
+
 `P4 GATE REPAIR: COMPLETE`
-`READY FOR INDEPENDENT P4 RE-REVIEW: YES`
-`P4 FREEZE: NOT PERFORMED`
+`INDEPENDENT P4 RE-REVIEW: PASS`
+`P4 FROZEN: YES`
+`APPROVED IMPLEMENTATION BASELINE: bf04f5227dec213f45d4c75433b4e570f411e3cb`
 `PRODUCT IMPLEMENTATION: NOT STARTED`
