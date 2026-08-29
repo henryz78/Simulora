@@ -28,6 +28,11 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [System Design Validation Strategy](system-design/VALIDATION_STRATEGY.md)
 - [Architecture Consistency Audit](system-design/ARCHITECTURE_CONSISTENCY_AUDIT.md)
 - [System Design Handoff](system-design/SYSTEM_DESIGN_HANDOFF.md)
+- [Experience Structure Handoff](deliverables/experience-structure/EXPERIENCE_STRUCTURE_HANDOFF.md)
+- [Overall Experience Audit](deliverables/experience-structure/OVERALL_EXPERIENCE_AUDIT.md)
+- [Overall Experience Integration Repair](deliverables/experience-structure/OVERALL_EXPERIENCE_INTEGRATION_REPAIR_REPORT.md)
+- [Independent Overall Experience Re-Audit](deliverables/experience-structure/OVERALL_EXPERIENCE_RE_AUDIT.md)
+- [Experience Freeze Handoff](deliverables/experience-structure/EXPERIENCE_FREEZE_HANDOFF.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
 - [Parity matrix](research/worldos/04_WORLDOS_PARITY_MATRIX.md)
@@ -54,7 +59,8 @@ docs/
 │     ├─ brand/                 Extracted frozen brand exploration
 │     └─ world-character/       Extracted original content/visual reference package
 ├─ deliverables/
-│  └─ worldos-research/         Final handoff report
+│  ├─ worldos-research/         Final research handoff report
+│  └─ experience-structure/     Frozen Experience structure, audit chain and Freeze handoff
 ├─ product/                      Frozen original Product Definition V1
 ├─ system-design/                Frozen original System Design V1, ADRs, contracts, validation and handoff
 ├─ coordination/                Package intake records and future active coordination
@@ -109,6 +115,14 @@ The original Product Definition is frozen in [product](product/), with the curre
 `SYSTEM DESIGN V1: FROZEN`; `ARCHITECTURE AUDIT: PASSED`; `READY FOR EXPERIENCE DESIGN / PROTOTYPE: YES`; `PRODUCT IMPLEMENTATION: NOT STARTED`.
 
 The Product Definition handoff retains its historical “Architecture not started” phase-gate text. Current architecture status is authoritative in the System Design Handoff; the frozen Product Definition record is not rewritten retroactively.
+
+## Frozen Experience
+
+The approved end-to-end Experience is frozen at implementation baseline `877f4d532024009ba44d99580e12ce088136304a`. The full decision chain is preserved as the initial [Overall Experience Audit](deliverables/experience-structure/OVERALL_EXPERIENCE_AUDIT.md) `FAIL`, the subsequent [Integration Repair](deliverables/experience-structure/OVERALL_EXPERIENCE_INTEGRATION_REPAIR_REPORT.md), and the independent [Overall Experience Re-Audit](deliverables/experience-structure/OVERALL_EXPERIENCE_RE_AUDIT.md) `PASS WITH ISSUES` with `0 BLOCKER / 0 IMPORTANT / 0 MINOR`.
+
+Begin the frozen handoff at [Experience Freeze Handoff](deliverables/experience-structure/EXPERIENCE_FREEZE_HANDOFF.md).
+
+`EXPERIENCE: FROZEN`; `READY FOR IMPLEMENTATION PLANNING: YES`; `IMPLEMENTATION PLANNING: NOT STARTED`; `PRODUCT IMPLEMENTATION: NOT STARTED`.
 
 ## Supporting Material
 
