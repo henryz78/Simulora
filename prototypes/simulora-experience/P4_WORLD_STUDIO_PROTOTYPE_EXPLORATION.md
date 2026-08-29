@@ -1,6 +1,6 @@
 # P4 World Studio — Prototype Exploration
 
-**Status:** `P4 PROTOTYPE EXPLORATION: COMPLETE`
+**Status:** `P4 PROTOTYPE EXPLORATION: COMPLETE · INDEPENDENT GATE REPAIR IMPLEMENTED`
 **Direction:** `Living Draft foundation + Fieldbook clarity`
 **Scope:** static, clickable comprehension prototype for the first World Studio authoring path.
 **Explicitly not:** `NOT PRODUCT IMPLEMENTATION` · `NOT RUNTIME OR PERSISTENCE` · `NOT A SETUP WIZARD` · `NOT A CREATOR DASHBOARD`
@@ -38,9 +38,10 @@ The component reads the shared prototype `WorldTruth` (`C-118`, `C-119`, or no r
 
 ## Validation result
 
-The final prototype was checked with the repository TypeScript check and production build, then exercised through a focused browser path: open OBS 04 from the existing shell, inspect Greyhaven current truth, add meaningful structure, review R-04, verify the unchanged R-03 boundary, return to the playable world and confirm the P1 surface remains intact. A mobile viewport check verified the same ordered meaning without relying on hover or color alone.
+The initial prototype was checked with the repository TypeScript check and production build, then exercised through a focused browser path. A later independent review correctly found that mobile secondary surfaces were not reachable from ordinary UI, desktop relied too heavily on reviewer OBS chrome, URL state remained stale after Return, and two review interactions needed clarification. Those issues have now received the scoped repair documented in [`P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md`](./P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md), including real 390×844 pointer navigation from World to Studio.
 
-`P4 WORLD STUDIO PROTOTYPE: PASS`
+`P4 WORLD STUDIO PROTOTYPE REPAIR: SELF-VERIFIED`
+`INDEPENDENT P4 RE-REVIEW: PENDING`
 `P1/P2/P3 APPROVED BASELINE: PRESERVED`
 `PRODUCT IMPLEMENTATION: NOT STARTED`
 

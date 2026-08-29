@@ -120,15 +120,15 @@ function OptionalDepth({ open, onToggle }: { open: boolean; onToggle: () => void
   );
 }
 
-function RevisionReview({ currentRecord, onClose, onReturnWorld }: { currentRecord: RecordId | null; onClose: () => void; onReturnWorld: () => void }) {
+function RevisionReview({ currentRecord, onBack, onKeep, onReturnWorld }: { currentRecord: RecordId | null; onBack: () => void; onKeep: () => void; onReturnWorld: () => void }) {
   return (
-    <section className="studio-review-surface" role="dialog" aria-modal="true" aria-labelledby="studio-review-title">
+    <section className="studio-review-surface" aria-labelledby="studio-review-title">
       <div className="studio-review-topline">
         <div>
           <div className="studio-panel-kicker"><span className="eyebrow-dot" />Fieldbook review</div>
           <h2 id="studio-review-title">Revision proposal {proposedRevision}</h2>
         </div>
-        <button className="button-small" onClick={onClose}>Close</button>
+        <button className="button-small" onClick={onBack}>Close</button>
       </div>
       <p className="studio-review-lede">A proposed structure can be inspected before it is ever allowed to shape a future run.</p>
       <div className="studio-review-status"><span className="studio-status-dot" /><strong>Draft · not applied</strong><span>Prepared from the current playable world</span></div>
@@ -138,7 +138,7 @@ function RevisionReview({ currentRecord, onClose, onReturnWorld }: { currentReco
         <div className="studio-ledger-row studio-ledger-untouched"><span>Does not affect</span><strong>Current Continuity {continuityRevision}</strong><p>Current world facts, {currentRecord ? `${currentRecord} history, ` : ""}the playable harbor scene, and other paths stay as they are.</p></div>
       </div>
       <div className="studio-review-boundary"><span>Continuity boundary</span><strong>Proposal ≠ current world change</strong><p>Keeping this draft records an idea for later review only. It does not publish a revision, mutate a record, or rewrite history.</p></div>
-      <div className="studio-review-actions"><button className="button-ghost" onClick={onClose}>Back to draft</button><button className="button-dark" onClick={onClose}>Keep proposal as draft</button><button className="button-paper" onClick={onReturnWorld}>Return to playable world</button></div>
+      <div className="studio-review-actions"><button className="button-ghost" onClick={onBack}>Back to draft</button><button className="button-dark" onClick={onKeep}>Keep proposal as draft</button><button className="button-paper" onClick={onReturnWorld}>Return to playable world</button></div>
     </section>
   );
 }
@@ -147,9 +147,10 @@ export default function WorldStudio({ currentRecord, onReturnWorld }: WorldStudi
   const [panel, setPanel] = useState<StudioPanel>("draft");
   const [structureEnabled, setStructureEnabled] = useState(false);
   const [depthOpen, setDepthOpen] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
 
   if (panel === "review") {
-    return <main className="main-stage studio-stage"><div className="studio-stage-inner"><WorldFirstPanel currentRecord={currentRecord} onReturnWorld={onReturnWorld} /><RevisionReview currentRecord={currentRecord} onClose={() => setPanel("draft")} onReturnWorld={onReturnWorld} /></div></main>;
+    return <main className="main-stage studio-stage"><div className="studio-stage-inner"><WorldFirstPanel currentRecord={currentRecord} onReturnWorld={onReturnWorld} /><RevisionReview currentRecord={currentRecord} onBack={() => { setDraftNotice(null); setPanel("draft"); }} onKeep={() => { setDraftNotice(`${proposedRevision} proposal kept locally · not applied`); setPanel("draft"); }} onReturnWorld={onReturnWorld} /></div></main>;
   }
 
   return (
@@ -165,6 +166,7 @@ export default function WorldStudio({ currentRecord, onReturnWorld }: WorldStudi
             <span className="studio-draft-label">Local draft</span>
           </div>
           <p className="studio-rail-intro">The world stays playable while you add only the structure that earns its place.</p>
+          {draftNotice && <div className="studio-draft-notice" role="status"><span className="studio-status-dot" /><strong>{draftNotice}</strong><small>Current Continuity remains {continuityRevision}.</small></div>}
           <StructureSection enabled={structureEnabled} onToggle={() => setStructureEnabled((value) => !value)} onReview={() => setPanel("review")} />
           <OptionalDepth open={depthOpen} onToggle={() => setDepthOpen((value) => !value)} />
           <div className="studio-footnote"><span className="coordinate-dot" />Current Continuity is pinned to {continuityRevision}. Studio changes in this prototype are proposals only.</div>

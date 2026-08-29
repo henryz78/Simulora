@@ -304,12 +304,20 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
 .world-first-stage .signal-thread { max-width: 590px; }
 .support-strip { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 13px 2px 22px; color: #8291a0; font-size: 11px; line-height: 1.45; }
 .support-strip button { border: 0; background: transparent; padding: 0; color: var(--amber-light); font-size: 11px; font-weight: 800; }
+.support-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px 17px; }
 .action-card, .proposal-card, .commit-card { max-width: 810px; }
 .context-overlay { position: fixed; z-index: 28; inset: 72px 0 0; display: flex; justify-content: flex-end; pointer-events: none; }
 .context-panel { width: min(498px, 100%); height: 100%; overflow-y: auto; pointer-events: auto; padding: 31px; color: #25333c; background: #f0ebe1; border-left: 1px solid #c9c1b3; box-shadow: -24px 0 64px rgba(0,0,0,.25); animation: slideIn .3s var(--ease-out); }
 .context-section { margin-top: 22px; padding: 17px 18px; border: 1px solid #d2c9bb; border-radius: 9px; background: #fbf8f1; }
 .context-statement { margin: 8px 0 5px; color: #26353d; font-family: "Fraunces", Georgia, serif; font-size: 20px; letter-spacing: -.035em; }
 .context-copy { margin: 0; color: #62727c; font-size: 12px; line-height: 1.6; }
+.context-destinations { padding-bottom: 10px; }
+.context-destination { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 17px; margin-top: 10px; padding: 14px 0; border: 0; border-top: 1px solid #d8cfc1; background: transparent; color: #344750; text-align: left; }
+.context-destination span, .context-destination strong, .context-destination small { display: block; }
+.context-destination strong { color: #2c3e47; font-family: "Fraunces", Georgia, serif; font-size: 18px; line-height: 1.15; letter-spacing: -.025em; }
+.context-destination small { margin-top: 5px; color: #6d7c84; font-size: 10px; line-height: 1.45; }
+.context-destination b { flex: 0 0 auto; color: #9b7428; font-size: 10px; white-space: nowrap; }
+.context-destination:hover strong { color: #87631e; }
 .trace-detail { margin: 26px 4px 0; }
 .return-view .world-coordinate-bar { margin-bottom: 18px; }
 .return-hero { min-height: 292px; }
@@ -435,6 +443,11 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
 .studio-rail-heading h2 { margin: 9px 0 0; color: #f0eee5; font-family: "Fraunces", Georgia, serif; font-size: 31px; font-weight: 600; letter-spacing: -.045em; line-height: 1.05; }
 .studio-draft-label { padding: 6px 8px; border: 1px solid rgba(217,164,65,.24); border-radius: 5px; color: var(--amber-light); font-size: 8px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
 .studio-rail-intro { margin: 12px 0 22px; color: #91a0ae; font-size: 12px; line-height: 1.6; }
+.studio-draft-notice { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 4px 9px; align-items: center; margin: -5px 0 17px; padding: 11px 12px; border: 1px solid rgba(135,181,155,.28); border-radius: 8px; color: #c9ddd1; background: rgba(135,181,155,.08); }
+.studio-draft-notice .studio-status-dot { grid-row: 1 / 3; background: var(--success); }
+.studio-draft-notice strong, .studio-draft-notice small { display: block; }
+.studio-draft-notice strong { font-size: 10px; line-height: 1.4; }
+.studio-draft-notice small { color: #8eaa9b; font-size: 9px; line-height: 1.35; }
 .studio-card { padding: 21px; border: 1px solid rgba(244,240,231,.13); border-radius: 11px; background: rgba(9,16,24,.52); }
 .studio-card + .studio-card { margin-top: 12px; }
 .studio-card h2 { max-width: 320px; margin: 8px 0 0; color: #eef0e9; font-family: "Fraunces", Georgia, serif; font-size: 24px; font-weight: 600; letter-spacing: -.04em; line-height: 1.08; }
@@ -523,6 +536,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--amber-li
   .world-first-stage .scene-card { min-height: 215px; padding: 20px; }
   .support-strip { align-items: flex-start; margin: 11px 2px 18px; font-size: 10px; }
   .support-strip button { flex: 0 0 auto; font-size: 10px; }
+  .support-actions { justify-content: flex-end; gap: 7px 12px; }
   .return-hero { min-height: 236px; }
   .return-view .world-coordinate-bar { margin-bottom: 13px; }
   /* P3-B1: the Return continuation is a real scroll/focus target and must always clear the fixed World/Continuity/More nav. */

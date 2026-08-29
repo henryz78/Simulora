@@ -1,8 +1,10 @@
 # P4 World Studio — Prototype Report
 
-**Result:** `P4 WORLD STUDIO PROTOTYPE: PASS`
+**Current status:** `INDEPENDENT GATE REPAIR IMPLEMENTED · RE-REVIEW PENDING`
 **Direction:** `Living Draft foundation + Fieldbook clarity`
 **Baseline:** approved P1/P2/P3 prototype under `prototypes/simulora-experience/`
+
+> Historical note: the initial design-agent self-check passed, but the subsequent independent gate found one mobile reachability blocker, two important navigation/state issues and two minor interaction issues. All five are addressed in [`P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md`](./P4_WORLD_STUDIO_GATE_REPAIR_REPORT.md). This document no longer treats the original self-check as an independent Freeze decision.
 
 ## What was added
 
