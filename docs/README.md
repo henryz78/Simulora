@@ -33,6 +33,10 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Overall Experience Integration Repair](deliverables/experience-structure/OVERALL_EXPERIENCE_INTEGRATION_REPAIR_REPORT.md)
 - [Independent Overall Experience Re-Audit](deliverables/experience-structure/OVERALL_EXPERIENCE_RE_AUDIT.md)
 - [Experience Freeze Handoff](deliverables/experience-structure/EXPERIENCE_FREEZE_HANDOFF.md)
+- [Implementation Plan V1](implementation-planning/IMPLEMENTATION_PLAN.md)
+- [Implementation Roadmap and Work Breakdown](implementation-planning/ROADMAP_AND_WORK_BREAKDOWN.md)
+- [Implementation Planning Consistency Audit](implementation-planning/IMPLEMENTATION_PLANNING_CONSISTENCY_AUDIT.md)
+- [Implementation Planning Handoff](implementation-planning/IMPLEMENTATION_PLANNING_HANDOFF.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
 - [Parity matrix](research/worldos/04_WORLDOS_PARITY_MATRIX.md)
@@ -63,6 +67,7 @@ docs/
 │  └─ experience-structure/     Frozen Experience structure, audit chain and Freeze handoff
 ├─ product/                      Frozen original Product Definition V1
 ├─ system-design/                Frozen original System Design V1, ADRs, contracts, validation and handoff
+├─ implementation-planning/      Production implementation plan, roadmap, WBS and review handoff
 ├─ coordination/                Package intake records and future active coordination
 ├─ source-materials/
 │  └─ worldos/                  Original Master Specification
@@ -122,7 +127,21 @@ The approved end-to-end Experience is frozen at implementation baseline `877f4d5
 
 Begin the frozen handoff at [Experience Freeze Handoff](deliverables/experience-structure/EXPERIENCE_FREEZE_HANDOFF.md).
 
-`EXPERIENCE: FROZEN`; `READY FOR IMPLEMENTATION PLANNING: YES`; `IMPLEMENTATION PLANNING: NOT STARTED`; `PRODUCT IMPLEMENTATION: NOT STARTED`.
+`EXPERIENCE: FROZEN`; `IMPLEMENTATION PLANNING: COMPLETE / APPROVED`; `PRODUCT IMPLEMENTATION: IP-1 ONLY`.
+
+## Implementation Planning
+
+The first production implementation plan is in [implementation-planning](implementation-planning/). Start with the [Implementation Planning Handoff](implementation-planning/IMPLEMENTATION_PLANNING_HANDOFF.md), then read the [Implementation Plan](implementation-planning/IMPLEMENTATION_PLAN.md), [Roadmap / Work Breakdown](implementation-planning/ROADMAP_AND_WORK_BREAKDOWN.md) and [Consistency Audit](implementation-planning/IMPLEMENTATION_PLANNING_CONSISTENCY_AUDIT.md).
+
+`IMPLEMENTATION PLANNING: COMPLETE / APPROVED`; `PRODUCT IMPLEMENTATION: IP-1 ONLY`.
+
+## Product Implementation
+
+Product implementation is authorized only through IP-1 Engineering Foundation. The production pnpm workspace is separate from the frozen Prototype and currently contains no World, Continuity or Action semantics.
+
+Start with the [IP-1 Engineering Foundation Report](implementation-planning/IP1_ENGINEERING_FOUNDATION_REPORT.md).
+
+`IP-1 ENGINEERING FOUNDATION: COMPLETE`; `GATE G1: PASSED — READY FOR INDEPENDENT REVIEW`; `IP-2: NOT STARTED`.
 
 ## Supporting Material
 

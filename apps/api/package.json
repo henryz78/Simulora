@@ -1,0 +1,19 @@
+{
+  "name": "@simulora/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --sourcemap --clean",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@simulora/application": "workspace:*",
+    "@simulora/config": "workspace:*",
+    "@simulora/contracts": "workspace:*",
+    "@simulora/observability": "workspace:*",
+    "fastify": "5.12.1"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@simulora/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc -p tsconfig.json",
+    "migrate": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "kysely": "0.29.5",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5",
+    "tsx": "4.23.12"
+  }
+}

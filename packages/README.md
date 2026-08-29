@@ -1,0 +1,13 @@
+# Production packages
+
+Packages enforce the modular-monolith boundaries defined by frozen System Design. They are not independent services.
+
+- `contracts` — versioned transport contracts.
+- `domain` — pure domain types/invariants; IP-1 contains no product aggregates.
+- `application` — use-case orchestration.
+- `database` — PostgreSQL adapter and typed query boundary.
+- `jobs` — durable job/outbox ports.
+- `model-gateway` — deterministic adapter and future provider port.
+- `auth`, `storage`, `config`, `observability` — infrastructure ports and foundations.
+- `ui` — production-accessible primitives, not copied Prototype components.
+- `testkit` — original synthetic fakes and clocks.
