@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@simulora/config": "workspace:*",
+    "@simulora/domain": "workspace:*",
     "kysely": "0.29.5",
     "pg": "8.23.0"
   },

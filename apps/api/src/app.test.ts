@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
+import {
+  WorldContinuityService,
+  createInitialState,
+  lanternReachSeed,
+  type WorldContinuityPort,
+} from "@simulora/application";
 import { foundationResponseSchema } from "@simulora/contracts";
 import { createApiApp } from "./app.js";
 
@@ -41,10 +47,46 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("states that product semantics have not started", async () => {
+  it("reports the authoritative IP-2 spine without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
-    expect(foundationResponseSchema.parse(response.json()).productSemanticsStarted).toBe(false);
+    const foundation = foundationResponseSchema.parse(response.json());
+    expect(foundation.productImplementationPhase).toBe("IP-2");
+    expect(foundation.productSemanticsStarted).toBe(true);
+  });
+
+  it("returns an authoritative Continuity read contract", async () => {
+    const participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const;
+    const state = createInitialState(lanternReachSeed, participation);
+    const port: WorldContinuityPort = {
+      createWorld: () => Promise.reject(new Error("unused")),
+      updateDraft: () => Promise.reject(new Error("unused")),
+      createRevision: () => Promise.reject(new Error("unused")),
+      startContinuity: () => Promise.reject(new Error("unused")),
+      readCurrentState: () =>
+        Promise.resolve({
+          continuityId: "10000000-0000-4000-8000-000000000001",
+          branchId: "10000000-0000-4000-8000-000000000002",
+          headCommitId: "10000000-0000-4000-8000-000000000003",
+          stateRevisionId: "10000000-0000-4000-8000-000000000004",
+          worldRevisionId: "10000000-0000-4000-8000-000000000005",
+          worldRevisionNumber: 1,
+          world: lanternReachSeed,
+          state,
+          stateHash: "a".repeat(64),
+        }),
+    };
+    app = createApiApp({ logLevel: "error", worldService: new WorldContinuityService(port) });
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/continuities/10000000-0000-4000-8000-000000000001/state",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      world: { title: "Lantern Reach" },
+      state: { participation },
+      continuity: { worldRevisionNumber: 1 },
+    });
   });
 });

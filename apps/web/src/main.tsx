@@ -1,11 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import { FoundationPage, NotFoundPage } from "./pages.js";
+import { FoundationPage, NotFoundPage, WorldPage } from "./pages.js";
 import "./styles.css";
 
 const router = createBrowserRouter([
   { path: "/", element: <FoundationPage /> },
+  { path: "/continuities/:continuityId", element: <WorldPage /> },
   { path: "*", element: <NotFoundPage /> },
 ]);
 

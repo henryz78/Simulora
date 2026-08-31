@@ -16,7 +16,7 @@ if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const migrationsDirectory = path.join(repositoryRoot, "db", "migrations");
-const migrationName = "0001_foundation.sql";
+const migrationName = "0002_authoritative_world_continuity.sql";
 const migration = await readFile(path.join(migrationsDirectory, migrationName), "utf8");
 const checksum = createHash("sha256").update(migration).digest("hex");
 const client = new Client({ connectionString });
@@ -29,8 +29,8 @@ try {
     from app_meta.foundation_metadata
     where key = 'implementation_phase'
   `);
-  if (foundation.rows[0]?.phase !== "IP-1" || foundation.rows[0].started !== false) {
-    throw new Error("Foundation metadata verification failed");
+  if (foundation.rows[0]?.phase !== "IP-2" || foundation.rows[0].started !== true) {
+    throw new Error("IP-2 metadata verification failed");
   }
 
   const ledger = await client.query<{ checksum: string }>(

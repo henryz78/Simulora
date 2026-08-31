@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { foundationResponseSchema, healthStatusSchema, workEnvelopeSchema } from "./index.js";
 
 describe("foundation contracts", () => {
-  it("rejects a foundation response that claims product semantics started", () => {
-    expect(() =>
+  it("accepts the honest IP-2 implementation phase", () => {
+    expect(
       foundationResponseSchema.parse({
-        productImplementationPhase: "IP-1",
+        productImplementationPhase: "IP-2",
         productSemanticsStarted: true,
         capabilities: [],
-      }),
-    ).toThrow();
+      }).productImplementationPhase,
+    ).toBe("IP-2");
   });
 
   it("accepts the API health contract", () => {

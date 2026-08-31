@@ -1,32 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-test("foundation shell is honest, responsive and interactive", async ({ page }) => {
+test("IP-2 shell is honest, responsive and accessible", async ({ page }) => {
   await page.goto("/");
-
-  await expect(page).toHaveTitle("Simulora Engineering Foundation");
+  await expect(page).toHaveTitle("Simulora");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Product semantics have not started",
+    "durable world begins with a known source of truth",
   );
-  await expect(page.getByText("IP-1 Foundation")).toBeVisible();
-
-  const reviewButton = page.getByRole("button", { name: "Review foundation boundaries" });
-  await reviewButton.click();
-  await expect(page.getByRole("heading", { name: "Current boundary" })).toBeVisible();
-  await expect(page.getByText("No World or Continuity domain implementation.")).toBeVisible();
-
-  const accessibility = await new AxeBuilder({ page }).analyze();
-  expect(accessibility.violations).toEqual([]);
+  await expect(page.getByText("IP-2 · Authoritative spine")).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test("foundation controls are keyboard reachable", async ({ page }) => {
+test("home shell remains keyboard reachable", async ({ page }) => {
   await page.goto("/");
   await page.keyboard.press("Tab");
-  await expect(
-    page.getByRole("link", { name: "Simulora engineering foundation home" }),
-  ).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Review foundation boundaries" })).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { name: "Current boundary" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Simulora home" })).toBeFocused();
 });

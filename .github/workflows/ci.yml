@@ -1,4 +1,4 @@
-name: Production foundation CI
+name: Production implementation CI
 
 on:
   pull_request:
@@ -55,22 +55,22 @@ jobs:
           pnpm db:migrate
           SIMULORA_MIGRATION_VERIFY=1 pnpm db:verify
 
-      - name: Run foundation checks
+      - name: Run IP-2 quality and PostgreSQL integration checks
         run: pnpm check
 
       - name: Build and smoke API and worker containers
         run: |
-          docker build -f deploy/containers/api.Dockerfile -t simulora-api:g1 .
-          docker build -f deploy/containers/worker.Dockerfile -t simulora-worker:g1 .
-          docker run -d --name simulora-api-g1 -e SIMULORA_ENV=test -p 4000:4000 simulora-api:g1
-          docker run -d --name simulora-worker-g1 -e SIMULORA_ENV=test simulora-worker:g1
-          trap 'docker rm -f simulora-api-g1 simulora-worker-g1 >/dev/null 2>&1 || true' EXIT
+          docker build -f deploy/containers/api.Dockerfile -t simulora-api:g2 .
+          docker build -f deploy/containers/worker.Dockerfile -t simulora-worker:g2 .
+          docker run -d --name simulora-api-g2 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" -p 4000:4000 simulora-api:g2
+          docker run -d --name simulora-worker-g2 -e SIMULORA_ENV=test simulora-worker:g2
+          trap 'docker rm -f simulora-api-g2 simulora-worker-g2 >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 20); do
             if curl --fail --silent http://127.0.0.1:4000/health >/dev/null; then break; fi
-            if [ "$attempt" = 20 ]; then docker logs simulora-api-g1; exit 1; fi
+            if [ "$attempt" = 20 ]; then docker logs simulora-api-g2; exit 1; fi
             sleep 1
           done
-          docker logs simulora-worker-g1 | grep '"service":"worker"'
+          docker logs simulora-worker-g2 | grep '"service":"worker"'
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium

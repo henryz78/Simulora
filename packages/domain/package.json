@@ -9,5 +9,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.5.2"
   }
 }

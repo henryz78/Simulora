@@ -142,6 +142,128 @@ h1 {
   background: rgba(15, 32, 34, 0.8);
 }
 
+.world-shell {
+  min-height: 100vh;
+  color: #edf4f2;
+}
+.world-header {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.source-chip {
+  border: 1px solid #365650;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #b9d0cb;
+  font-size: 0.8rem;
+}
+.world-main {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 64px 0 96px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+  gap: 56px;
+}
+.world-scene {
+  max-width: 720px;
+}
+.world-scene h1 {
+  max-width: 12ch;
+}
+.world-premise {
+  color: #bdcbc8;
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+.situation-card {
+  margin-top: 44px;
+  border-left: 3px solid #f0c988;
+  padding: 4px 0 4px 20px;
+  color: #f3e9d4;
+  font-size: 1.25rem;
+  line-height: 1.6;
+}
+.card-label {
+  margin: 0 0 8px;
+  color: #a7c4be;
+  font-size: 0.72rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.world-context {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+.world-context section {
+  border: 1px solid #27433e;
+  border-radius: 18px;
+  background: rgba(15, 32, 34, 0.8);
+  padding: 22px;
+}
+.world-context h2 {
+  margin: 0 0 14px;
+  color: #e9d9b8;
+  font:
+    500 1.2rem Georgia,
+    "Times New Roman",
+    serif;
+}
+.truth-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #d6e2df;
+  line-height: 1.7;
+}
+.character-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid #27433e;
+}
+.character-card:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.character-card strong {
+  color: #f3e9d4;
+}
+.character-card span,
+.character-card small,
+.authority-note small {
+  color: #aebfbb;
+  line-height: 1.5;
+}
+.authority-note p {
+  color: #f0c988;
+  margin: 0 0 10px;
+}
+.status-page {
+  width: min(720px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 96px 0;
+}
+.status-page h1 {
+  max-width: 16ch;
+}
+.status-page > p:not(.eyebrow) {
+  color: #bdcbc8;
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+.status-page a {
+  display: inline-block;
+  margin-top: 24px;
+  color: #f0c988;
+}
+
 .foundation-card {
   min-height: 160px;
   padding: 22px;
@@ -217,6 +339,23 @@ h1 {
 
   .foundation-card {
     min-height: auto;
+  }
+
+  .world-header {
+    width: min(100% - 28px, 680px);
+    padding-top: 18px;
+  }
+  .world-main {
+    width: min(100% - 28px, 680px);
+    padding-top: 40px;
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+  .world-scene h1 {
+    font-size: clamp(2.4rem, 14vw, 4.2rem);
+  }
+  .source-chip {
+    font-size: 0.7rem;
   }
 }
 
