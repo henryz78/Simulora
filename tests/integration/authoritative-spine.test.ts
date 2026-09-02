@@ -90,16 +90,10 @@ suite("PostgreSQL authoritative World and Continuity spine", () => {
       structureMode: "OPEN_ENDED",
     });
 
-    await pool!.query("update simulora.branches set status = 'INITIALIZING' where id = $1", [
-      continuity.branchId,
-    ]);
     await expect(
-      pool!.query("update simulora.continuities set status = 'ACTIVE' where id = $1", [
-        continuity.continuityId,
+      pool!.query("update simulora.branches set status = 'INITIALIZING' where id = $1", [
+        continuity.branchId,
       ]),
-    ).rejects.toThrow(/Active Continuity requires an active Branch head/);
-    await pool!.query("update simulora.branches set status = 'ACTIVE' where id = $1", [
-      continuity.branchId,
-    ]);
+    ).rejects.toThrow(/ACTIVE Continuity requires its Branch to remain active with complete heads/);
   });
 });

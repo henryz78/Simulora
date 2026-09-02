@@ -16,10 +16,15 @@ describe("authoritative spine migrations", () => {
         path.resolve("db/migrations/0003_ip2_active_branch_hardening.sql"),
         "utf8",
       );
+      const branchReferenceHardening = await readFile(
+        path.resolve("db/migrations/0004_ip2_branch_reference_hardening.sql"),
+        "utf8",
+      );
       await database.exec(migration);
       await database.exec(migration);
       await database.exec(authoritativeSpine);
       await database.exec(activeBranchHardening);
+      await database.exec(branchReferenceHardening);
       const result = await database.query<{ phase: string; started: boolean }>(`
         select
           value->>'phase' as phase,
@@ -28,6 +33,92 @@ describe("authoritative spine migrations", () => {
         where key = 'implementation_phase'
       `);
       expect(result.rows).toEqual([{ phase: "IP-2", started: true }]);
+
+      await database.exec(`
+        begin;
+        insert into simulora.accounts (id, eligibility)
+        values ('00000000-0000-4000-8000-000000000101', 'ADULT');
+        insert into simulora.worlds (id, owner_account_id, title)
+        values (
+          '00000000-0000-4000-8000-000000000102',
+          '00000000-0000-4000-8000-000000000101',
+          'Invariant fixture'
+        );
+        insert into simulora.authoring_validation_runs
+          (id, world_id, draft_row_version, outcome, findings)
+        values (
+          '00000000-0000-4000-8000-000000000103',
+          '00000000-0000-4000-8000-000000000102',
+          1,
+          'VALID',
+          '[]'::jsonb
+        );
+        insert into simulora.world_revisions
+          (id, world_id, revision_number, source_draft_row_version, document, document_hash, validation_run_id)
+        values (
+          '00000000-0000-4000-8000-000000000104',
+          '00000000-0000-4000-8000-000000000102',
+          1,
+          1,
+          '{}'::jsonb,
+          repeat('0', 64),
+          '00000000-0000-4000-8000-000000000103'
+        );
+        insert into simulora.continuities
+          (id, owner_account_id, world_revision_id, status)
+        values (
+          '00000000-0000-4000-8000-000000000105',
+          '00000000-0000-4000-8000-000000000101',
+          '00000000-0000-4000-8000-000000000104',
+          'INITIALIZING'
+        );
+        insert into simulora.branches (id, continuity_id, name, status)
+        values (
+          '00000000-0000-4000-8000-000000000106',
+          '00000000-0000-4000-8000-000000000105',
+          'Original path',
+          'INITIALIZING'
+        );
+        insert into simulora.world_commits
+          (id, branch_id, kind, actor_account_id, state_revision_id)
+        values (
+          '00000000-0000-4000-8000-000000000107',
+          '00000000-0000-4000-8000-000000000106',
+          'CONTINUITY_INITIALIZED',
+          '00000000-0000-4000-8000-000000000101',
+          '00000000-0000-4000-8000-000000000108'
+        );
+        insert into simulora.state_revisions
+          (id, branch_id, commit_id, schema_version, document, document_hash)
+        values (
+          '00000000-0000-4000-8000-000000000108',
+          '00000000-0000-4000-8000-000000000106',
+          '00000000-0000-4000-8000-000000000107',
+          1,
+          '{}'::jsonb,
+          repeat('1', 64)
+        );
+        update simulora.branches
+           set head_commit_id = '00000000-0000-4000-8000-000000000107',
+               head_state_revision_id = '00000000-0000-4000-8000-000000000108',
+               status = 'ACTIVE'
+         where id = '00000000-0000-4000-8000-000000000106';
+        update simulora.continuities
+           set active_branch_id = '00000000-0000-4000-8000-000000000106',
+               status = 'ACTIVE'
+         where id = '00000000-0000-4000-8000-000000000105';
+        commit;
+      `);
+
+      await expect(
+        database.exec(`
+          update simulora.branches
+             set status = 'INITIALIZING'
+           where id = '00000000-0000-4000-8000-000000000106'
+        `),
+      ).rejects.toThrow(
+        /ACTIVE Continuity requires its Branch to remain active with complete heads/,
+      );
     } finally {
       await database.close();
     }

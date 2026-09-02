@@ -9,7 +9,7 @@
 ## 1. Implementation summary
 
 - Added a pure domain package for the original `Lantern Reach` development seed, structured World validation, stable-ID reference checks, participation contracts and canonical SHA-256 content hashes.
-- Added PostgreSQL migrations `0002_authoritative_world_continuity.sql` and `0003_ip2_active_branch_hardening.sql` for accounts, Worlds, drafts, validation runs, immutable revisions, Continuities, Branches, Commits, State Revisions and Domain Events.
+- Added PostgreSQL migrations `0002_authoritative_world_continuity.sql`, `0003_ip2_active_branch_hardening.sql` and `0004_ip2_branch_reference_hardening.sql` for accounts, Worlds, drafts, validation runs, immutable revisions, Continuities, Branches, Commits, State Revisions and Domain Events.
 - Added database invariants for immutable historical records, same-Branch Commit/State heads, active Branch/Continuity requirements and revision/hash uniqueness.
 - Added `AuthoritativeWorldRepository` with adult eligibility checks, owner authorization, optimistic draft row versions, validation-before-revision, atomic Continuity initialization and authoritative current-state reads.
 - Added application orchestration through `WorldContinuityService` and versioned contracts for World, Draft, Revision, Continuity creation and state reads.
@@ -43,16 +43,16 @@ The following checks passed on the final working tree:
 - `pnpm typecheck`
 - `pnpm architecture:check`
 - `pnpm migrations:check` — migration sequence and IP-2 metadata contract passed
-- `pnpm test` — **13 test files passed, 30 tests passed**; the three PostgreSQL repository tests are skipped when `SIMULORA_DATABASE_URL` is not available locally
+- `pnpm test` — **13 test files passed, 30 tests passed**; the four PostgreSQL repository tests are skipped when `SIMULORA_DATABASE_URL` is not available locally
 - `pnpm build` — all production packages and the web/API/worker entry points built successfully
 - `pnpm test:e2e` — **10 passed** across desktop Chromium and 390×844 mobile
 - `git diff --check`
 
 The post-G2 container packaging repair also runs a local `pnpm deploy --prod --legacy` reproduction for the API and worker artifacts. Both bundles pass `node --check`, contain no `@simulora/*` runtime imports, and include their external runtime dependencies. Docker itself is not installed on the local Windows host, so the GitHub Actions container smoke job remains the authoritative image-level verification.
 
-The active-Branch invariant was hardened in migration `0003_ip2_active_branch_hardening.sql` and is covered by the PostgreSQL repository integration test. An active Continuity now requires an owned Branch with `ACTIVE` status and non-null Commit/State Revision heads.
+The active-Branch invariant was hardened in migrations `0003_ip2_active_branch_hardening.sql` and `0004_ip2_branch_reference_hardening.sql` and is covered by the PostgreSQL repository integration test. An active Continuity now requires an owned Branch with `ACTIVE` status and non-null Commit/State Revision heads; Branch-side updates cannot demote or detach a referenced active Branch.
 
-The PostgreSQL repository suite is configured to run when `SIMULORA_DATABASE_URL` is set and is exercised by CI against PostgreSQL 17. The local machine used for this evidence did not have a PostgreSQL server, so those three tests were not falsely reported as passed.
+The PostgreSQL repository suite is configured to run when `SIMULORA_DATABASE_URL` is set and is exercised by CI against PostgreSQL 17. The local machine used for this evidence did not have a PostgreSQL server, so those four tests were not falsely reported as passed.
 
 The E2E failure/retry fixture was made deterministic for React StrictMode: both possible initial mount reads return a 503, and the explicit retry returns the authoritative fixture. This changes test reliability only; it does not change product behavior.
 
