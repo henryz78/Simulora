@@ -96,6 +96,16 @@ The initial sandbox build failed on parent-directory access, not source compilat
 
 The retained client key is mounted-page retry state, not durable/offline storage. Once acknowledged, recovery uses the server's durable Action/history. No backend persistence is simulated by this client fix.
 
+### Follow-up: built worker runtime
+
+The [first focused repair CI run](https://github.com/henryz78/Simulora/actions/runs/33641874315) on `41d0494eb5ca4387d5c14643735e81b3477886b4` passed all twelve real PostgreSQL tests and the complete Ubuntu `pnpm check` (45 tests and workspace build). Its container startup then failed: the worker bundle raised `Dynamic require of "events" is not supported`. CI browser steps were skipped, not passed.
+
+The worker inlines the internal database package but did not directly declare its `pg` runtime dependency, unlike the API. The bundler consequently inlined CommonJS driver code into ESM. The follow-up declares the same already-pinned `pg@8.23.0` for the worker, so the driver is externalized and included by `pnpm deploy`; no driver upgrade or database/Action semantics change is involved.
+
+`pnpm runtime:check`, now run after build by `pnpm check`, starts the built worker entry in a child Node process, checks startup/readiness/shutdown, and fails on runtime loader errors. It reproduced the exact failure on the previous bundle. It uses an explicit unreachable test database URL, stops before the first poll and is not database-connectivity evidence. Real database tests and container smoke remain required independently.
+
+After declaring the runtime dependency, the worker rebuilt successfully and `pnpm runtime:check` passed. The Linux CI smoke containers use host networking to reach the runner's PostgreSQL service and wait for a running worker plus its explicit readiness message instead of racing an immediate log read. This is an isolated CI arrangement, not production deployment configuration.
+
 ## Explicit non-claims
 
 - No live provider, model quality claim or unattended world-active mutation.

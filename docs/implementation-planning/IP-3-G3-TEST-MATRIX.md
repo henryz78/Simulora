@@ -15,6 +15,7 @@
 | G3-11 | Concurrent duplicate worker execution has one processing winner | Real PostgreSQL `tests/integration/action-truth.test.ts` |
 | G3-12 | Lost ACK retry reuses the same submission key | `tests/e2e/action-truth.spec.ts`; response dropped after fixture acceptance, both viewports |
 | G3-13 | IP-2 read-error recovery remains deterministic under StrictMode | `tests/e2e/authoritative-world.spec.ts`; unavailable until explicit retry, both viewports |
+| G3-14 | Built worker ESM entry starts and shuts down with runtime dependencies | `pnpm runtime:check` after build, plus independent CI container smoke; fails on the old bundled CommonJS driver |
 
 ## Verification environment
 
