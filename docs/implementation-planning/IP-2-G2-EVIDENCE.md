@@ -9,14 +9,14 @@
 ## 1. Implementation summary
 
 - Added a pure domain package for the original `Lantern Reach` development seed, structured World validation, stable-ID reference checks, participation contracts and canonical SHA-256 content hashes.
-- Added PostgreSQL migration `0002_authoritative_world_continuity.sql` for accounts, Worlds, drafts, validation runs, immutable revisions, Continuities, Branches, Commits, State Revisions and Domain Events.
+- Added PostgreSQL migrations `0002_authoritative_world_continuity.sql` and `0003_ip2_active_branch_hardening.sql` for accounts, Worlds, drafts, validation runs, immutable revisions, Continuities, Branches, Commits, State Revisions and Domain Events.
 - Added database invariants for immutable historical records, same-Branch Commit/State heads, active Branch/Continuity requirements and revision/hash uniqueness.
 - Added `AuthoritativeWorldRepository` with adult eligibility checks, owner authorization, optimistic draft row versions, validation-before-revision, atomic Continuity initialization and authoritative current-state reads.
 - Added application orchestration through `WorldContinuityService` and versioned contracts for World, Draft, Revision, Continuity creation and state reads.
 - Added API routes for World creation, Draft update, Revision creation, Continuity start and current-state reads. No Action endpoints were added.
 - Replaced the IP-1 placeholder web page with a read-only responsive World shell that reads state from the API; it has loading, not-found, failure and retry states and no client fixture authority.
 - Kept `prototypes/simulora-experience/` untouched and outside the production package graph.
-- Restored the intended API/worker build command after removing stale temporary `tsup.config.ts` references; synchronized the lockfile and removed unnecessary direct API/worker dependencies.
+- Bundled workspace packages into the API and worker runtime entry points so production container artifacts do not depend on workspace package links; synchronized the lockfile and declared the external runtime dependencies required by the bundles.
 
 ## 2. G2 contract evidence
 
@@ -47,6 +47,10 @@ The following checks passed on the final working tree:
 - `pnpm build` — all production packages and the web/API/worker entry points built successfully
 - `pnpm test:e2e` — **10 passed** across desktop Chromium and 390×844 mobile
 - `git diff --check`
+
+The post-G2 container packaging repair also runs a local `pnpm deploy --prod --legacy` reproduction for the API and worker artifacts. Both bundles pass `node --check`, contain no `@simulora/*` runtime imports, and include their external runtime dependencies. Docker itself is not installed on the local Windows host, so the GitHub Actions container smoke job remains the authoritative image-level verification.
+
+The active-Branch invariant was hardened in migration `0003_ip2_active_branch_hardening.sql` and is covered by the PostgreSQL repository integration test. An active Continuity now requires an owned Branch with `ACTIVE` status and non-null Commit/State Revision heads.
 
 The PostgreSQL repository suite is configured to run when `SIMULORA_DATABASE_URL` is set and is exercised by CI against PostgreSQL 17. The local machine used for this evidence did not have a PostgreSQL server, so those three tests were not falsely reported as passed.
 

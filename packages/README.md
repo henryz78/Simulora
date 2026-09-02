@@ -3,7 +3,7 @@
 Packages enforce the modular-monolith boundaries defined by frozen System Design. They are not independent services.
 
 - `contracts` — versioned transport contracts.
-- `domain` — pure domain types/invariants; IP-1 contains no product aggregates.
+- `domain` — pure domain types/invariants for the IP-2 World and Continuity spine.
 - `application` — use-case orchestration.
 - `database` — PostgreSQL adapter and typed query boundary.
 - `jobs` — durable job/outbox ports.

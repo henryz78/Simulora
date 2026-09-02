@@ -12,9 +12,14 @@ describe("authoritative spine migrations", () => {
         path.resolve("db/migrations/0002_authoritative_world_continuity.sql"),
         "utf8",
       );
+      const activeBranchHardening = await readFile(
+        path.resolve("db/migrations/0003_ip2_active_branch_hardening.sql"),
+        "utf8",
+      );
       await database.exec(migration);
       await database.exec(migration);
       await database.exec(authoritativeSpine);
+      await database.exec(activeBranchHardening);
       const result = await database.query<{ phase: string; started: boolean }>(`
         select
           value->>'phase' as phase,

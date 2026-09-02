@@ -2,7 +2,7 @@
 
 Simulora's frozen Research, Product, System Design and Experience evidence lives under [`docs/`](docs/README.md). Production implementation begins as a separate pnpm workspace; the approved clickable Prototype remains frozen under `prototypes/simulora-experience/` and is not part of the production dependency graph.
 
-## IP-1 engineering foundation
+## IP-2 authoritative World and Continuity spine
 
 Requirements:
 
@@ -29,6 +29,6 @@ pnpm db:migrate
 pnpm dev
 ```
 
-The API, worker and migration CLI load `.env.local` explicitly for local development. Explicit process environment variables take precedence. IP-1 intentionally rejects `preview`, `staging` and `production` startup until approved non-development adapters exist.
+The API, worker and migration CLI load `.env.local` explicitly for local development. Explicit process environment variables take precedence. IP-2 exposes the authoritative World/Draft/Revision/Continuity read spine while Action Truth, Recovery, World Studio and live model behavior remain deferred.
 
-The local dependency instructions are detailed in [`deploy/local/README.md`](deploy/local/README.md). IP-1 contains no World, Continuity or Action product semantics, no live model provider and no production deployment.
+The local dependency instructions are detailed in [`deploy/local/README.md`](deploy/local/README.md). Production deployment is not yet started; use the CI container smoke job to verify the bundled runtime artifacts.

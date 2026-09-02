@@ -80,4 +80,26 @@ suite("PostgreSQL authoritative World and Continuity spine", () => {
       ]),
     ).rejects.toThrow(/immutable/);
   });
+
+  it("rejects an active Continuity that points at an incomplete Branch head", async () => {
+    const repository = new AuthoritativeWorldRepository(pool!);
+    const draft = await repository.createWorld(account, lanternReachSeed);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "DIRECT",
+      structureMode: "OPEN_ENDED",
+    });
+
+    await pool!.query("update simulora.branches set status = 'INITIALIZING' where id = $1", [
+      continuity.branchId,
+    ]);
+    await expect(
+      pool!.query("update simulora.continuities set status = 'ACTIVE' where id = $1", [
+        continuity.continuityId,
+      ]),
+    ).rejects.toThrow(/Active Continuity requires an active Branch head/);
+    await pool!.query("update simulora.branches set status = 'ACTIVE' where id = $1", [
+      continuity.branchId,
+    ]);
+  });
 });
