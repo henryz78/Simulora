@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactElement } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { Link, useParams } from "react-router";
 import {
   authoritativeStateResponseSchema,
@@ -14,6 +14,12 @@ type LoadState =
   | { status: "ready"; data: AuthoritativeStateResponse }
   | { status: "not-found" }
   | { status: "error" };
+
+type PendingSubmission = {
+  idempotencyKey: string;
+  intent: string;
+  expectedHeadCommitId: string;
+};
 
 async function readWorldState(continuityId: string | undefined): Promise<LoadState> {
   if (!continuityId) return { status: "not-found" };
@@ -76,14 +82,20 @@ export function WorldPage(): ReactElement {
   const [currentAction, setCurrentAction] = useState<ActionResponse | null>(null);
   const [intent, setIntent] = useState("");
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const pendingSubmission = useRef<PendingSubmission | null>(null);
+  const readyBranchId =
+    loadState.status === "ready" ? loadState.data.continuity.branchId : undefined;
+  const currentActionId = currentAction?.id;
+  const currentActionStatus = currentAction?.status;
+  const currentActionEventsUrl = currentAction?.eventsUrl;
 
   useEffect(() => {
     void readWorldState(continuityId).then(setLoadState);
   }, [continuityId]);
 
   useEffect(() => {
-    if (loadState.status !== "ready") return;
-    void readBranchHistory(loadState.data.continuity.branchId)
+    if (!readyBranchId) return;
+    void readBranchHistory(readyBranchId)
       .then(async (actions) => {
         setHistory(actions);
         const pending = [...actions]
@@ -97,27 +109,29 @@ export function WorldPage(): ReactElement {
         }
       })
       .catch(() => undefined);
-  }, [loadState]);
+  }, [readyBranchId]);
 
   useEffect(() => {
     if (
-      !currentAction ||
-      ["COMMITTED", "CONFLICT", "CANCELLED", "SUPERSEDED"].includes(currentAction.status)
+      !currentActionId ||
+      !currentActionEventsUrl ||
+      !currentActionStatus ||
+      ["COMMITTED", "CONFLICT", "CANCELLED", "SUPERSEDED"].includes(currentActionStatus)
     ) {
       return;
     }
     let active = true;
     const refresh = async (): Promise<void> => {
       try {
-        const response = await fetch(`/v1/actions/${encodeURIComponent(currentAction.id)}`);
+        const response = await fetch(`/v1/actions/${encodeURIComponent(currentActionId)}`);
         if (!response.ok) return;
         const next = actionResponseSchema.parse(await response.json());
         if (!active) return;
         setCurrentAction(next);
-        if (next.status === "COMMITTED" && loadState.status === "ready") {
+        if (next.status === "COMMITTED" && readyBranchId) {
           const [world, actionHistory] = await Promise.all([
             readWorldState(continuityId),
-            readBranchHistory(loadState.data.continuity.branchId),
+            readBranchHistory(readyBranchId),
           ]);
           if (active) {
             setLoadState(world);
@@ -130,7 +144,7 @@ export function WorldPage(): ReactElement {
       }
     };
     const timer = window.setInterval(() => void refresh(), 750);
-    const source = new EventSource(currentAction.eventsUrl);
+    const source = new EventSource(currentActionEventsUrl);
     source.onmessage = () => void refresh();
     source.addEventListener("action.status", () => void refresh());
     source.addEventListener("confirmation.required", () => void refresh());
@@ -141,7 +155,7 @@ export function WorldPage(): ReactElement {
       window.clearInterval(timer);
       source.close();
     };
-  }, [continuityId, currentAction?.id, currentAction?.status]);
+  }, [continuityId, currentActionEventsUrl, currentActionId, currentActionStatus, readyBranchId]);
 
   const retry = (): void => {
     setLoadState({ status: "loading" });
@@ -186,6 +200,20 @@ export function WorldPage(): ReactElement {
     event.preventDefault();
     if (!intent.trim() || !actionResolved) return;
     setMutationError(null);
+    const normalizedIntent = intent.trim();
+    const existingAttempt = pendingSubmission.current;
+    const submission =
+      existingAttempt?.intent === normalizedIntent &&
+      existingAttempt.expectedHeadCommitId === data.continuity.headCommitId
+        ? existingAttempt
+        : {
+            idempotencyKey: crypto.randomUUID(),
+            intent: normalizedIntent,
+            expectedHeadCommitId: data.continuity.headCommitId,
+          };
+    pendingSubmission.current = submission;
+    let failureMessage =
+      "The acknowledgement could not be confirmed. Retry is safe and uses the same submission.";
     try {
       const response = await fetch(
         `/v1/branches/${encodeURIComponent(data.continuity.branchId)}/actions`,
@@ -194,20 +222,25 @@ export function WorldPage(): ReactElement {
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify({
             schemaVersion: 1,
-            idempotencyKey: crypto.randomUUID(),
+            idempotencyKey: submission.idempotencyKey,
             expectedHeadCommitId: data.continuity.headCommitId,
             participationExpectation: data.state.participation,
-            intent: intent.trim(),
+            intent: normalizedIntent,
           }),
         },
       );
-      if (!response.ok) throw new Error("The Action could not be received.");
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) {
+          pendingSubmission.current = null;
+          failureMessage = "The Action was not accepted. Review the current world and try again.";
+        }
+        throw new Error("Action submission did not return an acknowledgement");
+      }
       setCurrentAction(actionResponseSchema.parse(await response.json()));
+      pendingSubmission.current = null;
       setIntent("");
-    } catch (error) {
-      setMutationError(
-        error instanceof Error ? error.message : "The Action could not be received.",
-      );
+    } catch {
+      setMutationError(failureMessage);
     }
   };
 

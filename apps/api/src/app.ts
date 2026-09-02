@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { describeFoundation, type WorldContinuityService } from "@simulora/application";
-import { ActionTruthService } from "@simulora/application";
+import {
+  describeFoundation,
+  type ActionTruthService,
+  type WorldContinuityService,
+} from "@simulora/application";
 import { DevelopmentAuthAdapter, type AuthPort } from "@simulora/auth";
 import {
   authoritativeStateResponseSchema,

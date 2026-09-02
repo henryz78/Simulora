@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 const continuityId = "10000000-0000-4000-8000-000000000001";
+let simulateReadFailure = false;
 const response = {
   continuity: {
     id: continuityId,
@@ -76,11 +77,10 @@ const response = {
 };
 
 test.beforeEach(async ({ page }) => {
-  let failureAttempts = 0;
+  simulateReadFailure = false;
   await page.route(`**/v1/continuities/${continuityId}/state**`, (route) => {
-    if (page.url().includes("simulateFailure=1")) {
-      failureAttempts += 1;
-      if (failureAttempts === 1) return route.fulfill({ status: 503, body: "unavailable" });
+    if (simulateReadFailure) {
+      return route.fulfill({ status: 503, body: "unavailable" });
     }
     return route.fulfill({
       status: 200,
@@ -109,10 +109,12 @@ test("route refresh recovers the World from the API instead of client fixtures",
 });
 
 test("failed authoritative reads remain honest and recoverable", async ({ page }) => {
+  simulateReadFailure = true;
   await page.goto(`/continuities/${continuityId}?simulateFailure=1`);
   await expect(
     page.getByRole("heading", { name: "The current world could not be read" }),
   ).toBeVisible();
+  simulateReadFailure = false;
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByRole("heading", { name: "Lantern Reach" })).toBeVisible();
 });

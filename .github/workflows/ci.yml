@@ -55,6 +55,9 @@ jobs:
           pnpm db:migrate
           SIMULORA_MIGRATION_VERIFY=1 pnpm db:verify
 
+      - name: Run authoritative PostgreSQL integration suites
+        run: pnpm test:postgres
+
       - name: Run IP-3 quality and PostgreSQL integration checks
         run: pnpm check
 

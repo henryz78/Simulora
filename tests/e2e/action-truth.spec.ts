@@ -5,12 +5,16 @@ const continuityId = "30000000-0000-4000-8000-000000000001";
 const branchId = "30000000-0000-4000-8000-000000000002";
 const initialHead = "30000000-0000-4000-8000-000000000003";
 const participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const;
+let observedIdempotencyKeys: string[] = [];
 
 test.beforeEach(async ({ page }) => {
+  observedIdempotencyKeys = [];
   let head = initialHead;
   let fact = "The western signal is dim.";
   let actionNumber = 0;
+  let dropFirstRetryResponse = true;
   const actions = new Map<string, Record<string, unknown>>();
+  const actionsByIdempotencyKey = new Map<string, Record<string, unknown>>();
   const history: Array<Record<string, unknown>> = [];
 
   const worldResponse = (): Record<string, unknown> => ({
@@ -107,7 +111,17 @@ test.beforeEach(async ({ page }) => {
     const input = route.request().postDataJSON() as {
       intent: string;
       expectedHeadCommitId: string;
+      idempotencyKey: string;
     };
+    observedIdempotencyKeys.push(input.idempotencyKey);
+    const existing = actionsByIdempotencyKey.get(input.idempotencyKey);
+    if (existing) {
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ ...existing, proposal: null }),
+      });
+    }
     actionNumber += 1;
     const actionId = `30000000-0000-4000-8000-${String(actionNumber).padStart(12, "0")}`;
     const proposalId = `31000000-0000-4000-8000-${String(actionNumber).padStart(12, "0")}`;
@@ -143,6 +157,7 @@ test.beforeEach(async ({ page }) => {
       commit: null,
     };
     actions.set(actionId, base);
+    actionsByIdempotencyKey.set(input.idempotencyKey, base);
     history.push({
       id: actionId,
       status: "ACKNOWLEDGED",
@@ -151,6 +166,10 @@ test.beforeEach(async ({ page }) => {
       committedAt: null,
       narrative: null,
     });
+    if (input.intent.startsWith("Retry after lost ACK") && dropFirstRetryResponse) {
+      dropFirstRetryResponse = false;
+      return route.abort("connectionreset");
+    }
     return route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -244,4 +263,17 @@ test("an unresolved Action is recovered after refresh by durable Action ID", asy
   await page.reload();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
+});
+
+test("retries a lost acknowledgement with the same idempotency key", async ({ page }) => {
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Your Action").fill("Retry after lost ACK by the western signal.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(page.getByRole("alert")).toHaveText(
+    "The acknowledgement could not be confirmed. Retry is safe and uses the same submission.",
+  );
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(page.getByText("Received and durably recorded.")).toBeVisible();
+  expect(observedIdempotencyKeys).toHaveLength(2);
+  expect(observedIdempotencyKeys[0]).toBe(observedIdempotencyKeys[1]);
 });

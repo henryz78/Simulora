@@ -7,7 +7,6 @@ import {
   stateRevisionDocumentSchema,
   validateActionCandidate,
   worldDocumentSchema,
-  type ActionCandidate,
   type ActionStatus,
   type ParticipationContract,
   type StateRevisionDocument,
@@ -515,11 +514,13 @@ export class AuthoritativeWorldRepository {
       }
 
       const actionId = randomUUID();
-      await client.query(
+      const inserted = await client.query<{ id: string }>(
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
           expected_head_commit_id, participation_expectation, intent, status)
-         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, 'ACKNOWLEDGED')`,
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, 'ACKNOWLEDGED')
+         on conflict (actor_account_id, branch_id, idempotency_key) do nothing
+         returning id`,
         [
           actionId,
           account.accountId,
@@ -531,6 +532,15 @@ export class AuthoritativeWorldRepository {
           input.intent.trim(),
         ],
       );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query<{ id: string }>(
+          `select id from simulora.actions
+           where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
+          [account.accountId, branchId, input.idempotencyKey],
+        );
+        if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        return this.readActionWithClient(client, account, duplicate.rows[0].id);
+      }
       await client.query(
         `insert into simulora.durable_jobs (id, type, action_id, dedupe_key, status)
          values ($1, 'ACTION_PROCESS', $2, $3, 'AVAILABLE')`,

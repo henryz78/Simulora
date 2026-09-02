@@ -15,6 +15,7 @@
     "format": "prettier --write package.json pnpm-workspace.yaml tsconfig*.json eslint.config.js prettier.config.js vitest.config.ts playwright.config.ts .github deploy apps packages scripts tests",
     "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig*.json eslint.config.js prettier.config.js vitest.config.ts playwright.config.ts .github deploy apps packages scripts tests",
     "test": "vitest run",
+    "test:postgres": "node -e \"if (!process.env.SIMULORA_DATABASE_URL) throw new Error('SIMULORA_DATABASE_URL is required for PostgreSQL verification')\" && vitest run tests/integration/authoritative-spine.test.ts tests/integration/action-truth.test.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "architecture:check": "node --experimental-strip-types scripts/check-architecture.ts",

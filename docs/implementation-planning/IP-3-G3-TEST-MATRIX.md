@@ -3,12 +3,23 @@
 | ID | Required behavior | Evidence |
 |---|---|---|
 | G3-01 | Submit returns durable `ACKNOWLEDGED` without Commit | `tests/integration/action-truth.test.ts` |
-| G3-02 | Duplicate idempotency key returns same Action | `tests/integration/action-truth.test.ts` |
+| G3-02 | Concurrent duplicate idempotency keys return the same Action | Real PostgreSQL `tests/integration/action-truth.test.ts`; one Commit asserted |
 | G3-03 | Worker produces explicit provisional proposal | `tests/integration/action-truth.test.ts`, deterministic gateway |
 | G3-04 | Confirmation binds actor, digest and expected head | migration trigger + repository integration |
-| G3-05 | Commit atomically advances State Revision, Event, history and Branch head | `tests/integration/action-truth.test.ts` |
+| G3-05 | Commit atomically advances State Revision, Event, history and Branch head | Real PostgreSQL `tests/integration/action-truth.test.ts`; exact linked-row counts and head |
 | G3-06 | Second Action starts after first recorded Action | `tests/integration/action-truth.test.ts`, `tests/e2e/action-truth.spec.ts` |
 | G3-07 | Stale head is a conflict with no mutation | `tests/integration/action-truth.test.ts` |
 | G3-08 | Progress frames are ordered and resumable | `tests/integration/action-truth.test.ts`, `/progress` and `/events` |
-| G3-09 | Cancel/terminal state is explicit | Action status transition trigger + API endpoint |
+| G3-09 | Cancel/terminal state is explicit, including concurrent cancel/Commit | Action status transition trigger + API endpoint + real PostgreSQL race test |
 | G3-10 | Desktop/mobile Action status copy remains understandable | `tests/e2e/action-truth.spec.ts` |
+| G3-11 | Concurrent duplicate worker execution has one processing winner | Real PostgreSQL `tests/integration/action-truth.test.ts` |
+| G3-12 | Lost ACK retry reuses the same submission key | `tests/e2e/action-truth.spec.ts`; response dropped after fixture acceptance, both viewports |
+| G3-13 | IP-2 read-error recovery remains deterministic under StrictMode | `tests/e2e/authoritative-world.spec.ts`; unavailable until explicit retry, both viewports |
+
+## Verification environment
+
+- `pnpm test:postgres` requires `SIMULORA_DATABASE_URL` and runs the IP-2 and IP-3 PostgreSQL suites. CI provides a PostgreSQL 17 service; PGlite is not used by Action Truth tests.
+- Without a configured database, ordinary `pnpm test` skips these twelve PostgreSQL tests. Skips are not a Gate pass.
+- PGlite remains only in the separate migration smoke test; it is not transaction/concurrency evidence.
+- Browser tests use deterministic HTTP fixtures. Database durability/concurrency is verified separately on real PostgreSQL; no browser-fixture result is promoted to backend evidence.
+- Re-approval requires the focused repair commit's successful Ubuntu lint, complete build, PostgreSQL integration, container smoke and desktop/mobile CI steps, plus independent G3 re-review.
