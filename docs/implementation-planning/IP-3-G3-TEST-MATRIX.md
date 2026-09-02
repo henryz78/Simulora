@@ -16,11 +16,15 @@
 | G3-12 | Lost ACK retry reuses the same submission key | `tests/e2e/action-truth.spec.ts`; response dropped after fixture acceptance, both viewports |
 | G3-13 | IP-2 read-error recovery remains deterministic under StrictMode | `tests/e2e/authoritative-world.spec.ts`; unavailable until explicit retry, both viewports |
 | G3-14 | Built worker ESM entry starts and shuts down with runtime dependencies | `pnpm runtime:check` after build, plus independent CI container smoke; fails on the old bundled CommonJS driver |
+| G3-15 | Live slow generation renews its lease and cannot be reclaimed | Real PostgreSQL `action-lease.test.ts`; actual database clock crosses the original lease deadline |
+| G3-16 | Expired/replaced attempt cannot finalize or fail another execution | Real PostgreSQL `action-lease.test.ts`; stale success/failure before/after takeover and Commit; same worker name, distinct epoch/attempt |
+| G3-17 | Cancellation revokes running attempts; late callbacks do not resurrect work | Real PostgreSQL `action-lease.test.ts`; late success/failure and concurrent claim/cancel |
+| G3-18 | Failure exhaustion and explicit retry preserve attempt lineage | Real PostgreSQL `action-lease.test.ts`; DEAD/FAILED_RECOVERABLE, retry without resetting epoch |
 
 ## Verification environment
 
-- `pnpm test:postgres` requires `SIMULORA_DATABASE_URL` and runs the IP-2 and IP-3 PostgreSQL suites. CI provides a PostgreSQL 17 service; PGlite is not used by Action Truth tests.
-- Without a configured database, ordinary `pnpm test` skips these twelve PostgreSQL tests. Skips are not a Gate pass.
+- `pnpm test:postgres` requires `SIMULORA_DATABASE_URL` and runs the IP-2 spine, IP-3 Action Truth and IP-3 lease-ownership PostgreSQL suites. CI provides a PostgreSQL 17 service; PGlite is not used by Action Truth or lease tests.
+- Without a configured database, ordinary `pnpm test` skips these twenty-three PostgreSQL tests. Skips are not a Gate pass.
 - PGlite remains only in the separate migration smoke test; it is not transaction/concurrency evidence.
 - Browser tests use deterministic HTTP fixtures. Database durability/concurrency is verified separately on real PostgreSQL; no browser-fixture result is promoted to backend evidence.
 - Re-approval requires the focused repair commit's successful Ubuntu lint, complete build, PostgreSQL integration, container smoke and desktop/mobile CI steps, plus independent G3 re-review.

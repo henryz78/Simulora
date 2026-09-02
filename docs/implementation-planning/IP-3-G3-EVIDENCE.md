@@ -106,6 +106,43 @@ The worker inlines the internal database package but did not directly declare it
 
 After declaring the runtime dependency, the worker rebuilt successfully and `pnpm runtime:check` passed. The Linux CI smoke containers use host networking to reach the runner's PostgreSQL service and wait for a running worker plus its explicit readiness message instead of racing an immediate log read. This is an isolated CI arrangement, not production deployment configuration.
 
+### Follow-up: independent lease-ownership finding
+
+The Luna/max independent re-review of `de6af756c9b3c7fe59f39334be4a3fc3a808e56a` inspected the [successful Ubuntu CI run](https://github.com/henryz78/Simulora/actions/runs/33643203197). It returned `PASS WITH ISSUES — 0 BLOCKER / 1 IMPORTANT / 0 MINOR; READY FOR IP-4: NO`. The earlier repair findings were closed; the remaining IMPORTANT was missing lease renewal and attempt fencing. Green CI alone did not establish G3 approval.
+
+Root cause: a generation lasting longer than the 30-second lease could be reclaimed, but both its success and error paths still wrote job/attempt/Action state without checking ownership. Unique Commit constraints prevented duplicate truth, but did not prevent a stale callback from completing or failing the replacement's job.
+
+Focused repair contract:
+
+- A live attempt renews its 30-second lease every 10 seconds. Renewal checks job ID, owner, monotonic job attempt number, exact generation-attempt ID, RUNNING status and an unexpired database-clock deadline. A failed/lost renewal stops renewing; an expired lease cannot be revived.
+- Completion and failure both lock Action then job and recheck that same ownership tuple before any attempt, proposal, progress or job mutation. Losing ownership makes the callback read-only. The database lock establishes the completion boundary; no transaction is held during generation.
+- Reclaim marks the abandoned attempt `FAILED / LEASE_EXPIRED` and starts a distinct attempt using the job's monotonically increasing attempt number. A reused worker name does not bypass the attempt fence. The worker composition also assigns a process-local unique name for attribution.
+- Cancellation closes a RUNNING attempt as `FAILED / CANCELLED` and clears the lease in the cancellation transaction. It does not depend on the model callback returning and cannot be undone by a late callback.
+- Claim, cancellation and completion use consistent Action-before-job locking. Success, failure and cancellation clear lease ownership. AVAILABLE jobs respect `available_at`.
+- Existing generation-failure retry/dead-state behavior and explicit retry remain; an explicit retry never resets the fencing epoch. No new schema, broker, model provider, product API, UI behavior or IP-4 capability was added.
+
+`tests/integration/action-lease.test.ts` adds eleven real-PostgreSQL tests, explicitly included in `pnpm test:postgres`:
+
+1. live generation exceeds its original deadline while heartbeat renewal prevents takeover;
+2. four stale success/failure cases, before and after replacement Commit, including a reused worker name and a stale third attempt that must not DEAD-mark the fourth attempt;
+3. two expired-owner success/failure cases before any replacement starts;
+4. two cancellation-during-generation cases with late success/failure;
+5. failure exhaustion and explicit retry with a new epoch;
+6. concurrent claim/cancellation without resurrection or lock-order deadlock.
+
+Lease-expiry tests deliberately expire a real PostgreSQL lease to model a paused/crashed worker. The heartbeat test uses the same implementation with shorter server-side lease timings, a real database clock and no fake timers. Assertions cover attempt attribution, proposal uniqueness, unchanged progress after stale callbacks, unchanged World truth before confirmation, and at most one Commit.
+
+Local focused-repair verification:
+
+```text
+pnpm check: PASS (format, lint, typecheck, architecture, migrations, tests, build, runtime smoke)
+local tests: 33 PASS; 23 PostgreSQL tests SKIPPED because no local PostgreSQL server is configured
+pnpm test:e2e: 16 PASS (desktop + 390×844), exit 0
+git diff --check: PASS
+```
+
+The new commit still requires actual Ubuntu/PostgreSQL/container/browser CI verification and the same independent reviewer's re-review. Local skips are not database evidence; this document does not self-close the IMPORTANT finding.
+
 ## Explicit non-claims
 
 - No live provider, model quality claim or unattended world-active mutation.

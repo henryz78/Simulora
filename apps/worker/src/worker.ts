@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NoopJobRepository, type JobRepository } from "@simulora/jobs";
 import { DeterministicModelGateway, type ModelGatewayPort } from "@simulora/model-gateway";
 import { AuthoritativeWorldRepository, createDatabasePool } from "@simulora/database";
@@ -13,6 +14,7 @@ export type WorkerComposition = {
 };
 
 export function createWorkerComposition(databaseUrl?: string): WorkerComposition {
+  const workerId = `worker-${randomUUID()}`;
   const actionRepository = databaseUrl
     ? new AuthoritativeWorldRepository(createDatabasePool(databaseUrl, { max: 4 }))
     : undefined;
@@ -24,7 +26,10 @@ export function createWorkerComposition(databaseUrl?: string): WorkerComposition
     actionRepository,
     processNextAction: () =>
       actionRepository
-        ? actionRepository.processNextAction((request) => modelGateway.generateWorldTurn(request))
+        ? actionRepository.processNextAction(
+            (request) => modelGateway.generateWorldTurn(request),
+            workerId,
+          )
         : Promise.resolve(null),
   };
 }

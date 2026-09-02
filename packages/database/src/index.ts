@@ -196,7 +196,21 @@ async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<
 }
 
 export class AuthoritativeWorldRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(
+    private readonly pool: Pool,
+    private readonly actionLease = { durationMs: 30_000, heartbeatMs: 10_000 },
+  ) {
+    if (
+      !Number.isSafeInteger(actionLease.durationMs) ||
+      !Number.isSafeInteger(actionLease.heartbeatMs) ||
+      actionLease.heartbeatMs <= 0 ||
+      actionLease.durationMs < actionLease.heartbeatMs * 3
+    ) {
+      throw new Error(
+        "Action lease requires a positive heartbeat no longer than one third of its duration",
+      );
+    }
+  }
 
   async ensureAccount(account: SyntheticAccount): Promise<void> {
     await this.pool.query(
@@ -794,7 +808,13 @@ export class AuthoritativeWorldRepository {
           [actionId],
         );
         await client.query(
-          `update simulora.durable_jobs set status = 'SUCCEEDED', updated_at = now() where action_id = $1`,
+          `update simulora.durable_jobs set status = 'SUCCEEDED', lease_owner = null,
+           lease_until = null, updated_at = now() where action_id = $1`,
+          [actionId],
+        );
+        await client.query(
+          `update simulora.generation_attempts set status = 'FAILED', error_class = 'CANCELLED',
+           completed_at = now() where action_id = $1 and status = 'RUNNING'`,
           [actionId],
         );
         await this.appendProgressWithClient(client, actionId, "action.status", {
@@ -909,16 +929,7 @@ export class AuthoritativeWorldRepository {
     workerId = "worker",
   ): Promise<ActionRecord | null> {
     const prepared = await transaction(this.pool, async (client) => {
-      const lease = await client.query<{ id: string; attempts: number }>(
-        `update simulora.durable_jobs
-         set status = 'LEASED', lease_owner = $1, lease_until = now() + interval '30 seconds',
-             attempts = attempts + 1, updated_at = now()
-         where action_id = $2 and status in ('AVAILABLE', 'LEASED')
-           and (status = 'AVAILABLE' or lease_until < now())
-         returning id, attempts`,
-        [workerId, actionId],
-      );
-      if (!lease.rows[0]) return null;
+      // All lifecycle transactions lock Action -> job -> attempt, including cancellation.
       const actionResult = await client.query<{
         actor_account_id: string;
         expected_head_commit_id: string;
@@ -936,13 +947,25 @@ export class AuthoritativeWorldRepository {
       );
       const action = actionResult.rows[0];
       if (!action) throw new NotFoundError("Action not found");
-      if (!["ACKNOWLEDGED", "GENERATING"].includes(action.status)) {
-        await client.query(
-          `update simulora.durable_jobs set status = 'SUCCEEDED', lease_until = null, updated_at = now() where id = $1`,
-          [lease.rows[0].id],
-        );
-        return null;
-      }
+      if (!["ACKNOWLEDGED", "GENERATING"].includes(action.status)) return null;
+      const lease = await client.query<{ id: string; attempts: number }>(
+        `update simulora.durable_jobs
+         set status = 'LEASED', lease_owner = $1,
+             lease_until = clock_timestamp() + $3 * interval '1 millisecond',
+             attempts = attempts + 1, updated_at = now()
+         where action_id = $2 and
+           ((status = 'AVAILABLE' and available_at <= clock_timestamp())
+            or (status = 'LEASED' and lease_until <= clock_timestamp()))
+         returning id, attempts`,
+        [workerId, actionId, this.actionLease.durationMs],
+      );
+      if (!lease.rows[0]) return null;
+      // Reclaim closes the abandoned attempt; its eventual callback has no write authority.
+      await client.query(
+        `update simulora.generation_attempts set status = 'FAILED', error_class = 'LEASE_EXPIRED',
+         completed_at = now() where action_id = $1 and status = 'RUNNING'`,
+        [actionId],
+      );
       if (action.status === "ACKNOWLEDGED") {
         await client.query(
           `update simulora.actions set status = 'GENERATING', updated_at = now(), row_version = row_version + 1 where id = $1`,
@@ -965,9 +988,8 @@ export class AuthoritativeWorldRepository {
       await client.query(
         `insert into simulora.generation_attempts
          (id, action_id, attempt_number, adapter, status, context_manifest)
-         values ($1, $2, (select coalesce(max(attempt_number), 0) + 1 from simulora.generation_attempts where action_id = $2),
-                 'deterministic', 'RUNNING', $3::jsonb)`,
-        [attemptId, actionId, JSON.stringify(manifest)],
+         values ($1, $2, $3, 'deterministic', 'RUNNING', $4::jsonb)`,
+        [attemptId, actionId, lease.rows[0].attempts, JSON.stringify(manifest)],
       );
       await this.appendProgressWithClient(client, actionId, "action.status", {
         status: "GENERATING",
@@ -990,6 +1012,51 @@ export class AuthoritativeWorldRepository {
       accountId: prepared.actorAccountId,
       eligibility: "adult",
     };
+    const leaseIdentity = [prepared.jobId, workerId, prepared.attempts, prepared.attemptId];
+    // The epoch and attempt ID fence even two executions sharing a worker name.
+    const lockOwnedLease = async (client: PoolClient): Promise<boolean> => {
+      const current = await client.query<{ status: ActionStatus }>(
+        `select status from simulora.actions where id = $1 for update`,
+        [actionId],
+      );
+      if (current.rows[0]?.status !== "GENERATING") return false;
+      const owned = await client.query(
+        `select j.id from simulora.durable_jobs j
+         join simulora.generation_attempts g on g.action_id = j.action_id
+         where j.id = $1 and j.lease_owner = $2 and j.attempts = $3
+           and j.status = 'LEASED' and j.lease_until > clock_timestamp()
+           and g.id = $4 and g.attempt_number = j.attempts and g.status = 'RUNNING'
+         for update of j`,
+        leaseIdentity,
+      );
+      return owned.rowCount === 1;
+    };
+    let renewal: Promise<void> | undefined;
+    const heartbeat = setInterval(() => {
+      if (renewal) return;
+      renewal = this.pool
+        .query(
+          `update simulora.durable_jobs j
+         set lease_until = clock_timestamp() + $5 * interval '1 millisecond', updated_at = now()
+         from simulora.generation_attempts g, simulora.actions a
+         where j.id = $1 and j.lease_owner = $2 and j.attempts = $3
+           and j.status = 'LEASED' and j.lease_until > clock_timestamp()
+           and g.id = $4 and g.action_id = j.action_id and g.attempt_number = j.attempts
+           and g.status = 'RUNNING' and a.id = j.action_id and a.status = 'GENERATING'`,
+          [...leaseIdentity, this.actionLease.durationMs],
+        )
+        .then((result) => {
+          if (result.rowCount !== 1) clearInterval(heartbeat);
+        })
+        .catch(() => {
+          // Fail closed: never revive an expired lease; completion still checks the database fence.
+          clearInterval(heartbeat);
+        })
+        .finally(() => {
+          renewal = undefined;
+        });
+    }, this.actionLease.heartbeatMs);
+    heartbeat.unref();
     try {
       const generated = await generator({
         actionId,
@@ -1013,24 +1080,8 @@ export class AuthoritativeWorldRepository {
         expiresAt: expiresAt.toISOString(),
       });
 
-      return transaction(this.pool, async (client) => {
-        const current = await client.query<{ status: ActionStatus }>(
-          `select status from simulora.actions where id = $1 for update`,
-          [actionId],
-        );
-        if (!current.rows[0]) throw new NotFoundError("Action not found");
-        if (current.rows[0].status === "CANCELLED") {
-          await client.query(
-            `update simulora.generation_attempts set status = 'FAILED', error_class = 'CANCELLED', completed_at = now() where id = $1`,
-            [prepared.attemptId],
-          );
-          await client.query(
-            `update simulora.durable_jobs set status = 'SUCCEEDED', lease_until = null, updated_at = now() where id = $1`,
-            [prepared.jobId],
-          );
-          return this.readActionWithClient(client, account, actionId);
-        }
-        if (current.rows[0].status !== "GENERATING") {
+      return await transaction(this.pool, async (client) => {
+        if (!(await lockOwnedLease(client))) {
           return this.readActionWithClient(client, account, actionId);
         }
         await client.query(
@@ -1075,13 +1126,17 @@ export class AuthoritativeWorldRepository {
           effect: candidate.displayEffect,
         });
         await client.query(
-          `update simulora.durable_jobs set status = 'SUCCEEDED', lease_until = null, updated_at = now() where id = $1`,
+          `update simulora.durable_jobs set status = 'SUCCEEDED', lease_owner = null,
+           lease_until = null, updated_at = now() where id = $1`,
           [prepared.jobId],
         );
         return this.readActionWithClient(client, account, actionId);
       });
     } catch (error) {
-      return transaction(this.pool, async (client) => {
+      return await transaction(this.pool, async (client) => {
+        if (!(await lockOwnedLease(client))) {
+          return this.readActionWithClient(client, account, actionId);
+        }
         await client.query(
           `update simulora.generation_attempts
            set status = 'FAILED', error_class = $2, completed_at = now() where id = $1`,
@@ -1095,7 +1150,7 @@ export class AuthoritativeWorldRepository {
             [actionId],
           );
           await client.query(
-            `update simulora.durable_jobs set status = 'DEAD', lease_until = null,
+            `update simulora.durable_jobs set status = 'DEAD', lease_owner = null, lease_until = null,
              last_error = $2, updated_at = now() where id = $1`,
             [prepared.jobId, error instanceof Error ? error.message : "Unknown generation failure"],
           );
@@ -1112,6 +1167,9 @@ export class AuthoritativeWorldRepository {
         }
         return this.readActionWithClient(client, account, actionId);
       });
+    } finally {
+      clearInterval(heartbeat);
+      await renewal;
     }
   }
 
@@ -1121,7 +1179,8 @@ export class AuthoritativeWorldRepository {
   ): Promise<ActionRecord | null> {
     const next = await this.pool.query<{ action_id: string }>(
       `select action_id from simulora.durable_jobs
-       where status = 'AVAILABLE' or (status = 'LEASED' and lease_until < now())
+       where (status = 'AVAILABLE' and available_at <= clock_timestamp())
+          or (status = 'LEASED' and lease_until <= clock_timestamp())
        order by available_at, created_at limit 1`,
     );
     return next.rows[0] ? this.processAction(next.rows[0].action_id, generator, workerId) : null;
