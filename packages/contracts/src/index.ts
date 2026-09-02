@@ -14,7 +14,7 @@ export const foundationCapabilitySchema = z.object({
 });
 
 export const foundationResponseSchema = z.object({
-  productImplementationPhase: z.enum(["IP-1", "IP-2"]),
+  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3"]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
 });
@@ -129,9 +129,123 @@ export const authoritativeStateResponseSchema = z.object({
   source: z.object({ stateHash: z.string().regex(/^[0-9a-f]{64}$/) }),
 });
 
+export const actionStatusSchema = z.enum([
+  "ACKNOWLEDGED",
+  "GENERATING",
+  "VALIDATING",
+  "AWAITING_CONFIRMATION",
+  "COMMITTING",
+  "COMMITTED",
+  "FAILED_RECOVERABLE",
+  "CONFLICT",
+  "CANCELLED",
+  "SUPERSEDED",
+]);
+
+export const submitActionRequestSchema = z.object({
+  schemaVersion: z.literal(1),
+  idempotencyKey: z
+    .string()
+    .trim()
+    .min(8)
+    .max(128)
+    .regex(/^[A-Za-z0-9._:-]+$/),
+  expectedHeadCommitId: stableIdSchema,
+  participationExpectation: participationSchema,
+  intent: nonEmptyTextSchema,
+});
+
+export const actionProposalSchema = z.object({
+  id: stableIdSchema,
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+  expectedHeadCommitId: stableIdSchema,
+  impact: z.literal("L3"),
+  expiresAt: z.string().datetime(),
+  narrative: nonEmptyTextSchema,
+  displayEffect: z.object({
+    target: z.string().min(1),
+    before: nonEmptyTextSchema,
+    after: nonEmptyTextSchema,
+    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+  }),
+});
+
+export const actionCommitSchema = z.object({
+  id: stableIdSchema,
+  resultingHeadCommitId: stableIdSchema,
+  stateRevisionId: stableIdSchema,
+  committedAt: z.string().datetime(),
+});
+
+export const actionResponseSchema = z.object({
+  id: stableIdSchema,
+  continuityId: stableIdSchema,
+  branchId: stableIdSchema,
+  expectedHeadCommitId: stableIdSchema,
+  status: actionStatusSchema,
+  intent: nonEmptyTextSchema,
+  participationExpectation: participationSchema,
+  acknowledgedAt: z.string().datetime(),
+  terminalAt: z.string().datetime().nullable(),
+  recoverableWait: z.boolean(),
+  statusReason: z.string().nullable(),
+  progressUrl: z.string().min(1),
+  eventsUrl: z.string().min(1),
+  proposal: actionProposalSchema.nullable(),
+  commit: actionCommitSchema.nullable(),
+});
+
+export const confirmActionRequestSchema = z.object({
+  proposalId: stableIdSchema,
+  proposalDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  expectedHeadCommitId: stableIdSchema,
+});
+
+export const actionProgressFrameSchema = z.object({
+  sequence: z.number().int().positive(),
+  type: z.enum([
+    "action.status",
+    "generation.draft",
+    "confirmation.required",
+    "action.committed",
+    "action.failed",
+    "heartbeat",
+  ]),
+  payload: z.record(z.string(), z.unknown()),
+  createdAt: z.string().datetime(),
+});
+
+export const actionProgressResponseSchema = z.object({
+  actionId: stableIdSchema,
+  frames: z.array(actionProgressFrameSchema),
+  nextCursor: z.number().int().nonnegative(),
+  terminal: z.boolean(),
+});
+
+export const branchActionHistorySchema = z.object({
+  branchId: stableIdSchema,
+  actions: z.array(
+    z.object({
+      id: stableIdSchema,
+      status: actionStatusSchema,
+      intent: nonEmptyTextSchema,
+      acknowledgedAt: z.string().datetime(),
+      committedAt: z.string().datetime().nullable(),
+      narrative: z.string().nullable(),
+    }),
+  ),
+});
+
 export type HealthStatus = z.infer<typeof healthStatusSchema>;
 export type FoundationResponse = z.infer<typeof foundationResponseSchema>;
 export type CorrelationContext = z.infer<typeof correlationContextSchema>;
 export type WorkEnvelope = z.infer<typeof workEnvelopeSchema>;
 export type WorldDocumentInput = z.infer<typeof worldDocumentInputSchema>;
 export type AuthoritativeStateResponse = z.infer<typeof authoritativeStateResponseSchema>;
+export type ActionStatus = z.infer<typeof actionStatusSchema>;
+export type SubmitActionRequest = z.infer<typeof submitActionRequestSchema>;
+export type ActionResponse = z.infer<typeof actionResponseSchema>;
+export type ConfirmActionRequest = z.infer<typeof confirmActionRequestSchema>;
+export type ActionProgressFrame = z.infer<typeof actionProgressFrameSchema>;
+export type ActionProgressResponse = z.infer<typeof actionProgressResponseSchema>;
+export type BranchActionHistory = z.infer<typeof branchActionHistorySchema>;

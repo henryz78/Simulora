@@ -144,6 +144,9 @@ importers:
       '@simulora/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@simulora/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@simulora/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs

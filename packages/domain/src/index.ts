@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-export const implementationPhase = "IP-2" as const;
+export const implementationPhase = "IP-3" as const;
 
 const stableIdSchema = z
   .string()
@@ -150,6 +150,123 @@ export type ParticipationContract = z.infer<typeof participationContractSchema>;
 export type FactScope = z.infer<typeof factScopeSchema>;
 export type WorldDocument = z.infer<typeof worldDocumentSchema>;
 export type StateRevisionDocument = z.infer<typeof stateRevisionDocumentSchema>;
+
+export const actionStatusSchema = z.enum([
+  "ACKNOWLEDGED",
+  "GENERATING",
+  "VALIDATING",
+  "AWAITING_CONFIRMATION",
+  "COMMITTING",
+  "COMMITTED",
+  "FAILED_RECOVERABLE",
+  "CONFLICT",
+  "CANCELLED",
+  "SUPERSEDED",
+]);
+
+export const actionCandidateSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    actionId: z.string().uuid(),
+    expectedHeadCommitId: z.string().uuid(),
+    narrative: nonEmptyTextSchema,
+    operation: z
+      .object({
+        type: z.literal("UPDATE_CANONICAL_FACT"),
+        targetFactId: stableIdSchema,
+        beforeStatement: nonEmptyTextSchema,
+        afterStatement: nonEmptyTextSchema,
+        scope: factScopeSchema,
+        provenance: nonEmptyTextSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
+export type ActionStatus = z.infer<typeof actionStatusSchema>;
+export type ActionCandidate = z.infer<typeof actionCandidateSchema>;
+export type ConsequenceImpact = "L3";
+
+export type ValidatedActionCandidate = {
+  candidate: ActionCandidate;
+  impact: ConsequenceImpact;
+  requiresExactConfirmation: true;
+  displayEffect: {
+    target: string;
+    before: string;
+    after: string;
+    scope: FactScope;
+  };
+};
+
+export function validateActionCandidate(
+  candidateInput: unknown,
+  expected: {
+    actionId: string;
+    expectedHeadCommitId: string;
+    state: StateRevisionDocument;
+  },
+): ValidatedActionCandidate {
+  const candidate = actionCandidateSchema.parse(candidateInput);
+  if (candidate.actionId !== expected.actionId) {
+    throw new Error("Candidate Action identity does not match the durable Action");
+  }
+  if (candidate.expectedHeadCommitId !== expected.expectedHeadCommitId) {
+    throw new Error("Candidate expected head does not match the durable Action");
+  }
+
+  const target = expected.state.facts.find((fact) => fact.id === candidate.operation.targetFactId);
+  if (!target) throw new Error("Candidate target fact is not present at the expected head");
+  if (
+    target.statement !== candidate.operation.beforeStatement ||
+    target.scope !== candidate.operation.scope
+  ) {
+    throw new Error("Candidate before-state or scope does not match the expected head");
+  }
+
+  // Rewriting an existing canonical fact is L3 under the frozen closed impact table.
+  // The model's own label is intentionally absent and cannot lower this classification.
+  return {
+    candidate,
+    impact: "L3",
+    requiresExactConfirmation: true,
+    displayEffect: {
+      target: target.id,
+      before: target.statement,
+      after: candidate.operation.afterStatement,
+      scope: target.scope,
+    },
+  };
+}
+
+export function applyValidatedActionCandidate(
+  stateInput: StateRevisionDocument,
+  validated: ValidatedActionCandidate,
+): StateRevisionDocument {
+  const state = stateRevisionDocumentSchema.parse(stateInput);
+  const operation = validated.candidate.operation;
+  const found = state.facts.some((fact) => fact.id === operation.targetFactId);
+  if (!found) throw new Error("Validated target fact is no longer present");
+
+  return stateRevisionDocumentSchema.parse({
+    ...state,
+    worldClock: {
+      turn: state.worldClock.turn + 1,
+      label: `After action ${state.worldClock.turn + 1}`,
+    },
+    facts: state.facts.map((fact) =>
+      fact.id === operation.targetFactId
+        ? {
+            ...fact,
+            statement: operation.afterStatement,
+            scope: operation.scope,
+            provenance: operation.provenance,
+          }
+        : fact,
+    ),
+    openThreads: [...state.openThreads, validated.candidate.narrative],
+  });
+}
 
 export const participationCombinations: readonly ParticipationContract[] =
   initiativeModeSchema.options.flatMap((initiativeMode) =>

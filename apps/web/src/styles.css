@@ -189,6 +189,158 @@ h1 {
   font-size: 1.25rem;
   line-height: 1.6;
 }
+.action-zone,
+.recorded-history {
+  margin-top: 42px;
+  border: 1px solid #365650;
+  border-radius: 22px;
+  background: rgba(15, 32, 34, 0.88);
+  padding: 24px;
+}
+.action-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.action-heading h2,
+.recorded-history h2 {
+  margin: 4px 0 18px;
+  color: #f3e9d4;
+  font:
+    500 1.55rem Georgia,
+    "Times New Roman",
+    serif;
+}
+.action-heading > span {
+  border: 1px solid #4e736c;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #b9d0cb;
+  font-size: 0.75rem;
+}
+.action-zone form {
+  display: grid;
+  gap: 10px;
+}
+.action-zone label {
+  color: #b9d0cb;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.action-zone textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #4e736c;
+  border-radius: 14px;
+  padding: 14px;
+  background: #0a1719;
+  color: #edf4f2;
+  line-height: 1.5;
+}
+.action-zone textarea:disabled {
+  opacity: 0.55;
+}
+.primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.action-status {
+  margin-top: 20px;
+  border-left: 3px solid #7ea79f;
+  padding: 4px 0 4px 18px;
+}
+.action-status h3 {
+  margin: 4px 0 8px;
+  color: #f3e9d4;
+  font:
+    500 1.2rem Georgia,
+    "Times New Roman",
+    serif;
+}
+.action-status > p:not(.card-label),
+.proposal-review > p,
+.recorded-history li span {
+  color: #bdcbc8;
+  line-height: 1.6;
+}
+.action-status-committed {
+  border-left-color: #f0c988;
+}
+.action-status-conflict,
+.action-status-failed_recoverable,
+.action-error {
+  border-left-color: #d89986;
+  color: #f0b8a8;
+}
+.proposal-review {
+  margin: 18px 0;
+  border: 1px solid #876f49;
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(73, 57, 31, 0.22);
+}
+.proposal-label {
+  color: #f0c988 !important;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.proposal-review dl {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+.proposal-review dl > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+}
+.proposal-review dt {
+  color: #91aaa5;
+  font-size: 0.8rem;
+}
+.proposal-review dd {
+  margin: 0;
+  color: #edf4f2;
+}
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.secondary-action {
+  min-height: 44px;
+  margin-top: 14px;
+  border: 1px solid #658b84;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: transparent;
+  color: #d6e2df;
+  cursor: pointer;
+  font-weight: 700;
+}
+.action-buttons .secondary-action {
+  margin-top: 20px;
+}
+.recorded-history ol {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding-left: 22px;
+}
+.recorded-history li {
+  padding-left: 6px;
+}
+.recorded-history li strong,
+.recorded-history li span {
+  display: block;
+}
+.recorded-history li strong {
+  margin-bottom: 4px;
+  color: #f3e9d4;
+}
 .card-label {
   margin: 0 0 8px;
   color: #a7c4be;
@@ -356,6 +508,21 @@ h1 {
   }
   .source-chip {
     font-size: 0.7rem;
+  }
+  .action-zone,
+  .recorded-history {
+    padding: 18px;
+  }
+  .proposal-review dl > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+  .action-buttons {
+    display: grid;
+  }
+  .action-buttons .primary-action,
+  .action-buttons .secondary-action {
+    width: 100%;
   }
 }
 

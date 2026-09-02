@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@simulora/database": "workspace:*",
     "@simulora/config": "workspace:*",
     "@simulora/contracts": "workspace:*",
     "@simulora/jobs": "workspace:*",

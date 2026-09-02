@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describeFoundation, type WorldContinuityService } from "@simulora/application";
+import { ActionTruthService } from "@simulora/application";
 import { DevelopmentAuthAdapter, type AuthPort } from "@simulora/auth";
 import {
   authoritativeStateResponseSchema,
@@ -9,6 +10,11 @@ import {
   healthStatusSchema,
   startContinuityRequestSchema,
   updateWorldDraftRequestSchema,
+  actionResponseSchema,
+  submitActionRequestSchema,
+  confirmActionRequestSchema,
+  actionProgressResponseSchema,
+  branchActionHistorySchema,
 } from "@simulora/contracts";
 import {
   AccessDeniedError,
@@ -23,6 +29,7 @@ import { ZodError } from "zod";
 export type ApiAppOptions = {
   logLevel?: "debug" | "info" | "warn" | "error";
   worldService?: WorldContinuityService;
+  actionService?: ActionTruthService;
   auth?: AuthPort;
 };
 
@@ -90,7 +97,15 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       return;
     }
     if (error instanceof ConflictError) {
-      void reply.status(409).send({ code: "STALE_DRAFT", message: error.message });
+      const knownCodes = new Set([
+        "BRANCH_HEAD_CONFLICT",
+        "PARTICIPATION_EXPECTATION_MISMATCH",
+        "CONFIRMATION_EXPIRED_OR_PROPOSAL_CHANGED",
+        "ACTION_CANCELLED",
+        "ACTION_NOT_AWAITING_CONFIRMATION",
+      ]);
+      const code = knownCodes.has(error.message) ? error.message : "STALE_DRAFT";
+      void reply.status(409).send({ code, message: error.message });
       return;
     }
     if (error instanceof ValidationError) {
@@ -159,6 +174,95 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const account = await authenticatedAccount(request, auth);
       const { continuityId } = request.params as { continuityId: string };
       return stateResponse(await service.readCurrentState(account, continuityId));
+    });
+  }
+
+  if (options.actionService) {
+    const actions = options.actionService;
+    app.post("/v1/branches/:branchId/actions", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const body = submitActionRequestSchema.parse(request.body);
+      const result = await actions.submitAction(account, branchId, body);
+      logger.info("action.acknowledged", {
+        request_id: request.id,
+        correlation_id: reply.getHeader("x-correlation-id"),
+        action_id: result.id,
+        branch_id: result.branchId,
+        expected_head_commit_id: result.expectedHeadCommitId,
+      });
+      return reply.status(201).send(actionResponseSchema.parse(result));
+    });
+
+    app.get("/v1/actions/:actionId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { actionId } = request.params as { actionId: string };
+      return actionResponseSchema.parse(await actions.readAction(account, actionId));
+    });
+
+    app.post("/v1/actions/:actionId/confirm", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { actionId } = request.params as { actionId: string };
+      const body = confirmActionRequestSchema.parse(request.body);
+      return actionResponseSchema.parse(await actions.confirmAction(account, actionId, body));
+    });
+
+    app.post("/v1/actions/:actionId/cancel", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { actionId } = request.params as { actionId: string };
+      return actionResponseSchema.parse(await actions.cancelAction(account, actionId));
+    });
+
+    app.post("/v1/actions/:actionId/retry", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { actionId } = request.params as { actionId: string };
+      return actionResponseSchema.parse(await actions.retryAction(account, actionId));
+    });
+
+    app.get("/v1/actions/:actionId/progress", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { actionId } = request.params as { actionId: string };
+      const query = request.query as { after?: string };
+      const lastEventId = request.headers["last-event-id"];
+      const cursor = query.after ?? (typeof lastEventId === "string" ? lastEventId : undefined);
+      const after = cursor ? Number(cursor) : 0;
+      if (!Number.isInteger(after) || after < 0)
+        throw new ValidationError("Invalid progress cursor");
+      return actionProgressResponseSchema.parse(
+        await actions.readProgress(account, actionId, after),
+      );
+    });
+
+    app.get("/v1/actions/:actionId/events", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { actionId } = request.params as { actionId: string };
+      const query = request.query as { after?: string };
+      const lastEventId = request.headers["last-event-id"];
+      const cursor = query.after ?? (typeof lastEventId === "string" ? lastEventId : undefined);
+      const after = cursor ? Number(cursor) : 0;
+      if (!Number.isInteger(after) || after < 0)
+        throw new ValidationError("Invalid progress cursor");
+      const result = actionProgressResponseSchema.parse(
+        await actions.readProgress(account, actionId, after),
+      );
+      reply.header("content-type", "text/event-stream; charset=utf-8");
+      reply.header("cache-control", "no-cache");
+      reply.header("connection", "keep-alive");
+      const frames = result.frames
+        .map(
+          (frame) =>
+            `id: ${frame.sequence}\nevent: ${frame.type}\ndata: ${JSON.stringify(frame.payload)}\n\n`,
+        )
+        .join("");
+      return reply.send(
+        `${frames}event: cursor\ndata: ${JSON.stringify({ nextCursor: result.nextCursor, terminal: result.terminal })}\n\n`,
+      );
+    });
+
+    app.get("/v1/branches/:branchId/actions", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      return branchActionHistorySchema.parse(await actions.listBranchActions(account, branchId));
     });
   }
 

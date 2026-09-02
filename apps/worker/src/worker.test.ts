@@ -3,9 +3,9 @@ import { workEnvelopeSchema } from "@simulora/contracts";
 import { createWorkerComposition } from "./worker.js";
 
 describe("worker composition", () => {
-  it("uses a deterministic gateway and no product semantics", async () => {
+  it("uses a deterministic gateway for Action Truth", async () => {
     const worker = createWorkerComposition();
-    expect(worker.productSemanticsStarted).toBe(false);
+    expect(worker.productSemanticsStarted).toBe(true);
     await expect(worker.modelGateway.status()).resolves.toEqual({
       adapter: "deterministic",
       liveProviderConfigured: false,

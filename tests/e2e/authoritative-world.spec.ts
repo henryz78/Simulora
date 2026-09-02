@@ -80,8 +80,7 @@ test.beforeEach(async ({ page }) => {
   await page.route(`**/v1/continuities/${continuityId}/state**`, (route) => {
     if (page.url().includes("simulateFailure=1")) {
       failureAttempts += 1;
-      // React StrictMode may mount twice; keep both initial reads failed so the error state is observable.
-      if (failureAttempts <= 2) return route.fulfill({ status: 503, body: "unavailable" });
+      if (failureAttempts === 1) return route.fulfill({ status: 503, body: "unavailable" });
     }
     return route.fulfill({
       status: 200,

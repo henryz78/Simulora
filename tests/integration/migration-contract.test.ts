@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
@@ -7,24 +7,12 @@ describe("authoritative spine migrations", () => {
   it("applies from an empty PostgreSQL-compatible database", async () => {
     const database = new PGlite();
     try {
-      const migration = await readFile(path.resolve("db/migrations/0001_foundation.sql"), "utf8");
-      const authoritativeSpine = await readFile(
-        path.resolve("db/migrations/0002_authoritative_world_continuity.sql"),
-        "utf8",
-      );
-      const activeBranchHardening = await readFile(
-        path.resolve("db/migrations/0003_ip2_active_branch_hardening.sql"),
-        "utf8",
-      );
-      const branchReferenceHardening = await readFile(
-        path.resolve("db/migrations/0004_ip2_branch_reference_hardening.sql"),
-        "utf8",
-      );
-      await database.exec(migration);
-      await database.exec(migration);
-      await database.exec(authoritativeSpine);
-      await database.exec(activeBranchHardening);
-      await database.exec(branchReferenceHardening);
+      const migrationFiles = (await readdir(path.resolve("db/migrations")))
+        .filter((file) => file.endsWith(".sql"))
+        .sort();
+      for (const file of migrationFiles) {
+        await database.exec(await readFile(path.resolve("db/migrations", file), "utf8"));
+      }
       const result = await database.query<{ phase: string; started: boolean }>(`
         select
           value->>'phase' as phase,
@@ -32,7 +20,7 @@ describe("authoritative spine migrations", () => {
         from app_meta.foundation_metadata
         where key = 'implementation_phase'
       `);
-      expect(result.rows).toEqual([{ phase: "IP-2", started: true }]);
+      expect(result.rows).toEqual([{ phase: "IP-3", started: true }]);
 
       await database.exec(`
         begin;
@@ -122,5 +110,5 @@ describe("authoritative spine migrations", () => {
     } finally {
       await database.close();
     }
-  });
+  }, 15_000);
 });

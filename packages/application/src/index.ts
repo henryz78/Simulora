@@ -1,8 +1,20 @@
-import type { FoundationResponse } from "@simulora/contracts";
+import type {
+  ActionProgressResponse,
+  ActionResponse,
+  BranchActionHistory,
+  ConfirmActionRequest,
+  FoundationResponse,
+  SubmitActionRequest,
+} from "@simulora/contracts";
 import type { ParticipationContract, StateRevisionDocument, WorldDocument } from "@simulora/domain";
 
 export type { ParticipationContract, StateRevisionDocument, WorldDocument } from "@simulora/domain";
-export { createInitialState, lanternReachSeed } from "@simulora/domain";
+export {
+  applyValidatedActionCandidate,
+  createInitialState,
+  lanternReachSeed,
+  validateActionCandidate,
+} from "@simulora/domain";
 
 export type DependencyHealth = {
   name: "database" | "object-storage" | "model-gateway" | "auth";
@@ -11,13 +23,67 @@ export type DependencyHealth = {
 
 export function describeFoundation(dependencies: readonly DependencyHealth[]): FoundationResponse {
   return {
-    productImplementationPhase: "IP-2",
+    productImplementationPhase: "IP-3",
     productSemanticsStarted: true,
     capabilities: dependencies.map((dependency) => ({
       name: dependency.name,
       status: dependency.configured ? "configured" : "not-configured",
     })),
   };
+}
+
+export interface ActionTruthPort {
+  submitAction(
+    account: EligibleAccount,
+    branchId: string,
+    request: SubmitActionRequest,
+  ): Promise<ActionResponse>;
+  readAction(account: EligibleAccount, actionId: string): Promise<ActionResponse>;
+  confirmAction(
+    account: EligibleAccount,
+    actionId: string,
+    request: ConfirmActionRequest,
+  ): Promise<ActionResponse>;
+  cancelAction(account: EligibleAccount, actionId: string): Promise<ActionResponse>;
+  retryAction(account: EligibleAccount, actionId: string): Promise<ActionResponse>;
+  readProgress(
+    account: EligibleAccount,
+    actionId: string,
+    afterSequence: number,
+  ): Promise<ActionProgressResponse>;
+  listBranchActions(account: EligibleAccount, branchId: string): Promise<BranchActionHistory>;
+}
+
+export class ActionTruthService {
+  constructor(private readonly port: ActionTruthPort) {}
+
+  submitAction(account: EligibleAccount, branchId: string, request: SubmitActionRequest) {
+    return this.port.submitAction(account, branchId, request);
+  }
+
+  readAction(account: EligibleAccount, actionId: string) {
+    return this.port.readAction(account, actionId);
+  }
+
+  confirmAction(account: EligibleAccount, actionId: string, request: ConfirmActionRequest) {
+    return this.port.confirmAction(account, actionId, request);
+  }
+
+  cancelAction(account: EligibleAccount, actionId: string) {
+    return this.port.cancelAction(account, actionId);
+  }
+
+  retryAction(account: EligibleAccount, actionId: string) {
+    return this.port.retryAction(account, actionId);
+  }
+
+  readProgress(account: EligibleAccount, actionId: string, afterSequence: number) {
+    return this.port.readProgress(account, actionId, afterSequence);
+  }
+
+  listBranchActions(account: EligibleAccount, branchId: string) {
+    return this.port.listBranchActions(account, branchId);
+  }
 }
 
 export type EligibleAccount = {
