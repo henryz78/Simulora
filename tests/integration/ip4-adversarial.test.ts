@@ -435,7 +435,7 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
       correctedStatement,
     );
 
-    let followUpTarget: { id: string; statement: string } | undefined;
+    let followUpTarget: Record<string, unknown> | undefined;
     await commitParticipation(repository, account, continuity.continuityId, (request) => {
       followUpTarget = request.targetFact;
       const narrative = "The later Action uses the corrected canonical statement.";
@@ -457,7 +457,13 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
         },
       });
     });
-    expect(followUpTarget).toEqual({ id: targetFactId, statement: correctedStatement });
+    expect(followUpTarget).toMatchObject({
+      id: targetFactId,
+      statement: correctedStatement,
+      scope: "SHARED",
+      lifecycle: "ACTIVE",
+      provenance: expect.stringContaining("Direct user correction"),
+    });
 
     const removed = await commitDirectChange(
       repository,

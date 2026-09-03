@@ -8,6 +8,7 @@ This document records the production IP-4 vertical slice. It does not modify the
 
 - Development branch: `main`.
 - Starting approved G3 implementation: `7985471a9965ee8fea2f04354230d3fd9b5602aa`.
+- First IP-4 candidate implementation: `72028315f05e69f21e660e70573cf7b983dbd166`.
 - Its [G3 CI run](https://github.com/henryz78/Simulora/actions/runs/33647981503) and independent review established readiness for IP-4. They are not evidence that the new IP-4 code passes.
 - Product, System Design, Experience Freeze and the approved Implementation Plan remain binding. WorldOS research is not a requirement source.
 - Main Agent owns planning, integration decisions, evidence and Git/CI coordination. The user-requested `gpt-5.6-luna / max` agents implement backend, frontend and adversarial tests. A separate read-only Reviewer has not authored their code.
@@ -59,7 +60,7 @@ Exact commit, new CI run and independent decision remain pending. No G4 PASS is 
 | Targeted backend typecheck / architecture / migration smoke | Passed; also verified in integrated `pnpm check` |
 | New adversarial test file lint/typecheck | Passed; PostgreSQL tests skipped locally because no configured server |
 | Full `pnpm check` | PASS, exit 0; 37 tests passed / 36 PostgreSQL tests skipped locally |
-| Desktop + 390×844 `pnpm test:e2e` | Frontend implementer: 24 passed, 37.4s, exit 0; final integration rerun pending |
+| Desktop + 390×844 `pnpm test:e2e` | Frontend implementer: 24 passed, 37.4s, exit 0; separate test-agent rerun: 24 passed, 14.4s, exit 0 |
 | Real PostgreSQL, migration upgrade and concurrency | Pending new CI; local skips are not evidence |
 | API/worker production build/runtime/container smoke | Full build and built-worker runtime PASS locally; real containers remain pending new CI |
 | Final diff/scope check | `git diff --check` PASS; no frozen Product/System/Experience/Prototype or lockfile changes |
@@ -73,6 +74,14 @@ Test sources:
 - Existing G2/G3 tests remain mandatory regressions. Browser fixtures do not prove database durability; PostgreSQL tests do not prove usable mobile interaction.
 
 Frontend walkthrough evidence includes pointer paths on desktop/390×844, Tab focus, Escape, browser Back, refresh recovery and automated axe checks. The implementer also inspected the desktop application homepage through CUA: meaningful accessibility-tree content, no Vite error overlay and no console errors. The agent-browser CLI was unavailable; CUA and Playwright provided the fallback. **A real screen reader was not tested**; accessibility-tree/keyboard inspection is not described as screen-reader certification. Owned ports 4173/4174 were released after that walkthrough.
+
+### First real PostgreSQL CI — failed test assertion
+
+The [first IP-4 CI run](https://github.com/henryz78/Simulora/actions/runs/33712870949), job `100515882637`, tested `72028315f05e69f21e660e70573cf7b983dbd166`. Empty/prior migration verification passed. All 36 PostgreSQL tests actually ran: **35 passed, 1 failed** (none skipped).
+
+The failure was `ip4-adversarial.test.ts`'s corrected-context assertion. It captured the entire generator target object but compared it with a two-field object using exact equality. The received ID and corrected statement matched; the object also contained the legitimate `SHARED` scope, `ACTIVE` lifecycle and direct-correction provenance. The original test author corrected the comparison to `toMatchObject`, explicitly retaining the current ID/text, `SHARED`, `ACTIVE` and direct-correction provenance assertions. No production code or test was removed. The repaired file passed format, lint and tools typecheck. Later assertions in that failed test still require actual PostgreSQL execution; they are not counted as proved by the matching fields.
+
+G2's four tests, G3's eight Action and eleven lease/fencing tests, all six G4 repository/API tests and six of seven adversarial tests passed in this run. Full quality/build, container smoke and CI browser steps were **skipped after the failure**, not passed. A new complete CI run is required after the test repair. This failed run remains part of the evidence chain.
 
 ## Explicit limits / non-claims
 
