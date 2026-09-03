@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actionResponseSchema,
+  correctionRequestSchema,
   foundationResponseSchema,
   healthStatusSchema,
   workEnvelopeSchema,
@@ -37,6 +38,24 @@ describe("foundation contracts", () => {
     });
     expect(response.status).toBe("ACKNOWLEDGED");
     expect(response.commit).toBeNull();
+    expect(response.operationType).toBe("PARTICIPATE");
+  });
+
+  it("keeps correction scope bound to before and rejects client-supplied after scope", () => {
+    const request = {
+      schemaVersion: 1,
+      idempotencyKey: "correction-contract-1",
+      expectedHeadCommitId: "10000000-0000-4000-8000-000000000013",
+      target: { type: "fact", id: "fact.western-signal-dim" },
+      operation: "CORRECT_CONTINUITY",
+      before: { statement: "The western signal is dim.", scope: "SHARED" },
+      after: { statement: "The western signal is steady." },
+      reason: "The keeper checked the instrument log.",
+    };
+    expect(correctionRequestSchema.parse(request).after).toEqual(request.after);
+    expect(() =>
+      correctionRequestSchema.parse({ ...request, after: { ...request.after, scope: "SHARED" } }),
+    ).toThrow();
   });
 
   it("accepts the API health contract", () => {

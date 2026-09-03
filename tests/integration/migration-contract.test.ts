@@ -20,7 +20,7 @@ describe("authoritative spine migrations", () => {
         from app_meta.foundation_metadata
         where key = 'implementation_phase'
       `);
-      expect(result.rows).toEqual([{ phase: "IP-3", started: true }]);
+      expect(result.rows).toEqual([{ phase: "IP-4", started: true }]);
 
       await database.exec(`
         begin;

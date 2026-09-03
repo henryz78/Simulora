@@ -14,7 +14,7 @@ export const foundationCapabilitySchema = z.object({
 });
 
 export const foundationResponseSchema = z.object({
-  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3"]),
+  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4"]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
 });
@@ -142,6 +142,22 @@ export const actionStatusSchema = z.enum([
   "SUPERSEDED",
 ]);
 
+export const actionOperationTypeSchema = z.enum([
+  "PARTICIPATE",
+  "CORRECT_CONTINUITY",
+  "REMOVE_CONTINUITY",
+]);
+
+export const canonicalFactLifecycleSchema = z.enum(["ACTIVE", "SUPERSEDED", "REMOVED"]);
+
+/** Shared freshness contract for every rebuildable projection. */
+export const projectionFreshnessSchema = z.object({
+  sourceHeadCommitId: stableIdSchema,
+  currentHeadCommitId: stableIdSchema,
+  status: z.enum(["FRESH", "STALE", "REBUILDING"]),
+  headDistance: z.number().int().nonnegative(),
+});
+
 export const submitActionRequestSchema = z.object({
   schemaVersion: z.literal(1),
   idempotencyKey: z
@@ -183,6 +199,9 @@ export const actionResponseSchema = z.object({
   branchId: stableIdSchema,
   expectedHeadCommitId: stableIdSchema,
   status: actionStatusSchema,
+  // Defaults keep previously persisted IP-3 Action records readable while
+  // exposing the direct correction/removal operation to new clients.
+  operationType: actionOperationTypeSchema.default("PARTICIPATE"),
   intent: nonEmptyTextSchema,
   participationExpectation: participationSchema,
   acknowledgedAt: z.string().datetime(),
@@ -236,6 +255,188 @@ export const branchActionHistorySchema = z.object({
   ),
 });
 
+export const correctionTargetSchema = z
+  .object({ type: z.literal("fact"), id: z.string().min(1).max(120) })
+  .strict();
+
+export const correctionBeforeSchema = z
+  .object({
+    statement: nonEmptyTextSchema,
+    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+  })
+  .strict();
+
+// Scope/provenance are intentionally absent from `after`: widening scope or
+// supplying model/provider provenance is a separate protected decision and is
+// not part of the IP-4 fact correction surface.
+export const correctionAfterSchema = z.object({ statement: nonEmptyTextSchema }).strict();
+
+export const correctionRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    expectedHeadCommitId: stableIdSchema,
+    target: correctionTargetSchema,
+    operation: z.enum(["CORRECT_CONTINUITY", "REMOVE_CONTINUITY"]),
+    before: correctionBeforeSchema,
+    after: correctionAfterSchema.optional(),
+    reason: z.string().trim().min(1).max(1_000),
+  })
+  .strict()
+  .superRefine((request, context) => {
+    if (request.operation === "CORRECT_CONTINUITY" && !request.after) {
+      context.addIssue({ code: "custom", path: ["after"], message: "Correction requires after" });
+    }
+    if (request.operation === "REMOVE_CONTINUITY" && request.after) {
+      context.addIssue({
+        code: "custom",
+        path: ["after"],
+        message: "Removal cannot include an after statement",
+      });
+    }
+  });
+
+export const correctionDisplayEffectSchema = z
+  .object({
+    target: z.string().min(1).max(120),
+    before: nonEmptyTextSchema,
+    after: nonEmptyTextSchema,
+    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+    operation: z.enum(["CORRECT_CONTINUITY", "REMOVE_CONTINUITY"]),
+  })
+  .strict();
+
+export const orientationChangeSchema = z
+  .object({
+    commitId: stableIdSchema,
+    eventType: z.string().trim().min(1).max(120),
+    summary: nonEmptyTextSchema,
+    sourceClass: z.enum(["USER", "WORLD", "CHARACTER", "SYSTEM", "CREATOR_RULE"]),
+    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+    occurredAt: z.string().datetime(),
+    targetId: z.string().min(1).max(120).optional(),
+  })
+  .strict();
+
+export const pendingActionSummarySchema = z
+  .object({
+    id: stableIdSchema,
+    operationType: actionOperationTypeSchema,
+    status: actionStatusSchema,
+    expectedHeadCommitId: stableIdSchema,
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export const orientationResponseSchema = z
+  .object({
+    continuity: z
+      .object({
+        id: stableIdSchema,
+        branchId: stableIdSchema,
+        worldRevisionId: stableIdSchema,
+      })
+      .strict(),
+    current: z
+      .object({
+        situation: nonEmptyTextSchema,
+        locationId: z.string().min(1).max(120).nullable(),
+        worldClock: z.object({ turn: z.number().int().nonnegative(), label: nonEmptyTextSchema }),
+      })
+      .strict(),
+    recentChanges: z.array(orientationChangeSchema),
+    relationships: z.array(
+      z.object({ id: z.string().min(1).max(120), description: nonEmptyTextSchema }).strict(),
+    ),
+    openThreads: z.array(nonEmptyTextSchema),
+    nextParticipation: z
+      .object({ expectedHeadCommitId: stableIdSchema, label: nonEmptyTextSchema })
+      .strict(),
+    pendingActions: z.array(pendingActionSummarySchema),
+    freshness: projectionFreshnessSchema,
+    authoritativeFallback: z
+      .object({
+        stateUrl: z.string().min(1),
+        headCommitId: stableIdSchema,
+        stateRevisionId: stableIdSchema,
+      })
+      .strict(),
+    projectionUpdatedAt: z.string().datetime().nullable(),
+  })
+  .strict();
+
+export const traceEventSchema = z
+  .object({
+    id: stableIdSchema,
+    type: z.string().trim().min(1).max(120),
+    summary: nonEmptyTextSchema,
+    targetId: z.string().min(1).max(120).optional(),
+    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+  })
+  .strict();
+
+export const traceCommitSchema = z
+  .object({
+    id: stableIdSchema,
+    parentCommitId: stableIdSchema.nullable(),
+    kind: z.string().trim().min(1).max(120),
+    sourceClass: z.enum(["USER", "WORLD", "CHARACTER", "SYSTEM", "CREATOR_RULE"]),
+    reason: z.string().nullable(),
+    createdAt: z.string().datetime(),
+    events: z.array(traceEventSchema),
+  })
+  .strict();
+
+export const branchTraceResponseSchema = z
+  .object({
+    branchId: stableIdSchema,
+    freshness: projectionFreshnessSchema,
+    commits: z.array(traceCommitSchema),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+
+export const explanationTargetSchema = z
+  .object({
+    type: z.enum(["fact", "commit"]),
+    id: z.string().min(1).max(120),
+    statement: nonEmptyTextSchema.optional(),
+    lifecycle: canonicalFactLifecycleSchema.optional(),
+    current: z.boolean(),
+  })
+  .strict();
+
+export const explanationSourceSchema = z
+  .object({
+    class: z.enum(["USER", "WORLD", "CHARACTER", "SYSTEM", "CREATOR_RULE"]),
+    commitId: stableIdSchema,
+  })
+  .strict();
+
+export const explanationCorrectionSchema = z
+  .object({
+    availableOperations: z.array(z.enum(["CORRECT_CONTINUITY", "REMOVE_CONTINUITY"])),
+    href: z.string().min(1),
+    requiresExactConfirmation: z.literal(true),
+  })
+  .strict();
+
+export const explanationResponseSchema = z
+  .object({
+    target: explanationTargetSchema,
+    source: explanationSourceSchema,
+    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+    freshness: projectionFreshnessSchema,
+    explanation: nonEmptyTextSchema,
+    correction: explanationCorrectionSchema,
+  })
+  .strict();
+
 export type HealthStatus = z.infer<typeof healthStatusSchema>;
 export type FoundationResponse = z.infer<typeof foundationResponseSchema>;
 export type CorrelationContext = z.infer<typeof correlationContextSchema>;
@@ -245,7 +446,18 @@ export type AuthoritativeStateResponse = z.infer<typeof authoritativeStateRespon
 export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type SubmitActionRequest = z.infer<typeof submitActionRequestSchema>;
 export type ActionResponse = z.infer<typeof actionResponseSchema>;
+export type ActionOperationType = z.infer<typeof actionOperationTypeSchema>;
 export type ConfirmActionRequest = z.infer<typeof confirmActionRequestSchema>;
 export type ActionProgressFrame = z.infer<typeof actionProgressFrameSchema>;
 export type ActionProgressResponse = z.infer<typeof actionProgressResponseSchema>;
 export type BranchActionHistory = z.infer<typeof branchActionHistorySchema>;
+export type ProjectionFreshness = z.infer<typeof projectionFreshnessSchema>;
+export type CorrectionRequest = z.infer<typeof correctionRequestSchema>;
+export type CorrectionDisplayEffect = z.infer<typeof correctionDisplayEffectSchema>;
+export type OrientationChange = z.infer<typeof orientationChangeSchema>;
+export type PendingActionSummary = z.infer<typeof pendingActionSummarySchema>;
+export type OrientationResponse = z.infer<typeof orientationResponseSchema>;
+export type TraceEvent = z.infer<typeof traceEventSchema>;
+export type TraceCommit = z.infer<typeof traceCommitSchema>;
+export type BranchTraceResponse = z.infer<typeof branchTraceResponseSchema>;
+export type ExplanationResponse = z.infer<typeof explanationResponseSchema>;

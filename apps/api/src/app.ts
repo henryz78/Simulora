@@ -18,6 +18,10 @@ import {
   confirmActionRequestSchema,
   actionProgressResponseSchema,
   branchActionHistorySchema,
+  branchTraceResponseSchema,
+  correctionRequestSchema,
+  explanationResponseSchema,
+  orientationResponseSchema,
 } from "@simulora/contracts";
 import {
   AccessDeniedError,
@@ -106,6 +110,8 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         "CONFIRMATION_EXPIRED_OR_PROPOSAL_CHANGED",
         "ACTION_CANCELLED",
         "ACTION_NOT_AWAITING_CONFIRMATION",
+        "CORRECTION_TARGET_CHANGED",
+        "NO_ACTIVE_CANONICAL_FACT",
       ]);
       const code = knownCodes.has(error.message) ? error.message : "STALE_DRAFT";
       void reply.status(409).send({ code, message: error.message });
@@ -178,6 +184,46 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const { continuityId } = request.params as { continuityId: string };
       return stateResponse(await service.readCurrentState(account, continuityId));
     });
+
+    app.get("/v1/continuities/:continuityId/orientation", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { continuityId } = request.params as { continuityId: string };
+      return orientationResponseSchema.parse(await service.readOrientation(account, continuityId));
+    });
+
+    app.get("/v1/branches/:branchId/state", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      return stateResponse(await service.readBranchState(account, branchId));
+    });
+
+    app.get("/v1/branches/:branchId/commits", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const query = request.query as { cursor?: string; limit?: string };
+      const limit = query.limit ? Number(query.limit) : undefined;
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100)) {
+        throw new ValidationError("Invalid Change Trace limit");
+      }
+      return branchTraceResponseSchema.parse(
+        await service.listBranchCommits(account, branchId, query.cursor, limit),
+      );
+    });
+
+    app.get("/v1/branches/:branchId/explanations/:targetType/:targetId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId, targetType, targetId } = request.params as {
+        branchId: string;
+        targetType: string;
+        targetId: string;
+      };
+      if (targetType !== "fact" && targetType !== "commit") {
+        throw new ValidationError("Unsupported explanation target");
+      }
+      return explanationResponseSchema.parse(
+        await service.readExplanation(account, branchId, targetType, targetId),
+      );
+    });
   }
 
   if (options.actionService) {
@@ -194,6 +240,14 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         branch_id: result.branchId,
         expected_head_commit_id: result.expectedHeadCommitId,
       });
+      return reply.status(201).send(actionResponseSchema.parse(result));
+    });
+
+    app.post("/v1/branches/:branchId/corrections", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const body = correctionRequestSchema.parse(request.body);
+      const result = await actions.submitCorrection(account, branchId, body);
       return reply.status(201).send(actionResponseSchema.parse(result));
     });
 

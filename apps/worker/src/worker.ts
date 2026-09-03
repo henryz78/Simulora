@@ -11,6 +11,9 @@ export type WorkerComposition = {
   productSemanticsStarted: true;
   actionRepository: AuthoritativeWorldRepository | undefined;
   processNextAction(): Promise<ActionRecord | null>;
+  processNextProjection(): Promise<
+    Awaited<ReturnType<AuthoritativeWorldRepository["processNextProjection"]>>
+  >;
 };
 
 export function createWorkerComposition(databaseUrl?: string): WorkerComposition {
@@ -31,6 +34,8 @@ export function createWorkerComposition(databaseUrl?: string): WorkerComposition
             workerId,
           )
         : Promise.resolve(null),
+    processNextProjection: () =>
+      actionRepository ? actionRepository.processNextProjection() : Promise.resolve(null),
   };
 }
 

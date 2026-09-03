@@ -49,12 +49,12 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("reports the IP-3 Action Truth phase without claiming later capabilities", async () => {
+  it("reports the IP-4 Return and Continuity phase without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
     const foundation = foundationResponseSchema.parse(response.json());
-    expect(foundation.productImplementationPhase).toBe("IP-3");
+    expect(foundation.productImplementationPhase).toBe("IP-4");
     expect(foundation.productSemanticsStarted).toBe(true);
   });
 
@@ -99,6 +99,7 @@ describe("API composition root", () => {
       continuityId: "10000000-0000-4000-8000-000000000001",
       branchId: "10000000-0000-4000-8000-000000000002",
       expectedHeadCommitId: "10000000-0000-4000-8000-000000000003",
+      operationType: "PARTICIPATE" as const,
       status: "ACKNOWLEDGED" as const,
       intent: "Relight the western signal.",
       participationExpectation: { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const,

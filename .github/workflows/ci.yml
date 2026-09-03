@@ -58,24 +58,24 @@ jobs:
       - name: Run authoritative PostgreSQL integration suites
         run: pnpm test:postgres
 
-      - name: Run IP-3 quality and PostgreSQL integration checks
+      - name: Run IP-4 quality and PostgreSQL integration checks
         run: pnpm check
 
       - name: Build and smoke API and worker containers
         run: |
-          docker build -f deploy/containers/api.Dockerfile -t simulora-api:g3 .
-          docker build -f deploy/containers/worker.Dockerfile -t simulora-worker:g3 .
-          docker run -d --network host --name simulora-api-g3 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" simulora-api:g3
-          docker run -d --network host --name simulora-worker-g3 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" simulora-worker:g3
-          trap 'docker rm -f simulora-api-g3 simulora-worker-g3 >/dev/null 2>&1 || true' EXIT
+          docker build -f deploy/containers/api.Dockerfile -t simulora-api:g4 .
+          docker build -f deploy/containers/worker.Dockerfile -t simulora-worker:g4 .
+          docker run -d --network host --name simulora-api-g4 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" simulora-api:g4
+          docker run -d --network host --name simulora-worker-g4 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" simulora-worker:g4
+          trap 'docker rm -f simulora-api-g4 simulora-worker-g4 >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 20); do
             if curl --fail --silent http://127.0.0.1:4000/health >/dev/null; then break; fi
-            if [ "$attempt" = 20 ]; then docker logs simulora-api-g3; exit 1; fi
+            if [ "$attempt" = 20 ]; then docker logs simulora-api-g4; exit 1; fi
             sleep 1
           done
           for attempt in $(seq 1 20); do
-            if [ "$(docker inspect -f '{{.State.Running}}' simulora-worker-g3)" = true ] && docker logs simulora-worker-g3 2>&1 | grep -q '"message":"action.worker_ready"'; then break; fi
-            if [ "$attempt" = 20 ]; then docker logs simulora-worker-g3; exit 1; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' simulora-worker-g4)" = true ] && docker logs simulora-worker-g4 2>&1 | grep -q '"message":"action.worker_ready"'; then break; fi
+            if [ "$attempt" = 20 ]; then docker logs simulora-worker-g4; exit 1; fi
             sleep 1
           done
 

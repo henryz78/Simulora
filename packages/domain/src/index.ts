@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-export const implementationPhase = "IP-3" as const;
+export const implementationPhase = "IP-4" as const;
 
 const stableIdSchema = z
   .string()
@@ -25,6 +25,24 @@ export const worldFactSchema = z.object({
   scope: factScopeSchema,
   provenance: nonEmptyTextSchema,
   lifecycle: z.literal("ACTIVE"),
+});
+
+/**
+ * A fact in a State Revision keeps its stable identity while its lifecycle
+ * changes. World documents remain playable seed definitions and therefore use
+ * the narrower ACTIVE-only schema above; historical State Revisions may carry
+ * a superseded/removal marker without mutating an older revision.
+ */
+export const canonicalFactLifecycleSchema = z.enum(["ACTIVE", "SUPERSEDED", "REMOVED"]);
+export const stateFactSchema = z.object({
+  id: stableIdSchema,
+  statement: nonEmptyTextSchema,
+  scope: factScopeSchema,
+  provenance: nonEmptyTextSchema,
+  lifecycle: canonicalFactLifecycleSchema,
+  supersededBy: stableIdSchema.optional(),
+  supersedes: stableIdSchema.optional(),
+  removalReason: nonEmptyTextSchema.optional(),
 });
 
 export const worldDocumentSchema = z
@@ -128,7 +146,7 @@ export const stateRevisionDocumentSchema = z.object({
       currentState: nonEmptyTextSchema,
     }),
   ),
-  facts: z.array(worldFactSchema),
+  facts: z.array(stateFactSchema),
   relationships: z.array(
     z.object({
       id: stableIdSchema,
@@ -150,6 +168,8 @@ export type ParticipationContract = z.infer<typeof participationContractSchema>;
 export type FactScope = z.infer<typeof factScopeSchema>;
 export type WorldDocument = z.infer<typeof worldDocumentSchema>;
 export type StateRevisionDocument = z.infer<typeof stateRevisionDocumentSchema>;
+export type CanonicalFactLifecycle = z.infer<typeof canonicalFactLifecycleSchema>;
+export type StateFact = z.infer<typeof stateFactSchema>;
 
 export const actionStatusSchema = z.enum([
   "ACKNOWLEDGED",
@@ -187,6 +207,54 @@ export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type ActionCandidate = z.infer<typeof actionCandidateSchema>;
 export type ConsequenceImpact = "L3";
 
+const directCorrectionOperationSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("CORRECT_CONTINUITY"),
+      targetFactId: stableIdSchema,
+      beforeStatement: nonEmptyTextSchema,
+      beforeScope: factScopeSchema,
+      afterStatement: nonEmptyTextSchema,
+      reason: z.string().trim().min(1).max(1_000),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("REMOVE_CONTINUITY"),
+      targetFactId: stableIdSchema,
+      beforeStatement: nonEmptyTextSchema,
+      beforeScope: factScopeSchema,
+      reason: z.string().trim().min(1).max(1_000),
+    })
+    .strict(),
+]);
+
+export const directCorrectionCandidateSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    actionId: z.string().uuid(),
+    expectedHeadCommitId: z.string().uuid(),
+    narrative: nonEmptyTextSchema,
+    operation: directCorrectionOperationSchema,
+  })
+  .strict();
+
+export type DirectCorrectionOperation = z.infer<typeof directCorrectionOperationSchema>;
+export type DirectCorrectionCandidate = z.infer<typeof directCorrectionCandidateSchema>;
+
+export type ValidatedDirectCorrectionCandidate = {
+  candidate: DirectCorrectionCandidate;
+  impact: ConsequenceImpact;
+  requiresExactConfirmation: true;
+  displayEffect: {
+    target: string;
+    before: string;
+    after: string;
+    scope: FactScope;
+    operation: "CORRECT_CONTINUITY" | "REMOVE_CONTINUITY";
+  };
+};
+
 export type ValidatedActionCandidate = {
   candidate: ActionCandidate;
   impact: ConsequenceImpact;
@@ -205,6 +273,13 @@ export function validateActionCandidate(
     actionId: string;
     expectedHeadCommitId: string;
     state: StateRevisionDocument;
+    /**
+     * The model is only authorized to address facts included in its context.
+     * Passing this allow-list is mandatory at the repository boundary for the
+     * current deterministic provider, and prevents a crafted candidate from
+     * naming another private fact that happened to be present in the snapshot.
+     */
+    authorizedTargetFactIds?: ReadonlySet<string> | readonly string[];
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -215,7 +290,18 @@ export function validateActionCandidate(
     throw new Error("Candidate expected head does not match the durable Action");
   }
 
-  const target = expected.state.facts.find((fact) => fact.id === candidate.operation.targetFactId);
+  const allowed = expected.authorizedTargetFactIds;
+  if (
+    allowed &&
+    !(Array.isArray(allowed)
+      ? allowed.includes(candidate.operation.targetFactId)
+      : (allowed as ReadonlySet<string>).has(candidate.operation.targetFactId))
+  ) {
+    throw new Error("Candidate target fact is outside the authorized context");
+  }
+  const target = expected.state.facts.find(
+    (fact) => fact.id === candidate.operation.targetFactId && fact.lifecycle === "ACTIVE",
+  );
   if (!target) throw new Error("Candidate target fact is not present at the expected head");
   if (
     target.statement !== candidate.operation.beforeStatement ||
@@ -239,13 +325,115 @@ export function validateActionCandidate(
   };
 }
 
+/**
+ * Validate a direct user correction/removal against the exact canonical fact
+ * visible at the expected Branch head. This function is deliberately separate
+ * from validateActionCandidate: a model candidate must never be able to claim
+ * direct correction authority by changing an operation label.
+ */
+export function validateDirectCorrectionCandidate(
+  candidateInput: unknown,
+  expected: {
+    actionId: string;
+    expectedHeadCommitId: string;
+    state: StateRevisionDocument;
+    operationType: "CORRECT_CONTINUITY" | "REMOVE_CONTINUITY";
+  },
+): ValidatedDirectCorrectionCandidate {
+  const candidate = directCorrectionCandidateSchema.parse(candidateInput);
+  if (candidate.actionId !== expected.actionId) {
+    throw new Error("Correction Action identity does not match the durable Action");
+  }
+  if (candidate.expectedHeadCommitId !== expected.expectedHeadCommitId) {
+    throw new Error("Correction expected head does not match the durable Action");
+  }
+  if (candidate.operation.type !== expected.operationType) {
+    throw new Error("Correction operation does not match the durable Action");
+  }
+  const target = expected.state.facts.find(
+    (fact) => fact.id === candidate.operation.targetFactId && fact.lifecycle === "ACTIVE",
+  );
+  if (!target) throw new Error("Correction target fact is not active at the expected head");
+  if (
+    target.statement !== candidate.operation.beforeStatement ||
+    target.scope !== candidate.operation.beforeScope
+  ) {
+    throw new Error("Correction before-state or scope does not match the expected head");
+  }
+  return {
+    candidate,
+    impact: "L3",
+    requiresExactConfirmation: true,
+    displayEffect: {
+      target: target.id,
+      before: target.statement,
+      after:
+        candidate.operation.type === "REMOVE_CONTINUITY"
+          ? "This canonical fact will be removed from the current continuity."
+          : candidate.operation.afterStatement,
+      scope: target.scope,
+      operation: candidate.operation.type,
+    },
+  };
+}
+
+/**
+ * Apply only the named fact change. A correction/removal is not a narrative
+ * turn: clock, character state, participation and unrelated open threads are
+ * intentionally preserved. The previous State Revision remains available as
+ * historical provenance and the Commit/Event carries the before/after audit.
+ */
+export function applyValidatedDirectCorrectionCandidate(
+  stateInput: StateRevisionDocument,
+  validated: ValidatedDirectCorrectionCandidate,
+): StateRevisionDocument {
+  const state = stateRevisionDocumentSchema.parse(stateInput);
+  const operation = validated.candidate.operation;
+  const target = state.facts.find(
+    (fact) => fact.id === operation.targetFactId && fact.lifecycle === "ACTIVE",
+  );
+  if (!target) throw new Error("Correction target fact is no longer active");
+
+  if (operation.type === "REMOVE_CONTINUITY") {
+    return stateRevisionDocumentSchema.parse({
+      ...state,
+      facts: state.facts.map((fact) =>
+        fact.id === operation.targetFactId
+          ? {
+              ...fact,
+              lifecycle: "REMOVED" as const,
+              removalReason: operation.reason,
+              provenance: `Direct user removal ${validated.candidate.actionId}`,
+            }
+          : fact,
+      ),
+    });
+  }
+
+  return stateRevisionDocumentSchema.parse({
+    ...state,
+    facts: state.facts.map((fact) =>
+      fact.id === operation.targetFactId
+        ? {
+            ...fact,
+            statement: operation.afterStatement,
+            provenance: `Direct user correction ${validated.candidate.actionId}`,
+            lifecycle: "ACTIVE" as const,
+          }
+        : fact,
+    ),
+  });
+}
+
 export function applyValidatedActionCandidate(
   stateInput: StateRevisionDocument,
   validated: ValidatedActionCandidate,
 ): StateRevisionDocument {
   const state = stateRevisionDocumentSchema.parse(stateInput);
   const operation = validated.candidate.operation;
-  const found = state.facts.some((fact) => fact.id === operation.targetFactId);
+  const found = state.facts.some(
+    (fact) => fact.id === operation.targetFactId && fact.lifecycle === "ACTIVE",
+  );
   if (!found) throw new Error("Validated target fact is no longer present");
 
   return stateRevisionDocumentSchema.parse({
@@ -332,7 +520,7 @@ export function createInitialState(
       ...character,
       currentState: `Present at ${world.locations.find((location) => location.id === character.locationId)?.name ?? "the starting location"}.`,
     })),
-    facts: world.facts,
+    facts: world.facts.map((fact) => ({ ...fact, lifecycle: "ACTIVE" as const })),
     relationships: world.relationships,
     openThreads: [world.startingSituation],
     objectives: participation.structureMode === "GOAL_FRAMED" ? world.objectives : [],

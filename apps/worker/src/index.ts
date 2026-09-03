@@ -24,6 +24,21 @@ const interval = setInterval(() => {
         error_name: error instanceof Error ? error.name : "unknown",
       });
     });
+  void composition
+    .processNextProjection()
+    .then((projection) => {
+      if (projection) {
+        logger.info("projection.rebuilt", {
+          branch_id: projection.continuity.branchId,
+          head_commit_id: projection.freshness.currentHeadCommitId,
+        });
+      }
+    })
+    .catch((error: unknown) => {
+      logger.error("projection.rebuild_failed", {
+        error_name: error instanceof Error ? error.name : "unknown",
+      });
+    });
 }, config.SIMULORA_WORKER_POLL_MS);
 
 if (composition.actionRepository) {
