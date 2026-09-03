@@ -61,8 +61,8 @@ Exact commit, new CI run and independent decision remain pending. No G4 PASS is 
 | New adversarial test file lint/typecheck | Passed; PostgreSQL tests skipped locally because no configured server |
 | Full `pnpm check` | PASS, exit 0; 37 tests passed / 36 PostgreSQL tests skipped locally |
 | Desktop + 390×844 `pnpm test:e2e` | Frontend implementer: 24 passed, 37.4s, exit 0; separate test-agent rerun: 24 passed, 14.4s, exit 0 |
-| Real PostgreSQL, migration upgrade and concurrency | Pending new CI; local skips are not evidence |
-| API/worker production build/runtime/container smoke | Full build and built-worker runtime PASS locally; real containers remain pending new CI |
+| Real PostgreSQL, migration upgrade and concurrency | PASS on `f521937` CI: 36/36 PostgreSQL tests, none skipped; migration ledger/recovery rehearsal PASS |
+| API/worker production build/runtime/container smoke | PASS locally and in `f521937` CI, including both real smoke containers |
 | Final diff/scope check | `git diff --check` PASS; no frozen Product/System/Experience/Prototype or lockfile changes |
 | Independent exact-baseline G4 review | Pending |
 
@@ -82,6 +82,28 @@ The [first IP-4 CI run](https://github.com/henryz78/Simulora/actions/runs/337128
 The failure was `ip4-adversarial.test.ts`'s corrected-context assertion. It captured the entire generator target object but compared it with a two-field object using exact equality. The received ID and corrected statement matched; the object also contained the legitimate `SHARED` scope, `ACTIVE` lifecycle and direct-correction provenance. The original test author corrected the comparison to `toMatchObject`, explicitly retaining the current ID/text, `SHARED`, `ACTIVE` and direct-correction provenance assertions. No production code or test was removed. The repaired file passed format, lint and tools typecheck. Later assertions in that failed test still require actual PostgreSQL execution; they are not counted as proved by the matching fields.
 
 G2's four tests, G3's eight Action and eleven lease/fencing tests, all six G4 repository/API tests and six of seven adversarial tests passed in this run. Full quality/build, container smoke and CI browser steps were **skipped after the failure**, not passed. A new complete CI run is required after the test repair. This failed run remains part of the evidence chain.
+
+### Complete CI after assertion repair
+
+The [subsequent CI run](https://github.com/henryz78/Simulora/actions/runs/33713340735), job `100517280172`, passed on `f521937bf8d411382a6090d77b14a1cb3884d950`. The production code tree is unchanged from `72028315`; the intervening commit changes only the test assertion and this evidence record.
+
+The Main Agent inspected the job's actual logs, not only its green badge:
+
+- PostgreSQL migration ledger and recovery rehearsal: PASS.
+- Explicit `pnpm test:postgres`: **36 passed / 5 files**, no skipped tests.
+- Full `pnpm check`: format, lint, all typechecks, architecture, six migrations, **73 passed / 18 files**, complete workspace build and worker runtime startup/shutdown: PASS.
+- Built API and worker containers: PASS.
+- Desktop Chromium and 390×844 Playwright: **24 passed (59.9s)**, no skipped tests.
+
+This closes the failed assertion/CI item. It does not preempt the independent G4 review or a separately requested check of frontend SSE subscription stability. Any subsequent production fix requires its own validation; this CI result is scoped to `f521937`.
+
+### Focused G3 regression repair — stable pending SSE subscriptions
+
+The Main Agent's integration inspection raised a potential subscription loop in the new shared pending-Action provider. The frontend owner reproduced it with a controlled EventSource in a browser: identical `ACKNOWLEDGED` events caused new Action/array identities, which recreated the effect and opened **37 connections** in the observation window. The earlier fixture tests did not exercise this replay-driven lifecycle.
+
+The minimal repair keys the subscription effect by stable Action ID/events URL primitives. Its callbacks read the latest pending objects through a ref. Repeated payload objects no longer recreate the subscription; pending membership/URL changes still do, and polling, cancellation, retry and terminal-state refresh remain in place. No backend or Action authority contract changed.
+
+The new browser regression passed on desktop and 390×844 (**2 passed, 7.8s, exit 0**), asserting no reopen beyond the permitted React StrictMode baseline. Frontend typecheck, targeted lint/format and `git diff --check` passed. This controlled EventSource test proves subscription stability, not a new claim of native transport certification; existing PostgreSQL progress-cursor/SSE and browser polling regressions remain required. The repair requires a new complete CI run and independent review.
 
 ## Explicit limits / non-claims
 

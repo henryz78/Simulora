@@ -29,6 +29,7 @@ Status: implementation in progress. This matrix defines the evidence required fo
 | G4-21 | G2 authoritative spine and G3 worker lease/fencing, SSE/polling, idempotency, atomicity and repeated participation remain valid | Entire existing unit, PostgreSQL and browser suites retained |
 | G4-22 | Built API/worker artifacts and actual composition roots expose the new services | Full build/runtime checks, service wiring inspection and real PostgreSQL API tests; container smoke separately |
 | G4-23 | IP-5/6/7, live model providers, formal deployment and frozen Prototype changes are absent | Final diff and independent scope review |
+| G4-24 | Replayed identical Action status does not recreate SSE subscriptions | Controlled EventSource connection-count regression in `tests/e2e/ip4-continuity.spec.ts`, both viewports; native cursor/polling tests remain separate |
 
 ## Proof boundaries
 

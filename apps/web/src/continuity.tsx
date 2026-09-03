@@ -313,12 +313,21 @@ export function ContinuityProvider({
     [actions, history],
   );
   const pendingActionRefs = useMemo(() => pendingHistory(history), [history]);
+  const pendingActionsRef = useRef<ActionResponse[]>(pendingActions);
+  const pendingSubscriptionKey = pendingActions
+    .map((action) => `${action.id}\u0000${action.eventsUrl}`)
+    .sort()
+    .join("\u0001");
 
   useEffect(() => {
-    if (pendingActions.length === 0) return;
+    pendingActionsRef.current = pendingActions;
+  }, [pendingActions]);
+
+  useEffect(() => {
+    if (pendingSubscriptionKey.length === 0) return;
     let active = true;
     const refreshPending = async (): Promise<void> => {
-      const snapshot = [...pendingActions];
+      const snapshot = [...pendingActionsRef.current];
       const nextActions = await Promise.all(
         snapshot.map(async (action) => {
           try {
@@ -342,13 +351,13 @@ export function ContinuityProvider({
       if (committed) void refresh();
     };
     const timer = window.setInterval(() => void refreshPending(), 1000);
-    const sources = snapshotEventSources(pendingActions, () => void refreshPending());
+    const sources = snapshotEventSources(pendingActionsRef.current, () => void refreshPending());
     return () => {
       active = false;
       window.clearInterval(timer);
       sources.forEach((source) => source.close());
     };
-  }, [pendingActions, refresh, upsertAction]);
+  }, [pendingSubscriptionKey, refresh, upsertAction]);
 
   const submitAction = useCallback(
     async (rawIntent: string): Promise<ActionResult> => {

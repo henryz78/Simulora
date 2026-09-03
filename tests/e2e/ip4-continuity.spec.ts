@@ -299,6 +299,45 @@ async function installRoutes(page: Page, options: RouteOptions = {}): Promise<vo
   });
 }
 
+async function installCountingEventSource(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const stats = { connections: 0, statusEvents: 0 };
+    class CountingEventSource {
+      url: string;
+      onmessage: ((event: Event) => void) | null = null;
+      private listeners = new Map<string, Array<(event: Event) => void>>();
+      private closed = false;
+
+      constructor(url: string) {
+        this.url = url;
+        stats.connections += 1;
+        window.setTimeout(() => {
+          if (this.closed) return;
+          stats.statusEvents += 1;
+          const event = new Event("action.status");
+          this.listeners.get("action.status")?.forEach((listener) => listener(event));
+        }, 50);
+      }
+
+      addEventListener(type: string, listener: (event: Event) => void): void {
+        const listeners = this.listeners.get(type) ?? [];
+        listeners.push(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      close(): void {
+        this.closed = true;
+      }
+    }
+
+    Object.defineProperty(window, "__simuloraEventSourceStats", {
+      configurable: true,
+      value: stats,
+    });
+    (window as unknown as { EventSource: unknown }).EventSource = CountingEventSource;
+  });
+}
+
 test("Return surfaces bounded freshness and falls back to the authoritative World", async ({
   page,
 }) => {
@@ -439,4 +478,53 @@ test("a lost confirmation response reports an unknown outcome instead of false u
   await expect(page.getByRole("alert")).toContainText("confirmation outcome is unknown");
   await expect(page.getByRole("alert")).not.toContainText("truth is unchanged");
   expect(confirmAttempted).toBe(true);
+});
+
+test("repeated same-status Action events do not reopen the SSE subscription", async ({ page }) => {
+  const action = pendingAction(
+    "40000000-0000-4000-8000-000000000051",
+    "PARTICIPATE",
+    "Inspect the western signal housing.",
+    "ACKNOWLEDGED",
+  );
+  await installCountingEventSource(page);
+  await installRoutes(page, {
+    actions: new Map([[action.id, action]]),
+    history: [
+      {
+        id: action.id,
+        status: action.status,
+        intent: action.intent,
+        acknowledgedAt: now,
+        committedAt: null,
+        narrative: null,
+      },
+    ],
+  });
+  await page.goto(`/continuities/${continuityId}/context`);
+  await expect(
+    page.getByText("Inspect the western signal housing.", { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __simuloraEventSourceStats: { statusEvents: number } })
+            .__simuloraEventSourceStats.statusEvents,
+      ),
+    )
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(2_200);
+  const stats = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __simuloraEventSourceStats: { connections: number; statusEvents: number };
+        }
+      ).__simuloraEventSourceStats,
+  );
+  expect(stats.statusEvents).toBeGreaterThan(0);
+  // React StrictMode intentionally mounts this effect twice in development; a stable
+  // subscription has no reopen after that baseline, even as polling replays this status.
+  expect(stats.connections).toBeLessThanOrEqual(2);
 });
