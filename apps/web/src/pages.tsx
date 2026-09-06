@@ -204,7 +204,7 @@ export function ReturnPage(): ReactElement {
   const freshness = orientation.freshness;
   const recentChangesUnavailable =
     usingAuthoritativeFallback ||
-    (freshness.status === "REBUILDING" && orientation.recentChanges.length === 0);
+    (freshness.status !== "FRESH" && orientation.recentChanges.length === 0);
   return (
     <div className="surface-page orientation-page">
       <SurfaceHeader

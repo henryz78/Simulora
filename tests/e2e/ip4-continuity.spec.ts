@@ -355,6 +355,12 @@ test("Return surfaces bounded freshness and falls back to the authoritative Worl
   await expect(page.getByRole("heading", { name: "Recent recorded changes" })).toBeVisible();
   await expect(page.getByText("Stale · 1 head behind")).toBeVisible();
   await expect(page.getByText("bounded recent-history view", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Recent recorded changes are unavailable", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("There is no recent meaningful change", { exact: false }),
+  ).toHaveCount(0);
   await expect(page.getByText("The vessel waits offshore.", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Continue in world" }).click();
   await expect(page).toHaveURL(new RegExp(`/continuities/${continuityId}$`));
