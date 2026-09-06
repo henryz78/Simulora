@@ -209,6 +209,15 @@ export function ContinuityProvider({
     Map<string, { idempotencyKey: string; intent: string; expectedHeadCommitId: string }>
   >(new Map());
   const loadGeneration = useRef(0);
+  const actionsRef = useRef(actions);
+  const loadStateRef = useRef(loadState);
+
+  useEffect(() => {
+    actionsRef.current = actions;
+  }, [actions]);
+  useEffect(() => {
+    loadStateRef.current = loadState;
+  }, [loadState]);
 
   const upsertAction = useCallback((action: ActionResponse): void => {
     setActions((current) => {
@@ -283,7 +292,7 @@ export function ContinuityProvider({
 
   const readAction = useCallback(
     async (actionId: string): Promise<ActionResponse | null> => {
-      const existing = actions.get(actionId);
+      const existing = actionsRef.current.get(actionId);
       try {
         const response = await fetch(`/v1/actions/${encodeURIComponent(actionId)}`, {
           headers: { accept: "application/json" },
@@ -292,7 +301,8 @@ export function ContinuityProvider({
         const action = actionResponseSchema.parse(await response.json());
         if (
           action.continuityId !== continuityId ||
-          (loadState.status === "ready" && action.branchId !== loadState.data.continuity.branchId)
+          (loadStateRef.current.status === "ready" &&
+            action.branchId !== loadStateRef.current.data.continuity.branchId)
         )
           return null;
         upsertAction(action);
@@ -301,7 +311,7 @@ export function ContinuityProvider({
         return existing ?? null;
       }
     },
-    [actions, continuityId, loadState, upsertAction],
+    [continuityId, upsertAction],
   );
 
   const pendingActions = useMemo(

@@ -144,6 +144,15 @@ function orientationResponse(): Record<string, unknown> {
   };
 }
 
+function missingProjectionResponse(): Record<string, unknown> {
+  return {
+    ...orientationResponse(),
+    recentChanges: [],
+    freshness: freshness(initialHead, initialHead, "REBUILDING", 0),
+    projectionUpdatedAt: null,
+  };
+}
+
 function correctionAction(): ActionFixture {
   return {
     id: "40000000-0000-4000-8000-000000000021",
@@ -355,6 +364,20 @@ test("Return surfaces bounded freshness and falls back to the authoritative Worl
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test("Return never describes missing projection history as no recorded change", async ({
+  page,
+}) => {
+  await installRoutes(page, { orientation: missingProjectionResponse() });
+  await page.goto(`/continuities/${continuityId}/return`);
+  await expect(page.getByText("projection unavailable", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Recent recorded changes are unavailable", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("There is no recent meaningful change", { exact: false }),
+  ).toHaveCount(0);
+});
+
 test("Continuity fact Lens leads to exact Correction review without mutating truth", async ({
   page,
 }) => {
@@ -527,4 +550,40 @@ test("repeated same-status Action events do not reopen the SSE subscription", as
   // React StrictMode intentionally mounts this effect twice in development; a stable
   // subscription has no reopen after that baseline, even as polling replays this status.
   expect(stats.connections).toBeLessThanOrEqual(2);
+});
+
+test("Action detail does not spin an immediate GET loop for an unchanged status", async ({
+  page,
+}) => {
+  const action = pendingAction(
+    "40000000-0000-4000-8000-000000000061",
+    "PARTICIPATE",
+    "Inspect the Action detail request cadence.",
+    "ACKNOWLEDGED",
+  );
+  await installRoutes(page, {
+    actions: new Map([[action.id, action]]),
+    history: [
+      {
+        id: action.id,
+        status: action.status,
+        intent: action.intent,
+        acknowledgedAt: now,
+        committedAt: null,
+        narrative: null,
+      },
+    ],
+  });
+  let detailReads = 0;
+  await page.route(`**/v1/actions/${action.id}`, async (route) => {
+    detailReads += 1;
+    await json(route, action);
+  });
+
+  await page.goto(`/continuities/${continuityId}/actions/${action.id}`);
+  await expect(page.getByRole("heading", { name: "Action status" })).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(detailReads).toBeLessThanOrEqual(4);
+  await page.waitForTimeout(1_100);
+  expect(detailReads).toBeLessThanOrEqual(6);
 });

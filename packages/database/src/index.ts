@@ -289,15 +289,21 @@ export type OrientationProjectionRecord = {
   projectionUpdatedAt: string | null;
 };
 
-export type ActionGenerator = (request: {
-  actionId: string;
-  expectedHeadCommitId: string;
-  intent: string;
+export type ActionGenerationContext = {
+  participation: ParticipationContract;
   targetFact: {
     id: string;
     statement: string;
     scope: "ACCOUNT_PRIVATE" | "CONTINUITY_PRIVATE" | "SHARED";
   };
+};
+
+export type ActionGenerator = (request: {
+  actionId: string;
+  expectedHeadCommitId: string;
+  intent: string;
+  participation: ActionGenerationContext["participation"];
+  targetFact: ActionGenerationContext["targetFact"];
 }) => Promise<{ narrative: string; candidate: unknown }>;
 
 export class AccessDeniedError extends Error {}
@@ -1701,24 +1707,29 @@ export class AuthoritativeWorldRepository {
       const candidate = await client.query<{
         branch_id: string;
         owner_account_id: string;
+        projection_status: OrientationProjectionStatus | null;
       }>(
-        `select p.branch_id, c.owner_account_id
-         from simulora.return_orientation_projections p
-         join simulora.branches b on b.id = p.branch_id and b.status = 'ACTIVE'
+        `select b.id as branch_id, c.owner_account_id, p.status as projection_status
+         from simulora.branches b
          join simulora.continuities c on c.id = b.continuity_id and c.status = 'ACTIVE'
-         where p.status in ('STALE', 'REBUILDING')
-         order by p.updated_at
+         left join simulora.return_orientation_projections p on p.branch_id = b.id
+         where b.status = 'ACTIVE'
+           and c.active_branch_id = b.id
+           and (p.branch_id is null or p.status in ('STALE', 'REBUILDING'))
+         order by coalesce(p.updated_at, b.created_at)
          limit 1
-         for update of p skip locked`,
+         for update of b skip locked`,
       );
       const next = candidate.rows[0];
       if (!next) return null;
-      await client.query(
-        `update simulora.return_orientation_projections
-         set status = 'REBUILDING', updated_at = now(), row_version = row_version + 1
-         where branch_id = $1`,
-        [next.branch_id],
-      );
+      if (next.projection_status) {
+        await client.query(
+          `update simulora.return_orientation_projections
+           set status = 'REBUILDING', updated_at = now(), row_version = row_version + 1
+           where branch_id = $1`,
+          [next.branch_id],
+        );
+      }
       return next;
     });
     if (!row) return null;
@@ -1838,7 +1849,20 @@ export class AuthoritativeWorldRepository {
              where parent.branch_id = $1
            )
            select e.commit_id, c.source_type as commit_source_type,
-                  e.source_type as event_source_type, e.visibility_scope, e.payload
+                  e.source_type as event_source_type,
+                  coalesce(
+                    (
+                      select historical_fact->>'scope'
+                      from simulora.state_revisions event_state
+                      cross join lateral jsonb_array_elements(event_state.document->'facts') historical_fact
+                      where event_state.commit_id = e.commit_id
+                        and historical_fact->>'id' = $2
+                      limit 1
+                    ),
+                    e.payload->>'scope',
+                    'CONTINUITY_PRIVATE'
+                  ) as visibility_scope,
+                  e.payload
            from simulora.domain_events e
            join simulora.world_commits c on c.id = e.commit_id
            where e.branch_id = $1 and e.commit_id in (select id from ancestors)
@@ -1878,7 +1902,7 @@ export class AuthoritativeWorldRepository {
               ? event!.commit_source_type
               : event!.event_source_type,
           );
-          scope = safeVisibilityScope(event!.payload.scope);
+          scope = safeVisibilityScope(event!.visibility_scope);
           const before =
             typeof event!.payload.before === "string"
               ? event!.payload.before
@@ -2040,7 +2064,26 @@ export class AuthoritativeWorldRepository {
       ? (
           await client.query<TraceEventRow>(
             `select e.commit_id, e.id as event_id, e.event_type,
-                    e.payload as event_payload, e.visibility_scope as event_scope
+                    e.payload as event_payload,
+                    case
+                      when coalesce(e.payload->>'targetFactId', e.payload->>'target') is not null then
+                        coalesce(
+                          (
+                            select fact->>'scope'
+                            from simulora.state_revisions event_state
+                            cross join lateral jsonb_array_elements(event_state.document->'facts') fact
+                            where event_state.commit_id = e.commit_id
+                              and fact->>'id' = coalesce(
+                                e.payload->>'targetFactId',
+                                e.payload->>'target'
+                              )
+                            limit 1
+                          ),
+                          e.payload->>'scope',
+                          'CONTINUITY_PRIVATE'
+                        )
+                      else coalesce(e.visibility_scope, 'SHARED')
+                    end as event_scope
              from simulora.domain_events e
              where e.commit_id = any($1::uuid[]) and e.branch_id = $2
              order by e.created_at, e.id`,
@@ -2210,15 +2253,21 @@ export class AuthoritativeWorldRepository {
         return null;
       }
       const attemptId = randomUUID();
+      const generationContext: ActionGenerationContext = {
+        participation: state.participation,
+        targetFact,
+      };
       const manifest = {
         compilerVersion: "ip4-context-v1",
         expectedHeadCommitId: action.expected_head_commit_id,
-        // The deterministic gateway receives only targetFact below. Keep the
+        // The generator receives this exact participation contract and target
+        // fact below. Keep the durable manifest derived from the same typed
+        // context so it cannot claim inputs that were never supplied.
+        participation: generationContext.participation,
         // manifest truthful: owner-visible private/tombstoned facts and
         // character records are not silently treated as model context.
-        includedFactIds: [targetFact.id],
+        includedFactIds: [generationContext.targetFact.id],
         includedCharacterIds: [],
-        participation: state.participation,
         excludedScopeCounts: {
           unauthorized: state.facts.filter((fact) => !isGeneratorEligibleFact(fact)).length,
         },
@@ -2241,7 +2290,7 @@ export class AuthoritativeWorldRepository {
         expectedHeadCommitId: action.expected_head_commit_id,
         intent: action.intent,
         state,
-        targetFact,
+        generationContext,
       };
     });
     if (!prepared) return null;
@@ -2300,13 +2349,14 @@ export class AuthoritativeWorldRepository {
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         intent: prepared.intent,
-        targetFact: prepared.targetFact,
+        participation: prepared.generationContext.participation,
+        targetFact: prepared.generationContext.targetFact,
       });
       const candidate = validateActionCandidate(generated.candidate, {
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         state: prepared.state,
-        authorizedTargetFactIds: [prepared.targetFact.id],
+        authorizedTargetFactIds: [prepared.generationContext.targetFact.id],
       });
       const proposalId = randomUUID();
       const expiresAt = new Date(Date.now() + 15 * 60_000);

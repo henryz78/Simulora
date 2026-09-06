@@ -178,7 +178,11 @@ export function ReturnPage(): ReactElement {
     const expectedHead = loadState.data.continuity.headCommitId;
     void readOrientation(continuityId).then((result) => {
       if (!active) return;
-      if (result.data && result.data.freshness.currentHeadCommitId === expectedHead) {
+      if (
+        result.data &&
+        result.data.freshness.currentHeadCommitId === expectedHead &&
+        result.data.projectionUpdatedAt !== null
+      ) {
         setProjection(result.data);
         setProjectionState("ready");
       } else {
@@ -198,6 +202,9 @@ export function ReturnPage(): ReactElement {
   const usingAuthoritativeFallback = projectionState === "fallback";
   const orientation = projection ?? fallbackOrientation(data, continuityId);
   const freshness = orientation.freshness;
+  const recentChangesUnavailable =
+    usingAuthoritativeFallback ||
+    (freshness.status === "REBUILDING" && orientation.recentChanges.length === 0);
   return (
     <div className="surface-page orientation-page">
       <SurfaceHeader
@@ -233,7 +240,7 @@ export function ReturnPage(): ReactElement {
           <section className="surface-card" aria-labelledby="orientation-changes">
             <p className="card-label">Committed sources only</p>
             <h2 id="orientation-changes">Recent recorded changes</h2>
-            {usingAuthoritativeFallback ? (
+            {recentChangesUnavailable ? (
               <p className="empty-state">
                 Recent recorded changes are unavailable while this derived view rebuilds. No
                 client-side change record is being inferred.

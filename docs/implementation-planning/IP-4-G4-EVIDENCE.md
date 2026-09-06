@@ -105,6 +105,17 @@ The minimal repair keys the subscription effect by stable Action ID/events URL p
 
 The new browser regression passed on desktop and 390×844 (**2 passed, 7.8s, exit 0**), asserting no reopen beyond the permitted React StrictMode baseline. Frontend typecheck, targeted lint/format and `git diff --check` passed. This controlled EventSource test proves subscription stability, not a new claim of native transport certification; existing PostgreSQL progress-cursor/SSE and browser polling regressions remain required. The repair requires a new complete CI run and independent review.
 
+### Complete CI after SSE repair
+
+The [SSE-repair CI run](https://github.com/henryz78/Simulora/actions/runs/33713970356), job `100519152227`, passed on **`031efb8faa9e5368025e2dead58e0f68560618a2`**. The Main Agent inspected the actual job log:
+
+- Real PostgreSQL: **36/36 passed**, five suites, no skips.
+- Full quality check: **73/73 passed**, eighteen files; format/lint/typecheck, architecture, six migrations, complete build and runtime smoke passed.
+- PostgreSQL migration ledger/recovery rehearsal and both API/worker smoke containers passed.
+- Desktop/390×844: **26/26 passed (1.1m)**, including the new same-status subscription test on both viewports.
+
+This is the current validated production-code baseline. Independent G4 approval remains pending; green CI alone is not its substitute.
+
 ## Explicit limits / non-claims
 
 - Fact correction/removal is implemented here; generalized relationship, note, knowledge or permission editing is not claimed.

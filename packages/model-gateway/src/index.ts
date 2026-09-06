@@ -7,6 +7,10 @@ export type WorldTurnRequest = {
   actionId: string;
   expectedHeadCommitId: string;
   intent: string;
+  participation: {
+    initiativeMode: "DIRECT" | "GUIDED" | "WORLD_ACTIVE";
+    structureMode: "OPEN_ENDED" | "GOAL_FRAMED";
+  };
   targetFact: {
     id: string;
     statement: string;

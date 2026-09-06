@@ -253,8 +253,10 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
     const targetFactId = "fact.legacy-private";
     const { account, continuity } = await startFixture(repository, [
       makeFact(targetFactId, privateStatement, "ACCOUNT_PRIVATE"),
+      makeFact("fact.legacy-shared-anchor", "A shared anchor permits a later Action."),
     ]);
-    await appendDomainEvents(pool, continuity.branchId, continuity.headCommitId, [
+    const committed = await commitParticipation(repository, account, continuity.continuityId);
+    await appendDomainEvents(pool, continuity.branchId, committed.commit.id, [
       {
         type: "LEGACY_TARGET_EVENT",
         payload: { target: targetFactId, legacyDetail: "not a scope authority" },
@@ -275,8 +277,23 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
       current: true,
     });
     expect(ownerExplanation.scope).toBe("ACCOUNT_PRIVATE");
-    expect(ownerExplanation.source).toEqual({ class: "SYSTEM", commitId: continuity.headCommitId });
+    expect(ownerExplanation.source).toEqual({ class: "USER", commitId: committed.commit.id });
     expect(ownerExplanation.correction.requiresExactConfirmation).toBe(true);
+
+    const trace = await repository.listBranchCommits(account, continuity.branchId);
+    const legacyTrace = trace.commits
+      .find((entry) => entry.id === committed.commit.id)
+      ?.events.find((event) => event.type === "LEGACY_TARGET_EVENT");
+    expect(legacyTrace).toMatchObject({ targetId: targetFactId, scope: "ACCOUNT_PRIVATE" });
+
+    const orientation = await repository.rebuildReturnOrientation(account, continuity.branchId);
+    expect(
+      orientation.recentChanges.find((change) => change.eventType === "LEGACY_TARGET_EVENT"),
+    ).toMatchObject({
+      commitId: committed.commit.id,
+      targetId: targetFactId,
+      scope: "ACCOUNT_PRIVATE",
+    });
 
     const stranger = newAccount();
     const denied = await captureError(() =>
@@ -334,11 +351,11 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
         participationExpectation: current.state.participation,
         intent: "Attempt a candidate target outside the authorized context.",
       });
-      let seenTargetId: string | undefined;
+      let seenRequest: Parameters<ActionGenerator>[0] | undefined;
       const processed = await repository.processAction(
         submitted.id,
         (request) => {
-          seenTargetId = request.targetFact.id;
+          seenRequest = request;
           return Promise.resolve({
             narrative: "A forged candidate must not become a proposal.",
             candidate: {
@@ -360,7 +377,11 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
         `adversarial-forger-${randomUUID()}`,
       );
       expect(processed).not.toBeNull();
-      expect(seenTargetId).toBe(anchorId);
+      expect(seenRequest).toMatchObject({
+        expectedHeadCommitId: current.headCommitId,
+        participation: current.state.participation,
+        targetFact: { id: anchorId },
+      });
       expect(processed?.proposal).toBeNull();
       expect(processed?.commit).toBeNull();
       const attempts = await pool.query<{
@@ -373,7 +394,12 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
           limit 1`,
         [submitted.id],
       );
-      expect(attempts.rows[0]?.context_manifest.includedFactIds).toEqual([anchorId]);
+      expect(attempts.rows[0]?.context_manifest).toMatchObject({
+        expectedHeadCommitId: seenRequest?.expectedHeadCommitId,
+        participation: seenRequest?.participation,
+        includedFactIds: [seenRequest?.targetFact.id],
+        includedCharacterIds: [],
+      });
       const counts = await pool.query<{ proposal_count: number; commit_count: number }>(
         `select
            (select count(*)::int from simulora.action_proposals where action_id = $1) as proposal_count,
@@ -591,5 +617,65 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
     expect(reloaded.freshness.status).toBe("FRESH");
     expect(reloaded.freshness.sourceHeadCommitId).toBe(current.headCommitId);
     expect(reloaded.authoritativeFallback.stateRevisionId).toBe(current.stateRevisionId);
+  });
+
+  it("discovers a missing projection and enforces its Branch/head integrity", async () => {
+    const first = await startFixture(repository, [
+      makeFact("fact.projection-repair", "The projection repair fixture is active."),
+    ]);
+    const second = await startFixture(repository, [
+      makeFact("fact.other-branch", "A separate Branch owns this Commit."),
+    ]);
+
+    await pool.query("delete from simulora.return_orientation_projections where branch_id = $1", [
+      first.continuity.branchId,
+    ]);
+    const missing = await repository.readOrientation(first.account, first.continuity.continuityId);
+    expect(missing.freshness.status).toBe("REBUILDING");
+    expect(missing.projectionUpdatedAt).toBeNull();
+
+    let rebuilt: Awaited<ReturnType<typeof repository.processNextProjection>> = null;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const candidate = await repository.processNextProjection();
+      if (candidate?.continuity.id === first.continuity.continuityId) {
+        rebuilt = candidate;
+        break;
+      }
+    }
+    expect(rebuilt).toMatchObject({
+      continuity: { id: first.continuity.continuityId, branchId: first.continuity.branchId },
+      freshness: {
+        sourceHeadCommitId: first.continuity.headCommitId,
+        currentHeadCommitId: first.continuity.headCommitId,
+        status: "FRESH",
+      },
+    });
+
+    await expect(
+      pool.query(
+        `update simulora.return_orientation_projections
+            set source_head_commit_id = $2, status = 'STALE'
+          where branch_id = $1`,
+        [first.continuity.branchId, second.continuity.headCommitId],
+      ),
+    ).rejects.toThrow(/source Commit must belong to its Branch/);
+
+    await commitDirectChange(
+      repository,
+      first.account,
+      first.continuity.continuityId,
+      "fact.projection-repair",
+      "CORRECT_CONTINUITY",
+      "Advance the Branch beyond the previous projection source.",
+      "The projection repair fixture advanced.",
+    );
+    await expect(
+      pool.query(
+        `update simulora.return_orientation_projections
+            set status = 'FRESH', rebuilt_at = now()
+          where branch_id = $1`,
+        [first.continuity.branchId],
+      ),
+    ).rejects.toThrow(/must name the current Branch head/);
   });
 });
