@@ -1,6 +1,6 @@
 # IP-4 / Gate G4 Evidence — Return, Continuity and Correction
 
-Status: `IMPLEMENTATION / VERIFICATION IN PROGRESS — G4 NOT YET APPROVED`.
+Status: `IP-4 IMPLEMENTATION: COMPLETE / GATE G4: PASSED`.
 
 This document records the production IP-4 vertical slice. It does not modify the frozen Prototype or approve IP-5. The scope and acceptance map are in [Execution Plan](IP-4-EXECUTION-PLAN.md) and [Test Matrix](IP-4-G4-TEST-MATRIX.md).
 
@@ -123,4 +123,39 @@ This is the current validated production-code baseline. Independent G4 approval 
 - No live model provider, character autonomy, participation-contract editing, Branch/Restore/Delete recovery, World Studio/revision adoption, formal deployment or production-scale readiness claim.
 - No durable/offline browser-storage guarantee; acknowledgement and confirmed state belong to PostgreSQL.
 - Automated accessibility and keyboard checks do not substitute for a complete manual assistive-technology/platform matrix. Any unperformed manual screen-reader check must remain explicitly unverified.
-- G4 is not self-approved by the implementation agents or by this report. Independent review and actual new CI evidence are required before any next phase.
+- The earlier statement that G4 was not self-approved remains historically accurate. Final independent review and actual CI evidence are recorded below; Gate G4 is now passed. This does not itself authorize IP-5.
+
+## Final independent G4 review and disposition
+
+The following chain is intentionally retained rather than rewriting earlier evidence as though the first candidate passed.
+
+| Baseline | Result | Disposition |
+|---|---|---|
+| `031efb8faa9e5368025e2dead58e0f68560618a2` | Independent review: `FAIL` with `0 BLOCKER / 4 IMPORTANT / 1 MINOR` | IP-5 withheld. Findings covered Return honesty, legacy private-fact provenance, an Action-detail request loop, Context Manifest/gateway parity and projection Branch/head integrity. |
+| `f15bc5676d0e391ca8bb098c9cf6706404c939d6` | Focused repairs and [CI run 34055212308](https://github.com/henryz78/Simulora/actions/runs/34055212308) passed | Independent re-review closed the original five findings but retained one IMPORTANT: a `STALE` projection with an empty recent-change list was shown as an honest empty state rather than unavailable history. |
+| `75bda8ff37f4238fdc727fc9a325500dc8f26df5` | Final one-condition UI repair and [CI run 34058792679](https://github.com/henryz78/Simulora/actions/runs/34058792679) passed | The same independent reviewer verified the prior residual, inspected the exact CI run, found no new issue and returned `GATE G4: PASS`. |
+
+### Final repair
+
+The final repair makes every non-`FRESH` projection with an empty recent-change list render the honest unavailable-history state. A `FRESH` projection with no changes retains the genuine empty state. The regression covers the exact `STALE + recentChanges: [] + projectionUpdatedAt` path on desktop and 390x844 mobile. It changes no authoritative data, Commit, correction, Action or prototype behavior.
+
+### Exact final CI evidence
+
+[Run 34058792679](https://github.com/henryz78/Simulora/actions/runs/34058792679), job `101555462267`, completed successfully on exact SHA `75bda8ff37f4238fdc727fc9a325500dc8f26df5`.
+
+- Empty/prior-schema migration checks and seven-migration ledger/recovery rehearsal: PASS.
+- Real PostgreSQL suites: `37/37` tests in five files, with no PostgreSQL tests skipped.
+- Full `pnpm check`: format, lint, all typechecks, architecture and migration checks, complete build and built-worker runtime smoke: `74/74` tests in eighteen files, PASS.
+- API and worker production container builds plus API health and worker-ready smoke: PASS.
+- Desktop Chromium and 390x844 Playwright: `30/30`, PASS, including stale/missing Return, SSE stability and Action-detail cadence regressions.
+
+### Gate decision
+
+```text
+GATE G4: PASS
+BLOCKERS: 0
+IMPORTANT: 0
+MINOR: 0
+READY FOR IP-5 AUTHORIZATION: YES
+IP-5 RECOVERY: NOT STARTED
+```

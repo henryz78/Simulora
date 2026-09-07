@@ -1,6 +1,6 @@
 # IP-4 Execution Plan — Return, Continuity and Correction
 
-Status: `IP-4 AUTHORIZED / IN PROGRESS`; Gate G4 is not yet approved.
+Status: `IP-4 COMPLETE / GATE G4 PASSED`; IP-5 remains not started.
 
 ## Starting point and authority
 
@@ -85,3 +85,7 @@ The backend implementer is additionally assigned the minimal G4 test-script/CI w
 | Engineering/regression | format/lint/typecheck/architecture/migrations/unit/build/runtime, actual PostgreSQL, container smoke, G2/G3 and G4 browser suites |
 
 Final evidence belongs in `IP-4-G4-EVIDENCE.md` and `IP-4-G4-TEST-MATRIX.md`. Historical audits, approved Prototype behavior and upstream freezes remain unchanged. Any unsupported canonical target or unverified platform boundary must be named, not hidden behind a blanket PASS.
+
+## Completion update
+
+Gate G4 passed on `75bda8ff37f4238fdc727fc9a325500dc8f26df5` after the independent review and CI evidence recorded in [IP-4 G4 Evidence](IP-4-G4-EVIDENCE.md). This completes only IP-4. It does not start or authorize IP-5 Recovery, IP-6 participation/character authority, IP-7 World Studio, IP-8 trust/lifecycle work, a live model provider, deployment, or any change to the frozen Prototype.
