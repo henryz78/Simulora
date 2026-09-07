@@ -122,7 +122,6 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         "ACTION_NOT_AWAITING_CONFIRMATION",
         "CORRECTION_TARGET_CHANGED",
         "NO_ACTIVE_CANONICAL_FACT",
-        "BRANCH_SOURCE_NOT_CURRENT_PATH",
         "PENDING_ACTIONS_REQUIRE_RESOLUTION",
         "RESTORE_CONFIRMATION_MISMATCH",
         "RESTORE_REVIEW_NOT_ACTIVE",
@@ -260,6 +259,12 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
             await service.prepareRestore(account, branchId, body.sourceCommitId),
           ),
         );
+    });
+
+    app.get("/v1/restore-proposals/:proposalId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { proposalId } = request.params as { proposalId: string };
+      return restoreProposalSchema.parse(await service.readRestoreProposal(account, proposalId));
     });
 
     app.post("/v1/branches/:branchId/restores", async (request, reply) => {

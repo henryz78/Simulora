@@ -31,6 +31,7 @@ import {
   forkBranch,
   prepareRestore,
   readRecovery,
+  readRestoreProposal,
   selectBranch,
 } from "./ip5-api.js";
 
@@ -816,8 +817,6 @@ export function RecoveryPage(): ReactElement {
     );
   }
 
-  const currentBranchPoints =
-    recovery?.recoveryPoints.filter((point) => point.branchId === branchId) ?? [];
   const sources = recovery?.recoveryPoints ?? [];
   const run = async (name: string, work: () => Promise<void>): Promise<void> => {
     if (busy) return;
@@ -954,13 +953,18 @@ export function RecoveryPage(): ReactElement {
               onChange={(event) => setBranchSourceCommitId(event.target.value)}
             >
               <option value={head}>Current head · {shortId(head)}</option>
-              {currentBranchPoints
+              {sources
                 .filter((point) => point.commitId !== head)
-                .map((point) => (
-                  <option key={point.id} value={point.commitId}>
-                    {point.label} · {shortId(point.commitId)}
-                  </option>
-                ))}
+                .map((point) => {
+                  const sourceBranch = recovery?.branches.find(
+                    (branch) => branch.id === point.branchId,
+                  );
+                  return (
+                    <option key={point.id} value={point.commitId}>
+                      {point.label} · {sourceBranch?.name ?? "Branch"} · {shortId(point.commitId)}
+                    </option>
+                  );
+                })}
             </select>
           </label>
           <button
@@ -1115,11 +1119,50 @@ export function RecoveryPage(): ReactElement {
                   void run("restore", async () => {
                     const result = await confirmRestore(branchId, restore);
                     if (!result.data) {
-                      setRestore(null);
+                      if (result.errorCode === "RESTORE_REVIEW_STALE") {
+                        setRestore(null);
+                        setMessage(
+                          "The current path or Branch head changed after review. Nothing was restored; prepare a new review.",
+                        );
+                        return;
+                      }
+                      if (
+                        result.errorCode === "RESTORE_CONFIRMATION_MISMATCH" ||
+                        result.errorCode === "RESTORE_REVIEW_NOT_ACTIVE"
+                      ) {
+                        setRestore(null);
+                        setMessage(
+                          "Restore was rejected before mutation. Current truth is unchanged.",
+                        );
+                        return;
+                      }
+                      const recovered = await readRestoreProposal(restore.id);
+                      if (recovered.data?.status === "CONFIRMED" && recovered.data.resultCommitId) {
+                        setRestore(null);
+                        await refresh();
+                        await reload();
+                        setMessage(
+                          "Restore was recorded as a new Commit. The interrupted response was recovered from its durable result.",
+                        );
+                        return;
+                      }
+                      if (recovered.data?.status === "STALE") {
+                        setRestore(null);
+                        setMessage(
+                          "The Restore review became stale. Nothing was restored; prepare a new review.",
+                        );
+                        return;
+                      }
+                      if (recovered.data?.status === "ACTIVE") {
+                        setRestore(recovered.data);
+                        setMessage(
+                          "The confirmation response was interrupted. The exact review is still active; retrying confirmation is safe.",
+                        );
+                        return;
+                      }
+                      setRestore(restore);
                       setMessage(
-                        result.errorCode === "RESTORE_REVIEW_STALE"
-                          ? "The Branch changed after review. Nothing was restored; prepare a new review."
-                          : "Restore was not confirmed. Current truth is unchanged.",
+                        "The confirmation outcome could not be verified. Do not assume the World changed; retry recovery status before acting again.",
                       );
                       return;
                     }

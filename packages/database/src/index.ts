@@ -329,6 +329,7 @@ export type RestoreProposalRecord = {
   digest: string;
   expiresAt: string;
   status: "ACTIVE" | "CONFIRMED" | "STALE" | "REJECTED" | "EXPIRED";
+  resultCommitId: string | null;
 };
 
 export type RestoreCommitRecord = {
@@ -1723,14 +1724,13 @@ export class AuthoritativeWorldRepository {
         return this.readRecoveryBranchWithClient(client, account.accountId, duplicate.rows[0].id);
       }
       const source = await client.query<{
-        active_branch_id: string;
         source_branch_id: string;
         source_state_revision_id: string;
         source_document: unknown;
         source_hash: string;
         current_head_commit_id: string;
       }>(
-        `select c.active_branch_id, source.branch_id as source_branch_id,
+        `select source.branch_id as source_branch_id,
                 source.state_revision_id as source_state_revision_id,
                 state.document as source_document, state.document_hash as source_hash,
                 active.head_commit_id as current_head_commit_id
@@ -1741,16 +1741,13 @@ export class AuthoritativeWorldRepository {
           and source_branch.continuity_id = c.id
          join simulora.state_revisions state on state.id = source.state_revision_id
          where c.id = $1 and c.owner_account_id = $2 and c.status = 'ACTIVE'
-         for update of active`,
+         for update of c, active`,
         [continuityId, account.accountId, input.sourceCommitId],
       );
       const row = source.rows[0];
       if (!row) throw new NotFoundError("Branch source not found");
       if (row.current_head_commit_id !== input.expectedHeadCommitId) {
         throw new ConflictError("BRANCH_HEAD_CONFLICT");
-      }
-      if (row.source_branch_id !== row.active_branch_id) {
-        throw new ConflictError("BRANCH_SOURCE_NOT_CURRENT_PATH");
       }
       const state = stateRevisionDocumentSchema.parse(row.source_document);
       const branchId = randomUUID();
@@ -1946,12 +1943,14 @@ export class AuthoritativeWorldRepository {
       }
       const id = randomUUID();
       const expiresAt = new Date(Date.now() + 15 * 60_000);
-      await client.query(
+      const inserted = await client.query<{ id: string }>(
         `insert into simulora.restore_proposals
          (id, continuity_id, branch_id, actor_account_id, source_commit_id,
           expected_head_commit_id, included_sections, excluded_sections, diff,
           proposal_digest, status, expires_at)
-         values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, 'ACTIVE', $11)`,
+         values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, 'ACTIVE', $11)
+         on conflict (branch_id, proposal_digest) do nothing
+         returning id`,
         [
           id,
           row.continuity_id,
@@ -1971,6 +1970,14 @@ export class AuthoritativeWorldRepository {
           expiresAt,
         ],
       );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query<{ id: string }>(
+          "select id from simulora.restore_proposals where branch_id = $1 and proposal_digest = $2",
+          [branchId, digest],
+        );
+        if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        return this.readRestoreProposalWithClient(client, account.accountId, duplicate.rows[0].id);
+      }
       return this.readRestoreProposalWithClient(client, account.accountId, id);
     });
   }
@@ -2027,6 +2034,18 @@ export class AuthoritativeWorldRepository {
       }
       if (proposal.status !== "ACTIVE" || proposal.expires_at.getTime() <= Date.now()) {
         throw new ConflictError("RESTORE_REVIEW_NOT_ACTIVE");
+      }
+      const continuity = await client.query<{ active_branch_id: string }>(
+        `select active_branch_id from simulora.continuities
+         where id = $1 and owner_account_id = $2 and status = 'ACTIVE' for update`,
+        [proposal.continuity_id, account.accountId],
+      );
+      if (!continuity.rows[0]) throw new NotFoundError("Continuity not found");
+      if (continuity.rows[0].active_branch_id !== branchId) {
+        await client.query("update simulora.restore_proposals set status = 'STALE' where id = $1", [
+          proposal.id,
+        ]);
+        return null;
       }
       const branch = await client.query<{
         continuity_id: string;
@@ -2780,14 +2799,18 @@ export class AuthoritativeWorldRepository {
       proposal_digest: string;
       expires_at: Date;
       status: RestoreProposalRecord["status"];
+      result_commit_id: string | null;
     }>(
       `select proposal.id, proposal.continuity_id, proposal.branch_id,
               proposal.source_commit_id, proposal.expected_head_commit_id,
               proposal.included_sections, proposal.excluded_sections, proposal.diff,
-              proposal.proposal_digest, proposal.expires_at, proposal.status
+              proposal.proposal_digest, proposal.expires_at, proposal.status,
+              restore_commit.id as result_commit_id
        from simulora.restore_proposals proposal
        join simulora.continuities continuity on continuity.id = proposal.continuity_id
         and continuity.owner_account_id = $2
+       left join simulora.world_commits restore_commit
+        on restore_commit.restore_proposal_id = proposal.id
        where proposal.id = $1`,
       [proposalId, accountId],
     );
@@ -2808,6 +2831,7 @@ export class AuthoritativeWorldRepository {
       digest: row.proposal_digest,
       expiresAt: row.expires_at.toISOString(),
       status: row.status,
+      resultCommitId: row.result_commit_id,
     };
   }
 
@@ -2821,6 +2845,14 @@ export class AuthoritativeWorldRepository {
     } finally {
       client.release();
     }
+  }
+
+  async readRestoreProposal(
+    account: SyntheticAccount,
+    proposalId: string,
+  ): Promise<RestoreProposalRecord> {
+    this.assertEligible(account);
+    return this.readRestoreProposalWithPool(account.accountId, proposalId);
   }
 
   private async initialCommitId(client: PoolClient, branchId: string): Promise<string> {

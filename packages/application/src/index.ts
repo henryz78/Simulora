@@ -197,6 +197,7 @@ export interface WorldContinuityPort {
     branchId: string,
     sourceCommitId: string,
   ): Promise<RestoreProposal>;
+  readRestoreProposal?(account: EligibleAccount, proposalId: string): Promise<RestoreProposal>;
   confirmRestore?(
     account: EligibleAccount,
     branchId: string,
@@ -293,6 +294,11 @@ export class WorldContinuityService {
   prepareRestore(account: EligibleAccount, branchId: string, sourceCommitId: string) {
     if (!this.port.prepareRestore) throw new Error("Restore review is not configured");
     return this.port.prepareRestore(account, branchId, sourceCommitId);
+  }
+
+  readRestoreProposal(account: EligibleAccount, proposalId: string) {
+    if (!this.port.readRestoreProposal) throw new Error("Restore review is not configured");
+    return this.port.readRestoreProposal(account, proposalId);
   }
 
   confirmRestore(

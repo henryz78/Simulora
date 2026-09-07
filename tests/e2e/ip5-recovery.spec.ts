@@ -118,9 +118,17 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-async function installRoutes(page: Page, pending = false): Promise<void> {
+async function installRoutes(
+  page: Page,
+  pending = false,
+  loseRestoreResponse = false,
+): Promise<void> {
   const recoveryState = recovery();
-  await page.route(`**/v1/continuities/${continuityId}/state`, (route) => json(route, state()));
+  let currentHead = branchHead;
+  let latestProposal: Record<string, unknown> | null = null;
+  await page.route(`**/v1/continuities/${continuityId}/state`, (route) =>
+    json(route, state(branchId, currentHead)),
+  );
   await page.route(`**/v1/branches/${branchId}/actions`, (route) =>
     json(route, {
       branchId,
@@ -231,18 +239,34 @@ async function installRoutes(page: Page, pending = false): Promise<void> {
       digest: "c".repeat(64),
       expiresAt: "2026-09-07T01:00:00.000Z",
       status: "ACTIVE",
+      resultCommitId: null,
     };
+    latestProposal = proposal;
     (recoveryState.restoreProposals as unknown[]).splice(0, 1, proposal);
     await json(route, proposal, 201);
   });
+  await page.route(`**/v1/restore-proposals/*`, (route) =>
+    latestProposal
+      ? json(route, latestProposal)
+      : json(route, { code: "NOT_FOUND", message: "Restore proposal not found" }, 404),
+  );
   await page.route(`**/v1/branches/${branchId}/restores`, async (route) => {
+    const commitId = "60000000-0000-4000-8000-000000000013";
+    currentHead = commitId;
+    if (latestProposal) {
+      latestProposal = { ...latestProposal, status: "CONFIRMED", resultCommitId: commitId };
+    }
     (recoveryState.restoreProposals as unknown[]).splice(0);
+    if (loseRestoreResponse) {
+      await route.abort("failed");
+      return;
+    }
     await json(
       route,
       {
-        commitId: "60000000-0000-4000-8000-000000000013",
+        commitId,
         stateRevisionId: "60000000-0000-4000-8000-000000000014",
-        resultingHeadCommitId: "60000000-0000-4000-8000-000000000013",
+        resultingHeadCommitId: commitId,
         committedAt: now,
       },
       201,
@@ -291,4 +315,16 @@ test("Safe Point, Branch and exact append-only Restore share one Recovery model"
     page.getByRole("heading", { name: "Correction and Delete are not Restore" }),
   ).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test("lost Restore confirmation response reconciles the durable outcome", async ({ page }) => {
+  await installRoutes(page, false, true);
+  await page.goto(`/continuities/${continuityId}/recovery`);
+  await page.getByLabel("Restore from").selectOption(oldCommit);
+  await page.getByRole("button", { name: "Review Restore scope" }).click();
+  await page.getByRole("button", { name: "Confirm exact Restore" }).click();
+  await expect(
+    page.getByText("The interrupted response was recovered from its durable result"),
+  ).toBeVisible();
+  await expect(page.getByText("Current truth is unchanged")).toHaveCount(0);
 });

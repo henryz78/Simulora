@@ -186,6 +186,24 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       fork.id,
     );
 
+    const inactiveSourceFork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey: `inactive-source-fork-${randomUUID()}`,
+      name: "Fork from preserved original",
+      sourceCommitId: point.commitId,
+      expectedHeadCommitId: fork.headCommitId,
+    });
+    expect(inactiveSourceFork).toMatchObject({
+      parentBranchId: continuity.branchId,
+      forkSourceCommitId: point.commitId,
+      isCurrent: false,
+    });
+    const originalAfterInactiveFork = await repository.readBranchState(
+      account,
+      continuity.branchId,
+    );
+    expect(originalAfterInactiveFork.headCommitId).toBe(continuity.headCommitId);
+    expect(originalAfterInactiveFork.stateHash).toBe(originalState.stateHash);
+
     const deleted = await repository.deleteRecoveryPoint(account, point.id);
     expect(deleted.deletedAt).not.toBeNull();
     expect(
@@ -217,7 +235,11 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       continuity.headCommitId,
       "Steady the western signal.",
     );
-    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    const [proposal, duplicateProposal] = await Promise.all([
+      repository.prepareRestore(account, continuity.branchId, point.commitId),
+      repository.prepareRestore(account, continuity.branchId, point.commitId),
+    ]);
+    expect(duplicateProposal.id).toBe(proposal.id);
     expect(proposal).toMatchObject({
       sourceCommitId: point.commitId,
       expectedHeadCommitId: changed.commit!.resultingHeadCommitId,
@@ -262,6 +284,29 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       repository.confirmRestore(account, continuity.branchId, request),
     ]);
     expect(retry.commitId).toBe(first.commitId);
+    expect((await repository.readRestoreProposal(account, proposal.id)).resultCommitId).toBe(
+      first.commitId,
+    );
+    await expect(repository.readRestoreProposal(otherAccount, proposal.id)).rejects.toThrow(
+      NotFoundError,
+    );
+    const auth: AuthPort = { authenticate: () => Promise.resolve(account) };
+    app = createApiApp({
+      logLevel: "error",
+      auth,
+      worldService: new WorldContinuityService(repository),
+      actionService: new ActionTruthService(repository),
+    });
+    const durableResult = await app.inject({
+      method: "GET",
+      url: `/v1/restore-proposals/${proposal.id}`,
+    });
+    expect(durableResult.statusCode).toBe(200);
+    expect(durableResult.json()).toMatchObject({
+      id: proposal.id,
+      status: "CONFIRMED",
+      resultCommitId: first.commitId,
+    });
     const after = await pool.query<{ commits: number; states: number; events: number }>(
       `select
          (select count(*)::int from simulora.world_commits where branch_id = $1) as commits,
@@ -388,6 +433,77 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       [proposal.id],
     );
     expect(status.rows[0]?.status).toBe("STALE");
+  });
+
+  it("serializes Restore confirmation against current-path selection", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `selection-restore-point-${randomUUID()}`,
+      label: "Before the path changed",
+    });
+    const changed = await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the signal before selecting another path.",
+    );
+    const fork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey: `selection-restore-fork-${randomUUID()}`,
+      name: "Selected path",
+      sourceCommitId: changed.commit!.resultingHeadCommitId,
+      expectedHeadCommitId: changed.commit!.resultingHeadCommitId,
+    });
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    const before = await pool.query<{ commits: number; states: number; events: number }>(
+      `select
+         (select count(*)::int from simulora.world_commits where branch_id = $1) as commits,
+         (select count(*)::int from simulora.state_revisions where branch_id = $1) as states,
+         (select count(*)::int from simulora.domain_events where branch_id = $1) as events`,
+      [continuity.branchId],
+    );
+
+    const blocker = await pool.connect();
+    let confirmation:
+      Promise<{ status: "fulfilled" } | { status: "rejected"; reason: unknown }> | undefined;
+    try {
+      await blocker.query("begin");
+      await blocker.query("select id from simulora.restore_proposals where id = $1 for update", [
+        proposal.id,
+      ]);
+      confirmation = repository
+        .confirmRestore(account, continuity.branchId, {
+          proposalId: proposal.id,
+          digest: proposal.digest,
+          expectedHeadCommitId: proposal.expectedHeadCommitId,
+        })
+        .then(
+          () => ({ status: "fulfilled" as const }),
+          (reason: unknown) => ({ status: "rejected" as const, reason }),
+        );
+      const selected = await repository.selectBranch(account, continuity.continuityId, fork.id);
+      expect(selected.currentBranchId).toBe(fork.id);
+      await blocker.query("commit");
+    } finally {
+      await blocker.query("rollback");
+      blocker.release();
+    }
+
+    const outcome = await confirmation;
+    expect(outcome).toMatchObject({
+      status: "rejected",
+      reason: new ConflictError("RESTORE_REVIEW_STALE"),
+    });
+    const after = await pool.query<{ commits: number; states: number; events: number }>(
+      `select
+         (select count(*)::int from simulora.world_commits where branch_id = $1) as commits,
+         (select count(*)::int from simulora.state_revisions where branch_id = $1) as states,
+         (select count(*)::int from simulora.domain_events where branch_id = $1) as events`,
+      [continuity.branchId],
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+    expect((await repository.readCurrentState(account, continuity.continuityId)).branchId).toBe(
+      fork.id,
+    );
+    expect((await repository.readRestoreProposal(account, proposal.id)).status).toBe("STALE");
   });
 
   it("exposes owner-scoped Recovery commands over the production API", async () => {

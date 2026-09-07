@@ -76,6 +76,14 @@ export function prepareRestore(
   );
 }
 
+export function readRestoreProposal(id: string): Promise<ApiResult<RestoreProposal>> {
+  return requestJson(
+    `/v1/restore-proposals/${encodeURIComponent(id)}`,
+    { headers: { accept: "application/json" } },
+    (value) => restoreProposalSchema.parse(value),
+  );
+}
+
 export function confirmRestore(
   branchId: string,
   proposal: RestoreProposal,

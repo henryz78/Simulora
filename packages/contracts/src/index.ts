@@ -488,6 +488,7 @@ export const restoreProposalSchema = z
     digest: z.string().regex(/^[0-9a-f]{64}$/),
     expiresAt: z.string().datetime(),
     status: z.enum(["ACTIVE", "CONFIRMED", "STALE", "REJECTED", "EXPIRED"]),
+    resultCommitId: stableIdSchema.nullable(),
   })
   .strict();
 
