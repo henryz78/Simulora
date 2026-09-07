@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-export const implementationPhase = "IP-4" as const;
+export const implementationPhase = "IP-5" as const;
 
 const stableIdSchema = z
   .string()
@@ -170,6 +170,43 @@ export type WorldDocument = z.infer<typeof worldDocumentSchema>;
 export type StateRevisionDocument = z.infer<typeof stateRevisionDocumentSchema>;
 export type CanonicalFactLifecycle = z.infer<typeof canonicalFactLifecycleSchema>;
 export type StateFact = z.infer<typeof stateFactSchema>;
+
+export const restorableStateSections = [
+  "worldClock",
+  "locations",
+  "entities",
+  "characters",
+  "facts",
+  "relationships",
+  "openThreads",
+  "objectives",
+  "resources",
+] as const satisfies readonly (keyof StateRevisionDocument)[];
+
+/**
+ * Restore only the frozen world-state allow-list. Participation,
+ * interaction boundaries and custom/account-owned state always come from the
+ * current head, never from the historical source.
+ */
+export function applyRestorableState(
+  currentInput: StateRevisionDocument,
+  sourceInput: StateRevisionDocument,
+): StateRevisionDocument {
+  const current = stateRevisionDocumentSchema.parse(currentInput);
+  const source = stateRevisionDocumentSchema.parse(sourceInput);
+  return stateRevisionDocumentSchema.parse({
+    ...current,
+    worldClock: source.worldClock,
+    locations: source.locations,
+    entities: source.entities,
+    characters: source.characters,
+    facts: source.facts,
+    relationships: source.relationships,
+    openThreads: source.openThreads,
+    objectives: source.objectives,
+    resources: source.resources,
+  });
+}
 
 export const actionStatusSchema = z.enum([
   "ACKNOWLEDGED",

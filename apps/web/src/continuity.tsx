@@ -884,7 +884,7 @@ export function ActionStatusCard({
 }
 
 export function WorldContextSummary(): ReactElement {
-  const { historyState, loadState, pendingActionRefs } = useContinuity();
+  const { continuityId, historyState, loadState, pendingActionRefs } = useContinuity();
   if (loadState.status !== "ready") {
     return <StatusPage title="Loading current context…" copy="Reading the current Branch head." />;
   }
@@ -939,6 +939,12 @@ export function WorldContextSummary(): ReactElement {
           </p>
         </section>
       ) : null}
+      <Link
+        className="secondary-action inline-action recovery-entry"
+        to={`/continuities/${encodeURIComponent(continuityId)}/recovery`}
+      >
+        Open Recovery
+      </Link>
     </aside>
   );
 }

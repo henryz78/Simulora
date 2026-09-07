@@ -965,15 +965,130 @@ h1 {
   font-weight: 700;
 }
 
-.field-label textarea {
+.field-label textarea,
+.field-label input,
+.field-label select {
   width: 100%;
-  resize: vertical;
   border: 1px solid #4e736c;
   border-radius: 14px;
   padding: 14px;
   background: #0a1719;
   color: #edf4f2;
   line-height: 1.5;
+}
+
+.field-label textarea {
+  resize: vertical;
+}
+
+.recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.restore-card,
+.recovery-boundaries {
+  grid-column: 1 / -1;
+}
+
+.recovery-list {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recovery-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #27433e;
+  padding-top: 12px;
+}
+
+.recovery-list span,
+.recovery-list small {
+  display: block;
+}
+
+.recovery-list small {
+  margin-top: 4px;
+  color: #91aaa5;
+}
+
+.text-action {
+  border: 0;
+  padding: 8px;
+  background: transparent;
+  color: #e4c2b1;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.restore-review {
+  margin-top: 20px;
+  border: 1px solid #876f49;
+  border-radius: 16px;
+  padding: 18px;
+  background: rgba(240, 201, 136, 0.06);
+}
+
+.restore-review h3 {
+  color: #f3e9d4;
+}
+
+.restore-section-diffs {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.restore-section-diffs details {
+  border-top: 1px solid #695a40;
+  padding-top: 10px;
+}
+
+.restore-section-diffs summary {
+  cursor: pointer;
+  color: #f3e9d4;
+  font-weight: 700;
+}
+
+.restore-section-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.restore-section-diff pre {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #c9d7d3;
+  font:
+    0.75rem/1.45 ui-monospace,
+    monospace;
+}
+
+.recovery-message {
+  position: sticky;
+  bottom: 16px;
+  margin: 18px auto 0;
+  border: 1px solid #658b84;
+  border-radius: 14px;
+  padding: 14px 18px;
+  background: #102224;
+  color: #edf4f2;
+}
+
+.recovery-entry {
+  margin-top: 18px;
 }
 
 .effect-grid {
@@ -1151,7 +1266,27 @@ h1 {
   .surface-grid,
   .current-path-card,
   .context-layout,
-  .effect-grid {
+  .effect-grid,
+  .recovery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .restore-card,
+  .recovery-boundaries {
+    grid-column: auto;
+  }
+
+  .recovery-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recovery-list button,
+  .restore-card button {
+    width: 100%;
+  }
+
+  .restore-section-diff {
     grid-template-columns: 1fr;
   }
 

@@ -8,6 +8,8 @@ import {
   type ExplanationResponse,
   type OrientationResponse,
   type ProjectionFreshness,
+  type RecoveryResponse,
+  type RestoreProposal,
 } from "@simulora/contracts";
 import {
   ActionComposer,
@@ -22,6 +24,15 @@ import {
   readText,
 } from "./continuity.js";
 import { readBranchTrace, readExplanation, readOrientation } from "./ip4-api.js";
+import {
+  confirmRestore,
+  createRecoveryPoint,
+  deleteRecoveryPoint,
+  forkBranch,
+  prepareRestore,
+  readRecovery,
+  selectBranch,
+} from "./ip5-api.js";
 
 export { ContinuityLayout };
 
@@ -35,15 +46,15 @@ export function FoundationPage(): ReactElement {
           </span>
           <span>Simulora</span>
         </Link>
-        <span className="phase-badge">IP-3 · Action Truth</span>
+        <span className="phase-badge">IP-5 · Recovery</span>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
           <p className="eyebrow">Production implementation</p>
           <h1 id="foundation-title">A durable world begins with a known source of truth.</h1>
           <p className="hero-copy">
-            IP-3 adds durable Actions to the authoritative World spine. Return, Continuity,
-            Explanation and Correction now read from the same Branch head in IP-4.
+            Durable Actions, Continuity and non-destructive Recovery now share one authoritative
+            Branch/Commit/State Revision spine.
           </p>
         </section>
         <section className="boundary-panel" aria-labelledby="current-boundary">
@@ -53,10 +64,11 @@ export function FoundationPage(): ReactElement {
             <li>Existing Continuities remain pinned to their starting World Revision.</li>
             <li>Return and Explanation are derived projections with visible freshness.</li>
             <li>Correction is a direct, exact-confirmation path that preserves history.</li>
+            <li>Branch preserves its source; Restore appends instead of rewinding history.</li>
           </ul>
         </section>
       </main>
-      <footer className="site-footer">Product Implementation · IP-4 Continuity</footer>
+      <footer className="site-footer">Product Implementation · IP-5 Recovery</footer>
     </div>
   );
 }
@@ -741,6 +753,420 @@ export function ContextPage(): ReactElement {
       >
         Return to world
       </Link>
+    </div>
+  );
+}
+
+export function RecoveryPage(): ReactElement {
+  const { continuityId, loadState, pendingActionRefs, refresh } = useContinuity();
+  const [recovery, setRecovery] = useState<RecoveryResponse | null>(null);
+  const [restore, setRestore] = useState<RestoreProposal | null>(null);
+  const [label, setLabel] = useState("Before the next choice");
+  const [branchName, setBranchName] = useState("Alternative path");
+  const [branchSourceCommitId, setBranchSourceCommitId] = useState("");
+  const [restoreSourceCommitId, setRestoreSourceCommitId] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const pointKey = useRef<string | null>(null);
+  const branchKey = useRef<string | null>(null);
+  const head = loadState.status === "ready" ? loadState.data.continuity.headCommitId : null;
+  const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
+
+  const reload = async (): Promise<void> => {
+    const result = await readRecovery(continuityId);
+    if (result.data) {
+      const next = result.data;
+      setRecovery(next);
+      setRestore(next.restoreProposals[0] ?? null);
+      setBranchSourceCommitId((current) => current || head || "");
+      setRestoreSourceCommitId(
+        (current) => current || next.recoveryPoints[0]?.commitId || head || "",
+      );
+      setMessage(null);
+    } else {
+      setMessage("Recovery state is unavailable. Current World truth was not changed.");
+    }
+  };
+
+  useEffect(() => {
+    if (!head) return;
+    let active = true;
+    void readRecovery(continuityId).then((result) => {
+      if (!active) return;
+      if (result.data) {
+        setRecovery(result.data);
+        setRestore(result.data.restoreProposals[0] ?? null);
+        setBranchSourceCommitId(head);
+        setRestoreSourceCommitId(result.data.recoveryPoints[0]?.commitId ?? head);
+      } else {
+        setMessage("Recovery state is unavailable. Current World truth was not changed.");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [continuityId, head]);
+
+  if (loadState.status !== "ready" || !branchId || !head) {
+    return (
+      <StatusPage
+        title="Opening Recovery…"
+        copy="Reading the current Branch and its safe references."
+      />
+    );
+  }
+
+  const currentBranchPoints =
+    recovery?.recoveryPoints.filter((point) => point.branchId === branchId) ?? [];
+  const sources = recovery?.recoveryPoints ?? [];
+  const run = async (name: string, work: () => Promise<void>): Promise<void> => {
+    if (busy) return;
+    setBusy(name);
+    setMessage(null);
+    try {
+      await work();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="surface-page recovery-page">
+      <SurfaceHeader
+        eyebrow="Recovery"
+        title="Preserve, branch or restore this path"
+        copy="Recovery operates on the current Continuity. It does not erase history, repair a single fact, or change a future World Revision."
+      />
+      {pendingActionRefs.length > 0 ? (
+        <section className="surface-card recovery-pending" aria-labelledby="recovery-pending-title">
+          <p className="card-label">Pending Action preserved</p>
+          <h2 id="recovery-pending-title">Finish the unresolved Action before switching paths</h2>
+          <p>
+            Recovery inspection did not clear it. Use the Action ribbon above to confirm, cancel or
+            retry it.
+          </p>
+        </section>
+      ) : null}
+      <div className="recovery-grid">
+        <section className="surface-card" aria-labelledby="safe-point-title">
+          <p className="card-label">Safe Point</p>
+          <h2 id="safe-point-title">Name the current Commit</h2>
+          <p>This creates a reference only. No World state is copied.</p>
+          <label className="field-label" htmlFor="safe-point-label">
+            Label
+            <input
+              id="safe-point-label"
+              value={label}
+              maxLength={160}
+              onChange={(event) => {
+                setLabel(event.target.value);
+                pointKey.current = null;
+              }}
+            />
+          </label>
+          <button
+            className="primary-action"
+            type="button"
+            disabled={busy !== null || !label.trim()}
+            onClick={() =>
+              void run("point", async () => {
+                pointKey.current ??= crypto.randomUUID();
+                const result = await createRecoveryPoint(branchId, {
+                  idempotencyKey: pointKey.current,
+                  label: label.trim(),
+                  commitId: head,
+                });
+                if (!result.data) {
+                  setMessage(
+                    "The Safe Point was not confirmed. Retry is safe; current truth is unchanged.",
+                  );
+                  return;
+                }
+                pointKey.current = null;
+                setBranchSourceCommitId(result.data.commitId);
+                await reload();
+                setMessage("Safe Point recorded as a reference to the current Commit.");
+              })
+            }
+          >
+            {busy === "point" ? "Recording…" : "Create Safe Point"}
+          </button>
+          {recovery?.recoveryPoints.length ? (
+            <ul className="recovery-list">
+              {recovery.recoveryPoints.map((point) => (
+                <li key={point.id}>
+                  <span>
+                    <strong>{point.label}</strong>
+                    <small>{shortId(point.commitId)}</small>
+                  </span>
+                  <button
+                    className="text-action"
+                    type="button"
+                    onClick={() =>
+                      void run("delete-point", async () => {
+                        if (
+                          !window.confirm(
+                            "Delete this label only? The referenced Commit and history remain.",
+                          )
+                        )
+                          return;
+                        const result = await deleteRecoveryPoint(point.id);
+                        if (!result.data) {
+                          setMessage("The label could not be deleted. No World state changed.");
+                          return;
+                        }
+                        await reload();
+                        setMessage("Safe Point label deleted. Its Commit and history remain.");
+                      })
+                    }
+                  >
+                    Delete label only
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty-state">No Safe Point labels yet.</p>
+          )}
+        </section>
+
+        <section className="surface-card" aria-labelledby="branch-title">
+          <p className="card-label">Branch</p>
+          <h2 id="branch-title">Create a separate experiment</h2>
+          <p>The original path, head and history remain unchanged. V1 does not merge Branches.</p>
+          <label className="field-label" htmlFor="branch-name">
+            Branch name
+            <input
+              id="branch-name"
+              value={branchName}
+              maxLength={160}
+              onChange={(event) => {
+                setBranchName(event.target.value);
+                branchKey.current = null;
+              }}
+            />
+          </label>
+          <label className="field-label" htmlFor="branch-source">
+            Start from
+            <select
+              id="branch-source"
+              value={branchSourceCommitId || head}
+              onChange={(event) => setBranchSourceCommitId(event.target.value)}
+            >
+              <option value={head}>Current head · {shortId(head)}</option>
+              {currentBranchPoints
+                .filter((point) => point.commitId !== head)
+                .map((point) => (
+                  <option key={point.id} value={point.commitId}>
+                    {point.label} · {shortId(point.commitId)}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button
+            className="primary-action"
+            type="button"
+            disabled={busy !== null || !branchName.trim()}
+            onClick={() =>
+              void run("branch", async () => {
+                branchKey.current ??= crypto.randomUUID();
+                const result = await forkBranch(continuityId, {
+                  idempotencyKey: branchKey.current,
+                  name: branchName.trim(),
+                  sourceCommitId: branchSourceCommitId || head,
+                  expectedHeadCommitId: head,
+                });
+                if (!result.data) {
+                  setMessage("The Branch was not created. The source path remains unchanged.");
+                  return;
+                }
+                branchKey.current = null;
+                await reload();
+                setMessage(
+                  "Separate Branch created. The original remains the current path until you switch.",
+                );
+              })
+            }
+          >
+            {busy === "branch" ? "Creating…" : "Create separate Branch"}
+          </button>
+          <ul className="recovery-list branch-list">
+            {recovery?.branches.map((branch) => (
+              <li key={branch.id}>
+                <span>
+                  <strong>{branch.name}</strong>
+                  <small>
+                    {branch.isCurrent ? "Current path" : `Head ${shortId(branch.headCommitId)}`}
+                  </small>
+                </span>
+                {!branch.isCurrent ? (
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    disabled={busy !== null || pendingActionRefs.length > 0}
+                    onClick={() =>
+                      void run("select", async () => {
+                        const result = await selectBranch(continuityId, branch.id);
+                        if (!result.data) {
+                          setMessage(
+                            result.errorCode === "PENDING_ACTIONS_REQUIRE_RESOLUTION"
+                              ? "Resolve the pending Action before switching the current path."
+                              : "The current path was not changed.",
+                          );
+                          return;
+                        }
+                        setRecovery(result.data);
+                        setRestore(null);
+                        await refresh();
+                        setMessage(
+                          "Current path changed. The previous Branch remains available and unchanged.",
+                        );
+                      })
+                    }
+                  >
+                    Make current path
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="surface-card restore-card" aria-labelledby="restore-title">
+          <p className="card-label">Restore</p>
+          <h2 id="restore-title">Append an earlier world state</h2>
+          <p>Restore creates a new Commit on the current Branch. Later history is retained.</p>
+          <label className="field-label" htmlFor="restore-source">
+            Restore from
+            <select
+              id="restore-source"
+              value={restoreSourceCommitId || head}
+              onChange={(event) => {
+                setRestoreSourceCommitId(event.target.value);
+                setRestore(null);
+              }}
+            >
+              <option value={head}>Current head · no earlier change</option>
+              {sources
+                .filter((point) => point.commitId !== head)
+                .map((point) => (
+                  <option key={point.id} value={point.commitId}>
+                    {point.label} · {shortId(point.commitId)}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <button
+            className="secondary-action"
+            type="button"
+            disabled={busy !== null || (restoreSourceCommitId || head) === head}
+            onClick={() =>
+              void run("review", async () => {
+                const result = await prepareRestore(branchId, restoreSourceCommitId);
+                if (!result.data) {
+                  setRestore(null);
+                  setMessage("A Restore review could not be prepared. Current truth is unchanged.");
+                  return;
+                }
+                setRestore(result.data);
+              })
+            }
+          >
+            {busy === "review" ? "Comparing…" : "Review Restore scope"}
+          </button>
+          {restore ? (
+            <div className="restore-review" role="region" aria-label="Exact Restore review">
+              <h3>Exact Restore review</h3>
+              <p>
+                <strong>Would change:</strong> {restore.changedSections.join(", ")}
+              </p>
+              <div className="restore-section-diffs">
+                {restore.sectionChanges.map((change) => (
+                  <details key={change.section}>
+                    <summary>{change.section} · exact before / after</summary>
+                    <div className="restore-section-diff">
+                      <div>
+                        <strong>Current</strong>
+                        <pre>{JSON.stringify(change.before, null, 2)}</pre>
+                      </div>
+                      <div>
+                        <strong>From selected Commit</strong>
+                        <pre>{JSON.stringify(change.after, null, 2)}</pre>
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+              <p>
+                <strong>Included:</strong> {restore.includedSections.join(", ")}
+              </p>
+              <p>
+                <strong>Excluded and preserved:</strong> {restore.excludedSections.join(", ")}
+              </p>
+              <p className="muted-copy">
+                Expected current head: {shortId(restore.expectedHeadCommitId)} · review expires{" "}
+                {new Date(restore.expiresAt).toLocaleTimeString()}
+              </p>
+              <button
+                className="primary-action"
+                type="button"
+                disabled={busy !== null}
+                onClick={() =>
+                  void run("restore", async () => {
+                    const result = await confirmRestore(branchId, restore);
+                    if (!result.data) {
+                      setRestore(null);
+                      setMessage(
+                        result.errorCode === "RESTORE_REVIEW_STALE"
+                          ? "The Branch changed after review. Nothing was restored; prepare a new review."
+                          : "Restore was not confirmed. Current truth is unchanged.",
+                      );
+                      return;
+                    }
+                    setRestore(null);
+                    await refresh();
+                    await reload();
+                    setMessage(
+                      "Restore recorded as a new Commit. Earlier and intervening history remain.",
+                    );
+                  })
+                }
+              >
+                {busy === "restore" ? "Recording…" : "Confirm exact Restore"}
+              </button>
+            </div>
+          ) : null}
+        </section>
+
+        <section
+          className="surface-card recovery-boundaries"
+          aria-labelledby="recovery-boundaries-title"
+        >
+          <p className="card-label">Different operations</p>
+          <h2 id="recovery-boundaries-title">Correction and Delete are not Restore</h2>
+          <ul>
+            <li>
+              <strong>Correction</strong> repairs one current canonical record through its own exact
+              review.
+            </li>
+            <li>
+              <strong>Delete</strong> is a separate lifecycle boundary with retention consequences;
+              it is not an undo control and is not performed here.
+            </li>
+          </ul>
+          <Link
+            className="secondary-action inline-action"
+            to={`/continuities/${encodeURIComponent(continuityId)}/continuity`}
+          >
+            Inspect or correct Continuity
+          </Link>
+        </section>
+      </div>
+      {message ? (
+        <p className="recovery-message" role="status">
+          {message}
+        </p>
+      ) : null}
     </div>
   );
 }

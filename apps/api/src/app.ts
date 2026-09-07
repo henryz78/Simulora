@@ -22,6 +22,16 @@ import {
   correctionRequestSchema,
   explanationResponseSchema,
   orientationResponseSchema,
+  confirmRestoreRequestSchema,
+  createRecoveryPointRequestSchema,
+  createRestoreProposalRequestSchema,
+  forkBranchRequestSchema,
+  recoveryBranchSchema,
+  recoveryPointSchema,
+  recoveryResponseSchema,
+  restoreCommitSchema,
+  restoreProposalSchema,
+  selectBranchRequestSchema,
 } from "@simulora/contracts";
 import {
   AccessDeniedError,
@@ -112,6 +122,13 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         "ACTION_NOT_AWAITING_CONFIRMATION",
         "CORRECTION_TARGET_CHANGED",
         "NO_ACTIVE_CANONICAL_FACT",
+        "BRANCH_SOURCE_NOT_CURRENT_PATH",
+        "PENDING_ACTIONS_REQUIRE_RESOLUTION",
+        "RESTORE_CONFIRMATION_MISMATCH",
+        "RESTORE_REVIEW_NOT_ACTIVE",
+        "RESTORE_REVIEW_STALE",
+        "RESTORE_RESULT_UNAVAILABLE",
+        "RESTORE_HAS_NO_CHANGES",
       ]);
       const code = knownCodes.has(error.message) ? error.message : "STALE_DRAFT";
       void reply.status(409).send({ code, message: error.message });
@@ -189,6 +206,69 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const account = await authenticatedAccount(request, auth);
       const { continuityId } = request.params as { continuityId: string };
       return orientationResponseSchema.parse(await service.readOrientation(account, continuityId));
+    });
+
+    app.get("/v1/continuities/:continuityId/recovery", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { continuityId } = request.params as { continuityId: string };
+      return recoveryResponseSchema.parse(await service.readRecovery(account, continuityId));
+    });
+
+    app.post("/v1/branches/:branchId/recovery-points", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const body = createRecoveryPointRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(
+          recoveryPointSchema.parse(await service.createRecoveryPoint(account, branchId, body)),
+        );
+    });
+
+    app.delete("/v1/recovery-points/:recoveryPointId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { recoveryPointId } = request.params as { recoveryPointId: string };
+      return recoveryPointSchema.parse(await service.deleteRecoveryPoint(account, recoveryPointId));
+    });
+
+    app.post("/v1/continuities/:continuityId/branches", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { continuityId } = request.params as { continuityId: string };
+      const body = forkBranchRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(recoveryBranchSchema.parse(await service.forkBranch(account, continuityId, body)));
+    });
+
+    app.put("/v1/continuities/:continuityId/active-branch", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { continuityId } = request.params as { continuityId: string };
+      const body = selectBranchRequestSchema.parse(request.body);
+      return recoveryResponseSchema.parse(
+        await service.selectBranch(account, continuityId, body.branchId),
+      );
+    });
+
+    app.post("/v1/branches/:branchId/restore-proposals", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const body = createRestoreProposalRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(
+          restoreProposalSchema.parse(
+            await service.prepareRestore(account, branchId, body.sourceCommitId),
+          ),
+        );
+    });
+
+    app.post("/v1/branches/:branchId/restores", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const body = confirmRestoreRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(restoreCommitSchema.parse(await service.confirmRestore(account, branchId, body)));
     });
 
     app.get("/v1/branches/:branchId/state", async (request) => {

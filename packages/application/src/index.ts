@@ -8,6 +8,13 @@ import type {
   ExplanationResponse,
   FoundationResponse,
   OrientationResponse,
+  RecoveryBranch,
+  RecoveryPoint,
+  RecoveryResponse,
+  RestoreCommit,
+  RestoreProposal,
+  CreateRecoveryPointRequest,
+  ForkBranchRequest,
   SubmitActionRequest,
 } from "@simulora/contracts";
 import type { ParticipationContract, StateRevisionDocument, WorldDocument } from "@simulora/domain";
@@ -27,7 +34,7 @@ export type DependencyHealth = {
 
 export function describeFoundation(dependencies: readonly DependencyHealth[]): FoundationResponse {
   return {
-    productImplementationPhase: "IP-4",
+    productImplementationPhase: "IP-5",
     productSemanticsStarted: true,
     capabilities: dependencies.map((dependency) => ({
       name: dependency.name,
@@ -168,6 +175,33 @@ export interface WorldContinuityPort {
     targetType: "fact" | "commit",
     targetId: string,
   ): Promise<ExplanationResponse>;
+  readRecovery?(account: EligibleAccount, continuityId: string): Promise<RecoveryResponse>;
+  createRecoveryPoint?(
+    account: EligibleAccount,
+    branchId: string,
+    request: CreateRecoveryPointRequest,
+  ): Promise<RecoveryPoint>;
+  deleteRecoveryPoint?(account: EligibleAccount, recoveryPointId: string): Promise<RecoveryPoint>;
+  forkBranch?(
+    account: EligibleAccount,
+    continuityId: string,
+    request: ForkBranchRequest,
+  ): Promise<RecoveryBranch>;
+  selectBranch?(
+    account: EligibleAccount,
+    continuityId: string,
+    branchId: string,
+  ): Promise<RecoveryResponse>;
+  prepareRestore?(
+    account: EligibleAccount,
+    branchId: string,
+    sourceCommitId: string,
+  ): Promise<RestoreProposal>;
+  confirmRestore?(
+    account: EligibleAccount,
+    branchId: string,
+    request: { proposalId: string; digest: string; expectedHeadCommitId: string },
+  ): Promise<RestoreCommit>;
 }
 
 export class WorldContinuityService {
@@ -225,5 +259,48 @@ export class WorldContinuityService {
   ) {
     if (!this.port.readExplanation) throw new Error("Explanation is not configured");
     return this.port.readExplanation(account, branchId, targetType, targetId);
+  }
+
+  readRecovery(account: EligibleAccount, continuityId: string) {
+    if (!this.port.readRecovery) throw new Error("Recovery is not configured");
+    return this.port.readRecovery(account, continuityId);
+  }
+
+  createRecoveryPoint(
+    account: EligibleAccount,
+    branchId: string,
+    request: CreateRecoveryPointRequest,
+  ) {
+    if (!this.port.createRecoveryPoint) throw new Error("Recovery Point is not configured");
+    return this.port.createRecoveryPoint(account, branchId, request);
+  }
+
+  deleteRecoveryPoint(account: EligibleAccount, recoveryPointId: string) {
+    if (!this.port.deleteRecoveryPoint) throw new Error("Recovery Point is not configured");
+    return this.port.deleteRecoveryPoint(account, recoveryPointId);
+  }
+
+  forkBranch(account: EligibleAccount, continuityId: string, request: ForkBranchRequest) {
+    if (!this.port.forkBranch) throw new Error("Branch recovery is not configured");
+    return this.port.forkBranch(account, continuityId, request);
+  }
+
+  selectBranch(account: EligibleAccount, continuityId: string, branchId: string) {
+    if (!this.port.selectBranch) throw new Error("Branch selection is not configured");
+    return this.port.selectBranch(account, continuityId, branchId);
+  }
+
+  prepareRestore(account: EligibleAccount, branchId: string, sourceCommitId: string) {
+    if (!this.port.prepareRestore) throw new Error("Restore review is not configured");
+    return this.port.prepareRestore(account, branchId, sourceCommitId);
+  }
+
+  confirmRestore(
+    account: EligibleAccount,
+    branchId: string,
+    request: { proposalId: string; digest: string; expectedHeadCommitId: string },
+  ) {
+    if (!this.port.confirmRestore) throw new Error("Restore confirmation is not configured");
+    return this.port.confirmRestore(account, branchId, request);
   }
 }

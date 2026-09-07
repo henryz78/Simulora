@@ -37,8 +37,8 @@ try {
     where key = 'implementation_phase'
   `);
   const row = result.rows[0];
-  if (!row || row.phase !== "IP-4" || row.product_semantics_started !== true) {
-    throw new Error("IP-4 migration contract failed");
+  if (!row || row.phase !== "IP-5" || row.product_semantics_started !== true) {
+    throw new Error("IP-5 migration contract failed");
   }
   console.log(`Migration check passed (${files.length} migration)`);
 } finally {

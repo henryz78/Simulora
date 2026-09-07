@@ -33,7 +33,7 @@ async function readErrorCode(response: Response): Promise<string | null> {
   }
 }
 
-async function requestJson<T>(
+export async function requestJson<T>(
   url: string,
   init: RequestInit,
   parse: (value: unknown) => T,

@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import {
   applyValidatedActionCandidate,
+  applyRestorableState,
   applyValidatedDirectCorrectionCandidate,
   contentHash,
   createInitialState,
   participationContractSchema,
+  restorableStateSections,
   stateRevisionDocumentSchema,
   validateDirectCorrectionCandidate,
   validateActionCandidate,
@@ -289,6 +291,53 @@ export type OrientationProjectionRecord = {
   projectionUpdatedAt: string | null;
 };
 
+export type RecoveryPointRecord = {
+  id: string;
+  continuityId: string;
+  branchId: string;
+  commitId: string;
+  label: string;
+  createdAt: string;
+  deletedAt: string | null;
+};
+
+export type RecoveryBranchRecord = {
+  id: string;
+  continuityId: string;
+  name: string;
+  status: "ACTIVE";
+  headCommitId: string;
+  headStateRevisionId: string;
+  parentBranchId: string | null;
+  forkSourceCommitId: string | null;
+  isCurrent: boolean;
+  createdAt: string;
+};
+
+export type RestoreProposalRecord = {
+  id: string;
+  continuityId: string;
+  branchId: string;
+  sourceCommitId: string;
+  expectedHeadCommitId: string;
+  includedSections: string[];
+  excludedSections: string[];
+  changedSections: string[];
+  sectionChanges: Array<{ section: string; before: unknown; after: unknown }>;
+  beforeHash: string;
+  sourceHash: string;
+  digest: string;
+  expiresAt: string;
+  status: "ACTIVE" | "CONFIRMED" | "STALE" | "REJECTED" | "EXPIRED";
+};
+
+export type RestoreCommitRecord = {
+  commitId: string;
+  stateRevisionId: string;
+  resultingHeadCommitId: string;
+  committedAt: string;
+};
+
 export type ActionGenerationContext = {
   participation: ParticipationContract;
   targetFact: {
@@ -427,6 +476,10 @@ function decodeTraceCursor(value: string | undefined): TraceCursor | undefined {
 
 function eventSummary(eventType: string): string {
   switch (eventType) {
+    case "BRANCH_FORKED":
+      return "A separate path was created without changing its source path.";
+    case "STATE_RESTORED":
+      return "Selected world-state sections were restored as a new recorded change.";
     case "CONTINUITY_ITEM_CORRECTED":
       return "A canonical continuity fact was corrected by the participant.";
     case "CONTINUITY_ITEM_REMOVED":
@@ -783,6 +836,14 @@ export class AuthoritativeWorldRepository {
       );
       if (existing.rows[0]) return this.readActionWithClient(client, account, existing.rows[0].id);
 
+      const currentPath = await client.query<{ active_branch_id: string }>(
+        `select active_branch_id from simulora.continuities
+         where owner_account_id = $1 and active_branch_id = $2 and status = 'ACTIVE'
+         for share`,
+        [account.accountId, branchId],
+      );
+      if (!currentPath.rows[0]) throw new NotFoundError("Branch not found");
+
       const branch = await client.query<{
         continuity_id: string;
         head_commit_id: string;
@@ -791,7 +852,8 @@ export class AuthoritativeWorldRepository {
       }>(
         `select b.continuity_id, b.head_commit_id, b.head_state_revision_id, s.document as state_document
          from simulora.branches b
-         join simulora.continuities c on c.id = b.continuity_id and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         join simulora.continuities c on c.id = b.continuity_id and c.active_branch_id = b.id
+          and c.owner_account_id = $2 and c.status = 'ACTIVE'
          join simulora.state_revisions s on s.id = b.head_state_revision_id
          where b.id = $1 and b.status = 'ACTIVE'
          for share of b`,
@@ -885,6 +947,14 @@ export class AuthoritativeWorldRepository {
       );
       if (existing.rows[0]) return this.readActionWithClient(client, account, existing.rows[0].id);
 
+      const currentPath = await client.query<{ active_branch_id: string }>(
+        `select active_branch_id from simulora.continuities
+         where owner_account_id = $1 and active_branch_id = $2 and status = 'ACTIVE'
+         for share`,
+        [account.accountId, branchId],
+      );
+      if (!currentPath.rows[0]) throw new NotFoundError("Branch not found");
+
       const branchResult = await client.query<{
         continuity_id: string;
         head_commit_id: string;
@@ -895,7 +965,7 @@ export class AuthoritativeWorldRepository {
                 s.document as state_document
          from simulora.branches b
          join simulora.continuities c on c.id = b.continuity_id
-          and c.owner_account_id = $2 and c.status = 'ACTIVE'
+          and c.active_branch_id = b.id and c.owner_account_id = $2 and c.status = 'ACTIVE'
          join simulora.state_revisions s on s.id = b.head_state_revision_id
          where b.id = $1 and b.status = 'ACTIVE'
          for share of b`,
@@ -1455,6 +1525,632 @@ export class AuthoritativeWorldRepository {
     return this.readCurrentState(account, row.continuity_id);
   }
 
+  async readRecovery(
+    account: SyntheticAccount,
+    continuityId: string,
+  ): Promise<{
+    continuityId: string;
+    currentBranchId: string;
+    branches: RecoveryBranchRecord[];
+    recoveryPoints: RecoveryPointRecord[];
+    restoreProposals: RestoreProposalRecord[];
+  }> {
+    this.assertEligible(account);
+    const continuity = await this.pool.query<{ active_branch_id: string }>(
+      `select active_branch_id from simulora.continuities
+       where id = $1 and owner_account_id = $2 and status = 'ACTIVE'`,
+      [continuityId, account.accountId],
+    );
+    const activeBranchId = continuity.rows[0]?.active_branch_id;
+    if (!activeBranchId) throw new NotFoundError("Continuity not found");
+    const branches = await this.pool.query<{
+      id: string;
+      continuity_id: string;
+      name: string;
+      status: "ACTIVE";
+      head_commit_id: string;
+      head_state_revision_id: string;
+      parent_branch_id: string | null;
+      fork_source_commit_id: string | null;
+      created_at: Date;
+    }>(
+      `select id, continuity_id, name, status, head_commit_id, head_state_revision_id,
+              parent_branch_id, fork_source_commit_id, created_at
+       from simulora.branches where continuity_id = $1 and status = 'ACTIVE'
+       order by created_at`,
+      [continuityId],
+    );
+    const points = await this.pool.query<{
+      id: string;
+      continuity_id: string;
+      branch_id: string;
+      commit_id: string;
+      label: string;
+      created_at: Date;
+      deleted_at: Date | null;
+    }>(
+      `select id, continuity_id, branch_id, commit_id, label, created_at, deleted_at
+       from simulora.recovery_points
+       where continuity_id = $1 and deleted_at is null order by created_at desc`,
+      [continuityId],
+    );
+    const proposals = await this.pool.query<{ id: string }>(
+      `select proposal.id from simulora.restore_proposals proposal
+       join simulora.branches branch on branch.id = proposal.branch_id
+        and branch.head_commit_id = proposal.expected_head_commit_id
+       where proposal.continuity_id = $1 and proposal.branch_id = $2
+         and proposal.actor_account_id = $3 and proposal.status = 'ACTIVE'
+         and proposal.expires_at > now()
+       order by proposal.created_at desc limit 1`,
+      [continuityId, activeBranchId, account.accountId],
+    );
+    const restoreProposals = proposals.rows[0]
+      ? [await this.readRestoreProposalWithPool(account.accountId, proposals.rows[0].id)]
+      : [];
+    return {
+      continuityId,
+      currentBranchId: activeBranchId,
+      branches: branches.rows.map((row) => ({
+        id: row.id,
+        continuityId: row.continuity_id,
+        name: row.name,
+        status: row.status,
+        headCommitId: row.head_commit_id,
+        headStateRevisionId: row.head_state_revision_id,
+        parentBranchId: row.parent_branch_id,
+        forkSourceCommitId: row.fork_source_commit_id,
+        isCurrent: row.id === activeBranchId,
+        createdAt: row.created_at.toISOString(),
+      })),
+      recoveryPoints: points.rows.map((row) => ({
+        id: row.id,
+        continuityId: row.continuity_id,
+        branchId: row.branch_id,
+        commitId: row.commit_id,
+        label: row.label,
+        createdAt: row.created_at.toISOString(),
+        deletedAt: row.deleted_at?.toISOString() ?? null,
+      })),
+      restoreProposals,
+    };
+  }
+
+  async createRecoveryPoint(
+    account: SyntheticAccount,
+    branchId: string,
+    input: { idempotencyKey: string; label: string; commitId?: string },
+  ): Promise<RecoveryPointRecord> {
+    this.assertEligible(account);
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const existing = await client.query<{ id: string }>(
+        `select id from simulora.recovery_points
+         where created_by_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
+        [account.accountId, branchId, input.idempotencyKey],
+      );
+      if (existing.rows[0]) {
+        return this.readRecoveryPointWithClient(client, account.accountId, existing.rows[0].id);
+      }
+      const branch = await client.query<{ continuity_id: string; head_commit_id: string }>(
+        `select b.continuity_id, b.head_commit_id from simulora.branches b
+         join simulora.continuities c on c.id = b.continuity_id
+          and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         where b.id = $1 and b.status = 'ACTIVE' for share of b`,
+        [branchId, account.accountId],
+      );
+      const row = branch.rows[0];
+      if (!row) throw new NotFoundError("Branch not found");
+      const commitId = input.commitId ?? row.head_commit_id;
+      const commit = await client.query<{ id: string }>(
+        "select id from simulora.world_commits where id = $1 and branch_id = $2",
+        [commitId, branchId],
+      );
+      if (!commit.rows[0]) throw new NotFoundError("Recovery source Commit not found");
+      const id = randomUUID();
+      const inserted = await client.query<{ id: string }>(
+        `insert into simulora.recovery_points
+         (id, continuity_id, branch_id, commit_id, label, idempotency_key, created_by_account_id)
+         values ($1, $2, $3, $4, $5, $6, $7)
+         on conflict (created_by_account_id, branch_id, idempotency_key) do nothing
+         returning id`,
+        [
+          id,
+          row.continuity_id,
+          branchId,
+          commitId,
+          input.label.trim(),
+          input.idempotencyKey,
+          account.accountId,
+        ],
+      );
+      if (!inserted.rows[0]) {
+        const duplicate = await client.query<{ id: string }>(
+          `select id from simulora.recovery_points
+           where created_by_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
+          [account.accountId, branchId, input.idempotencyKey],
+        );
+        if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        return this.readRecoveryPointWithClient(client, account.accountId, duplicate.rows[0].id);
+      }
+      return this.readRecoveryPointWithClient(client, account.accountId, id);
+    });
+  }
+
+  async deleteRecoveryPoint(
+    account: SyntheticAccount,
+    recoveryPointId: string,
+  ): Promise<RecoveryPointRecord> {
+    this.assertEligible(account);
+    return transaction(this.pool, async (client) => {
+      const point = await this.readRecoveryPointWithClient(
+        client,
+        account.accountId,
+        recoveryPointId,
+      );
+      await client.query(
+        `update simulora.recovery_points set deleted_at = coalesce(deleted_at, now())
+         where id = $1`,
+        [recoveryPointId],
+      );
+      const deleted = await this.readRecoveryPointWithClient(
+        client,
+        account.accountId,
+        recoveryPointId,
+      );
+      return { ...point, deletedAt: deleted.deletedAt };
+    });
+  }
+
+  async forkBranch(
+    account: SyntheticAccount,
+    continuityId: string,
+    input: {
+      idempotencyKey: string;
+      name: string;
+      sourceCommitId: string;
+      expectedHeadCommitId: string;
+    },
+  ): Promise<RecoveryBranchRecord> {
+    this.assertEligible(account);
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const duplicate = await client.query<{ id: string }>(
+        `select id from simulora.branches
+         where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
+        [account.accountId, continuityId, input.idempotencyKey],
+      );
+      if (duplicate.rows[0]) {
+        return this.readRecoveryBranchWithClient(client, account.accountId, duplicate.rows[0].id);
+      }
+      const source = await client.query<{
+        active_branch_id: string;
+        source_branch_id: string;
+        source_state_revision_id: string;
+        source_document: unknown;
+        source_hash: string;
+        current_head_commit_id: string;
+      }>(
+        `select c.active_branch_id, source.branch_id as source_branch_id,
+                source.state_revision_id as source_state_revision_id,
+                state.document as source_document, state.document_hash as source_hash,
+                active.head_commit_id as current_head_commit_id
+         from simulora.continuities c
+         join simulora.branches active on active.id = c.active_branch_id
+         join simulora.world_commits source on source.id = $3
+         join simulora.branches source_branch on source_branch.id = source.branch_id
+          and source_branch.continuity_id = c.id
+         join simulora.state_revisions state on state.id = source.state_revision_id
+         where c.id = $1 and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         for update of active`,
+        [continuityId, account.accountId, input.sourceCommitId],
+      );
+      const row = source.rows[0];
+      if (!row) throw new NotFoundError("Branch source not found");
+      if (row.current_head_commit_id !== input.expectedHeadCommitId) {
+        throw new ConflictError("BRANCH_HEAD_CONFLICT");
+      }
+      if (row.source_branch_id !== row.active_branch_id) {
+        throw new ConflictError("BRANCH_SOURCE_NOT_CURRENT_PATH");
+      }
+      const state = stateRevisionDocumentSchema.parse(row.source_document);
+      const branchId = randomUUID();
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      const inserted = await client.query<{ id: string }>(
+        `insert into simulora.branches
+         (id, continuity_id, name, status, parent_branch_id, fork_source_commit_id,
+          created_by_account_id, idempotency_key)
+         values ($1, $2, $3, 'INITIALIZING', $4, $5, $6, $7)
+         on conflict (created_by_account_id, continuity_id, idempotency_key)
+          where idempotency_key is not null do nothing
+         returning id`,
+        [
+          branchId,
+          continuityId,
+          input.name.trim(),
+          row.source_branch_id,
+          input.sourceCommitId,
+          account.accountId,
+          input.idempotencyKey,
+        ],
+      );
+      if (!inserted.rows[0]) {
+        const existingFork = await client.query<{ id: string }>(
+          `select id from simulora.branches
+           where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
+          [account.accountId, continuityId, input.idempotencyKey],
+        );
+        if (!existingFork.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        return this.readRecoveryBranchWithClient(
+          client,
+          account.accountId,
+          existingFork.rows[0].id,
+        );
+      }
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason)
+         values ($1, $2, $3, 'BRANCH_FORK', $4, $5, 'USER',
+                 'A separate Branch was created from the selected Commit.')`,
+        [commitId, branchId, input.sourceCommitId, account.accountId, stateRevisionId],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [stateRevisionId, branchId, commitId, JSON.stringify(state), row.source_hash],
+      );
+      await client.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope)
+         values ($1, $2, $3, 'BRANCH_FORKED', $4::jsonb, 'USER', 'CONTINUITY_PRIVATE')`,
+        [
+          randomUUID(),
+          branchId,
+          commitId,
+          JSON.stringify({
+            sourceBranchId: row.source_branch_id,
+            sourceCommitId: input.sourceCommitId,
+          }),
+        ],
+      );
+      await client.query(
+        `update simulora.branches
+         set head_commit_id = $2, head_state_revision_id = $3, status = 'ACTIVE'
+         where id = $1`,
+        [branchId, commitId, stateRevisionId],
+      );
+      return this.readRecoveryBranchWithClient(client, account.accountId, branchId);
+    });
+  }
+
+  async selectBranch(
+    account: SyntheticAccount,
+    continuityId: string,
+    branchId: string,
+  ): Promise<{
+    continuityId: string;
+    currentBranchId: string;
+    branches: RecoveryBranchRecord[];
+    recoveryPoints: RecoveryPointRecord[];
+    restoreProposals: RestoreProposalRecord[];
+  }> {
+    this.assertEligible(account);
+    await transaction(this.pool, async (client) => {
+      const continuity = await client.query<{ active_branch_id: string }>(
+        `select active_branch_id from simulora.continuities
+         where id = $1 and owner_account_id = $2 and status = 'ACTIVE' for update`,
+        [continuityId, account.accountId],
+      );
+      const current = continuity.rows[0];
+      if (!current) throw new NotFoundError("Continuity not found");
+      if (current.active_branch_id === branchId) return;
+      const target = await client.query<{ id: string }>(
+        `select id from simulora.branches
+         where id = $1 and continuity_id = $2 and status = 'ACTIVE'`,
+        [branchId, continuityId],
+      );
+      if (!target.rows[0]) throw new NotFoundError("Branch not found");
+      const pending = await client.query<{ count: number }>(
+        `select count(*)::int as count from simulora.actions
+         where branch_id = $1 and status not in ('COMMITTED', 'CONFLICT', 'CANCELLED', 'SUPERSEDED')`,
+        [current.active_branch_id],
+      );
+      if ((pending.rows[0]?.count ?? 0) > 0) {
+        throw new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION");
+      }
+      await client.query("update simulora.continuities set active_branch_id = $2 where id = $1", [
+        continuityId,
+        branchId,
+      ]);
+    });
+    return this.readRecovery(account, continuityId);
+  }
+
+  async prepareRestore(
+    account: SyntheticAccount,
+    branchId: string,
+    sourceCommitId: string,
+  ): Promise<RestoreProposalRecord> {
+    this.assertEligible(account);
+    return transaction(this.pool, async (client) => {
+      const result = await client.query<{
+        continuity_id: string;
+        head_commit_id: string;
+        current_document: unknown;
+        current_hash: string;
+        source_document: unknown;
+        source_hash: string;
+      }>(
+        `select b.continuity_id, b.head_commit_id,
+                current_state.document as current_document,
+                current_state.document_hash as current_hash,
+                source_state.document as source_document,
+                source_state.document_hash as source_hash
+         from simulora.branches b
+         join simulora.continuities c on c.id = b.continuity_id
+          and c.active_branch_id = b.id and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         join simulora.state_revisions current_state on current_state.id = b.head_state_revision_id
+         join simulora.world_commits source_commit on source_commit.id = $3
+         join simulora.branches source_branch on source_branch.id = source_commit.branch_id
+          and source_branch.continuity_id = b.continuity_id
+         join simulora.state_revisions source_state on source_state.id = source_commit.state_revision_id
+         where b.id = $1 and b.status = 'ACTIVE' for share of b`,
+        [branchId, account.accountId, sourceCommitId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new NotFoundError("Restore source or Branch not found");
+      const current = stateRevisionDocumentSchema.parse(row.current_document);
+      const source = stateRevisionDocumentSchema.parse(row.source_document);
+      const includedSections = [...restorableStateSections];
+      const excludedSections = [
+        "participation",
+        "interactionBoundaries",
+        "customState",
+        "account identity / eligibility / consent",
+        "ownership / grants / usage / exports",
+        "other Branches",
+      ];
+      const changedSections = includedSections.filter(
+        (key) =>
+          JSON.stringify(current[key as keyof StateRevisionDocument]) !==
+          JSON.stringify(source[key as keyof StateRevisionDocument]),
+      );
+      if (changedSections.length === 0) {
+        throw new ConflictError("RESTORE_HAS_NO_CHANGES");
+      }
+      const sectionChanges = changedSections.map((section) => ({
+        section,
+        before: current[section],
+        after: source[section],
+      }));
+      const digest = contentHash({
+        actorAccountId: account.accountId,
+        continuityId: row.continuity_id,
+        branchId,
+        sourceCommitId,
+        expectedHeadCommitId: row.head_commit_id,
+        includedSections,
+        excludedSections,
+        changedSections,
+        beforeHash: row.current_hash,
+        sourceHash: row.source_hash,
+      });
+      const existing = await client.query<{ id: string }>(
+        "select id from simulora.restore_proposals where branch_id = $1 and proposal_digest = $2",
+        [branchId, digest],
+      );
+      if (existing.rows[0]) {
+        return this.readRestoreProposalWithClient(client, account.accountId, existing.rows[0].id);
+      }
+      const id = randomUUID();
+      const expiresAt = new Date(Date.now() + 15 * 60_000);
+      await client.query(
+        `insert into simulora.restore_proposals
+         (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+          expected_head_commit_id, included_sections, excluded_sections, diff,
+          proposal_digest, status, expires_at)
+         values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, 'ACTIVE', $11)`,
+        [
+          id,
+          row.continuity_id,
+          branchId,
+          account.accountId,
+          sourceCommitId,
+          row.head_commit_id,
+          JSON.stringify(includedSections),
+          JSON.stringify(excludedSections),
+          JSON.stringify({
+            changedSections,
+            sectionChanges,
+            beforeHash: row.current_hash,
+            sourceHash: row.source_hash,
+          }),
+          digest,
+          expiresAt,
+        ],
+      );
+      return this.readRestoreProposalWithClient(client, account.accountId, id);
+    });
+  }
+
+  async confirmRestore(
+    account: SyntheticAccount,
+    branchId: string,
+    request: { proposalId: string; digest: string; expectedHeadCommitId: string },
+  ): Promise<RestoreCommitRecord> {
+    this.assertEligible(account);
+    const result = await transaction(this.pool, async (client) => {
+      const proposalResult = await client.query<{
+        id: string;
+        continuity_id: string;
+        branch_id: string;
+        actor_account_id: string;
+        source_commit_id: string;
+        expected_head_commit_id: string;
+        proposal_digest: string;
+        status: RestoreProposalRecord["status"];
+        expires_at: Date;
+      }>(
+        `select id, continuity_id, branch_id, actor_account_id, source_commit_id,
+                expected_head_commit_id, proposal_digest, status, expires_at
+         from simulora.restore_proposals
+         where id = $1 and branch_id = $2 and actor_account_id = $3 for update`,
+        [request.proposalId, branchId, account.accountId],
+      );
+      const proposal = proposalResult.rows[0];
+      if (!proposal) throw new NotFoundError("Restore proposal not found");
+      if (
+        proposal.proposal_digest !== request.digest ||
+        proposal.expected_head_commit_id !== request.expectedHeadCommitId
+      ) {
+        throw new ConflictError("RESTORE_CONFIRMATION_MISMATCH");
+      }
+      if (proposal.status === "CONFIRMED") {
+        const committed = await client.query<{
+          id: string;
+          state_revision_id: string;
+          created_at: Date;
+        }>(
+          "select id, state_revision_id, created_at from simulora.world_commits where restore_proposal_id = $1",
+          [proposal.id],
+        );
+        const row = committed.rows[0];
+        if (!row) throw new ConflictError("RESTORE_RESULT_UNAVAILABLE");
+        return {
+          commitId: row.id,
+          stateRevisionId: row.state_revision_id,
+          resultingHeadCommitId: row.id,
+          committedAt: row.created_at.toISOString(),
+        };
+      }
+      if (proposal.status !== "ACTIVE" || proposal.expires_at.getTime() <= Date.now()) {
+        throw new ConflictError("RESTORE_REVIEW_NOT_ACTIVE");
+      }
+      const branch = await client.query<{
+        continuity_id: string;
+        head_commit_id: string;
+        head_state_revision_id: string;
+        current_document: unknown;
+      }>(
+        `select b.continuity_id, b.head_commit_id, b.head_state_revision_id,
+                state.document as current_document
+         from simulora.branches b
+         join simulora.continuities c on c.id = b.continuity_id
+          and c.active_branch_id = b.id and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         join simulora.state_revisions state on state.id = b.head_state_revision_id
+         where b.id = $1 and b.status = 'ACTIVE' for update of b`,
+        [branchId, account.accountId],
+      );
+      const currentBranch = branch.rows[0];
+      if (!currentBranch) throw new NotFoundError("Branch not found");
+      if (currentBranch.head_commit_id !== proposal.expected_head_commit_id) {
+        await client.query("update simulora.restore_proposals set status = 'STALE' where id = $1", [
+          proposal.id,
+        ]);
+        return null;
+      }
+      const sourceResult = await client.query<{ document: unknown }>(
+        `select s.document from simulora.world_commits c
+         join simulora.state_revisions s on s.id = c.state_revision_id
+         join simulora.branches source_branch on source_branch.id = c.branch_id
+          and source_branch.continuity_id = $2
+         where c.id = $1`,
+        [proposal.source_commit_id, currentBranch.continuity_id],
+      );
+      if (!sourceResult.rows[0]) throw new NotFoundError("Restore source Commit not found");
+      const current = stateRevisionDocumentSchema.parse(currentBranch.current_document);
+      const source = stateRevisionDocumentSchema.parse(sourceResult.rows[0].document);
+      const nextState = applyRestorableState(current, source);
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      await client.query(
+        `insert into simulora.restore_confirmations
+         (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          randomUUID(),
+          proposal.id,
+          account.accountId,
+          request.digest,
+          request.expectedHeadCommitId,
+        ],
+      );
+      await client.query(
+        "update simulora.restore_proposals set status = 'CONFIRMED' where id = $1",
+        [proposal.id],
+      );
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason, restore_proposal_id)
+         values ($1, $2, $3, 'RESTORE_COMMITTED', $4, $5, 'USER',
+                 'Selected world-state sections were restored from an earlier Commit.', $6)`,
+        [
+          commitId,
+          branchId,
+          request.expectedHeadCommitId,
+          account.accountId,
+          stateRevisionId,
+          proposal.id,
+        ],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [stateRevisionId, branchId, commitId, JSON.stringify(nextState), contentHash(nextState)],
+      );
+      await client.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope)
+         values ($1, $2, $3, 'STATE_RESTORED', $4::jsonb, 'USER', 'CONTINUITY_PRIVATE')`,
+        [
+          randomUUID(),
+          branchId,
+          commitId,
+          JSON.stringify({
+            restoreProposalId: proposal.id,
+            sourceCommitId: proposal.source_commit_id,
+            includedSections: restorableStateSections,
+          }),
+        ],
+      );
+      const advanced = await client.query(
+        `update simulora.branches set head_commit_id = $2, head_state_revision_id = $3
+         where id = $1 and head_commit_id = $4 returning id`,
+        [branchId, commitId, stateRevisionId, request.expectedHeadCommitId],
+      );
+      if (!advanced.rows[0]) throw new ConflictError("BRANCH_HEAD_CONFLICT");
+      await client.query(
+        `update simulora.return_orientation_projections
+         set status = 'STALE', updated_at = now(), row_version = row_version + 1
+         where branch_id = $1`,
+        [branchId],
+      );
+      await client.query(
+        `insert into simulora.transactional_outbox
+         (id, topic, source_id, dedupe_key, payload)
+         values ($1, 'projection.invalidated', $2, $3, $4::jsonb)`,
+        [
+          randomUUID(),
+          commitId,
+          `projection:${branchId}:${commitId}`,
+          JSON.stringify({ branchId, currentHeadCommitId: commitId }),
+        ],
+      );
+      return {
+        commitId,
+        stateRevisionId,
+        resultingHeadCommitId: commitId,
+        committedAt: new Date().toISOString(),
+      };
+    });
+    if (!result) throw new ConflictError("RESTORE_REVIEW_STALE");
+    return result;
+  }
+
   /**
    * Return the current orientation and any available rebuildable projection.
    * Projection and authoritative head are read in one transaction; a stale
@@ -1981,6 +2677,150 @@ export class AuthoritativeWorldRepository {
         },
       };
     });
+  }
+
+  private async readRecoveryPointWithClient(
+    client: PoolClient,
+    accountId: string,
+    recoveryPointId: string,
+  ): Promise<RecoveryPointRecord> {
+    const result = await client.query<{
+      id: string;
+      continuity_id: string;
+      branch_id: string;
+      commit_id: string;
+      label: string;
+      created_at: Date;
+      deleted_at: Date | null;
+    }>(
+      `select point.id, point.continuity_id, point.branch_id, point.commit_id,
+              point.label, point.created_at, point.deleted_at
+       from simulora.recovery_points point
+       join simulora.continuities continuity on continuity.id = point.continuity_id
+        and continuity.owner_account_id = $2
+       where point.id = $1`,
+      [recoveryPointId, accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Recovery Point not found");
+    return {
+      id: row.id,
+      continuityId: row.continuity_id,
+      branchId: row.branch_id,
+      commitId: row.commit_id,
+      label: row.label,
+      createdAt: row.created_at.toISOString(),
+      deletedAt: row.deleted_at?.toISOString() ?? null,
+    };
+  }
+
+  private async readRecoveryBranchWithClient(
+    client: PoolClient,
+    accountId: string,
+    branchId: string,
+  ): Promise<RecoveryBranchRecord> {
+    const result = await client.query<{
+      id: string;
+      continuity_id: string;
+      name: string;
+      status: "ACTIVE";
+      head_commit_id: string;
+      head_state_revision_id: string;
+      parent_branch_id: string | null;
+      fork_source_commit_id: string | null;
+      is_current: boolean;
+      created_at: Date;
+    }>(
+      `select branch.id, branch.continuity_id, branch.name, branch.status,
+              branch.head_commit_id, branch.head_state_revision_id,
+              branch.parent_branch_id, branch.fork_source_commit_id,
+              (continuity.active_branch_id = branch.id) as is_current,
+              branch.created_at
+       from simulora.branches branch
+       join simulora.continuities continuity on continuity.id = branch.continuity_id
+        and continuity.owner_account_id = $2
+       where branch.id = $1 and branch.status = 'ACTIVE'`,
+      [branchId, accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Branch not found");
+    return {
+      id: row.id,
+      continuityId: row.continuity_id,
+      name: row.name,
+      status: row.status,
+      headCommitId: row.head_commit_id,
+      headStateRevisionId: row.head_state_revision_id,
+      parentBranchId: row.parent_branch_id,
+      forkSourceCommitId: row.fork_source_commit_id,
+      isCurrent: row.is_current,
+      createdAt: row.created_at.toISOString(),
+    };
+  }
+
+  private async readRestoreProposalWithClient(
+    client: PoolClient,
+    accountId: string,
+    proposalId: string,
+  ): Promise<RestoreProposalRecord> {
+    const result = await client.query<{
+      id: string;
+      continuity_id: string;
+      branch_id: string;
+      source_commit_id: string;
+      expected_head_commit_id: string;
+      included_sections: string[];
+      excluded_sections: string[];
+      diff: {
+        changedSections: string[];
+        sectionChanges: Array<{ section: string; before: unknown; after: unknown }>;
+        beforeHash: string;
+        sourceHash: string;
+      };
+      proposal_digest: string;
+      expires_at: Date;
+      status: RestoreProposalRecord["status"];
+    }>(
+      `select proposal.id, proposal.continuity_id, proposal.branch_id,
+              proposal.source_commit_id, proposal.expected_head_commit_id,
+              proposal.included_sections, proposal.excluded_sections, proposal.diff,
+              proposal.proposal_digest, proposal.expires_at, proposal.status
+       from simulora.restore_proposals proposal
+       join simulora.continuities continuity on continuity.id = proposal.continuity_id
+        and continuity.owner_account_id = $2
+       where proposal.id = $1`,
+      [proposalId, accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Restore proposal not found");
+    return {
+      id: row.id,
+      continuityId: row.continuity_id,
+      branchId: row.branch_id,
+      sourceCommitId: row.source_commit_id,
+      expectedHeadCommitId: row.expected_head_commit_id,
+      includedSections: row.included_sections,
+      excludedSections: row.excluded_sections,
+      changedSections: row.diff.changedSections,
+      sectionChanges: row.diff.sectionChanges,
+      beforeHash: row.diff.beforeHash,
+      sourceHash: row.diff.sourceHash,
+      digest: row.proposal_digest,
+      expiresAt: row.expires_at.toISOString(),
+      status: row.status,
+    };
+  }
+
+  private async readRestoreProposalWithPool(
+    accountId: string,
+    proposalId: string,
+  ): Promise<RestoreProposalRecord> {
+    const client = await this.pool.connect();
+    try {
+      return await this.readRestoreProposalWithClient(client, accountId, proposalId);
+    } finally {
+      client.release();
+    }
   }
 
   private async initialCommitId(client: PoolClient, branchId: string): Promise<string> {

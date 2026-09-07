@@ -10,6 +10,7 @@ import {
   FoundationPage,
   NotFoundPage,
   ReturnPage,
+  RecoveryPage,
   WorldPage,
 } from "./pages.js";
 import { ContinuityLayout } from "./continuity.js";
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
       { path: "context", element: <ContextPage /> },
       { path: "correction/:targetId", element: <CorrectionReviewPage /> },
       { path: "actions/:actionId", element: <ActionStatusPage /> },
+      { path: "recovery", element: <RecoveryPage /> },
     ],
   },
   { path: "*", element: <NotFoundPage /> },

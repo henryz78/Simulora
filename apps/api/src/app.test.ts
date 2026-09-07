@@ -49,12 +49,12 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("reports the IP-4 Return and Continuity phase without claiming later capabilities", async () => {
+  it("reports the IP-5 Recovery phase without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
     const foundation = foundationResponseSchema.parse(response.json());
-    expect(foundation.productImplementationPhase).toBe("IP-4");
+    expect(foundation.productImplementationPhase).toBe("IP-5");
     expect(foundation.productSemanticsStarted).toBe(true);
   });
 

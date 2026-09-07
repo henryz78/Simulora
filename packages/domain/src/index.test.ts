@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyValidatedActionCandidate,
+  applyRestorableState,
   canonicalJson,
   contentHash,
   createInitialState,
@@ -209,5 +210,27 @@ describe("IP-4 Action Truth and correction domain", () => {
         },
       ),
     ).toThrow(/outside the authorized context/);
+  });
+});
+
+describe("IP-5 Restore allow-list", () => {
+  it("restores world state while preserving current participation, boundaries and custom state", () => {
+    const source = createInitialState(lanternReachSeed, {
+      initiativeMode: "DIRECT",
+      structureMode: "OPEN_ENDED",
+    });
+    const current = structuredClone(source);
+    current.participation = { initiativeMode: "WORLD_ACTIVE", structureMode: "GOAL_FRAMED" };
+    current.interactionBoundaries = ["Current Branch boundary"];
+    current.customState = { protectedLocalValue: "current" };
+    current.facts[0]!.statement = "The western signal is steady.";
+    current.worldClock = { turn: 7, label: "After seven turns" };
+
+    const restored = applyRestorableState(current, source);
+    expect(restored.facts).toEqual(source.facts);
+    expect(restored.worldClock).toEqual(source.worldClock);
+    expect(restored.participation).toEqual(current.participation);
+    expect(restored.interactionBoundaries).toEqual(current.interactionBoundaries);
+    expect(restored.customState).toEqual(current.customState);
   });
 });

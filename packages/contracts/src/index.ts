@@ -14,7 +14,7 @@ export const foundationCapabilitySchema = z.object({
 });
 
 export const foundationResponseSchema = z.object({
-  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4"]),
+  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4", "IP-5"]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
 });
@@ -437,6 +437,126 @@ export const explanationResponseSchema = z
   })
   .strict();
 
+export const recoveryPointSchema = z
+  .object({
+    id: stableIdSchema,
+    continuityId: stableIdSchema,
+    branchId: stableIdSchema,
+    commitId: stableIdSchema,
+    label: z.string().trim().min(1).max(160),
+    createdAt: z.string().datetime(),
+    deletedAt: z.string().datetime().nullable(),
+  })
+  .strict();
+
+export const recoveryBranchSchema = z
+  .object({
+    id: stableIdSchema,
+    continuityId: stableIdSchema,
+    name: z.string().trim().min(1).max(160),
+    status: z.enum(["ACTIVE"]),
+    headCommitId: stableIdSchema,
+    headStateRevisionId: stableIdSchema,
+    parentBranchId: stableIdSchema.nullable(),
+    forkSourceCommitId: stableIdSchema.nullable(),
+    isCurrent: z.boolean(),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+
+export const restoreProposalSchema = z
+  .object({
+    id: stableIdSchema,
+    continuityId: stableIdSchema,
+    branchId: stableIdSchema,
+    sourceCommitId: stableIdSchema,
+    expectedHeadCommitId: stableIdSchema,
+    includedSections: z.array(z.string().min(1)),
+    excludedSections: z.array(z.string().min(1)),
+    changedSections: z.array(z.string().min(1)),
+    sectionChanges: z.array(
+      z
+        .object({
+          section: z.string().min(1),
+          before: z.unknown(),
+          after: z.unknown(),
+        })
+        .strict(),
+    ),
+    beforeHash: z.string().regex(/^[0-9a-f]{64}$/),
+    sourceHash: z.string().regex(/^[0-9a-f]{64}$/),
+    digest: z.string().regex(/^[0-9a-f]{64}$/),
+    expiresAt: z.string().datetime(),
+    status: z.enum(["ACTIVE", "CONFIRMED", "STALE", "REJECTED", "EXPIRED"]),
+  })
+  .strict();
+
+export const restoreCommitSchema = z
+  .object({
+    commitId: stableIdSchema,
+    stateRevisionId: stableIdSchema,
+    resultingHeadCommitId: stableIdSchema,
+    committedAt: z.string().datetime(),
+  })
+  .strict();
+
+export const recoveryResponseSchema = z
+  .object({
+    continuityId: stableIdSchema,
+    currentBranchId: stableIdSchema,
+    branches: z.array(recoveryBranchSchema),
+    recoveryPoints: z.array(recoveryPointSchema),
+    restoreProposals: z.array(restoreProposalSchema),
+  })
+  .strict();
+
+export const createRecoveryPointRequestSchema = z
+  .object({
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    label: z.string().trim().min(1).max(160),
+    commitId: stableIdSchema.optional(),
+  })
+  .strict();
+
+export const forkBranchRequestSchema = z
+  .object({
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    name: z.string().trim().min(1).max(160),
+    sourceCommitId: stableIdSchema,
+    expectedHeadCommitId: stableIdSchema,
+  })
+  .strict();
+
+export const selectBranchRequestSchema = z
+  .object({
+    branchId: stableIdSchema,
+  })
+  .strict();
+
+export const createRestoreProposalRequestSchema = z
+  .object({
+    sourceCommitId: stableIdSchema,
+  })
+  .strict();
+
+export const confirmRestoreRequestSchema = z
+  .object({
+    proposalId: stableIdSchema,
+    digest: z.string().regex(/^[0-9a-f]{64}$/),
+    expectedHeadCommitId: stableIdSchema,
+  })
+  .strict();
+
 export type HealthStatus = z.infer<typeof healthStatusSchema>;
 export type FoundationResponse = z.infer<typeof foundationResponseSchema>;
 export type CorrelationContext = z.infer<typeof correlationContextSchema>;
@@ -461,3 +581,13 @@ export type TraceEvent = z.infer<typeof traceEventSchema>;
 export type TraceCommit = z.infer<typeof traceCommitSchema>;
 export type BranchTraceResponse = z.infer<typeof branchTraceResponseSchema>;
 export type ExplanationResponse = z.infer<typeof explanationResponseSchema>;
+export type RecoveryPoint = z.infer<typeof recoveryPointSchema>;
+export type RecoveryBranch = z.infer<typeof recoveryBranchSchema>;
+export type RestoreProposal = z.infer<typeof restoreProposalSchema>;
+export type RestoreCommit = z.infer<typeof restoreCommitSchema>;
+export type RecoveryResponse = z.infer<typeof recoveryResponseSchema>;
+export type CreateRecoveryPointRequest = z.infer<typeof createRecoveryPointRequestSchema>;
+export type ForkBranchRequest = z.infer<typeof forkBranchRequestSchema>;
+export type SelectBranchRequest = z.infer<typeof selectBranchRequestSchema>;
+export type CreateRestoreProposalRequest = z.infer<typeof createRestoreProposalRequestSchema>;
+export type ConfirmRestoreRequest = z.infer<typeof confirmRestoreRequestSchema>;
