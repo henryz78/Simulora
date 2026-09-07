@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-5 IMPLEMENTED / G5 CANDIDATE / INDEPENDENT REVIEW REQUIRED`
+**Status:** `IP-5 IMPLEMENTED / G5 RE-REVIEW CANDIDATE / INDEPENDENT RE-REVIEW REQUIRED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -10,8 +10,9 @@
 
 ```text
 Repository branch:                 main
-G5 candidate production baseline:  a988051637fc15ab8cc29ad67c1e9ee0db55f967
-Evidence verified against:         a988051637fc15ab8cc29ad67c1e9ee0db55f967
+G5 original candidate:             a988051637fc15ab8cc29ad67c1e9ee0db55f967
+G5 focused repair baseline:        f1ae65e2bae457afeba8544b4dae345dd3089ce5
+Evidence verified against:         f1ae65e2bae457afeba8544b4dae345dd3089ce5
 Worktree at evidence check:        clean
 
 Frozen Experience baseline:        877f4d532024009ba44d99580e12ce088136304a
@@ -32,9 +33,9 @@ Live model provider:               not connected
 Formal deployment:                 not started
 ```
 
-`READY FOR INDEPENDENT G5 REVIEW: YES` means the authorized IP-5 implementation and its exact-baseline CI evidence are complete. It does not mean G5 passed or authorize IP-6.
+`READY FOR INDEPENDENT G5 RE-REVIEW: YES` means the authorized IP-5 implementation, focused repair and exact-baseline CI evidence are complete. It does not mean G5 passed or authorize IP-6.
 
-This handoff update is documentation-only. Its later commit is not a new application implementation baseline; reviewers should inspect application behavior at `a988051` and confirm that the later diff contains only status/evidence documentation.
+This handoff update is documentation-only. Its later commit is not a new application implementation baseline; reviewers should inspect repaired application behavior at `f1ae65e` and confirm that the later diff contains only status/evidence documentation.
 
 ## 2. Binding inputs and boundaries
 
@@ -93,13 +94,15 @@ The current model adapter is deterministic and operates only on an eligible exis
 - Return projections invalidate/rebuild after a Commit. Missing or non-fresh empty history is explicitly unavailable, not falsely presented as "no meaningful change".
 - Pending Actions recover across World, Return, Continuity and Context. A correction that advances the head does not erase an older pending participation Action; it becomes a normal stale conflict rather than a silent truth mutation.
 
-### Non-destructive Recovery, IP-5 / G5 candidate
+### Non-destructive Recovery, IP-5 / G5 re-review candidate
 
 - Recovery Points are owner-scoped labels pointing at existing Commits. Creating/retrying is idempotent; deleting a label leaves its Commit, State Revision and history intact.
 - Branch fork is one transaction creating a separate Branch, `BRANCH_FORK` Commit, copied immutable State Revision, `BRANCH_FORKED` Event and explicit source lineage. It never selects or writes the source Branch, and V1 has no merge.
+- An accessible Commit on a preserved non-current Branch remains a valid fork source. Fork creation serializes against current-path selection, while the expected active head still protects stale requests.
 - Current-path selection updates only the Continuity pointer. It is serialized with new Action acknowledgement and refuses to hide unresolved Actions on the current Branch.
 - Restore review durably binds the source Commit, actual section-level before/after diff, included/excluded scope, digest, expiry and expected head.
 - Restore confirmation binds actor, proposal, digest and expected head. Stale confirmation writes no world mutation; success appends one Commit/State Revision/Event and advances one Branch without truncating history.
+- Restore confirmation also serializes against active-path selection. A lost confirmation response is reconciled through the owner-scoped durable proposal status/result instead of being presented as definitely unchanged.
 - Restore cannot change participation, interaction boundaries, custom/account-owned state, consent, ownership, grants, usage, exports or another Branch.
 - Recovery remains secondary/contextual on desktop and mobile. Correction remains record-bound, while Delete remains a separate lifecycle handoff and is not exposed as undo.
 
@@ -134,12 +137,12 @@ The key implementation boundary is deliberately narrow: a model or UI may propos
 | `apps/api` | HTTP/SSE composition root, authorization boundary and application service wiring | Implemented through IP-5 |
 | `apps/worker` | Durable Action job leasing, deterministic generation and progress/outbox work | Unchanged; G1–G4 behavior regressed in G5 CI |
 | `packages/*` | Domain/application/contracts/database and infrastructure port boundaries | Implemented as needed through IP-5 |
-| `db/migrations/0001`–`0008` | Foundation; authoritative spine; Action Truth; Return/Correction; Recovery invariants | Applied and verified in CI |
+| `db/migrations/0001`–`0009` | Foundation; authoritative spine; Action Truth; Return/Correction; Recovery invariants and focused active-path hardening | Applied and verified in CI |
 | PostgreSQL | Transactional authority for current state, history, Action lifecycle, jobs and derived-projection metadata | Required and tested |
 | Object storage | Port/fake only | No production vendor selected |
 | Model gateway | Deterministic adapter | No live provider selected |
 
-The schema is additive through `0008_ip5_recovery.sql`. It does not implement destructive rewind, Branch merge, a general Delete lifecycle, participation-contract changes, character authority, World Studio drafts/revisions or release operations.
+The schema is additive through `0009_ip5_gate_g5_repairs.sql`. It does not implement destructive rewind, Branch merge, a general Delete lifecycle, participation-contract changes, character authority, World Studio drafts/revisions or release operations.
 
 ## 6. Gate ledger and provenance
 
@@ -150,7 +153,7 @@ The schema is additive through `0008_ip5_recovery.sql`. It does not implement de
 | G2 | Authoritative World/Continuity spine | Passed | `71be983` plus invariant hardening through `0083359`; PostgreSQL spine remains a required regression |
 | G3 | Action Truth | Passed | `9a3c711` initial slice; focused repairs through `7985471`; independent review and [CI run 33647981503](https://github.com/henryz78/Simulora/actions/runs/33647981503) |
 | G4 | Return/Continuity/Correction | Passed | `75bda8f`; final independent review and [CI run 34058792679](https://github.com/henryz78/Simulora/actions/runs/34058792679) |
-| G5 | Non-destructive Recovery | Pending independent review | Candidate `a988051`; [CI run 34164728232](https://github.com/henryz78/Simulora/actions/runs/34164728232) and [G5 evidence](IP-5-G5-EVIDENCE.md) |
+| G5 | Non-destructive Recovery | Pending independent re-review | Original `a988051`; repair `f1ae65e`; [CI run 34168464150](https://github.com/henryz78/Simulora/actions/runs/34168464150) and [G5 evidence](IP-5-G5-EVIDENCE.md) |
 
 The complete G4 failure-to-pass history is retained in [IP-4 G4 Evidence](IP-4-G4-EVIDENCE.md). Earlier report headers that say `READY FOR REVIEW` or `IN PROGRESS` are contemporaneous evidence snapshots; this handoff and the final G4 section record the current decision rather than erasing those historical states.
 
@@ -176,7 +179,7 @@ CI: [run 34058792679](https://github.com/henryz78/Simulora/actions/runs/34058792
 
 The local host has no configured PostgreSQL service. Local test skips are therefore not treated as database evidence; the actual Ubuntu/PostgreSQL CI run above is the source of record for database/concurrency verification.
 
-## 8. Exact G5 candidate verification
+## 8. Exact original G5 candidate verification
 
 Candidate SHA: `a988051637fc15ab8cc29ad67c1e9ee0db55f967`
 CI: [run 34164728232](https://github.com/henryz78/Simulora/actions/runs/34164728232), job `101873411397`, conclusion `success`.
@@ -187,9 +190,23 @@ CI: [run 34164728232](https://github.com/henryz78/Simulora/actions/runs/34164728
 - API and worker production container builds, API health and worker-ready smoke passed.
 - Desktop Chromium and 390×844 Playwright: `34/34` passed.
 
-This evidence makes the candidate ready for independent G5 review; it is not a Gate decision by the implementing agent.
+This evidence supported the initial independent G5 review; its `PASS WITH ISSUES` decision is recorded below.
 
-## 9. Explicitly not completed
+## 9. G5 independent review and focused repair
+
+The first independent G5 review of `a988051` returned `PASS WITH ISSUES`: `0 BLOCKER / 3 IMPORTANT / 1 MINOR`, `READY FOR IP-6: NO`. It preserved the IP-5 design but found an active-path race, false certainty after a lost Restore response, an over-restrictive non-current fork-source rule and a concurrent proposal uniqueness race.
+
+Focused repair baseline: `f1ae65e2bae457afeba8544b4dae345dd3089ce5`
+CI: [run 34168464150](https://github.com/henryz78/Simulora/actions/runs/34168464150), job `101884063197`, conclusion `success`.
+
+- Nine migrations applied/rehearsed successfully.
+- Real PostgreSQL: `43/43` in six suites, including deterministic Restore/current-path concurrency, non-current source isolation and concurrent proposal convergence.
+- Full check: `81/81` in nineteen files; build/runtime and API/worker container smoke passed.
+- Desktop plus 390×844 Playwright: `36/36`, including a real aborted confirmation-response reconciliation journey.
+
+The same independent Reviewer is requested to re-test all original findings and proactively search for additional G5 issues. No Gate decision has been self-issued.
+
+## 10. Explicitly not completed
 
 These are later roadmap items, not G5 defects:
 
@@ -200,9 +217,9 @@ These are later roadmap items, not G5 defects:
 
 Also intentionally absent: a real identity/eligibility provider, live model, cloud storage vendor, product deployment, production retention/DR policy, full manual assistive-technology matrix and customer-facing commercial functionality.
 
-## 10. Approval decision requested
+## 11. Approval decision requested
 
-An independent Reviewer may use this handoff to decide **Gate G5** against exact candidate `a988051`.
+The same independent Reviewer may use this handoff to re-evaluate **Gate G5** against exact repair candidate `f1ae65e`.
 
 Recommended decision criteria:
 
@@ -213,10 +230,10 @@ Recommended decision criteria:
 
 ```text
 CURRENT IMPLEMENTATION: IP-5 COMPLETE
-GATE G5: PENDING INDEPENDENT REVIEW
-G5 CANDIDATE: a988051637fc15ab8cc29ad67c1e9ee0db55f967
+GATE G5: PENDING INDEPENDENT RE-REVIEW
+G5 REPAIR CANDIDATE: f1ae65e2bae457afeba8544b4dae345dd3089ce5
 GITHUB CI: PASS
-READY FOR INDEPENDENT G5 REVIEW: YES
+READY FOR INDEPENDENT G5 RE-REVIEW: YES
 IP-6: NOT STARTED
 PRODUCT RELEASE: NOT STARTED
 ```

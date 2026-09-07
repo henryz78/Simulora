@@ -14,3 +14,7 @@
 | G5-10 | Recovery paths work on desktop and 390x844 without fixed-nav obstruction | Playwright walkthrough |
 | G5-11 | IP-2 through IP-4 authority, action and continuity suites remain green | full suite |
 | G5-12 | No IP-6/IP-7/live-model implementation enters the production slice | architecture/scope check |
+| G5-13 | Restore confirmation and current-path selection serialize; selection-first makes the exact review stale with no mutation | deterministic PostgreSQL concurrency test |
+| G5-14 | Lost confirmation response reconciles owner-scoped durable proposal/result status without false unchanged truth | API/PostgreSQL plus desktop/mobile E2E |
+| G5-15 | A preserved non-current Branch Commit remains a valid fork source without changing that source | PostgreSQL transaction test |
+| G5-16 | Concurrent identical Restore reviews converge on one proposal rather than surfacing a uniqueness failure | PostgreSQL concurrency test |
