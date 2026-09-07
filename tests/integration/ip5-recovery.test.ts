@@ -197,12 +197,22 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       forkSourceCommitId: point.commitId,
       isCurrent: false,
     });
-    const originalAfterInactiveFork = await repository.readBranchState(
-      account,
-      continuity.branchId,
+    const originalAfterInactiveFork = await pool.query<{
+      head_commit_id: string;
+      document_hash: string;
+    }>(
+      `select branch.head_commit_id, state.document_hash
+       from simulora.branches branch
+       join simulora.continuities continuity on continuity.id = branch.continuity_id
+        and continuity.owner_account_id = $2
+       join simulora.state_revisions state on state.id = branch.head_state_revision_id
+       where branch.id = $1`,
+      [continuity.branchId, account.accountId],
     );
-    expect(originalAfterInactiveFork.headCommitId).toBe(continuity.headCommitId);
-    expect(originalAfterInactiveFork.stateHash).toBe(originalState.stateHash);
+    expect(originalAfterInactiveFork.rows[0]).toEqual({
+      head_commit_id: continuity.headCommitId,
+      document_hash: originalState.stateHash,
+    });
 
     const deleted = await repository.deleteRecoveryPoint(account, point.id);
     expect(deleted.deletedAt).not.toBeNull();
