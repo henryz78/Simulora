@@ -1167,27 +1167,35 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
 
     const client = await pool.connect();
     try {
+      const continuityId = randomUUID();
+      const branchId = randomUUID();
       const commitId = randomUUID();
       const stateRevisionId = randomUUID();
       await client.query("begin");
       await client.query(
+        `insert into simulora.continuities
+         (id, owner_account_id, world_revision_id, status)
+         select $1, owner_account_id, world_revision_id, 'INITIALIZING'
+         from simulora.continuities where id = $2`,
+        [continuityId, continuity.continuityId],
+      );
+      await client.query(
+        `insert into simulora.branches (id, continuity_id, name, status)
+         values ($1, $2, 'Invalid hash fixture', 'INITIALIZING')`,
+        [branchId, continuityId],
+      );
+      await client.query(
         `insert into simulora.world_commits
          (id, branch_id, kind, actor_account_id, state_revision_id, source_type, reason)
          values ($1, $2, 'CONTINUITY_INITIALIZED', $3, $4, 'SYSTEM', 'invalid hash')`,
-        [commitId, continuity.branchId, account.accountId, stateRevisionId],
+        [commitId, branchId, account.accountId, stateRevisionId],
       );
       await expect(
         client.query(
           `insert into simulora.state_revisions
            (id, branch_id, commit_id, schema_version, document, document_hash)
            values ($1, $2, $3, 1, $4::jsonb, $5)`,
-          [
-            stateRevisionId,
-            continuity.branchId,
-            commitId,
-            JSON.stringify(continuity.state),
-            "0".repeat(64),
-          ],
+          [stateRevisionId, branchId, commitId, JSON.stringify(continuity.state), "0".repeat(64)],
         ),
       ).rejects.toThrow(/state_revision_document_hash_matches/);
     } finally {
