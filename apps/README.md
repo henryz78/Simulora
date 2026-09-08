@@ -4,6 +4,6 @@
 - `api` — versioned JSON/SSE Node composition root.
 - `worker` — independently scalable Node worker composition root.
 
-IP-3 exposes the authoritative World/Draft/Revision/Continuity read spine plus the Action Truth vertical slice. Recovery, World Studio and live model behavior remain intentionally absent until their authorized phases.
+The production application is implemented through the IP-6 participation and character-authority candidate. World Studio, live model behavior and later lifecycle/release work remain intentionally absent until their authorized phases.
 
 Production apps must not import from `prototypes/`.

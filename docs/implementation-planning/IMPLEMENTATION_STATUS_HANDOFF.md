@@ -1,18 +1,19 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-5 IMPLEMENTED / G5 RE-REVIEW CANDIDATE / INDEPENDENT RE-REVIEW REQUIRED`
+**Status:** `IP-6 IMPLEMENTED / G5 RE-REVIEW IN PROGRESS / G6 INDEPENDENT REVIEW REQUIRED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
-**Snapshot date:** `2026-09-07`
+**Snapshot date:** `2026-09-08`
 
 ## 1. Executive status
 
 ```text
 Repository branch:                 main
 G5 original candidate:             a988051637fc15ab8cc29ad67c1e9ee0db55f967
-G5 focused repair baseline:        f1ae65e2bae457afeba8544b4dae345dd3089ce5
-Evidence verified against:         f1ae65e2bae457afeba8544b4dae345dd3089ce5
+Final G5 repair baseline:           4cd5106528fef80fadbbb825b064439106400538
+IP-6 production candidate:         4e682f7732e514b74062c32f512f9f2ed1522e29
+Evidence verified locally against: 4e682f7732e514b74062c32f512f9f2ed1522e29
 Worktree at evidence check:        clean
 
 Frozen Experience baseline:        877f4d532024009ba44d99580e12ce088136304a
@@ -23,19 +24,19 @@ G1 engineering foundation:         passed
 G2 authoritative spine:            passed
 G3 Action Truth:                   passed
 G4 Return / Continuity / Correction: passed
-G5 Recovery:                       pending independent review
+G5 Recovery:                       independent re-review in progress
 
 IP-5 Recovery:                     implementation complete
-IP-6 Participation / characters:   not started
+IP-6 Participation / characters:   implementation complete; G6 pending
 IP-7 World Studio:                 not started
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Formal deployment:                 not started
 ```
 
-`READY FOR INDEPENDENT G5 RE-REVIEW: YES` means the authorized IP-5 implementation, focused repair and exact-baseline CI evidence are complete. It does not mean G5 passed or authorize IP-6.
+G5 is being reviewed against an isolated detached worktree at exact baseline `4cd5106`; the user explicitly authorized IP-6 implementation to proceed in parallel. Neither green CI nor this handoff self-approves G5 or G6.
 
-This handoff update is documentation-only. Its later commit is not a new application implementation baseline; reviewers should inspect repaired application behavior at `f1ae65e` and confirm that the later diff contains only status/evidence documentation.
+This handoff update is documentation-only. Reviewers should inspect G5 behavior at `4cd5106` and the repaired IP-6 production candidate at `4e682f7`; a later evidence commit is not a new product-behavior baseline.
 
 ## 2. Binding inputs and boundaries
 

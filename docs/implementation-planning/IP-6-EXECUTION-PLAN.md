@@ -1,8 +1,10 @@
 # IP-6 Participation and Character Authority — Execution Plan
 
-Status: `IN PROGRESS`
+Status: `IMPLEMENTATION COMPLETE / GATE G6 REVIEW CANDIDATE`
 
-Baseline: `685fb0bd6f74e3a8eeae9a744f4455040061e94c`
+Starting integration baseline: `4cd5106528fef80fadbbb825b064439106400538`
+
+Production candidate: `4e682f7732e514b74062c32f512f9f2ed1522e29`
 
 ## Scope
 
