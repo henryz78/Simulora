@@ -981,6 +981,65 @@ h1 {
   resize: vertical;
 }
 
+.participation-contract {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.participation-contract fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.participation-contract legend {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  margin-bottom: 12px;
+}
+
+.contract-option {
+  align-items: start;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto 1fr;
+  padding: 13px 0;
+}
+
+.contract-option input {
+  margin-top: 4px;
+}
+
+.contract-option span,
+.contract-option small {
+  display: block;
+}
+
+.contract-option small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.contract-review dl {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.contract-review dt {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.contract-review dd {
+  margin: 4px 0 0;
+}
+
 .recovery-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1267,7 +1326,9 @@ h1 {
   .current-path-card,
   .context-layout,
   .effect-grid,
-  .recovery-grid {
+  .recovery-grid,
+  .participation-contract,
+  .contract-review dl {
     grid-template-columns: 1fr;
   }
 

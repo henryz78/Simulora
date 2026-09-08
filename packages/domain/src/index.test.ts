@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   applyValidatedActionCandidate,
+  applyParticipationContractChange,
   applyRestorableState,
   canonicalJson,
   contentHash,
+  compileCharacterContext,
   createInitialState,
   lanternReachSeed,
   participationCombinations,
@@ -210,6 +212,139 @@ describe("IP-4 Action Truth and correction domain", () => {
         },
       ),
     ).toThrow(/outside the authorized context/);
+  });
+});
+
+describe("IP-6 participation and character authority", () => {
+  it("changes only the complete two-axis contract after an exact current-state match", () => {
+    const state = createInitialState(lanternReachSeed, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const changed = applyParticipationContractChange(state, state.participation, {
+      initiativeMode: "WORLD_ACTIVE",
+      structureMode: "GOAL_FRAMED",
+    });
+    expect(changed.participation).toEqual({
+      initiativeMode: "WORLD_ACTIVE",
+      structureMode: "GOAL_FRAMED",
+    });
+    expect({ ...changed, participation: state.participation }).toEqual(state);
+    expect(() =>
+      applyParticipationContractChange(
+        state,
+        { initiativeMode: "DIRECT", structureMode: "OPEN_ENDED" },
+        { initiativeMode: "GUIDED", structureMode: "GOAL_FRAMED" },
+      ),
+    ).toThrow(/changed before direct authorization/);
+  });
+
+  it("filters character knowledge before exposing generation context", () => {
+    const world = structuredClone(lanternReachSeed);
+    world.facts.push(
+      {
+        id: "fact.private-note",
+        statement: "The keeper wrote a private note.",
+        scope: "ACCOUNT_PRIVATE",
+        provenance: "Direct user note",
+        lifecycle: "ACTIVE",
+      },
+      {
+        id: "fact.other-harbor",
+        statement: "The northern harbor is open.",
+        scope: "SHARED",
+        provenance: "World seed",
+        lifecycle: "ACTIVE",
+      },
+    );
+    world.characters[0]!.knowledgeFactIds.push("fact.private-note");
+    const state = createInitialState(world, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const context = compileCharacterContext(world, state, "character.iora");
+    expect(context.knownFacts.map((fact) => fact.id)).toEqual(["fact.western-signal-dim"]);
+    expect(context.motives[0]).toMatch(/vessels/);
+    expect(context.stance).toMatch(/refuses/);
+  });
+
+  it("keeps two characters' identity, knowledge and stance distinct", () => {
+    const world = structuredClone(lanternReachSeed);
+    world.facts.push({
+      id: "fact.vessel-waiting",
+      statement: "An unfamiliar vessel waits outside the harbor markers.",
+      scope: "SHARED",
+      provenance: "World seed",
+      lifecycle: "ACTIVE",
+    });
+    world.characters.push({
+      id: "character.maren",
+      name: "Maren",
+      role: "Harbor pilot",
+      locationId: "location.tidal-observatory",
+      motives: ["Bring the waiting vessel in before the tide turns."],
+      stance: "Maren challenges delays that leave crews exposed offshore.",
+      knowledgeFactIds: ["fact.vessel-waiting"],
+    });
+    const state = createInitialState(world, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+
+    const iora = compileCharacterContext(world, state, "character.iora");
+    const maren = compileCharacterContext(world, state, "character.maren");
+    expect(iora.knownFacts.map((fact) => fact.id)).toEqual(["fact.western-signal-dim"]);
+    expect(maren.knownFacts.map((fact) => fact.id)).toEqual(["fact.vessel-waiting"]);
+    expect(maren).toMatchObject({ name: "Maren", motives: world.characters[1]!.motives });
+    expect(maren.stance).not.toBe(iora.stance);
+  });
+
+  it("rejects model candidates that attempt to smuggle protected authority fields", () => {
+    const state = createInitialState(lanternReachSeed, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    expect(() =>
+      validateActionCandidate(
+        {
+          schemaVersion: 1,
+          actionId: "10000000-0000-4000-8000-000000000050",
+          expectedHeadCommitId: "10000000-0000-4000-8000-000000000051",
+          narrative: "Iora disagrees without speaking for the participant.",
+          participation: { initiativeMode: "WORLD_ACTIVE", structureMode: "GOAL_FRAMED" },
+          userAvatarAction: "The participant promises to leave.",
+          operation: {
+            type: "UPDATE_CANONICAL_FACT",
+            targetFactId: "fact.western-signal-dim",
+            beforeStatement: "The western signal is dim.",
+            afterStatement: "The western signal remains dim.",
+            scope: "SHARED",
+            provenance: "Untrusted candidate",
+          },
+        },
+        {
+          actionId: "10000000-0000-4000-8000-000000000050",
+          expectedHeadCommitId: "10000000-0000-4000-8000-000000000051",
+          state,
+        },
+      ),
+    ).toThrow();
+  });
+
+  it("activates only declared Goal-framed objectives and fabricates none for Open-ended", () => {
+    const world = { ...lanternReachSeed, objectives: ["Keep the harbor safely oriented."] };
+    expect(
+      createInitialState(world, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      }).objectives,
+    ).toEqual([]);
+    expect(
+      createInitialState(world, {
+        initiativeMode: "GUIDED",
+        structureMode: "GOAL_FRAMED",
+      }).objectives,
+    ).toEqual(["Keep the harbor safely oriented."]);
   });
 });
 

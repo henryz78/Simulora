@@ -25,7 +25,7 @@ describe("authoritative spine migrations", () => {
         from app_meta.foundation_metadata
         where key = 'implementation_phase'
       `);
-      expect(result.rows).toEqual([{ phase: "IP-5", started: true }]);
+      expect(result.rows).toEqual([{ phase: "IP-6", started: true }]);
 
       const state = createInitialState(lanternReachSeed, {
         initiativeMode: "GUIDED",

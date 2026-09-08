@@ -8,6 +8,7 @@ import {
   type ExplanationResponse,
   type OrientationResponse,
   type ProjectionFreshness,
+  type ParticipationContract,
   type RecoveryResponse,
   type RestoreProposal,
 } from "@simulora/contracts";
@@ -34,6 +35,7 @@ import {
   readRestoreProposal,
   selectBranch,
 } from "./ip5-api.js";
+import { changeParticipationContract } from "./ip6-api.js";
 
 export { ContinuityLayout };
 
@@ -47,15 +49,15 @@ export function FoundationPage(): ReactElement {
           </span>
           <span>Simulora</span>
         </Link>
-        <span className="phase-badge">IP-5 · Recovery</span>
+        <span className="phase-badge">IP-6 · Agency</span>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
           <p className="eyebrow">Production implementation</p>
           <h1 id="foundation-title">A durable world begins with a known source of truth.</h1>
           <p className="hero-copy">
-            Durable Actions, Continuity and non-destructive Recovery now share one authoritative
-            Branch/Commit/State Revision spine.
+            Durable Actions, Recovery and the two-axis Participation Contract now share one
+            authoritative Branch/Commit/State Revision spine.
           </p>
         </section>
         <section className="boundary-panel" aria-labelledby="current-boundary">
@@ -66,10 +68,11 @@ export function FoundationPage(): ReactElement {
             <li>Return and Explanation are derived projections with visible freshness.</li>
             <li>Correction is a direct, exact-confirmation path that preserves history.</li>
             <li>Branch preserves its source; Restore appends instead of rewinding history.</li>
+            <li>Only a direct user command can change participation authority.</li>
           </ul>
         </section>
       </main>
-      <footer className="site-footer">Product Implementation · IP-5 Recovery</footer>
+      <footer className="site-footer">Product Implementation · IP-6 Agency</footer>
     </div>
   );
 }
@@ -794,6 +797,194 @@ async function readRecoveryCommitSources(next: RecoveryResponse): Promise<Recove
   );
   return [...new Map(traces.flat().map((commit) => [commit.id, commit])).values()].sort(
     (left, right) => right.createdAt.localeCompare(left.createdAt),
+  );
+}
+
+const initiativeOptions: Array<{
+  value: ParticipationContract["initiativeMode"];
+  label: string;
+  copy: string;
+}> = [
+  { value: "DIRECT", label: "Direct", copy: "The world responds to your explicit Actions." },
+  {
+    value: "GUIDED",
+    label: "Guided",
+    copy: "Characters may suggest and initiate bounded scene developments.",
+  },
+  {
+    value: "WORLD_ACTIVE",
+    label: "World-active",
+    copy: "Background actors may advance only inside a user-triggered cycle.",
+  },
+];
+
+const structureOptions: Array<{
+  value: ParticipationContract["structureMode"];
+  label: string;
+  copy: string;
+}> = [
+  { value: "OPEN_ENDED", label: "Open-ended", copy: "No objective is fabricated." },
+  {
+    value: "GOAL_FRAMED",
+    label: "Goal-framed",
+    copy: "Only objectives declared by this World Revision are active.",
+  },
+];
+
+export function ParticipationPage(): ReactElement {
+  const { loadState, refresh } = useContinuity();
+  const [requested, setRequested] = useState<ParticipationContract | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const idempotencyKey = useRef<string | null>(null);
+  const current = loadState.status === "ready" ? loadState.data.state.participation : null;
+
+  if (loadState.status !== "ready" || !current) {
+    return (
+      <StatusPage title="Opening participation…" copy="Reading the current Branch contract." />
+    );
+  }
+  const selection = requested ?? current;
+
+  const changed =
+    current.initiativeMode !== selection.initiativeMode ||
+    current.structureMode !== selection.structureMode;
+  const update = (next: ParticipationContract) => {
+    setRequested(next);
+    setReviewing(false);
+    setMessage(null);
+    idempotencyKey.current = null;
+  };
+
+  const apply = async (): Promise<void> => {
+    if (!changed || busy) return;
+    setBusy(true);
+    setMessage(null);
+    idempotencyKey.current ??= crypto.randomUUID();
+    const result = await changeParticipationContract(loadState.data.continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: idempotencyKey.current,
+      expectedHeadCommitId: loadState.data.continuity.headCommitId,
+      before: current,
+      after: selection,
+    });
+    if (result.data?.status === "COMMITTED") {
+      idempotencyKey.current = null;
+      setReviewing(false);
+      await refresh();
+      setMessage("Participation changed by one direct user Commit.");
+    } else if (
+      result.errorCode === "BRANCH_HEAD_CONFLICT" ||
+      result.errorCode === "PARTICIPATION_EXPECTATION_MISMATCH"
+    ) {
+      idempotencyKey.current = null;
+      await refresh();
+      setReviewing(false);
+      setMessage("The current path changed. Review its current contract before trying again.");
+    } else {
+      setMessage(
+        "The change was not confirmed. Retry with the same review; current truth is unchanged.",
+      );
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="surface-page participation-page">
+      <SurfaceHeader
+        eyebrow="Participation Contract"
+        title="Choose how this world may lead"
+        copy="Initiative and world structure are independent. Neither changes your authority over your avatar, speech, resources, sharing, deletion or irreversible commitments."
+      />
+      <section className="surface-card participation-contract" aria-labelledby="initiative-title">
+        <fieldset>
+          <legend id="initiative-title">AI initiative</legend>
+          {initiativeOptions.map((option) => (
+            <label key={option.value} className="contract-option">
+              <input
+                type="radio"
+                name="initiative"
+                checked={selection.initiativeMode === option.value}
+                onChange={() => update({ ...selection, initiativeMode: option.value })}
+              />
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.copy}</small>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <fieldset>
+          <legend>World structure</legend>
+          {structureOptions.map((option) => (
+            <label key={option.value} className="contract-option">
+              <input
+                type="radio"
+                name="structure"
+                checked={selection.structureMode === option.value}
+                onChange={() => update({ ...selection, structureMode: option.value })}
+              />
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.copy}</small>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      </section>
+      <section className="surface-card contract-review" aria-live="polite">
+        <p className="card-label">Before / after</p>
+        <dl>
+          <div>
+            <dt>Current</dt>
+            <dd>
+              {labelMode(current.initiativeMode)} · {labelMode(current.structureMode)}
+            </dd>
+          </div>
+          <div>
+            <dt>Requested</dt>
+            <dd>
+              {labelMode(selection.initiativeMode)} · {labelMode(selection.structureMode)}
+            </dd>
+          </div>
+        </dl>
+        {!reviewing ? (
+          <button
+            className="primary-action"
+            type="button"
+            disabled={!changed}
+            onClick={() => setReviewing(true)}
+          >
+            Review authority change
+          </button>
+        ) : (
+          <div className="action-buttons">
+            <p>
+              This direct command changes only these two values. It does not authorize the world to
+              act as you or create off-session mutations.
+            </p>
+            <button
+              className="primary-action"
+              type="button"
+              disabled={busy}
+              onClick={() => void apply()}
+            >
+              {busy ? "Applying…" : "Apply this exact contract"}
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={busy}
+              onClick={() => setReviewing(false)}
+            >
+              Keep current contract
+            </button>
+          </div>
+        )}
+        {message ? <p role="status">{message}</p> : null}
+      </section>
+    </div>
   );
 }
 
