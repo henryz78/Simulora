@@ -37,7 +37,7 @@ alter table simulora.state_revisions
       sha256(convert_to(simulora.canonical_jsonb_text(document), 'UTF8')),
       'hex'
     )
-  );
+  ) not valid;
 
 create function simulora.validate_commit_state_pair() returns trigger
 language plpgsql as $$

@@ -194,6 +194,21 @@ function updateHistoryForAction(history: BranchAction[], action: ActionResponse)
   ];
 }
 
+function mergeBranchHistory(current: BranchAction[], incoming: BranchAction[]): BranchAction[] {
+  const currentById = new Map(current.map((entry) => [entry.id, entry]));
+  const merged = incoming.map((entry) => {
+    const previous = currentById.get(entry.id);
+    currentById.delete(entry.id);
+    if (!previous || shouldAcceptAction(previous.status, entry.status)) return entry;
+    return {
+      ...entry,
+      status: previous.status,
+      committedAt: previous.committedAt ?? entry.committedAt,
+    };
+  });
+  return [...merged, ...currentById.values()];
+}
+
 function ambiguousActionOutcome(
   operation: "confirmation" | "cancellation" | "retry",
   current: ActionResponse | null,
@@ -222,6 +237,10 @@ export function ContinuityProvider({
   const loadGeneration = useRef(0);
   const actionsRef = useRef(actions);
   const loadStateRef = useRef(loadState);
+  const historyRef = useRef<{ branchId: string | null; actions: BranchAction[] }>({
+    branchId: null,
+    actions: [],
+  });
 
   useEffect(() => {
     actionsRef.current = actions;
@@ -231,8 +250,16 @@ export function ContinuityProvider({
   }, [loadState]);
 
   const upsertAction = useCallback((action: ActionResponse): void => {
-    setActions((current) => mergeAction(current, action));
-    setHistory((current) => updateHistoryForAction(current, action));
+    setActions((current) => {
+      const next = mergeAction(current, action);
+      actionsRef.current = next;
+      return next;
+    });
+    const currentHistory =
+      historyRef.current.branchId === action.branchId ? historyRef.current.actions : [];
+    const nextHistory = updateHistoryForAction(currentHistory, action);
+    historyRef.current = { branchId: action.branchId, actions: nextHistory };
+    setHistory(nextHistory);
   }, []);
 
   const load = useCallback(
@@ -258,7 +285,14 @@ export function ContinuityProvider({
         return;
       }
       setHistoryState("ready");
-      const nextHistory = historyResult.actions;
+      const nextHistory =
+        historyRef.current.branchId === state.data.continuity.branchId
+          ? mergeBranchHistory(historyRef.current.actions, historyResult.actions)
+          : historyResult.actions;
+      historyRef.current = {
+        branchId: state.data.continuity.branchId,
+        actions: nextHistory,
+      };
       setHistory(nextHistory);
       const pending = pendingHistory(nextHistory);
       const details = await Promise.all(
@@ -280,6 +314,7 @@ export function ContinuityProvider({
         details.forEach((action) => {
           if (action && action.continuityId === continuityId) next = mergeAction(next, action);
         });
+        actionsRef.current = next;
         return next;
       });
     },

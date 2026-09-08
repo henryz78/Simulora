@@ -687,20 +687,58 @@ export function createInitialState(
   });
 }
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([key, child]) => [key, canonicalize(child)]),
-    );
+const utf8Encoder = new TextEncoder();
+
+function compareUtf8(left: string, right: string): number {
+  const leftBytes = utf8Encoder.encode(left);
+  const rightBytes = utf8Encoder.encode(right);
+  const length = Math.min(leftBytes.length, rightBytes.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = leftBytes[index]! - rightBytes[index]!;
+    if (difference !== 0) return difference;
   }
-  return value;
+  return leftBytes.length - rightBytes.length;
+}
+
+function plainJsonNumber(value: number): string {
+  if (!Number.isFinite(value)) return "null";
+  if (Object.is(value, -0)) return "0";
+  const encoded = String(value);
+  if (!/[eE]/.test(encoded)) return encoded;
+
+  const [mantissa = "0", exponentText = "0"] = encoded.toLowerCase().split("e");
+  const negative = mantissa.startsWith("-");
+  const unsigned = negative ? mantissa.slice(1) : mantissa;
+  const [whole = "0", fraction = ""] = unsigned.split(".");
+  const digits = `${whole}${fraction}`;
+  const decimalIndex = whole.length + Number(exponentText);
+  const sign = negative ? "-" : "";
+  if (decimalIndex <= 0) return `${sign}0.${"0".repeat(-decimalIndex)}${digits}`;
+  if (decimalIndex >= digits.length) {
+    return `${sign}${digits}${"0".repeat(decimalIndex - digits.length)}`;
+  }
+  return `${sign}${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
+}
+
+function serializeCanonical(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") return plainJsonNumber(value);
+  if (Array.isArray(value)) {
+    return `[${value.map((child) => serializeCanonical(child ?? null)).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    return `{${Object.entries(value)
+      .filter(([, child]) => child !== undefined && typeof child !== "function")
+      .sort(([left], [right]) => compareUtf8(left, right))
+      .map(([key, child]) => `${JSON.stringify(key)}:${serializeCanonical(child)}`)
+      .join(",")}}`;
+  }
+  throw new TypeError("Value is not JSON-serializable");
 }
 
 export function canonicalJson(value: unknown): string {
-  return JSON.stringify(canonicalize(value));
+  return serializeCanonical(value);
 }
 
 export function contentHash(value: unknown): string {

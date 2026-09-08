@@ -124,6 +124,7 @@ async function installRoutes(
   pending: boolean | "CONFLICT" = false,
   loseRestoreResponse = false,
   delayedStaleActionDetail = false,
+  delayedStaleHistory = false,
 ): Promise<void> {
   const recoveryState = recovery();
   let currentHead = branchHead;
@@ -152,14 +153,16 @@ async function installRoutes(
   await page.route(`**/v1/continuities/${continuityId}/state`, (route) =>
     json(route, state(branchId, currentHead)),
   );
-  await page.route(`**/v1/branches/${branchId}/actions`, (route) =>
-    json(route, {
+  await page.route(`**/v1/branches/${branchId}/actions`, async (route) => {
+    const statusAtRequest = actionStatus;
+    if (delayedStaleHistory) await new Promise((resolve) => setTimeout(resolve, 350));
+    await json(route, {
       branchId,
       actions: pending
         ? [
             {
               id: actionId,
-              status: actionStatus,
+              status: statusAtRequest,
               intent: "Inspect the signal",
               acknowledgedAt: now,
               committedAt: null,
@@ -167,8 +170,8 @@ async function installRoutes(
             },
           ]
         : [],
-    }),
-  );
+    });
+  });
   await page.route(`**/v1/actions/${actionId}/events`, (route) =>
     route.fulfill({
       status: 200,
@@ -319,10 +322,14 @@ async function installRoutes(
   await page.route(`**/v1/branches/${branchId}/restores`, async (route) => {
     const commitId = "60000000-0000-4000-8000-000000000013";
     currentHead = commitId;
+    Object.assign((recoveryState.branches as Record<string, unknown>[])[0]!, {
+      headCommitId: commitId,
+      headStateRevisionId: "60000000-0000-4000-8000-000000000014",
+    });
     if (latestProposal) {
       latestProposal = { ...latestProposal, status: "CONFIRMED", resultCommitId: commitId };
+      (recoveryState.restoreProposals as unknown[]).splice(0, 1, latestProposal);
     }
-    (recoveryState.restoreProposals as unknown[]).splice(0);
     if (loseRestoreResponse) {
       await route.abort("failed");
       return;
@@ -377,6 +384,16 @@ test("a delayed older Action detail cannot regress Conflict", async ({ page }) =
   await expect(page.getByRole("button", { name: "Retry Action" })).toHaveCount(0);
 });
 
+test("a delayed older Branch history cannot revive a superseded Action", async ({ page }) => {
+  await installRoutes(page, "CONFLICT", false, false, true);
+  await page.goto(`/continuities/${continuityId}/actions/60000000-0000-4000-8000-000000000020`);
+  await expect(page.getByRole("heading", { name: "Conflict" })).toBeVisible();
+  await page.getByRole("button", { name: "Close stale Action" }).click();
+  await expect(page.getByRole("heading", { name: "Superseded" })).toBeVisible();
+  await page.waitForTimeout(450);
+  await expect(page.getByText("One Action still needs attention")).toHaveCount(0);
+});
+
 test("Safe Point, Branch and exact append-only Restore share one Recovery model", async ({
   page,
 }) => {
@@ -421,4 +438,18 @@ test("lost Restore confirmation response reconciles the durable outcome", async 
     page.getByText("The interrupted response was recovered from its durable result"),
   ).toBeVisible();
   await expect(page.getByText("Current truth is unchanged")).toHaveCount(0);
+});
+
+test("a completed Restore receipt survives a lost response and full reload", async ({ page }) => {
+  await installRoutes(page, false, true);
+  await page.goto(`/continuities/${continuityId}/recovery`);
+  await page.getByLabel("Restore from").selectOption(oldCommit);
+  await page.getByRole("button", { name: "Review Restore scope" }).click();
+  await page.getByRole("button", { name: "Confirm exact Restore" }).click();
+  await expect(
+    page.getByText("The interrupted response was recovered from its durable result"),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(/Restore recorded as Commit/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm exact Restore" })).toHaveCount(0);
 });

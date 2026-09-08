@@ -48,6 +48,9 @@ describe("authoritative World and Continuity domain", () => {
   it("uses deterministic canonical serialization and hashes", () => {
     expect(canonicalJson({ b: 2, a: { d: 4, c: 3 } })).toBe('{"a":{"c":3,"d":4},"b":2}');
     expect(contentHash({ b: 2, a: 1 })).toBe(contentHash({ a: 1, b: 2 }));
+    expect(canonicalJson({ a: 1, B: 2, huge: 1e21, tiny: 1e-7 })).toBe(
+      '{"B":2,"a":1,"huge":1000000000000000000000,"tiny":0.0000001}',
+    );
   });
 });
 

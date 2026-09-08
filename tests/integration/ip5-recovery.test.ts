@@ -6,7 +6,11 @@ import {
   ActionTruthService,
   WorldContinuityService,
 } from "../../packages/application/src/index.js";
-import { contentHash, lanternReachSeed } from "../../packages/domain/src/index.js";
+import {
+  applyRestorableState,
+  contentHash,
+  lanternReachSeed,
+} from "../../packages/domain/src/index.js";
 import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
 import {
   AuthoritativeWorldRepository,
@@ -115,6 +119,11 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       [continuity.branchId],
     );
     expect(stateCopies.rows[0]?.count).toBe(1);
+    await expect(
+      pool.query("update simulora.recovery_points set label = 'Rewritten' where id = $1", [
+        point.id,
+      ]),
+    ).rejects.toThrow(/immutable except for its deletion tombstone/);
 
     const forkKey = `fork-${randomUUID()}`;
     const [fork, duplicateFork] = await Promise.all([
@@ -697,6 +706,193 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     ).rejects.toThrow(/exact confirmed proposal/);
   });
 
+  it("binds immutable Restore review evidence and enforces live confirmation at Commit time", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `db-review-point-${randomUUID()}`,
+      label: "Before exact review attacks",
+    });
+    await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the signal before testing exact review evidence.",
+    );
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+
+    await expect(
+      pool.query(
+        `insert into simulora.restore_proposals
+         (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+          expected_head_commit_id, included_sections, excluded_sections, diff,
+          proposal_digest, status, expires_at)
+         select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+                expected_head_commit_id, '["facts"]'::jsonb, excluded_sections, diff,
+                proposal_digest, 'ACTIVE', expires_at
+           from simulora.restore_proposals where id = $2`,
+        [randomUUID(), proposal.id],
+      ),
+    ).rejects.toThrow(/exactly bind its scope, diff, hashes and digest/);
+    await expect(
+      pool.query(
+        `insert into simulora.restore_proposals
+         (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+          expected_head_commit_id, included_sections, excluded_sections, diff,
+          proposal_digest, status, expires_at)
+         select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+                expected_head_commit_id, included_sections, excluded_sections,
+                jsonb_set(diff, '{beforeHash}', to_jsonb(repeat('0', 64))),
+                proposal_digest, 'ACTIVE', expires_at
+           from simulora.restore_proposals where id = $2`,
+        [randomUUID(), proposal.id],
+      ),
+    ).rejects.toThrow(/exactly bind its scope, diff, hashes and digest/);
+    await expect(
+      pool.query("delete from simulora.restore_proposals where id = $1", [proposal.id]),
+    ).rejects.toThrow(/restore_proposals is immutable/);
+
+    await pool.query("update simulora.restore_proposals set status = 'EXPIRED' where id = $1", [
+      proposal.id,
+    ]);
+    const readExpiryProposalId = randomUUID();
+    await pool.query(
+      `insert into simulora.restore_proposals
+       (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+        expected_head_commit_id, included_sections, excluded_sections, diff,
+        proposal_digest, status, expires_at)
+       select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+              expected_head_commit_id, included_sections, excluded_sections, diff,
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '100 milliseconds'
+         from simulora.restore_proposals where id = $2`,
+      [readExpiryProposalId, proposal.id],
+    );
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect((await repository.readRestoreProposal(account, readExpiryProposalId)).status).toBe(
+      "EXPIRED",
+    );
+
+    const expiringProposalId = randomUUID();
+    await pool.query(
+      `insert into simulora.restore_proposals
+       (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+        expected_head_commit_id, included_sections, excluded_sections, diff,
+        proposal_digest, status, expires_at)
+       select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+              expected_head_commit_id, included_sections, excluded_sections, diff,
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '250 milliseconds'
+         from simulora.restore_proposals where id = $2`,
+      [expiringProposalId, proposal.id],
+    );
+    await expect(
+      pool.query(
+        `insert into simulora.restore_confirmations
+         (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id,
+          confirmed_at)
+         values ($1, $2, $3, $4, $5, clock_timestamp() + interval '1 minute')`,
+        [
+          randomUUID(),
+          expiringProposalId,
+          account.accountId,
+          proposal.digest,
+          proposal.expectedHeadCommitId,
+        ],
+      ),
+    ).rejects.toThrow(/live expiry/);
+
+    const confirmationId = randomUUID();
+    await pool.query(
+      `insert into simulora.restore_confirmations
+       (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+       values ($1, $2, $3, $4, $5)`,
+      [
+        confirmationId,
+        expiringProposalId,
+        account.accountId,
+        proposal.digest,
+        proposal.expectedHeadCommitId,
+      ],
+    );
+    await pool.query("update simulora.restore_proposals set status = 'CONFIRMED' where id = $1", [
+      expiringProposalId,
+    ]);
+    await expect(
+      pool.query("update simulora.restore_confirmations set confirmed_at = now() where id = $1", [
+        confirmationId,
+      ]),
+    ).rejects.toThrow(/restore_confirmations is immutable/);
+    await expect(
+      pool.query("delete from simulora.restore_confirmations where id = $1", [confirmationId]),
+    ).rejects.toThrow(/restore_confirmations is immutable/);
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await expect(
+      pool.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason, restore_proposal_id)
+         values ($1, $2, $3, 'RESTORE_COMMITTED', $4, $5, 'USER', 'expired review', $6)`,
+        [
+          randomUUID(),
+          continuity.branchId,
+          proposal.expectedHeadCommitId,
+          account.accountId,
+          randomUUID(),
+          expiringProposalId,
+        ],
+      ),
+    ).rejects.toThrow(/exact live confirmed proposal/);
+  });
+
+  it("keeps expired prepare and confirm concurrency free of lock-order deadlocks", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `deadlock-point-${randomUUID()}`,
+      label: "Before lock ordering test",
+    });
+    await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the signal before testing Restore lock ordering.",
+    );
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    await pool.query("update simulora.restore_proposals set status = 'EXPIRED' where id = $1", [
+      proposal.id,
+    ]);
+    const expiringId = randomUUID();
+    await pool.query(
+      `insert into simulora.restore_proposals
+       (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+        expected_head_commit_id, included_sections, excluded_sections, diff,
+        proposal_digest, status, expires_at)
+       select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+              expected_head_commit_id, included_sections, excluded_sections, diff,
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '150 milliseconds'
+         from simulora.restore_proposals where id = $2`,
+      [expiringId, proposal.id],
+    );
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const outcomes = await Promise.race([
+      Promise.allSettled([
+        repository.prepareRestore(account, continuity.branchId, point.commitId),
+        repository.confirmRestore(account, continuity.branchId, {
+          proposalId: expiringId,
+          digest: proposal.digest,
+          expectedHeadCommitId: proposal.expectedHeadCommitId,
+        }),
+      ]),
+      new Promise<never>((_resolve, reject) =>
+        setTimeout(() => reject(new Error("Restore lock ordering timed out")), 5_000),
+      ),
+    ]);
+    expect(
+      outcomes.some(
+        (outcome) =>
+          outcome.status === "rejected" &&
+          String(outcome.reason).toLowerCase().includes("deadlock detected"),
+      ),
+    ).toBe(false);
+  });
+
   it("rejects a confirmed Restore that omits its append-only Event", async () => {
     const continuity = await createContinuity();
     const point = await repository.createRecoveryPoint(account, continuity.branchId, {
@@ -763,6 +959,176 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     }
   });
 
+  it("rejects an otherwise exact Restore that does not advance the Branch head", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `db-head-point-${randomUUID()}`,
+      label: "Before missing head attack",
+    });
+    await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the signal before testing the Restore head invariant.",
+    );
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    const current = await repository.readCurrentState(account, continuity.continuityId);
+    const nextState = applyRestorableState(current.state, continuity.state);
+    const client = await pool.connect();
+    try {
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      await client.query("begin");
+      await client.query(
+        `insert into simulora.restore_confirmations
+         (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          randomUUID(),
+          proposal.id,
+          account.accountId,
+          proposal.digest,
+          proposal.expectedHeadCommitId,
+        ],
+      );
+      await client.query(
+        "update simulora.restore_proposals set status = 'CONFIRMED' where id = $1",
+        [proposal.id],
+      );
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason, restore_proposal_id)
+         values ($1, $2, $3, 'RESTORE_COMMITTED', $4, $5, 'USER', 'missing head', $6)`,
+        [
+          commitId,
+          continuity.branchId,
+          proposal.expectedHeadCommitId,
+          account.accountId,
+          stateRevisionId,
+          proposal.id,
+        ],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [
+          stateRevisionId,
+          continuity.branchId,
+          commitId,
+          JSON.stringify(nextState),
+          contentHash(nextState),
+        ],
+      );
+      await client.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope)
+         values ($1, $2, $3, 'STATE_RESTORED', $4::jsonb, 'USER', 'CONTINUITY_PRIVATE')`,
+        [
+          randomUUID(),
+          continuity.branchId,
+          commitId,
+          JSON.stringify({
+            restoreProposalId: proposal.id,
+            sourceCommitId: point.commitId,
+            includedSections: proposal.includedSections,
+          }),
+        ],
+      );
+      await expect(client.query("commit")).rejects.toThrow(/advanced Branch head/);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("rejects Restore review and Commit creation outside an active current path", async () => {
+    const reviewContinuity = await createContinuity();
+    const reviewPoint = await repository.createRecoveryPoint(account, reviewContinuity.branchId, {
+      idempotencyKey: `inactive-review-${randomUUID()}`,
+      label: "Before inactive review",
+    });
+    await recordAction(
+      reviewContinuity.branchId,
+      reviewContinuity.headCommitId,
+      "Change the signal before the inactive review attack.",
+    );
+    const reviewProposal = await repository.prepareRestore(
+      account,
+      reviewContinuity.branchId,
+      reviewPoint.commitId,
+    );
+    await pool.query("update simulora.restore_proposals set status = 'EXPIRED' where id = $1", [
+      reviewProposal.id,
+    ]);
+    await pool.query("update simulora.continuities set status = 'INITIALIZING' where id = $1", [
+      reviewContinuity.continuityId,
+    ]);
+    await expect(
+      pool.query(
+        `insert into simulora.restore_proposals
+         (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+          expected_head_commit_id, included_sections, excluded_sections, diff,
+          proposal_digest, status, expires_at)
+         select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+                expected_head_commit_id, included_sections, excluded_sections, diff,
+                proposal_digest, 'ACTIVE', clock_timestamp() + interval '1 minute'
+           from simulora.restore_proposals where id = $2`,
+        [randomUUID(), reviewProposal.id],
+      ),
+    ).rejects.toThrow(/exactly bind its scope, diff, hashes and digest/);
+
+    const commitContinuity = await createContinuity();
+    const commitPoint = await repository.createRecoveryPoint(account, commitContinuity.branchId, {
+      idempotencyKey: `inactive-commit-${randomUUID()}`,
+      label: "Before inactive Commit",
+    });
+    await recordAction(
+      commitContinuity.branchId,
+      commitContinuity.headCommitId,
+      "Change the signal before the inactive Commit attack.",
+    );
+    const commitProposal = await repository.prepareRestore(
+      account,
+      commitContinuity.branchId,
+      commitPoint.commitId,
+    );
+    await pool.query("update simulora.continuities set status = 'INITIALIZING' where id = $1", [
+      commitContinuity.continuityId,
+    ]);
+    await pool.query(
+      `insert into simulora.restore_confirmations
+       (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+       values ($1, $2, $3, $4, $5)`,
+      [
+        randomUUID(),
+        commitProposal.id,
+        account.accountId,
+        commitProposal.digest,
+        commitProposal.expectedHeadCommitId,
+      ],
+    );
+    await pool.query("update simulora.restore_proposals set status = 'CONFIRMED' where id = $1", [
+      commitProposal.id,
+    ]);
+    await expect(
+      pool.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason, restore_proposal_id)
+         values ($1, $2, $3, 'RESTORE_COMMITTED', $4, $5, 'USER', 'inactive path', $6)`,
+        [
+          randomUUID(),
+          commitContinuity.branchId,
+          commitProposal.expectedHeadCommitId,
+          account.accountId,
+          randomUUID(),
+          commitProposal.id,
+        ],
+      ),
+    ).rejects.toThrow(/exact live confirmed proposal/);
+  });
+
   it("enforces reciprocal state hashes, Event ownership and immutable Branch lineage", async () => {
     const continuity = await createContinuity();
     const other = await createContinuity();
@@ -824,6 +1190,101 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       await client.query("rollback");
       client.release();
     }
+  });
+
+  it("requires one root initialization and exact fork provenance", async () => {
+    const continuity = await createContinuity();
+    const fork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey: `strict-lineage-${randomUUID()}`,
+      name: "Strict lineage",
+      sourceCommitId: continuity.headCommitId,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    await expect(
+      pool.query(
+        `insert into simulora.branches (id, continuity_id, name, status)
+         values ($1, $2, 'Second root', 'INITIALIZING')`,
+        [randomUUID(), continuity.continuityId],
+      ),
+    ).rejects.toThrow(/branches_one_root_per_continuity_idx/);
+    await expect(
+      pool.query(
+        `insert into simulora.world_commits
+         (id, branch_id, kind, actor_account_id, state_revision_id, source_type, reason)
+         values ($1, $2, 'CONTINUITY_INITIALIZED', $3, $4, 'SYSTEM', 'invalid fork init')`,
+        [randomUUID(), fork.id, account.accountId, randomUUID()],
+      ),
+    ).rejects.toThrow(/single root Branch/);
+    await expect(
+      pool.query(
+        `insert into simulora.world_commits
+         (id, branch_id, kind, actor_account_id, state_revision_id, source_type, reason)
+         values ($1, $2, 'BRANCH_FORK', $3, $4, 'USER', 'missing lineage')`,
+        [randomUUID(), continuity.branchId, account.accountId, randomUUID()],
+      ),
+    ).rejects.toThrow(/complete declared source lineage/);
+
+    const client = await pool.connect();
+    try {
+      const branchId = randomUUID();
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      await client.query("begin");
+      await client.query(
+        `insert into simulora.branches
+         (id, continuity_id, name, status, parent_branch_id, fork_source_commit_id,
+          created_by_account_id, idempotency_key)
+         values ($1, $2, 'Missing event fork', 'INITIALIZING', $3, $4, $5, $6)`,
+        [
+          branchId,
+          continuity.continuityId,
+          continuity.branchId,
+          continuity.headCommitId,
+          account.accountId,
+          `missing-event-${randomUUID()}`,
+        ],
+      );
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason)
+         values ($1, $2, $3, 'BRANCH_FORK', $4, $5, 'USER', 'missing event')`,
+        [commitId, branchId, continuity.headCommitId, account.accountId, stateRevisionId],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [
+          stateRevisionId,
+          branchId,
+          commitId,
+          JSON.stringify(continuity.state),
+          contentHash(continuity.state),
+        ],
+      );
+      await expect(client.query("commit")).rejects.toThrow(/one linked BRANCH_FORKED Event/);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("rejects a destructive Branch-head rewind to an earlier same-Branch Commit", async () => {
+    const continuity = await createContinuity();
+    await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Advance the Branch before attempting a direct rewind.",
+    );
+    await expect(
+      pool.query(
+        `update simulora.branches
+            set head_commit_id = $2, head_state_revision_id = $3
+          where id = $1`,
+        [continuity.branchId, continuity.headCommitId, continuity.stateRevisionId],
+      ),
+    ).rejects.toThrow(/only advance to a direct child Commit/);
   });
 
   it("returns the original fork for a same-key retry after the active head advances", async () => {

@@ -1344,72 +1344,89 @@ export function RecoveryPage(): ReactElement {
                 Expected current head: {shortId(restore.expectedHeadCommitId)} · review expires{" "}
                 {new Date(restore.expiresAt).toLocaleTimeString()}
               </p>
-              <button
-                className="primary-action"
-                type="button"
-                disabled={busy !== null}
-                onClick={() =>
-                  void run("restore", async () => {
-                    const result = await confirmRestore(branchId, restore);
-                    if (!result.data) {
-                      if (result.errorCode === "RESTORE_REVIEW_STALE") {
-                        setRestore(null);
+              {restore.status === "CONFIRMED" && restore.resultCommitId ? (
+                <p role="status">
+                  Restore recorded as Commit {shortId(restore.resultCommitId)}. Earlier and
+                  intervening history remain.
+                </p>
+              ) : (
+                <button
+                  className="primary-action"
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run("restore", async () => {
+                      const result = await confirmRestore(branchId, restore);
+                      if (!result.data) {
+                        if (result.errorCode === "RESTORE_REVIEW_STALE") {
+                          setRestore(null);
+                          setMessage(
+                            "The current path or Branch head changed after review. Nothing was restored; prepare a new review.",
+                          );
+                          return;
+                        }
+                        if (
+                          result.errorCode === "RESTORE_CONFIRMATION_MISMATCH" ||
+                          result.errorCode === "RESTORE_REVIEW_NOT_ACTIVE"
+                        ) {
+                          setRestore(null);
+                          setMessage(
+                            "Restore was rejected before mutation. Current truth is unchanged.",
+                          );
+                          return;
+                        }
+                        const recovered = await readRestoreProposal(restore.id);
+                        if (
+                          recovered.data?.status === "CONFIRMED" &&
+                          recovered.data.resultCommitId
+                        ) {
+                          setRestore(null);
+                          await refresh();
+                          await reload();
+                          setMessage(
+                            "Restore was recorded as a new Commit. The interrupted response was recovered from its durable result.",
+                          );
+                          return;
+                        }
+                        if (recovered.data?.status === "STALE") {
+                          setRestore(null);
+                          setMessage(
+                            "The Restore review became stale. Nothing was restored; prepare a new review.",
+                          );
+                          return;
+                        }
+                        if (recovered.data?.status === "ACTIVE") {
+                          setRestore(recovered.data);
+                          setMessage(
+                            "The confirmation response was interrupted. The exact review is still active; retrying confirmation is safe.",
+                          );
+                          return;
+                        }
+                        if (recovered.data?.status === "EXPIRED") {
+                          setRestore(null);
+                          setMessage(
+                            "The Restore review expired. Nothing was restored; prepare a new review.",
+                          );
+                          return;
+                        }
+                        setRestore(restore);
                         setMessage(
-                          "The current path or Branch head changed after review. Nothing was restored; prepare a new review.",
+                          "The confirmation outcome could not be verified. Do not assume the World changed; retry recovery status before acting again.",
                         );
                         return;
                       }
-                      if (
-                        result.errorCode === "RESTORE_CONFIRMATION_MISMATCH" ||
-                        result.errorCode === "RESTORE_REVIEW_NOT_ACTIVE"
-                      ) {
-                        setRestore(null);
-                        setMessage(
-                          "Restore was rejected before mutation. Current truth is unchanged.",
-                        );
-                        return;
-                      }
-                      const recovered = await readRestoreProposal(restore.id);
-                      if (recovered.data?.status === "CONFIRMED" && recovered.data.resultCommitId) {
-                        setRestore(null);
-                        await refresh();
-                        await reload();
-                        setMessage(
-                          "Restore was recorded as a new Commit. The interrupted response was recovered from its durable result.",
-                        );
-                        return;
-                      }
-                      if (recovered.data?.status === "STALE") {
-                        setRestore(null);
-                        setMessage(
-                          "The Restore review became stale. Nothing was restored; prepare a new review.",
-                        );
-                        return;
-                      }
-                      if (recovered.data?.status === "ACTIVE") {
-                        setRestore(recovered.data);
-                        setMessage(
-                          "The confirmation response was interrupted. The exact review is still active; retrying confirmation is safe.",
-                        );
-                        return;
-                      }
-                      setRestore(restore);
+                      setRestore(null);
+                      await refresh();
+                      await reload();
                       setMessage(
-                        "The confirmation outcome could not be verified. Do not assume the World changed; retry recovery status before acting again.",
+                        "Restore recorded as a new Commit. Earlier and intervening history remain.",
                       );
-                      return;
-                    }
-                    setRestore(null);
-                    await refresh();
-                    await reload();
-                    setMessage(
-                      "Restore recorded as a new Commit. Earlier and intervening history remain.",
-                    );
-                  })
-                }
-              >
-                {busy === "restore" ? "Recording…" : "Confirm exact Restore"}
-              </button>
+                    })
+                  }
+                >
+                  {busy === "restore" ? "Recording…" : "Confirm exact Restore"}
+                </button>
+              )}
             </div>
           ) : null}
         </section>
