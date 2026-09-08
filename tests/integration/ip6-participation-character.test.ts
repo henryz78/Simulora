@@ -186,6 +186,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
 
   it("rejects any non-direct Commit that changes participation", async () => {
     const continuity = await createContinuity();
+    const branchId = randomUUID();
     const commitId = randomUUID();
     const stateRevisionId = randomUUID();
     const changedState = structuredClone(continuity.state);
@@ -198,17 +199,25 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     await client.query("begin");
     try {
       await client.query(
-        `insert into simulora.world_commits
-         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
-          source_type, reason)
-         values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, 'USER', 'rogue participation mutation')`,
+        `insert into simulora.branches
+         (id, continuity_id, name, status, parent_branch_id, fork_source_commit_id,
+          created_by_account_id, idempotency_key)
+         values ($1, $2, 'Rogue fork', 'INITIALIZING', $3, $4, $5, $6)`,
         [
-          commitId,
+          branchId,
+          continuity.continuityId,
           continuity.branchId,
           continuity.headCommitId,
           account.accountId,
-          stateRevisionId,
+          `rogue-fork-${randomUUID()}`,
         ],
+      );
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason)
+         values ($1, $2, $3, 'BRANCH_FORK', $4, $5, 'USER', 'rogue participation mutation')`,
+        [commitId, branchId, continuity.headCommitId, account.accountId, stateRevisionId],
       );
       await client.query(
         `insert into simulora.state_revisions
@@ -216,11 +225,17 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
          values ($1, $2, $3, 1, $4::jsonb, $5)`,
         [
           stateRevisionId,
-          continuity.branchId,
+          branchId,
           commitId,
           JSON.stringify(changedState),
           contentHash(changedState),
         ],
+      );
+      await client.query(
+        `update simulora.branches
+         set head_commit_id = $2, head_state_revision_id = $3, status = 'ACTIVE'
+         where id = $1`,
+        [branchId, commitId, stateRevisionId],
       );
       await expect(client.query("set constraints all immediate")).rejects.toThrow(
         /Only a direct participation command/,

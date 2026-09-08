@@ -40,10 +40,15 @@ function makeFact(id: string, statement: string, scope: WorldFact["scope"] = "SH
 }
 
 function makeWorld(facts: WorldFact[]): WorldDocument {
+  const factIds = new Set(facts.map((fact) => fact.id));
   return {
     ...lanternReachSeed,
     title: `${lanternReachSeed.title} adversarial ${randomUUID().slice(0, 8)}`,
     facts: facts.map((fact) => ({ ...fact })),
+    characters: lanternReachSeed.characters.map((character) => ({
+      ...character,
+      knowledgeFactIds: character.knowledgeFactIds.filter((factId) => factIds.has(factId)),
+    })),
   };
 }
 

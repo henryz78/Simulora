@@ -98,10 +98,13 @@ begin
   if v_operation_type = 'PARTICIPATE' and new.generation_attempt_id is null then
     raise exception 'PARTICIPATE proposal requires a Generation Attempt';
   end if;
-  if v_operation_type in (
-       'CORRECT_CONTINUITY', 'REMOVE_CONTINUITY', 'CHANGE_PARTICIPATION_CONTRACT'
-     ) and new.generation_attempt_id is not null then
-    raise exception 'Direct proposal cannot bind a Generation Attempt';
+  if v_operation_type in ('CORRECT_CONTINUITY', 'REMOVE_CONTINUITY')
+     and new.generation_attempt_id is not null then
+    raise exception 'Direct correction proposal cannot bind a Generation Attempt';
+  end if;
+  if v_operation_type = 'CHANGE_PARTICIPATION_CONTRACT'
+     and new.generation_attempt_id is not null then
+    raise exception 'Direct participation proposal cannot bind a Generation Attempt';
   end if;
   if new.generation_attempt_id is not null then
     select action_id into v_attempt_action
