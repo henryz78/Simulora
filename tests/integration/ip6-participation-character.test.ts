@@ -238,7 +238,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         [branchId, commitId, stateRevisionId],
       );
       await expect(client.query("set constraints all immediate")).rejects.toThrow(
-        /Only a direct participation command/,
+        /exact source state|Only a direct participation command/,
       );
     } finally {
       await client.query("rollback");

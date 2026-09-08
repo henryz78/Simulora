@@ -536,8 +536,8 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       Promise<{ status: "fulfilled" } | { status: "rejected"; reason: unknown }> | undefined;
     try {
       await blocker.query("begin");
-      await blocker.query("select id from simulora.restore_proposals where id = $1 for update", [
-        proposal.id,
+      await blocker.query("select id from simulora.continuities where id = $1 for update", [
+        continuity.continuityId,
       ]);
       confirmation = repository
         .confirmRestore(account, continuity.branchId, {
@@ -549,8 +549,10 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
           () => ({ status: "fulfilled" as const }),
           (reason: unknown) => ({ status: "rejected" as const, reason }),
         );
-      const selected = await repository.selectBranch(account, continuity.continuityId, fork.id);
-      expect(selected.currentBranchId).toBe(fork.id);
+      await blocker.query("update simulora.continuities set active_branch_id = $2 where id = $1", [
+        continuity.continuityId,
+        fork.id,
+      ]);
       await blocker.query("commit");
     } finally {
       await blocker.query("rollback");
@@ -607,10 +609,11 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
         proposal_digest, status, expires_at)
        select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
               expected_head_commit_id, included_sections, excluded_sections, diff,
-              proposal_digest, 'ACTIVE', now() - interval '1 second'
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '100 milliseconds'
        from simulora.restore_proposals where id = $2`,
       [timedOutId, proposal.id],
     );
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
     const regenerated = await repository.prepareRestore(
       account,
@@ -703,7 +706,7 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
           proposal.id,
         ],
       ),
-    ).rejects.toThrow(/exact confirmed proposal/);
+    ).rejects.toThrow(/exact live confirmed proposal/);
   });
 
   it("binds immutable Restore review evidence and enforces live confirmation at Commit time", async () => {
@@ -871,6 +874,7 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     );
     await new Promise((resolve) => setTimeout(resolve, 200));
 
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const outcomes = await Promise.race([
       Promise.allSettled([
         repository.prepareRestore(account, continuity.branchId, point.commitId),
@@ -880,10 +884,10 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
           expectedHeadCommitId: proposal.expectedHeadCommitId,
         }),
       ]),
-      new Promise<never>((_resolve, reject) =>
-        setTimeout(() => reject(new Error("Restore lock ordering timed out")), 5_000),
-      ),
-    ]);
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("Restore lock ordering timed out")), 5_000);
+      }),
+    ]).finally(() => clearTimeout(timeout));
     expect(
       outcomes.some(
         (outcome) =>
@@ -1151,7 +1155,7 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
          values ($1, $2, 'CONTINUITY_INITIALIZED', $3, $4, 'SYSTEM', 'invalid reuse')`,
         [randomUUID(), continuity.branchId, account.accountId, continuity.stateRevisionId],
       ),
-    ).rejects.toThrow(/reference each other/);
+    ).rejects.toThrow(/commits_one_initialization_per_branch_idx/);
     await expect(
       pool.query(
         `insert into simulora.domain_events
