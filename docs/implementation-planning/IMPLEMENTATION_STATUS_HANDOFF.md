@@ -13,7 +13,7 @@ Repository branch:                 main
 G5 original candidate:             a988051637fc15ab8cc29ad67c1e9ee0db55f967
 Final G5 repair baseline:           4cd5106528fef80fadbbb825b064439106400538
 IP-6 production candidate:         4e682f7732e514b74062c32f512f9f2ed1522e29
-Evidence verified locally against: 4e682f7732e514b74062c32f512f9f2ed1522e29
+Evidence verified against:         4e682f7732e514b74062c32f512f9f2ed1522e29
 Worktree at evidence check:        clean
 
 Frozen Experience baseline:        877f4d532024009ba44d99580e12ce088136304a
@@ -27,7 +27,7 @@ G4 Return / Continuity / Correction: passed
 G5 Recovery:                       independent re-review in progress
 
 IP-5 Recovery:                     implementation complete
-IP-6 Participation / characters:   implementation complete; G6 pending
+IP-6 Participation / characters:   implementation and exact-baseline CI complete; G6 pending
 IP-7 World Studio:                 not started
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected

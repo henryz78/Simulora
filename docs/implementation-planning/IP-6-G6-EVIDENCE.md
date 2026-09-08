@@ -41,7 +41,14 @@ The Branch-head Commit and immutable State Revision remain the only participatio
 - Local Vitest: `48/48` passed. The `55` tests requiring `SIMULORA_DATABASE_URL` were explicitly skipped and are not claimed as PostgreSQL evidence.
 - `pnpm test:e2e`: `44/44` passed across desktop Chromium and 390×844 mobile, including all G1–G5 regression journeys and the IP-6 exact/stale participation reviews.
 - `git diff --check`: PASS before commit.
-- Initial CI [run 34198119271](https://github.com/henryz78/Simulora/actions/runs/34198119271) failed in the real PostgreSQL step and is retained as evidence of the repair chain. GitHub CI for repaired baseline `4e682f7` was started by push. Its real PostgreSQL, prior-schema migration, container and Linux build results must be checked independently before Gate G6 approval; this record does not infer success before completion.
+- Initial CI [run 34198119271](https://github.com/henryz78/Simulora/actions/runs/34198119271) failed in the real PostgreSQL step and is retained as evidence of the repair chain.
+- Exact repaired-baseline CI [run 34198810966](https://github.com/henryz78/Simulora/actions/runs/34198810966) completed successfully on `4e682f7732e514b74062c32f512f9f2ed1522e29`:
+  - empty and prior PostgreSQL schema migration plus ledger/recovery rehearsal: PASS with twelve migrations;
+  - real PostgreSQL suites: `55/55` passed in seven files, with no database test skipped;
+  - full `pnpm check`: `103/103` passed in twenty-one files, including Linux lint/typecheck/architecture/migrations, production builds and built-worker runtime smoke;
+  - API and worker production container build, API health and worker-ready smoke: PASS;
+  - desktop Chromium plus 390×844 Playwright: `44/44` passed.
+- CI is evidence, not Gate G6 approval. An independent Reviewer must still inspect the implementation and tests rather than infer the decision from a green run.
 
 ## Gate G6 evidence mapping
 
@@ -71,6 +78,10 @@ GATE G6: PENDING INDEPENDENT REVIEW
 G6 PRODUCTION CANDIDATE: 4e682f7732e514b74062c32f512f9f2ed1522e29
 LOCAL CHECK: PASS
 LOCAL DESKTOP + 390x844 E2E: 44/44 PASS
-REAL POSTGRESQL / CONTAINER CI: PENDING INDEPENDENT VERIFICATION
+GITHUB CI 34198810966: PASS
+REAL POSTGRESQL: 55/55 PASS
+FULL SUITE: 103/103 PASS
+DESKTOP + 390x844 CI: 44/44 PASS
+CONTAINER SMOKE: PASS
 IP-7: NOT STARTED
 ```
