@@ -758,6 +758,45 @@ export function ContextPage(): ReactElement {
   );
 }
 
+type RecoveryCommitSource = {
+  id: string;
+  branchId: string;
+  branchName: string;
+  kind: string;
+  createdAt: string;
+};
+
+async function readRecoveryCommitSources(next: RecoveryResponse): Promise<RecoveryCommitSource[]> {
+  const traces = await Promise.all(
+    next.branches.map(async (branch) => {
+      const commits: RecoveryCommitSource[] = [];
+      let cursor: string | undefined;
+      const seen = new Set<string>();
+      do {
+        const result = await readBranchTrace(branch.id, cursor);
+        if (!result.data) break;
+        commits.push(
+          ...result.data.commits.map((commit) => ({
+            id: commit.id,
+            branchId: branch.id,
+            branchName: branch.name,
+            kind: commit.kind,
+            createdAt: commit.createdAt,
+          })),
+        );
+        const nextCursor = result.data.nextCursor ?? undefined;
+        if (!nextCursor || seen.has(nextCursor)) break;
+        seen.add(nextCursor);
+        cursor = nextCursor;
+      } while (cursor);
+      return commits;
+    }),
+  );
+  return [...new Map(traces.flat().map((commit) => [commit.id, commit])).values()].sort(
+    (left, right) => right.createdAt.localeCompare(left.createdAt),
+  );
+}
+
 export function RecoveryPage(): ReactElement {
   const { continuityId, loadState, pendingActionRefs, refresh } = useContinuity();
   const [recovery, setRecovery] = useState<RecoveryResponse | null>(null);
@@ -766,6 +805,7 @@ export function RecoveryPage(): ReactElement {
   const [branchName, setBranchName] = useState("Alternative path");
   const [branchSourceCommitId, setBranchSourceCommitId] = useState("");
   const [restoreSourceCommitId, setRestoreSourceCommitId] = useState("");
+  const [commitSources, setCommitSources] = useState<RecoveryCommitSource[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const pointKey = useRef<string | null>(null);
@@ -783,6 +823,7 @@ export function RecoveryPage(): ReactElement {
       setRestoreSourceCommitId(
         (current) => current || next.recoveryPoints[0]?.commitId || head || "",
       );
+      setCommitSources(await readRecoveryCommitSources(next));
       setMessage(null);
     } else {
       setMessage("Recovery state is unavailable. Current World truth was not changed.");
@@ -792,13 +833,15 @@ export function RecoveryPage(): ReactElement {
   useEffect(() => {
     if (!head) return;
     let active = true;
-    void readRecovery(continuityId).then((result) => {
+    void readRecovery(continuityId).then(async (result) => {
       if (!active) return;
       if (result.data) {
         setRecovery(result.data);
         setRestore(result.data.restoreProposals[0] ?? null);
         setBranchSourceCommitId(head);
         setRestoreSourceCommitId(result.data.recoveryPoints[0]?.commitId ?? head);
+        const sources = await readRecoveryCommitSources(result.data);
+        if (active) setCommitSources(sources);
       } else {
         setMessage("Recovery state is unavailable. Current World truth was not changed.");
       }
@@ -817,7 +860,9 @@ export function RecoveryPage(): ReactElement {
     );
   }
 
-  const sources = recovery?.recoveryPoints ?? [];
+  const pointLabels = new Map(
+    (recovery?.recoveryPoints ?? []).map((point) => [point.commitId, point.label]),
+  );
   const run = async (name: string, work: () => Promise<void>): Promise<void> => {
     if (busy) return;
     setBusy(name);
@@ -953,18 +998,14 @@ export function RecoveryPage(): ReactElement {
               onChange={(event) => setBranchSourceCommitId(event.target.value)}
             >
               <option value={head}>Current head · {shortId(head)}</option>
-              {sources
-                .filter((point) => point.commitId !== head)
-                .map((point) => {
-                  const sourceBranch = recovery?.branches.find(
-                    (branch) => branch.id === point.branchId,
-                  );
-                  return (
-                    <option key={point.id} value={point.commitId}>
-                      {point.label} · {sourceBranch?.name ?? "Branch"} · {shortId(point.commitId)}
-                    </option>
-                  );
-                })}
+              {commitSources
+                .filter((commit) => commit.id !== head)
+                .map((commit) => (
+                  <option key={commit.id} value={commit.id}>
+                    {pointLabels.get(commit.id) ?? labelMode(commit.kind)} · {commit.branchName} ·{" "}
+                    {shortId(commit.id)}
+                  </option>
+                ))}
             </select>
           </label>
           <button
@@ -1051,11 +1092,12 @@ export function RecoveryPage(): ReactElement {
               }}
             >
               <option value={head}>Current head · no earlier change</option>
-              {sources
-                .filter((point) => point.commitId !== head)
-                .map((point) => (
-                  <option key={point.id} value={point.commitId}>
-                    {point.label} · {shortId(point.commitId)}
+              {commitSources
+                .filter((commit) => commit.id !== head)
+                .map((commit) => (
+                  <option key={commit.id} value={commit.id}>
+                    {pointLabels.get(commit.id) ?? labelMode(commit.kind)} · {commit.branchName} ·{" "}
+                    {shortId(commit.id)}
                   </option>
                 ))}
             </select>

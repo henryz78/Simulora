@@ -6,7 +6,7 @@ import {
   ActionTruthService,
   WorldContinuityService,
 } from "../../packages/application/src/index.js";
-import { lanternReachSeed } from "../../packages/domain/src/index.js";
+import { contentHash, lanternReachSeed } from "../../packages/domain/src/index.js";
 import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
 import {
   AuthoritativeWorldRepository,
@@ -662,5 +662,190 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       parentBranchId: continuity.branchId,
       isCurrent: false,
     });
+  });
+
+  it("requires an exact Restore confirmation before a Restore Commit can exist", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `db-confirmation-point-${randomUUID()}`,
+      label: "Before direct SQL attack",
+    });
+    const changed = await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the signal before testing confirmation integrity.",
+    );
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    await pool.query("update simulora.restore_proposals set status = 'CONFIRMED' where id = $1", [
+      proposal.id,
+    ]);
+    await expect(
+      pool.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason, restore_proposal_id)
+         values ($1, $2, $3, 'RESTORE_COMMITTED', $4, $5, 'USER', 'invalid', $6)`,
+        [
+          randomUUID(),
+          continuity.branchId,
+          changed.commit!.resultingHeadCommitId,
+          account.accountId,
+          randomUUID(),
+          proposal.id,
+        ],
+      ),
+    ).rejects.toThrow(/exact confirmed proposal/);
+  });
+
+  it("rejects a confirmed Restore that omits its append-only Event", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `db-materialization-point-${randomUUID()}`,
+      label: "Before materialization attack",
+    });
+    const changed = await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the signal before testing materialization integrity.",
+    );
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    const client = await pool.connect();
+    try {
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      await client.query("begin");
+      await client.query(
+        `insert into simulora.restore_confirmations
+         (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+         values ($1, $2, $3, $4, $5)`,
+        [
+          randomUUID(),
+          proposal.id,
+          account.accountId,
+          proposal.digest,
+          proposal.expectedHeadCommitId,
+        ],
+      );
+      await client.query(
+        "update simulora.restore_proposals set status = 'CONFIRMED' where id = $1",
+        [proposal.id],
+      );
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          source_type, reason, restore_proposal_id)
+         values ($1, $2, $3, 'RESTORE_COMMITTED', $4, $5, 'USER', 'invalid', $6)`,
+        [
+          commitId,
+          continuity.branchId,
+          changed.commit!.resultingHeadCommitId,
+          account.accountId,
+          stateRevisionId,
+          proposal.id,
+        ],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [
+          stateRevisionId,
+          continuity.branchId,
+          commitId,
+          JSON.stringify(continuity.state),
+          contentHash(continuity.state),
+        ],
+      );
+      await expect(client.query("commit")).rejects.toThrow(/linked STATE_RESTORED Event/);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("enforces reciprocal state hashes, Event ownership and immutable Branch lineage", async () => {
+    const continuity = await createContinuity();
+    const other = await createContinuity();
+    const fork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey: `lineage-fork-${randomUUID()}`,
+      name: "Immutable lineage",
+      sourceCommitId: continuity.headCommitId,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    await expect(
+      pool.query("update simulora.branches set continuity_id = $2 where id = $1", [
+        fork.id,
+        other.continuityId,
+      ]),
+    ).rejects.toThrow(/identity and lineage are immutable/);
+    await expect(
+      pool.query(
+        `insert into simulora.world_commits
+         (id, branch_id, kind, actor_account_id, state_revision_id, source_type, reason)
+         values ($1, $2, 'CONTINUITY_INITIALIZED', $3, $4, 'SYSTEM', 'invalid reuse')`,
+        [randomUUID(), continuity.branchId, account.accountId, continuity.stateRevisionId],
+      ),
+    ).rejects.toThrow(/reference each other/);
+    await expect(
+      pool.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope)
+         values ($1, $2, $3, 'INVALID_EVENT', '{}'::jsonb, 'SYSTEM', 'ACCOUNT_PRIVATE')`,
+        [randomUUID(), fork.id, continuity.headCommitId],
+      ),
+    ).rejects.toThrow(/must belong to its Commit Branch/);
+
+    const client = await pool.connect();
+    try {
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      await client.query("begin");
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, kind, actor_account_id, state_revision_id, source_type, reason)
+         values ($1, $2, 'CONTINUITY_INITIALIZED', $3, $4, 'SYSTEM', 'invalid hash')`,
+        [commitId, continuity.branchId, account.accountId, stateRevisionId],
+      );
+      await expect(
+        client.query(
+          `insert into simulora.state_revisions
+           (id, branch_id, commit_id, schema_version, document, document_hash)
+           values ($1, $2, $3, 1, $4::jsonb, $5)`,
+          [
+            stateRevisionId,
+            continuity.branchId,
+            commitId,
+            JSON.stringify(continuity.state),
+            "0".repeat(64),
+          ],
+        ),
+      ).rejects.toThrow(/state_revision_document_hash_matches/);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it("returns the original fork for a same-key retry after the active head advances", async () => {
+    const continuity = await createContinuity();
+    const idempotencyKey = `fork-head-retry-${randomUUID()}`;
+    const fork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey,
+      name: "Retry-safe fork",
+      sourceCommitId: continuity.headCommitId,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Advance the active head after the fork response is lost.",
+    );
+    const retry = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey,
+      name: "Retry-safe fork",
+      sourceCommitId: continuity.headCommitId,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    expect(retry.id).toBe(fork.id);
   });
 });

@@ -2,6 +2,11 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
+import {
+  contentHash,
+  createInitialState,
+  lanternReachSeed,
+} from "../../packages/domain/src/index.js";
 
 describe("authoritative spine migrations", () => {
   it("applies from an empty PostgreSQL-compatible database", async () => {
@@ -21,6 +26,19 @@ describe("authoritative spine migrations", () => {
         where key = 'implementation_phase'
       `);
       expect(result.rows).toEqual([{ phase: "IP-5", started: true }]);
+
+      const state = createInitialState(lanternReachSeed, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+      const databaseHash = await database.query<{ document_hash: string }>(
+        `select encode(
+           sha256(convert_to(simulora.canonical_jsonb_text($1::jsonb), 'UTF8')),
+           'hex'
+         ) as document_hash`,
+        [JSON.stringify(state)],
+      );
+      expect(databaseHash.rows[0]?.document_hash).toBe(contentHash(state));
 
       await database.exec(`
         begin;
@@ -84,7 +102,7 @@ describe("authoritative spine migrations", () => {
           '00000000-0000-4000-8000-000000000107',
           1,
           '{}'::jsonb,
-          repeat('1', 64)
+          '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a'
         );
         update simulora.branches
            set head_commit_id = '00000000-0000-4000-8000-000000000107',

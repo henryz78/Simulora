@@ -145,6 +145,7 @@ function shouldAcceptAction(
   incoming: ActionResponse["status"],
 ): boolean {
   if (!previous || previous === incoming) return true;
+  if (previous === "CONFLICT") return incoming === "SUPERSEDED";
   // A retry is the one legal backwards-looking transition: a recoverable
   // failure can be reopened for generation. All other terminal states are
   // immutable and an older read must never regress them.
@@ -152,6 +153,17 @@ function shouldAcceptAction(
   if (TERMINAL_ACTION_STATUSES.has(previous)) return false;
   if (TERMINAL_ACTION_STATUSES.has(incoming) || incoming === "FAILED_RECOVERABLE") return true;
   return ACTION_PROGRESS_RANK[incoming] > ACTION_PROGRESS_RANK[previous];
+}
+
+function mergeAction(
+  current: Map<string, ActionResponse>,
+  action: ActionResponse,
+): Map<string, ActionResponse> {
+  const previous = current.get(action.id);
+  if (previous && !shouldAcceptAction(previous.status, action.status)) return current;
+  const next = new Map(current);
+  next.set(action.id, action);
+  return next;
 }
 
 function updateHistoryForAction(history: BranchAction[], action: ActionResponse): BranchAction[] {
@@ -219,13 +231,7 @@ export function ContinuityProvider({
   }, [loadState]);
 
   const upsertAction = useCallback((action: ActionResponse): void => {
-    setActions((current) => {
-      const previous = current.get(action.id);
-      if (previous && !shouldAcceptAction(previous.status, action.status)) return current;
-      const next = new Map(current);
-      next.set(action.id, action);
-      return next;
-    });
+    setActions((current) => mergeAction(current, action));
     setHistory((current) => updateHistoryForAction(current, action));
   }, []);
 
@@ -270,9 +276,9 @@ export function ContinuityProvider({
       );
       if (loadGeneration.current !== generation) return;
       setActions((current) => {
-        const next = new Map(current);
+        let next = new Map(current);
         details.forEach((action) => {
-          if (action && action.continuityId === continuityId) next.set(action.id, action);
+          if (action && action.continuityId === continuityId) next = mergeAction(next, action);
         });
         return next;
       });
@@ -304,6 +310,7 @@ export function ContinuityProvider({
             action.branchId !== loadStateRef.current.data.continuity.branchId)
         )
           return null;
+        if (existing && !shouldAcceptAction(existing.status, action.status)) return existing;
         upsertAction(action);
         return action;
       } catch {

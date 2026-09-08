@@ -1725,14 +1725,18 @@ export class AuthoritativeWorldRepository {
     this.assertEligible(account);
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
-      const duplicate = await client.query<{ id: string }>(
-        `select id from simulora.branches
-         where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
-        [account.accountId, continuityId, input.idempotencyKey],
-      );
-      if (duplicate.rows[0]) {
-        return this.readRecoveryBranchWithClient(client, account.accountId, duplicate.rows[0].id);
-      }
+      const findExistingFork = async (): Promise<RecoveryBranchRecord | null> => {
+        const duplicate = await client.query<{ id: string }>(
+          `select id from simulora.branches
+           where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
+          [account.accountId, continuityId, input.idempotencyKey],
+        );
+        return duplicate.rows[0]
+          ? this.readRecoveryBranchWithClient(client, account.accountId, duplicate.rows[0].id)
+          : null;
+      };
+      const existingFork = await findExistingFork();
+      if (existingFork) return existingFork;
       const source = await client.query<{
         source_branch_id: string;
         source_state_revision_id: string;
@@ -1756,6 +1760,8 @@ export class AuthoritativeWorldRepository {
       );
       const row = source.rows[0];
       if (!row) throw new NotFoundError("Branch source not found");
+      const concurrentExistingFork = await findExistingFork();
+      if (concurrentExistingFork) return concurrentExistingFork;
       if (row.current_head_commit_id !== input.expectedHeadCommitId) {
         throw new ConflictError("BRANCH_HEAD_CONFLICT");
       }
@@ -1782,17 +1788,13 @@ export class AuthoritativeWorldRepository {
         ],
       );
       if (!inserted.rows[0]) {
-        const existingFork = await client.query<{ id: string }>(
+        const insertRace = await client.query<{ id: string }>(
           `select id from simulora.branches
            where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
           [account.accountId, continuityId, input.idempotencyKey],
         );
-        if (!existingFork.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
-        return this.readRecoveryBranchWithClient(
-          client,
-          account.accountId,
-          existingFork.rows[0].id,
-        );
+        if (!insertRace.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        return this.readRecoveryBranchWithClient(client, account.accountId, insertRace.rows[0].id);
       }
       await client.query(
         `insert into simulora.world_commits
