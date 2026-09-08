@@ -396,6 +396,57 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     }
   });
 
+  it("keeps a conflicted Action unresolved until explicit supersession", async () => {
+    const continuity = await createContinuity();
+    const fork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey: `conflict-fork-${randomUUID()}`,
+      name: "After conflict",
+      sourceCommitId: continuity.headCommitId,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    const submit = (intent: string) =>
+      repository.submitAction(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: `conflict-action-${randomUUID()}`,
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent,
+      });
+    const [first, second] = await Promise.all([
+      submit("Advance the current path."),
+      submit("Keep this proposal for conflict review."),
+    ]);
+    const [firstProposal, secondProposal] = await Promise.all([
+      repository.processAction(first.id, (request) => gateway.generateWorldTurn(request)),
+      repository.processAction(second.id, (request) => gateway.generateWorldTurn(request)),
+    ]);
+    await repository.confirmAction(account, first.id, {
+      proposalId: firstProposal!.proposal!.id,
+      proposalDigest: firstProposal!.proposal!.digest,
+      expectedHeadCommitId: firstProposal!.proposal!.expectedHeadCommitId,
+    });
+    const conflicted = await repository.confirmAction(account, second.id, {
+      proposalId: secondProposal!.proposal!.id,
+      proposalDigest: secondProposal!.proposal!.digest,
+      expectedHeadCommitId: secondProposal!.proposal!.expectedHeadCommitId,
+    });
+    expect(conflicted.status).toBe("CONFLICT");
+    expect(
+      (await repository.readOrientation(account, continuity.continuityId)).pendingActions,
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: second.id, status: "CONFLICT" })]),
+    );
+    await expect(
+      repository.selectBranch(account, continuity.continuityId, fork.id),
+    ).rejects.toThrow(new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION"));
+
+    const superseded = await repository.cancelAction(account, second.id);
+    expect(superseded.status).toBe("SUPERSEDED");
+    expect(
+      (await repository.selectBranch(account, continuity.continuityId, fork.id)).currentBranchId,
+    ).toBe(fork.id);
+  });
+
   it("turns a stale Restore review into a conflict without world mutation", async () => {
     const continuity = await createContinuity();
     const point = await repository.createRecoveryPoint(account, continuity.branchId, {
@@ -514,6 +565,56 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       fork.id,
     );
     expect((await repository.readRestoreProposal(account, proposal.id)).status).toBe("STALE");
+    await repository.selectBranch(account, continuity.continuityId, continuity.branchId);
+    const regenerated = await repository.prepareRestore(
+      account,
+      continuity.branchId,
+      point.commitId,
+    );
+    expect(regenerated).toMatchObject({ status: "ACTIVE", digest: proposal.digest });
+    expect(regenerated.id).not.toBe(proposal.id);
+  });
+
+  it("regenerates a Restore review after its previous active review expires", async () => {
+    const continuity = await createContinuity();
+    const point = await repository.createRecoveryPoint(account, continuity.branchId, {
+      idempotencyKey: `expired-review-point-${randomUUID()}`,
+      label: "Before expiry",
+    });
+    const changed = await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Change the path before expiry review.",
+    );
+    const proposal = await repository.prepareRestore(account, continuity.branchId, point.commitId);
+    await pool.query("update simulora.restore_proposals set status = 'EXPIRED' where id = $1", [
+      proposal.id,
+    ]);
+    const timedOutId = randomUUID();
+    await pool.query(
+      `insert into simulora.restore_proposals
+       (id, continuity_id, branch_id, actor_account_id, source_commit_id,
+        expected_head_commit_id, included_sections, excluded_sections, diff,
+        proposal_digest, status, expires_at)
+       select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
+              expected_head_commit_id, included_sections, excluded_sections, diff,
+              proposal_digest, 'ACTIVE', now() - interval '1 second'
+       from simulora.restore_proposals where id = $2`,
+      [timedOutId, proposal.id],
+    );
+
+    const regenerated = await repository.prepareRestore(
+      account,
+      continuity.branchId,
+      point.commitId,
+    );
+    expect(regenerated).toMatchObject({
+      status: "ACTIVE",
+      expectedHeadCommitId: changed.commit!.resultingHeadCommitId,
+      digest: proposal.digest,
+    });
+    expect(regenerated.id).not.toBe(timedOutId);
+    expect((await repository.readRestoreProposal(account, timedOutId)).status).toBe("EXPIRED");
   });
 
   it("exposes owner-scoped Recovery commands over the production API", async () => {

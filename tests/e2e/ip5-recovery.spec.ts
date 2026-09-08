@@ -120,12 +120,32 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
 
 async function installRoutes(
   page: Page,
-  pending = false,
+  pending: boolean | "CONFLICT" = false,
   loseRestoreResponse = false,
 ): Promise<void> {
   const recoveryState = recovery();
   let currentHead = branchHead;
   let latestProposal: Record<string, unknown> | null = null;
+  let actionStatus = pending === "CONFLICT" ? "CONFLICT" : "ACKNOWLEDGED";
+  const actionId = "60000000-0000-4000-8000-000000000020";
+  const action = (): Record<string, unknown> => ({
+    id: actionId,
+    continuityId,
+    branchId,
+    expectedHeadCommitId: branchHead,
+    operationType: "PARTICIPATE",
+    status: actionStatus,
+    intent: "Inspect the signal",
+    participationExpectation: { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" },
+    acknowledgedAt: now,
+    terminalAt: actionStatus === "SUPERSEDED" ? now : null,
+    recoverableWait: false,
+    statusReason: actionStatus === "CONFLICT" ? "BRANCH_HEAD_CONFLICT" : null,
+    progressUrl: "/progress",
+    eventsUrl: `/v1/actions/${actionId}/events`,
+    proposal: null,
+    commit: null,
+  });
   await page.route(`**/v1/continuities/${continuityId}/state`, (route) =>
     json(route, state(branchId, currentHead)),
   );
@@ -135,8 +155,8 @@ async function installRoutes(
       actions: pending
         ? [
             {
-              id: "60000000-0000-4000-8000-000000000020",
-              status: "ACKNOWLEDGED",
+              id: actionId,
+              status: actionStatus,
               intent: "Inspect the signal",
               acknowledgedAt: now,
               committedAt: null,
@@ -146,33 +166,18 @@ async function installRoutes(
         : [],
     }),
   );
-  await page.route(`**/v1/actions/60000000-0000-4000-8000-000000000020/events`, (route) =>
+  await page.route(`**/v1/actions/${actionId}/events`, (route) =>
     route.fulfill({
       status: 200,
       contentType: "text/event-stream",
       body: "event: heartbeat\ndata: {}\n\n",
     }),
   );
-  await page.route(`**/v1/actions/60000000-0000-4000-8000-000000000020`, (route) =>
-    json(route, {
-      id: "60000000-0000-4000-8000-000000000020",
-      continuityId,
-      branchId,
-      expectedHeadCommitId: branchHead,
-      operationType: "PARTICIPATE",
-      status: "ACKNOWLEDGED",
-      intent: "Inspect the signal",
-      participationExpectation: { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" },
-      acknowledgedAt: now,
-      terminalAt: null,
-      recoverableWait: false,
-      statusReason: null,
-      progressUrl: "/progress",
-      eventsUrl: "/v1/actions/60000000-0000-4000-8000-000000000020/events",
-      proposal: null,
-      commit: null,
-    }),
-  );
+  await page.route(`**/v1/actions/${actionId}/cancel`, async (route) => {
+    actionStatus = actionStatus === "CONFLICT" ? "SUPERSEDED" : "CANCELLED";
+    await json(route, action());
+  });
+  await page.route(`**/v1/actions/${actionId}`, (route) => json(route, action()));
   await page.route(`**/v1/continuities/${continuityId}/recovery`, (route) =>
     json(route, recoveryState),
   );
@@ -285,6 +290,20 @@ test("pending Action stays understandable through Recovery navigation", async ({
   ).toBeVisible();
   await page.getByRole("link", { name: "Back to world" }).click();
   await expect(page.getByText("Pending Actions")).toBeVisible();
+});
+
+test("conflicted Action remains visible until explicitly superseded", async ({ page }) => {
+  await installRoutes(page, "CONFLICT");
+  await page.goto(`/continuities/${continuityId}`);
+  await expect(page.getByText("One Action still needs attention")).toBeVisible();
+  await page.getByRole("link", { name: /Conflict · Inspect the signal/ }).click();
+  await expect(page.getByRole("heading", { name: "Conflict" })).toBeVisible();
+  await expect(page.getByText("this stale proposal remains until you close it")).toBeVisible();
+  await page.getByRole("button", { name: "Close stale Action" }).click();
+  await expect(page.getByRole("heading", { name: "Superseded" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to world" }).click();
+  await expect(page.getByText("One Action still needs attention")).toHaveCount(0);
+  await expect(page.getByLabel("Your Action")).toBeEnabled();
 });
 
 test("Safe Point, Branch and exact append-only Restore share one Recovery model", async ({

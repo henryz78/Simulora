@@ -72,7 +72,6 @@ export type ContinuityContextValue = {
 const TERMINAL_ACTION_STATUSES = new Set<ActionResponse["status"]>([
   "COMMITTED",
   "CANCELLED",
-  "CONFLICT",
   "SUPERSEDED",
 ]);
 
@@ -325,6 +324,7 @@ export function ContinuityProvider({
   const pendingActionRefs = useMemo(() => pendingHistory(history), [history]);
   const pendingActionsRef = useRef<ActionResponse[]>(pendingActions);
   const pendingSubscriptionKey = pendingActions
+    .filter((action) => action.status !== "CONFLICT")
     .map((action) => `${action.id}\u0000${action.eventsUrl}`)
     .sort()
     .join("\u0001");
@@ -361,7 +361,10 @@ export function ContinuityProvider({
       if (committed) void refresh();
     };
     const timer = window.setInterval(() => void refreshPending(), 1000);
-    const sources = snapshotEventSources(pendingActionsRef.current, () => void refreshPending());
+    const sources = snapshotEventSources(
+      pendingActionsRef.current.filter((action) => action.status !== "CONFLICT"),
+      () => void refreshPending(),
+    );
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -776,7 +779,8 @@ export function ActionStatusCard({
     COMMITTED: "Recorded. The Branch head and committed history now include this Action.",
     FAILED_RECOVERABLE:
       "The Action did not complete. Current truth is unchanged and it can be retried.",
-    CONFLICT: "The world changed before this proposal could be recorded. Nothing was applied.",
+    CONFLICT:
+      "The world changed before this proposal could be recorded. Nothing was applied; this stale proposal remains until you close it.",
     CANCELLED: "Cancelled. Current World truth is unchanged.",
     SUPERSEDED: "This Action was replaced without changing current truth.",
   };
@@ -877,6 +881,22 @@ export function ActionStatusCard({
           >
             Cancel Action
           </button>
+        </div>
+      ) : null}
+      {action.status === "CONFLICT" ? (
+        <div className="action-buttons">
+          <button
+            className="secondary-action"
+            type="button"
+            disabled={working}
+            onClick={() => void run(onCancel)}
+          >
+            Close stale Action
+          </button>
+          <p className="muted-copy">
+            This supersedes only the stale proposal. Current truth and its history remain unchanged;
+            you can then submit a new Action against the current world.
+          </p>
         </div>
       ) : null}
     </article>

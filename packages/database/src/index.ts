@@ -1378,13 +1378,20 @@ export class AuthoritativeWorldRepository {
           "AWAITING_CONFIRMATION",
           "COMMITTING",
           "FAILED_RECOVERABLE",
+          "CONFLICT",
         ].includes(action.status)
       ) {
         const now = new Date();
+        const status = action.status === "CONFLICT" ? "SUPERSEDED" : "CANCELLED";
         await client.query(
-          `update simulora.actions set status = 'CANCELLED', terminal_at = $2, updated_at = $2,
-           status_reason = 'USER_CANCELLED', row_version = row_version + 1 where id = $1`,
-          [actionId, now],
+          `update simulora.actions set status = $3, terminal_at = $2, updated_at = $2,
+           status_reason = $4, row_version = row_version + 1 where id = $1`,
+          [
+            actionId,
+            now,
+            status,
+            status === "SUPERSEDED" ? "USER_SUPERSEDED_CONFLICT" : "USER_CANCELLED",
+          ],
         );
         await client.query(
           `update simulora.action_proposals set status = 'REJECTED'
@@ -1402,8 +1409,11 @@ export class AuthoritativeWorldRepository {
           [actionId],
         );
         await this.appendProgressWithClient(client, actionId, "action.status", {
-          status: "CANCELLED",
-          message: "The Action was cancelled. Current World truth is unchanged.",
+          status,
+          message:
+            status === "SUPERSEDED"
+              ? "The stale Action was closed without changing current World truth."
+              : "The Action was cancelled. Current World truth is unchanged.",
         });
       }
       return this.readActionWithClient(client, account, actionId);
@@ -1468,7 +1478,7 @@ export class AuthoritativeWorldRepository {
       actionId,
       frames,
       nextCursor: frames.at(-1)?.sequence ?? afterSequence,
-      terminal: ["COMMITTED", "CONFLICT", "CANCELLED", "SUPERSEDED"].includes(action.status),
+      terminal: ["COMMITTED", "CANCELLED", "SUPERSEDED"].includes(action.status),
     };
   }
 
@@ -1851,7 +1861,7 @@ export class AuthoritativeWorldRepository {
       if (!target.rows[0]) throw new NotFoundError("Branch not found");
       const pending = await client.query<{ count: number }>(
         `select count(*)::int as count from simulora.actions
-         where branch_id = $1 and status not in ('COMMITTED', 'CONFLICT', 'CANCELLED', 'SUPERSEDED')`,
+         where branch_id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')`,
         [current.active_branch_id],
       );
       if ((pending.rows[0]?.count ?? 0) > 0) {
@@ -1934,8 +1944,14 @@ export class AuthoritativeWorldRepository {
         beforeHash: row.current_hash,
         sourceHash: row.source_hash,
       });
+      await client.query(
+        `update simulora.restore_proposals set status = 'EXPIRED'
+         where branch_id = $1 and proposal_digest = $2 and status = 'ACTIVE' and expires_at <= now()`,
+        [branchId, digest],
+      );
       const existing = await client.query<{ id: string }>(
-        "select id from simulora.restore_proposals where branch_id = $1 and proposal_digest = $2",
+        `select id from simulora.restore_proposals
+         where branch_id = $1 and proposal_digest = $2 and status = 'ACTIVE'`,
         [branchId, digest],
       );
       if (existing.rows[0]) {
@@ -1949,7 +1965,7 @@ export class AuthoritativeWorldRepository {
           expected_head_commit_id, included_sections, excluded_sections, diff,
           proposal_digest, status, expires_at)
          values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, 'ACTIVE', $11)
-         on conflict (branch_id, proposal_digest) do nothing
+         on conflict (branch_id, proposal_digest) where status = 'ACTIVE' do nothing
          returning id`,
         [
           id,
@@ -1972,7 +1988,8 @@ export class AuthoritativeWorldRepository {
       );
       if (!inserted.rows[0]) {
         const duplicate = await client.query<{ id: string }>(
-          "select id from simulora.restore_proposals where branch_id = $1 and proposal_digest = $2",
+          `select id from simulora.restore_proposals
+           where branch_id = $1 and proposal_digest = $2 and status = 'ACTIVE'`,
           [branchId, digest],
         );
         if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
@@ -2220,7 +2237,7 @@ export class AuthoritativeWorldRepository {
       }>(
         `select id, operation_type, status, expected_head_commit_id, updated_at
          from simulora.actions
-         where branch_id = $1 and status not in ('COMMITTED', 'CONFLICT', 'CANCELLED', 'SUPERSEDED')
+         where branch_id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')
          order by created_at`,
         [row.branch_id],
       );
@@ -2330,7 +2347,7 @@ export class AuthoritativeWorldRepository {
       }>(
         `select id, operation_type, status, expected_head_commit_id, updated_at
          from simulora.actions
-         where branch_id = $1 and status not in ('COMMITTED', 'CONFLICT', 'CANCELLED', 'SUPERSEDED')
+         where branch_id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')
          order by created_at`,
         [branchId],
       );
