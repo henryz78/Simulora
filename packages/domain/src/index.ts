@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
-export const implementationPhase = "IP-5" as const;
+export const implementationPhase = "IP-6" as const;
 
 const stableIdSchema = z
   .string()
@@ -16,6 +16,25 @@ export const participationContractSchema = z.object({
   initiativeMode: initiativeModeSchema,
   structureMode: structureModeSchema,
 });
+
+export const characterAssetDefinitionSchema = z.object({
+  schemaVersion: z.literal(1),
+  name: z.string().trim().min(1).max(120),
+  role: nonEmptyTextSchema,
+  motives: z.array(nonEmptyTextSchema).min(1).default(["Act consistently with this role."]),
+  stance: nonEmptyTextSchema.default(
+    "May disagree or refuse when the character's motives require it.",
+  ),
+  knowledgeFactIds: z.array(stableIdSchema).default([]),
+});
+
+export const worldCharacterSpecSchema = characterAssetDefinitionSchema
+  .omit({ schemaVersion: true })
+  .extend({
+    id: stableIdSchema,
+    locationId: stableIdSchema,
+    sourceAssetId: z.string().uuid().optional(),
+  });
 
 export const factScopeSchema = z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]);
 
@@ -64,16 +83,7 @@ export const worldDocumentSchema = z
         }),
       )
       .min(1),
-    characters: z
-      .array(
-        z.object({
-          id: stableIdSchema,
-          name: z.string().trim().min(1).max(120),
-          role: nonEmptyTextSchema,
-          locationId: stableIdSchema,
-        }),
-      )
-      .min(1),
+    characters: z.array(worldCharacterSpecSchema).min(1),
     facts: z.array(worldFactSchema).min(1),
     relationships: z.array(
       z.object({
@@ -127,49 +137,155 @@ export const worldDocumentSchema = z
         });
       }
     });
+
+    world.characters.forEach((character, index) => {
+      character.knowledgeFactIds.forEach((factId) => {
+        if (!world.facts.some((fact) => fact.id === factId)) {
+          context.addIssue({
+            code: "custom",
+            message: "Character knowledge must reference a World fact",
+            path: ["characters", index, "knowledgeFactIds"],
+          });
+        }
+      });
+    });
   });
 
-export const stateRevisionDocumentSchema = z.object({
-  schemaVersion: z.literal(1),
-  participation: participationContractSchema,
-  worldClock: z.object({ turn: z.number().int().nonnegative(), label: nonEmptyTextSchema }),
-  locations: z.array(
-    z.object({ id: stableIdSchema, name: nonEmptyTextSchema, description: nonEmptyTextSchema }),
-  ),
-  entities: z.array(z.record(z.string(), z.unknown())),
-  characters: z.array(
-    z.object({
-      id: stableIdSchema,
-      name: nonEmptyTextSchema,
-      role: nonEmptyTextSchema,
-      locationId: stableIdSchema,
-      currentState: nonEmptyTextSchema,
-    }),
-  ),
-  facts: z.array(stateFactSchema),
-  relationships: z.array(
-    z.object({
-      id: stableIdSchema,
-      fromCharacterId: stableIdSchema,
-      toCharacterId: stableIdSchema,
-      description: nonEmptyTextSchema,
-    }),
-  ),
-  openThreads: z.array(nonEmptyTextSchema),
-  objectives: z.array(nonEmptyTextSchema),
-  resources: z.record(z.string(), z.number().finite()),
-  interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
-  customState: z.record(z.string(), z.unknown()),
-});
+export const stateRevisionDocumentSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    participation: participationContractSchema,
+    worldClock: z.object({ turn: z.number().int().nonnegative(), label: nonEmptyTextSchema }),
+    locations: z.array(
+      z.object({ id: stableIdSchema, name: nonEmptyTextSchema, description: nonEmptyTextSchema }),
+    ),
+    entities: z.array(z.record(z.string(), z.unknown())),
+    characters: z.array(
+      z.object({
+        id: stableIdSchema,
+        name: nonEmptyTextSchema,
+        role: nonEmptyTextSchema,
+        locationId: stableIdSchema,
+        currentState: nonEmptyTextSchema,
+        knownFactIds: z.array(stableIdSchema).default([]),
+      }),
+    ),
+    facts: z.array(stateFactSchema),
+    relationships: z.array(
+      z.object({
+        id: stableIdSchema,
+        fromCharacterId: stableIdSchema,
+        toCharacterId: stableIdSchema,
+        description: nonEmptyTextSchema,
+      }),
+    ),
+    openThreads: z.array(nonEmptyTextSchema),
+    objectives: z.array(nonEmptyTextSchema),
+    resources: z.record(z.string(), z.number().finite()),
+    interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
+    customState: z.record(z.string(), z.unknown()),
+  })
+  .superRefine((state, context) => {
+    const factIds = new Set(state.facts.map((fact) => fact.id));
+    const characterIds = state.characters.map((character) => character.id);
+    if (new Set(characterIds).size !== characterIds.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["characters"],
+        message: "Character IDs must be unique",
+      });
+    }
+    state.characters.forEach((character, index) => {
+      character.knownFactIds.forEach((factId) => {
+        if (!factIds.has(factId)) {
+          context.addIssue({
+            code: "custom",
+            path: ["characters", index, "knownFactIds"],
+            message: "Character runtime knowledge must reference a State fact",
+          });
+        }
+      });
+    });
+  });
 
 export type InitiativeMode = z.infer<typeof initiativeModeSchema>;
 export type StructureMode = z.infer<typeof structureModeSchema>;
 export type ParticipationContract = z.infer<typeof participationContractSchema>;
+export type CharacterAssetDefinition = z.infer<typeof characterAssetDefinitionSchema>;
+export type WorldCharacterSpec = z.infer<typeof worldCharacterSpecSchema>;
 export type FactScope = z.infer<typeof factScopeSchema>;
 export type WorldDocument = z.infer<typeof worldDocumentSchema>;
 export type StateRevisionDocument = z.infer<typeof stateRevisionDocumentSchema>;
 export type CanonicalFactLifecycle = z.infer<typeof canonicalFactLifecycleSchema>;
 export type StateFact = z.infer<typeof stateFactSchema>;
+
+export type CharacterGenerationContext = {
+  id: string;
+  name: string;
+  role: string;
+  motives: string[];
+  stance: string;
+  currentState: string;
+  knownFacts: StateFact[];
+  relationships: StateRevisionDocument["relationships"];
+};
+
+export function applyParticipationContractChange(
+  stateInput: StateRevisionDocument,
+  expectedInput: ParticipationContract,
+  requestedInput: ParticipationContract,
+): StateRevisionDocument {
+  const state = stateRevisionDocumentSchema.parse(stateInput);
+  const expected = participationContractSchema.parse(expectedInput);
+  const requested = participationContractSchema.parse(requestedInput);
+  if (
+    state.participation.initiativeMode !== expected.initiativeMode ||
+    state.participation.structureMode !== expected.structureMode
+  ) {
+    throw new Error("Participation contract changed before direct authorization");
+  }
+  if (
+    expected.initiativeMode === requested.initiativeMode &&
+    expected.structureMode === requested.structureMode
+  ) {
+    throw new Error("Participation contract is unchanged");
+  }
+  return stateRevisionDocumentSchema.parse({ ...state, participation: requested });
+}
+
+/**
+ * Resolve a character's authorized sources before any ranking or generation.
+ * ACCOUNT_PRIVATE facts are never character knowledge, even if a malformed
+ * authored allow-list names one.
+ */
+export function compileCharacterContext(
+  worldInput: WorldDocument,
+  stateInput: StateRevisionDocument,
+  characterId: string,
+): CharacterGenerationContext {
+  const world = worldDocumentSchema.parse(worldInput);
+  const state = stateRevisionDocumentSchema.parse(stateInput);
+  const spec = world.characters.find((character) => character.id === characterId);
+  const runtime = state.characters.find((character) => character.id === characterId);
+  if (!spec || !runtime) throw new Error("Character is not present in this World state");
+  const allowed = new Set([...spec.knowledgeFactIds, ...runtime.knownFactIds]);
+  return {
+    id: spec.id,
+    name: spec.name,
+    role: spec.role,
+    motives: spec.motives,
+    stance: spec.stance,
+    currentState: runtime.currentState,
+    knownFacts: state.facts.filter(
+      (fact) =>
+        fact.lifecycle === "ACTIVE" && fact.scope !== "ACCOUNT_PRIVATE" && allowed.has(fact.id),
+    ),
+    relationships: state.relationships.filter(
+      (relationship) =>
+        relationship.fromCharacterId === spec.id || relationship.toCharacterId === spec.id,
+    ),
+  };
+}
 
 export const restorableStateSections = [
   "worldClock",
@@ -522,6 +638,9 @@ export const lanternReachSeed: WorldDocument = worldDocumentSchema.parse({
       name: "Iora",
       role: "Harbor signaler responsible for reading the outer markers.",
       locationId: "location.tidal-observatory",
+      motives: ["Keep arriving vessels and the harbor settlement safe in the fog."],
+      stance: "Iora refuses to light an unsafe signal merely to make the harbor seem welcoming.",
+      knowledgeFactIds: ["fact.western-signal-dim"],
     },
   ],
   facts: [
@@ -556,6 +675,7 @@ export function createInitialState(
     characters: world.characters.map((character) => ({
       ...character,
       currentState: `Present at ${world.locations.find((location) => location.id === character.locationId)?.name ?? "the starting location"}.`,
+      knownFactIds: character.knowledgeFactIds,
     })),
     facts: world.facts.map((fact) => ({ ...fact, lifecycle: "ACTIVE" as const })),
     relationships: world.relationships,

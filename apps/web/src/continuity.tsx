@@ -925,11 +925,14 @@ export function WorldContextSummary(): ReactElement {
         <h2>Present here</h2>
         {data.state.characters.map((character, index) => {
           const item = asRecord(character);
+          const characterId = readText(item, "id");
+          const spec = data.world.characters.find((candidate) => candidate.id === characterId);
           return (
-            <article className="character-card" key={readText(item, "id") ?? index}>
+            <article className="character-card" key={characterId ?? index}>
               <strong>{readText(item, "name") ?? "Present character"}</strong>
               <span>{readText(item, "role") ?? "Current stance"}</span>
               <small>{readText(item, "currentState") ?? "Current state is available."}</small>
+              {spec ? <small>{spec.stance}</small> : null}
             </article>
           );
         })}
@@ -943,6 +946,12 @@ export function WorldContextSummary(): ReactElement {
         <small>
           Only a confirmed server Commit advances this world. Provisional output does not.
         </small>
+        <Link
+          className="text-action"
+          to={`/continuities/${encodeURIComponent(continuityId)}/participation`}
+        >
+          Change participation contract
+        </Link>
       </section>
       {pendingActionRefs.length > 0 ? (
         <section className="pending-context-note">

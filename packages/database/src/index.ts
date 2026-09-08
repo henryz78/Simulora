@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  applyParticipationContractChange,
   applyValidatedActionCandidate,
   applyRestorableState,
   applyValidatedDirectCorrectionCandidate,
+  characterAssetDefinitionSchema,
+  compileCharacterContext,
   contentHash,
   createInitialState,
   participationContractSchema,
@@ -12,6 +15,8 @@ import {
   validateActionCandidate,
   worldDocumentSchema,
   type ActionStatus,
+  type CharacterAssetDefinition,
+  type CharacterGenerationContext,
   type ParticipationContract,
   type StateRevisionDocument,
   type WorldDocument,
@@ -22,7 +27,16 @@ import { Pool, type PoolClient, type PoolConfig } from "pg";
 // The database package intentionally has no dependency on the transport
 // contracts package. These structural types are the repository's internal
 // read/write boundary; the API owns Zod parsing before/after this layer.
-type ActionOperationType = "PARTICIPATE" | "CORRECT_CONTINUITY" | "REMOVE_CONTINUITY";
+type ActionOperationType =
+  "PARTICIPATE" | "CORRECT_CONTINUITY" | "REMOVE_CONTINUITY" | "CHANGE_PARTICIPATION_CONTRACT";
+type ChangeParticipationContractRequest = {
+  schemaVersion: 1;
+  idempotencyKey: string;
+  expectedHeadCommitId: string;
+  before: ParticipationContract;
+  after: ParticipationContract;
+};
+type CreateCharacterAssetRequest = { document: CharacterAssetDefinition };
 type CorrectionRequest = {
   schemaVersion: 1;
   idempotencyKey: string;
@@ -189,6 +203,13 @@ export type WorldRevisionRecord = {
   documentHash: string;
 };
 
+export type CharacterAssetRecord = {
+  id: string;
+  document: CharacterAssetDefinition;
+  documentHash: string;
+  createdAt: string;
+};
+
 export type ContinuityStateRecord = {
   continuityId: string;
   branchId: string;
@@ -341,6 +362,7 @@ export type RestoreCommitRecord = {
 
 export type ActionGenerationContext = {
   participation: ParticipationContract;
+  character: CharacterGenerationContext | null;
   targetFact: {
     id: string;
     statement: string;
@@ -353,6 +375,7 @@ export type ActionGenerator = (request: {
   expectedHeadCommitId: string;
   intent: string;
   participation: ActionGenerationContext["participation"];
+  character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
 }) => Promise<{ narrative: string; candidate: unknown }>;
 
@@ -393,6 +416,10 @@ function safeVisibilityScope(value: unknown): VisibilityScope {
     : "SHARED";
 }
 
+function participationLabel(contract: ParticipationContract): string {
+  return `${contract.initiativeMode.replaceAll("_", " ")} · ${contract.structureMode.replaceAll("_", " ")}`;
+}
+
 function safeCommitReason(value: unknown): string | null {
   // Trace is an explanation surface, not a transcript. Current Action
   // commits store an opaque UUID operation token; legacy/free-form narrative
@@ -404,9 +431,9 @@ function safeCommitReason(value: unknown): string | null {
 }
 
 /**
- * The IP-4 deterministic adapter has no character-specific knowledge grant
- * yet. Only shared, current canonical facts may therefore enter its context;
- * owner access to a private fact is not a grant to the character/model.
+ * Ordinary world context starts from current shared facts only. IP-6 applies
+ * each selected character's explicit knowledge allow-list separately before
+ * that identity is included in generation context.
  */
 function isGeneratorEligibleFact(fact: StateRevisionDocument["facts"][number]): boolean {
   return fact.lifecycle === "ACTIVE" && fact.scope === "SHARED";
@@ -487,6 +514,8 @@ function eventSummary(eventType: string): string {
       return "A canonical continuity fact was removed by the participant.";
     case "ACTION_RECORDED":
       return "A participant action was recorded on this path.";
+    case "PARTICIPATION_CONTRACT_CHANGED":
+      return "The participant directly changed this path's initiative or structure contract.";
     case "CONTINUITY_INITIALIZED":
       return "This continuity began from its pinned World Revision.";
     default:
@@ -533,6 +562,28 @@ export class AuthoritativeWorldRepository {
        on conflict (id) do update set eligibility = excluded.eligibility`,
       [account.accountId, databaseEligibility(account.eligibility)],
     );
+  }
+
+  async createCharacterAsset(
+    account: SyntheticAccount,
+    request: CreateCharacterAssetRequest,
+  ): Promise<CharacterAssetRecord> {
+    this.assertEligible(account);
+    const document = characterAssetDefinitionSchema.parse(request.document);
+    const id = randomUUID();
+    const documentHash = contentHash(document);
+    const createdAt = await transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const result = await client.query<{ created_at: Date }>(
+        `insert into simulora.character_assets
+         (id, owner_account_id, document, document_hash)
+         values ($1, $2, $3::jsonb, $4)
+         returning created_at`,
+        [id, account.accountId, JSON.stringify(document), documentHash],
+      );
+      return result.rows[0]!.created_at.toISOString();
+    });
+    return { id, document, documentHash, createdAt };
   }
 
   async createWorld(
@@ -628,6 +679,36 @@ export class AuthoritativeWorldRepository {
       );
       if (!parsed.success) throw new ValidationError("World Draft is not playable");
 
+      const sourceAssetIds = parsed.data.characters.flatMap((character) =>
+        character.sourceAssetId ? [character.sourceAssetId] : [],
+      );
+      const assetResult = sourceAssetIds.length
+        ? await client.query<{ id: string; document: unknown; document_hash: string }>(
+            `select id, document, document_hash
+             from simulora.character_assets
+             where owner_account_id = $1 and status = 'ACTIVE' and id = any($2::uuid[])
+             for share`,
+            [account.accountId, sourceAssetIds],
+          )
+        : { rows: [] };
+      const assets = new Map(assetResult.rows.map((asset) => [asset.id, asset]));
+      for (const character of parsed.data.characters) {
+        if (!character.sourceAssetId) continue;
+        const asset = assets.get(character.sourceAssetId);
+        if (!asset) throw new AccessDeniedError("Character Asset is unavailable");
+        const snapshotDefinition = characterAssetDefinitionSchema.parse({
+          schemaVersion: 1,
+          name: character.name,
+          role: character.role,
+          motives: character.motives,
+          stance: character.stance,
+          knowledgeFactIds: character.knowledgeFactIds,
+        });
+        if (contentHash(snapshotDefinition) !== asset.document_hash) {
+          throw new ConflictError("CHARACTER_ASSET_SNAPSHOT_CHANGED");
+        }
+      }
+
       const revisionNumberResult = await client.query<{ next_revision: number }>(
         `select coalesce(max(revision_number), 0) + 1 as next_revision
          from simulora.world_revisions where world_id = $1`,
@@ -650,6 +731,14 @@ export class AuthoritativeWorldRepository {
           validationRunId,
         ],
       );
+      for (const character of parsed.data.characters) {
+        await client.query(
+          `insert into simulora.world_revision_characters
+           (world_revision_id, character_spec_id, source_asset_id, spec)
+           values ($1, $2, $3, $4::jsonb)`,
+          [revisionId, character.id, character.sourceAssetId ?? null, JSON.stringify(character)],
+        );
+      }
       return {
         revisionId,
         worldId,
@@ -912,6 +1001,237 @@ export class AuthoritativeWorldRepository {
       await this.appendProgressWithClient(client, actionId, "action.status", {
         status: "ACKNOWLEDGED",
         message: "Your Action was received and recorded. The world has not changed yet.",
+      });
+      return this.readActionWithClient(client, account, actionId);
+    });
+  }
+
+  async changeParticipationContract(
+    account: SyntheticAccount,
+    branchId: string,
+    input: ChangeParticipationContractRequest,
+  ): Promise<ActionRecord> {
+    this.assertEligible(account);
+    const before = participationContractSchema.parse(input.before);
+    const after = participationContractSchema.parse(input.after);
+    if (
+      before.initiativeMode === after.initiativeMode &&
+      before.structureMode === after.structureMode
+    ) {
+      throw new ValidationError("Participation contract is unchanged");
+    }
+
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const findExisting = async (): Promise<ActionRecord | null> => {
+        const existing = await client.query<{
+          id: string;
+          operation_type: ActionOperationType;
+          expected_head_commit_id: string;
+          operation_payload: { before?: ParticipationContract; after?: ParticipationContract };
+        }>(
+          `select id, operation_type, expected_head_commit_id, operation_payload
+           from simulora.actions
+           where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
+          [account.accountId, branchId, input.idempotencyKey],
+        );
+        const prior = existing.rows[0];
+        if (!prior) return null;
+        if (
+          prior.operation_type !== "CHANGE_PARTICIPATION_CONTRACT" ||
+          prior.expected_head_commit_id !== input.expectedHeadCommitId ||
+          contentHash(prior.operation_payload.before) !== contentHash(before) ||
+          contentHash(prior.operation_payload.after) !== contentHash(after)
+        ) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.readActionWithClient(client, account, prior.id);
+      };
+      const existing = await findExisting();
+      if (existing) return existing;
+
+      const branchResult = await client.query<{
+        continuity_id: string;
+        head_commit_id: string;
+        head_state_revision_id: string;
+        state_document: unknown;
+      }>(
+        `select b.continuity_id, b.head_commit_id, b.head_state_revision_id,
+                s.document as state_document
+         from simulora.branches b
+         join simulora.continuities c on c.id = b.continuity_id
+          and c.active_branch_id = b.id and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         join simulora.state_revisions s on s.id = b.head_state_revision_id
+         where b.id = $1 and b.status = 'ACTIVE'
+         for update of b, c`,
+        [branchId, account.accountId],
+      );
+      const branch = branchResult.rows[0];
+      if (!branch) throw new NotFoundError("Branch not found");
+      const concurrentExisting = await findExisting();
+      if (concurrentExisting) return concurrentExisting;
+      if (branch.head_commit_id !== input.expectedHeadCommitId) {
+        throw new ConflictError("BRANCH_HEAD_CONFLICT");
+      }
+
+      const currentState = stateRevisionDocumentSchema.parse(branch.state_document);
+      if (
+        currentState.participation.initiativeMode !== before.initiativeMode ||
+        currentState.participation.structureMode !== before.structureMode
+      ) {
+        throw new ConflictError("PARTICIPATION_EXPECTATION_MISMATCH");
+      }
+      const nextState = applyParticipationContractChange(currentState, before, after);
+      const actionId = randomUUID();
+      const proposalId = randomUUID();
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      const expiresAt = new Date(Date.now() + 15 * 60_000);
+      const displayEffect = {
+        target: "Participation contract",
+        before: participationLabel(before),
+        after: participationLabel(after),
+        scope: "ACCOUNT_PRIVATE" as const,
+      };
+      const candidate = {
+        schemaVersion: 1,
+        actionId,
+        expectedHeadCommitId: input.expectedHeadCommitId,
+        narrative: `Participation changed from ${displayEffect.before} to ${displayEffect.after}.`,
+        operation: { type: "CHANGE_PARTICIPATION_CONTRACT", before, after },
+      };
+      const digest = contentHash({
+        actionId,
+        actorAccountId: account.accountId,
+        expectedHeadCommitId: input.expectedHeadCommitId,
+        candidate,
+        displayEffect,
+        expiresAt: expiresAt.toISOString(),
+      });
+
+      await client.query(
+        `insert into simulora.actions
+         (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+          expected_head_commit_id, participation_expectation, intent, operation_payload, status)
+         values ($1, $2, $3, $4, 'CHANGE_PARTICIPATION_CONTRACT', $5, $6, $7::jsonb,
+                 $8, $9::jsonb, 'ACKNOWLEDGED')`,
+        [
+          actionId,
+          account.accountId,
+          branch.continuity_id,
+          branchId,
+          input.idempotencyKey,
+          input.expectedHeadCommitId,
+          JSON.stringify(before),
+          `Change participation to ${displayEffect.after}`,
+          JSON.stringify({ schemaVersion: 1, before, after }),
+        ],
+      );
+      await this.appendProgressWithClient(client, actionId, "action.status", {
+        status: "ACKNOWLEDGED",
+        message: "The direct participation change was received. Current truth is unchanged.",
+      });
+      await client.query(
+        `update simulora.actions
+         set status = 'VALIDATING', updated_at = now(), row_version = row_version + 1
+         where id = $1`,
+        [actionId],
+      );
+      await client.query(
+        `insert into simulora.action_proposals
+         (id, action_id, generation_attempt_id, expected_head_commit_id, schema_version,
+          candidate_transition, impact_level, proposal_digest, display_effect, status, expires_at)
+         values ($1, $2, null, $3, 1, $4::jsonb, 'L3', $5, $6::jsonb, 'ACTIVE', $7)`,
+        [
+          proposalId,
+          actionId,
+          input.expectedHeadCommitId,
+          JSON.stringify(candidate),
+          digest,
+          JSON.stringify(displayEffect),
+          expiresAt,
+        ],
+      );
+      await client.query(
+        `insert into simulora.action_confirmations
+         (id, action_id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [randomUUID(), actionId, proposalId, account.accountId, digest, input.expectedHeadCommitId],
+      );
+      await client.query(
+        `update simulora.action_proposals set status = 'CONFIRMED' where id = $1`,
+        [proposalId],
+      );
+      await client.query(
+        `update simulora.actions
+         set status = 'COMMITTING', updated_at = now(), row_version = row_version + 1
+         where id = $1`,
+        [actionId],
+      );
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          action_id, source_type, reason)
+         values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'USER', $7)`,
+        [
+          commitId,
+          branchId,
+          input.expectedHeadCommitId,
+          account.accountId,
+          stateRevisionId,
+          actionId,
+          "Direct participation contract change",
+        ],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [stateRevisionId, branchId, commitId, JSON.stringify(nextState), contentHash(nextState)],
+      );
+      await client.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope, cause_action_id)
+         values ($1, $2, $3, 'PARTICIPATION_CONTRACT_CHANGED', $4::jsonb,
+                 'USER', 'ACCOUNT_PRIVATE', $5)`,
+        [randomUUID(), branchId, commitId, JSON.stringify({ actionId, before, after }), actionId],
+      );
+      const advanced = await client.query(
+        `update simulora.branches
+         set head_commit_id = $2, head_state_revision_id = $3
+         where id = $1 and head_commit_id = $4
+         returning id`,
+        [branchId, commitId, stateRevisionId, input.expectedHeadCommitId],
+      );
+      if (!advanced.rows[0]) throw new ConflictError("BRANCH_HEAD_CONFLICT");
+      await client.query(
+        `update simulora.return_orientation_projections
+         set status = 'STALE', updated_at = now(), row_version = row_version + 1
+         where branch_id = $1`,
+        [branchId],
+      );
+      await client.query(
+        `insert into simulora.transactional_outbox
+         (id, topic, source_id, dedupe_key, payload)
+         values ($1, 'projection.invalidated', $2, $3, $4::jsonb)`,
+        [
+          randomUUID(),
+          commitId,
+          `projection:${branchId}:${commitId}`,
+          JSON.stringify({ branchId, sourceHeadCommitId: input.expectedHeadCommitId }),
+        ],
+      );
+      await client.query(
+        `update simulora.actions
+         set status = 'COMMITTED', terminal_at = now(), updated_at = now(), row_version = row_version + 1
+         where id = $1`,
+        [actionId],
+      );
+      await this.appendProgressWithClient(client, actionId, "action.committed", {
+        status: "COMMITTED",
+        commitId,
+        stateRevisionId,
+        participation: after,
       });
       return this.readActionWithClient(client, account, actionId);
     });
@@ -1198,6 +1518,9 @@ export class AuthoritativeWorldRepository {
       let nextState: StateRevisionDocument;
       let displayEffect: ActionProposalRecord["displayEffect"];
       let candidateNarrative: string;
+      if (action.operation_type === "CHANGE_PARTICIPATION_CONTRACT") {
+        throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
+      }
       if (action.operation_type === "PARTICIPATE") {
         // The deterministic/model request contains one target only. Do not
         // let an untrusted candidate address another fact that happened to
@@ -3072,12 +3395,15 @@ export class AuthoritativeWorldRepository {
         intent: string;
         status: ActionStatus;
         state_document: unknown;
+        world_document: unknown;
       }>(
         `select a.actor_account_id, a.expected_head_commit_id, a.intent, a.status,
-                s.document as state_document
+                s.document as state_document, wr.document as world_document
          from simulora.actions a
          join simulora.world_commits c on c.id = a.expected_head_commit_id
          join simulora.state_revisions s on s.id = c.state_revision_id
+         join simulora.continuities continuity on continuity.id = a.continuity_id
+         join simulora.world_revisions wr on wr.id = continuity.world_revision_id
          where a.id = $1 for update of a`,
         [actionId],
       );
@@ -3109,6 +3435,7 @@ export class AuthoritativeWorldRepository {
         );
       }
       const state = stateRevisionDocumentSchema.parse(action.state_document);
+      const world = worldDocumentSchema.parse(action.world_document);
       const targetFact = state.facts.find((fact) => isGeneratorEligibleFact(fact));
       if (!targetFact) {
         // This can happen when a previously accepted job is observed after
@@ -3142,12 +3469,22 @@ export class AuthoritativeWorldRepository {
         return null;
       }
       const attemptId = randomUUID();
+      const character = world.characters
+        .map((spec) => compileCharacterContext(world, state, spec.id))
+        .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id));
       const generationContext: ActionGenerationContext = {
         participation: state.participation,
+        character: character ?? null,
         targetFact,
       };
+      const includedFactIds = [
+        ...new Set([
+          generationContext.targetFact.id,
+          ...(generationContext.character?.knownFacts.map((fact) => fact.id) ?? []),
+        ]),
+      ];
       const manifest = {
-        compilerVersion: "ip4-context-v1",
+        compilerVersion: "ip6-context-v1",
         expectedHeadCommitId: action.expected_head_commit_id,
         // The generator receives this exact participation contract and target
         // fact below. Keep the durable manifest derived from the same typed
@@ -3155,10 +3492,10 @@ export class AuthoritativeWorldRepository {
         participation: generationContext.participation,
         // manifest truthful: owner-visible private/tombstoned facts and
         // character records are not silently treated as model context.
-        includedFactIds: [generationContext.targetFact.id],
-        includedCharacterIds: [],
+        includedFactIds,
+        includedCharacterIds: generationContext.character ? [generationContext.character.id] : [],
         excludedScopeCounts: {
-          unauthorized: state.facts.filter((fact) => !isGeneratorEligibleFact(fact)).length,
+          unauthorized: state.facts.filter((fact) => !includedFactIds.includes(fact.id)).length,
         },
       };
       await client.query(
@@ -3239,6 +3576,7 @@ export class AuthoritativeWorldRepository {
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         intent: prepared.intent,
         participation: prepared.generationContext.participation,
+        character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
       });
       const candidate = validateActionCandidate(generated.candidate, {

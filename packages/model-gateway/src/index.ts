@@ -11,6 +11,25 @@ export type WorldTurnRequest = {
     initiativeMode: "DIRECT" | "GUIDED" | "WORLD_ACTIVE";
     structureMode: "OPEN_ENDED" | "GOAL_FRAMED";
   };
+  character?: {
+    id: string;
+    name: string;
+    role: string;
+    motives: string[];
+    stance: string;
+    currentState: string;
+    knownFacts: Array<{
+      id: string;
+      statement: string;
+      scope: "ACCOUNT_PRIVATE" | "CONTINUITY_PRIVATE" | "SHARED";
+    }>;
+    relationships: Array<{
+      id: string;
+      fromCharacterId: string;
+      toCharacterId: string;
+      description: string;
+    }>;
+  } | null;
   targetFact: {
     id: string;
     statement: string;
@@ -35,7 +54,14 @@ export class DeterministicModelGateway implements ModelGatewayPort {
 
   generateWorldTurn(request: WorldTurnRequest): Promise<WorldTurnDraft> {
     const intent = request.intent.trim();
-    const narrative = `Iora studies the consequence of your action: ${intent}`;
+    const actor = request.character ?? null;
+    const narrative = actor
+      ? request.participation.initiativeMode === "DIRECT"
+        ? `${actor.name} responds only to your stated action from this stance: ${actor.stance}`
+        : request.participation.initiativeMode === "GUIDED"
+          ? `${actor.name} considers your action and answers from a distinct motive: ${actor.motives[0]}`
+          : `${actor.name} advances one bounded response during this user-triggered cycle: ${actor.motives[0]}`
+      : `The world responds to your stated action: ${intent}`;
     return Promise.resolve({
       narrative,
       candidate: {

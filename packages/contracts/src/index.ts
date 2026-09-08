@@ -14,7 +14,7 @@ export const foundationCapabilitySchema = z.object({
 });
 
 export const foundationResponseSchema = z.object({
-  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4", "IP-5"]),
+  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4", "IP-5", "IP-6"]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
 });
@@ -64,6 +64,12 @@ export const worldDocumentInputSchema = z.object({
         name: z.string().min(1),
         role: nonEmptyTextSchema,
         locationId: z.string().min(1),
+        motives: z.array(nonEmptyTextSchema).min(1).default(["Act consistently with this role."]),
+        stance: nonEmptyTextSchema.default(
+          "May disagree or refuse when the character's motives require it.",
+        ),
+        knowledgeFactIds: z.array(z.string().min(1)).default([]),
+        sourceAssetId: stableIdSchema.optional(),
       }),
     )
     .min(1),
@@ -146,7 +152,55 @@ export const actionOperationTypeSchema = z.enum([
   "PARTICIPATE",
   "CORRECT_CONTINUITY",
   "REMOVE_CONTINUITY",
+  "CHANGE_PARTICIPATION_CONTRACT",
 ]);
+
+export const changeParticipationContractRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(128)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    expectedHeadCommitId: stableIdSchema,
+    before: participationSchema,
+    after: participationSchema,
+  })
+  .strict()
+  .superRefine((request, context) => {
+    if (
+      request.before.initiativeMode === request.after.initiativeMode &&
+      request.before.structureMode === request.after.structureMode
+    ) {
+      context.addIssue({ code: "custom", path: ["after"], message: "Contract is unchanged" });
+    }
+  });
+
+export const characterAssetDefinitionSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    name: z.string().trim().min(1).max(120),
+    role: nonEmptyTextSchema,
+    motives: z.array(nonEmptyTextSchema).min(1),
+    stance: nonEmptyTextSchema,
+    knowledgeFactIds: z.array(z.string().min(1)).default([]),
+  })
+  .strict();
+
+export const createCharacterAssetRequestSchema = z
+  .object({ document: characterAssetDefinitionSchema })
+  .strict();
+
+export const characterAssetResponseSchema = z
+  .object({
+    id: stableIdSchema,
+    document: characterAssetDefinitionSchema,
+    documentHash: z.string().regex(/^[0-9a-f]{64}$/),
+    createdAt: z.string().datetime(),
+  })
+  .strict();
 
 export const canonicalFactLifecycleSchema = z.enum(["ACTIVE", "SUPERSEDED", "REMOVED"]);
 
@@ -568,6 +622,13 @@ export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type SubmitActionRequest = z.infer<typeof submitActionRequestSchema>;
 export type ActionResponse = z.infer<typeof actionResponseSchema>;
 export type ActionOperationType = z.infer<typeof actionOperationTypeSchema>;
+export type ParticipationContract = z.infer<typeof participationSchema>;
+export type ChangeParticipationContractRequest = z.infer<
+  typeof changeParticipationContractRequestSchema
+>;
+export type CharacterAssetDefinition = z.infer<typeof characterAssetDefinitionSchema>;
+export type CreateCharacterAssetRequest = z.infer<typeof createCharacterAssetRequestSchema>;
+export type CharacterAssetResponse = z.infer<typeof characterAssetResponseSchema>;
 export type ConfirmActionRequest = z.infer<typeof confirmActionRequestSchema>;
 export type ActionProgressFrame = z.infer<typeof actionProgressFrameSchema>;
 export type ActionProgressResponse = z.infer<typeof actionProgressResponseSchema>;

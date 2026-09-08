@@ -19,10 +19,13 @@ import {
   actionProgressResponseSchema,
   branchActionHistorySchema,
   branchTraceResponseSchema,
+  changeParticipationContractRequestSchema,
+  characterAssetResponseSchema,
   correctionRequestSchema,
   explanationResponseSchema,
   orientationResponseSchema,
   confirmRestoreRequestSchema,
+  createCharacterAssetRequestSchema,
   createRecoveryPointRequestSchema,
   createRestoreProposalRequestSchema,
   forkBranchRequestSchema,
@@ -117,6 +120,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const knownCodes = new Set([
         "BRANCH_HEAD_CONFLICT",
         "PARTICIPATION_EXPECTATION_MISMATCH",
+        "IDEMPOTENCY_KEY_REUSED",
         "CONFIRMATION_EXPIRED_OR_PROPOSAL_CHANGED",
         "ACTION_CANCELLED",
         "ACTION_NOT_AWAITING_CONFIRMATION",
@@ -160,6 +164,16 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
 
   if (options.worldService) {
     const service = options.worldService;
+
+    app.post("/v1/character-assets", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = createCharacterAssetRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(
+          characterAssetResponseSchema.parse(await service.createCharacterAsset(account, body)),
+        );
+    });
 
     app.post("/v1/worlds", async (request, reply) => {
       const account = await authenticatedAccount(request, auth);
@@ -333,6 +347,14 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const { branchId } = request.params as { branchId: string };
       const body = correctionRequestSchema.parse(request.body);
       const result = await actions.submitCorrection(account, branchId, body);
+      return reply.status(201).send(actionResponseSchema.parse(result));
+    });
+
+    app.post("/v1/branches/:branchId/participation-contract", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { branchId } = request.params as { branchId: string };
+      const body = changeParticipationContractRequestSchema.parse(request.body);
+      const result = await actions.changeParticipationContract(account, branchId, body);
       return reply.status(201).send(actionResponseSchema.parse(result));
     });
 

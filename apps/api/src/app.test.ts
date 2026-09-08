@@ -49,12 +49,12 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("reports the IP-5 Recovery phase without claiming later capabilities", async () => {
+  it("reports the IP-6 Agency phase without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
     const foundation = foundationResponseSchema.parse(response.json());
-    expect(foundation.productImplementationPhase).toBe("IP-5");
+    expect(foundation.productImplementationPhase).toBe("IP-6");
     expect(foundation.productSemanticsStarted).toBe(true);
   });
 
@@ -171,5 +171,94 @@ describe("API composition root", () => {
     expect(events.headers["content-type"]).toContain("text/event-stream");
     expect(observedAfterSequence).toBe(1);
     expect(events.body).not.toContain("id: 1");
+  });
+
+  it("exposes direct participation and Character Asset commands without a model path", async () => {
+    const now = new Date().toISOString();
+    const committed = {
+      id: "10000000-0000-4000-8000-000000000020",
+      continuityId: "10000000-0000-4000-8000-000000000001",
+      branchId: "10000000-0000-4000-8000-000000000002",
+      expectedHeadCommitId: "10000000-0000-4000-8000-000000000003",
+      operationType: "CHANGE_PARTICIPATION_CONTRACT" as const,
+      status: "COMMITTED" as const,
+      intent: "Change participation contract",
+      participationExpectation: { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const,
+      acknowledgedAt: now,
+      terminalAt: now,
+      recoverableWait: false,
+      statusReason: null,
+      progressUrl: "/progress",
+      eventsUrl: "/events",
+      proposal: null,
+      commit: {
+        id: "10000000-0000-4000-8000-000000000021",
+        resultingHeadCommitId: "10000000-0000-4000-8000-000000000021",
+        stateRevisionId: "10000000-0000-4000-8000-000000000022",
+        committedAt: now,
+      },
+    };
+    const actionPort: ActionTruthPort = {
+      submitAction: () => Promise.reject(new Error("unused")),
+      changeParticipationContract: () => Promise.resolve(committed),
+      readAction: () => Promise.reject(new Error("unused")),
+      confirmAction: () => Promise.reject(new Error("unused")),
+      cancelAction: () => Promise.reject(new Error("unused")),
+      retryAction: () => Promise.reject(new Error("unused")),
+      readProgress: () => Promise.reject(new Error("unused")),
+      listBranchActions: () => Promise.reject(new Error("unused")),
+    };
+    const worldPort: WorldContinuityPort = {
+      createCharacterAsset: (_account, request) =>
+        Promise.resolve({
+          id: "10000000-0000-4000-8000-000000000023",
+          document: request.document,
+          documentHash: "a".repeat(64),
+          createdAt: now,
+        }),
+      createWorld: () => Promise.reject(new Error("unused")),
+      updateDraft: () => Promise.reject(new Error("unused")),
+      createRevision: () => Promise.reject(new Error("unused")),
+      startContinuity: () => Promise.reject(new Error("unused")),
+      readCurrentState: () => Promise.reject(new Error("unused")),
+    };
+    app = createApiApp({
+      logLevel: "error",
+      actionService: new ActionTruthService(actionPort),
+      worldService: new WorldContinuityService(worldPort),
+    });
+    const contract = await app.inject({
+      method: "POST",
+      url: `/v1/branches/${committed.branchId}/participation-contract`,
+      payload: {
+        schemaVersion: 1,
+        idempotencyKey: "participation-api-test",
+        expectedHeadCommitId: committed.expectedHeadCommitId,
+        before: committed.participationExpectation,
+        after: { initiativeMode: "WORLD_ACTIVE", structureMode: "GOAL_FRAMED" },
+      },
+    });
+    expect(contract.statusCode).toBe(201);
+    expect(contract.json()).toMatchObject({
+      status: "COMMITTED",
+      operationType: "CHANGE_PARTICIPATION_CONTRACT",
+    });
+
+    const asset = await app.inject({
+      method: "POST",
+      url: "/v1/character-assets",
+      payload: {
+        document: {
+          schemaVersion: 1,
+          name: "Iora",
+          role: "Harbor signaler",
+          motives: ["Keep vessels safe."],
+          stance: "Refuses an unsafe signal.",
+          knowledgeFactIds: ["fact.signal"],
+        },
+      },
+    });
+    expect(asset.statusCode).toBe(201);
+    expect(asset.json()).toMatchObject({ document: { name: "Iora" } });
   });
 });

@@ -3,6 +3,8 @@ import type {
   ActionResponse,
   BranchTraceResponse,
   BranchActionHistory,
+  ChangeParticipationContractRequest,
+  CharacterAssetResponse,
   ConfirmActionRequest,
   CorrectionRequest,
   ExplanationResponse,
@@ -14,6 +16,7 @@ import type {
   RestoreCommit,
   RestoreProposal,
   CreateRecoveryPointRequest,
+  CreateCharacterAssetRequest,
   ForkBranchRequest,
   SubmitActionRequest,
 } from "@simulora/contracts";
@@ -34,7 +37,7 @@ export type DependencyHealth = {
 
 export function describeFoundation(dependencies: readonly DependencyHealth[]): FoundationResponse {
   return {
-    productImplementationPhase: "IP-5",
+    productImplementationPhase: "IP-6",
     productSemanticsStarted: true,
     capabilities: dependencies.map((dependency) => ({
       name: dependency.name,
@@ -48,6 +51,11 @@ export interface ActionTruthPort {
     account: EligibleAccount,
     branchId: string,
     request: SubmitActionRequest,
+  ): Promise<ActionResponse>;
+  changeParticipationContract?(
+    account: EligibleAccount,
+    branchId: string,
+    request: ChangeParticipationContractRequest,
   ): Promise<ActionResponse>;
   readAction(account: EligibleAccount, actionId: string): Promise<ActionResponse>;
   confirmAction(
@@ -75,6 +83,17 @@ export class ActionTruthService {
 
   submitAction(account: EligibleAccount, branchId: string, request: SubmitActionRequest) {
     return this.port.submitAction(account, branchId, request);
+  }
+
+  changeParticipationContract(
+    account: EligibleAccount,
+    branchId: string,
+    request: ChangeParticipationContractRequest,
+  ) {
+    if (!this.port.changeParticipationContract) {
+      throw new Error("Participation contract change is not configured");
+    }
+    return this.port.changeParticipationContract(account, branchId, request);
   }
 
   readAction(account: EligibleAccount, actionId: string) {
@@ -127,6 +146,10 @@ export type AuthoritativeState = {
 };
 
 export interface WorldContinuityPort {
+  createCharacterAsset?(
+    account: EligibleAccount,
+    request: CreateCharacterAssetRequest,
+  ): Promise<CharacterAssetResponse>;
   createWorld(
     account: EligibleAccount,
     document: WorldDocument,
@@ -207,6 +230,11 @@ export interface WorldContinuityPort {
 
 export class WorldContinuityService {
   constructor(private readonly port: WorldContinuityPort) {}
+
+  createCharacterAsset(account: EligibleAccount, request: CreateCharacterAssetRequest) {
+    if (!this.port.createCharacterAsset) throw new Error("Character Assets are not configured");
+    return this.port.createCharacterAsset(account, request);
+  }
 
   createWorld(account: EligibleAccount, document: WorldDocument) {
     return this.port.createWorld(account, document);
