@@ -522,11 +522,16 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
   const subjects = ["you", "the user", "the player", "the participant", ...escapedRoles]
     .filter(Boolean)
     .join("|");
-  const protectedCommitment = new RegExp(
-    `\\b(?:${subjects})\\b\\s+(?:(?:has|have|had|will|did|does|is|was)\\s+)?(?:say|says|said|agree|agrees|agreed|promise|promises|promised|consent|consents|consented|accept|accepts|accepted|authorize|authorizes|authorized|pay|pays|paid|spend|spends|spent|transfer|transfers|transferred|share|shares|shared|publish|publishes|published|delete|deletes|deleted|surrender|surrenders|surrendered|sign|signs|signed|buy|buys|bought|sell|sells|sold)\\b`,
-    "i",
-  );
-  if (protectedCommitment.test(narrative)) {
+  const userSubject = new RegExp(`\\b(?:${subjects})\\b`, "i");
+  const protectedAuthority =
+    /\b(?:say|says|said|agree|agrees|agreed|decide|decides|decided|choose|chooses|chose|chosen|commit|commits|committed|promise|promises|promised|consent|consents|consented|accept|accepts|accepted|approve|approves|approved|permit|permits|permitted|grant|grants|granted|waive|waives|waived|authorize|authorizes|authorized|pay|pays|paid|spend|spends|spent|transfer|transfers|transferred|share|shares|shared|publish|publishes|published|delete|deletes|deleted|surrender|surrenders|surrendered|sign|signs|signed|buy|buys|bought|sell|sells|sold)\b/i;
+  const authorsUser = narrative.split(/[.!?\n]+/).some((sentence) => {
+    const subject = userSubject.exec(sentence);
+    return subject
+      ? protectedAuthority.test(sentence.slice(subject.index + subject[0].length))
+      : false;
+  });
+  if (authorsUser) {
     throw new Error("Generated narrative cannot author user speech or protected commitments");
   }
 }

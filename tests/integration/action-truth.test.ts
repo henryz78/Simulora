@@ -158,11 +158,11 @@ suite("IP-3 Action Truth against PostgreSQL", () => {
       participationExpectation: current.state.participation,
       intent: "Wait for a clearer view through the fog.",
     });
-    await pool.query(
-      "update simulora.actions set acknowledged_at = now() - interval '11 seconds' where id = $1",
-      [pending.id],
+    const restartedRepository = new AuthoritativeWorldRepository(
+      pool,
+      undefined,
+      () => Date.now() + 11_000,
     );
-    const restartedRepository = new AuthoritativeWorldRepository(pool);
     expect((await restartedRepository.readAction(account, pending.id)).recoverableWait).toBe(true);
     const proposed = await repository.processAction(
       pending.id,

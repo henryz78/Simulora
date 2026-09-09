@@ -371,6 +371,18 @@ describe("IP-6 participation and character authority", () => {
     ).toThrow(/cannot author user speech or protected commitments/);
     expect(() =>
       validateActionCandidate(
+        { ...base, narrative: "Keeper, after a pause, agreed to transfer resources." },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        { ...base, narrative: "Keeper decided to share resources." },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
         {
           ...base,
           narrative: "Iora refuses to light an unsafe signal.",

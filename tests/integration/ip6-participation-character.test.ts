@@ -75,6 +75,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       completeAttempt?: boolean;
       afterStatement?: string;
       attemptOutput?: unknown;
+      expiresInMs?: number;
     },
   ) {
     const action = await repository.submitAction(account, continuity.branchId, {
@@ -111,7 +112,8 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       scope: target.scope,
     };
     const attemptId = randomUUID();
-    const expiresAt = new Date(Date.now() + 15 * 60_000);
+    const proposalId = randomUUID();
+    const expiresAt = new Date(Date.now() + (options.expiresInMs ?? 15 * 60_000));
     const digest = contentHash({
       actionId: action.id,
       actorAccountId: account.accountId,
@@ -143,13 +145,13 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     await pool.query("update simulora.actions set status = 'VALIDATING' where id = $1", [
       action.id,
     ]);
-    return pool.query(
+    await pool.query(
       `insert into simulora.action_proposals
        (id, action_id, generation_attempt_id, expected_head_commit_id, schema_version,
         candidate_transition, impact_level, proposal_digest, display_effect, status, expires_at)
        values ($1, $2, $3, $4, 1, $5::jsonb, 'L3', $6, $7::jsonb, 'ACTIVE', $8)`,
       [
-        randomUUID(),
+        proposalId,
         action.id,
         attemptId,
         continuity.headCommitId,
@@ -159,6 +161,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         expiresAt,
       ],
     );
+    return { action, proposalId, digest, expiresAt };
   }
 
   it("commits all six independent contracts through direct user Actions only", async () => {
@@ -429,6 +432,75 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     await expect(
       pool.query("update simulora.actions set terminal_at = null where id = $1", [proposed.id]),
     ).rejects.toThrow(/Terminal Action requires terminal_at/);
+    await expect(
+      pool.query("update simulora.actions set acknowledged_at = now() where id = $1", [
+        proposed.id,
+      ]),
+    ).rejects.toThrow(/identity, authority and command binding are immutable/);
+  });
+
+  it("rejects stale and expired proposal confirmation transitions", async () => {
+    const continuity = await createContinuity();
+    const proposed = await prepareOrdinaryAction(continuity);
+    const proposal = proposed.proposal!;
+    await pool.query(
+      `insert into simulora.action_confirmations
+       (id, action_id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [
+        randomUUID(),
+        proposed.id,
+        proposal.id,
+        account.accountId,
+        proposal.digest,
+        proposal.expectedHeadCommitId,
+      ],
+    );
+    await repository.changeParticipationContract(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `advance-before-confirm-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      before: continuity.state.participation,
+      after: { initiativeMode: "DIRECT", structureMode: "OPEN_ENDED" },
+    });
+    await expect(
+      pool.query("update simulora.action_proposals set status = 'CONFIRMED' where id = $1", [
+        proposal.id,
+      ]),
+    ).rejects.toThrow(/exact current Action, Branch head and live confirmation/);
+
+    const expiringContinuity = await createContinuity();
+    const expiring = await prepareRawParticipateProposal(expiringContinuity, {
+      manifest: {
+        compilerVersion: "ip6-context-v1",
+        expectedHeadCommitId: expiringContinuity.headCommitId,
+        participation: expiringContinuity.state.participation,
+        includedFactIds: ["fact.western-signal-dim"],
+        includedCharacterIds: ["character.iora"],
+        excludedScopeCounts: { unauthorized: expiringContinuity.state.facts.length - 1 },
+      },
+      completeAttempt: true,
+      expiresInMs: 2_000,
+    });
+    await pool.query(
+      `insert into simulora.action_confirmations
+       (id, action_id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [
+        randomUUID(),
+        expiring.action.id,
+        expiring.proposalId,
+        account.accountId,
+        expiring.digest,
+        expiringContinuity.headCommitId,
+      ],
+    );
+    await pool.query("select pg_sleep(2.1)");
+    await expect(
+      pool.query("update simulora.action_proposals set status = 'CONFIRMED' where id = $1", [
+        expiring.proposalId,
+      ]),
+    ).rejects.toThrow(/exact current Action, Branch head and live confirmation/);
   });
 
   it("rejects false terminal inserts and unbound generation evidence", async () => {
@@ -897,16 +969,32 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       [action.id],
     );
     expect(materialized.rows[0]).toEqual({ proposals: 0, commits: 0 });
-    const databaseGuard = await pool.query<{ unsafe: boolean; safe: boolean }>(
+    const databaseGuard = await pool.query<{
+      unsafe: boolean;
+      interrupted: boolean;
+      decided: boolean;
+      safe: boolean;
+    }>(
       `select
         simulora.generated_narrative_authors_user(
           'Keeper agreed to transfer resources.', 'Keeper'
         ) as unsafe,
         simulora.generated_narrative_authors_user(
+          'Keeper, after a pause, agreed to transfer resources.', 'Keeper'
+        ) as interrupted,
+        simulora.generated_narrative_authors_user(
+          'Keeper decided to share resources.', 'Keeper'
+        ) as decided,
+        simulora.generated_narrative_authors_user(
           'Iora refuses to light an unsafe signal.', 'Keeper'
         ) as safe`,
     );
-    expect(databaseGuard.rows[0]).toEqual({ unsafe: true, safe: false });
+    expect(databaseGuard.rows[0]).toEqual({
+      unsafe: true,
+      interrupted: true,
+      decided: true,
+      safe: false,
+    });
   });
 
   it("rejects an otherwise exact raw Action Commit when attributed history is missing", async () => {

@@ -557,6 +557,7 @@ export class AuthoritativeWorldRepository {
   constructor(
     private readonly pool: Pool,
     private readonly actionLease = { durationMs: 30_000, heartbeatMs: 10_000 },
+    private readonly now: () => number = Date.now,
   ) {
     if (
       !Number.isSafeInteger(actionLease.durationMs) ||
@@ -3922,7 +3923,7 @@ export class AuthoritativeWorldRepository {
       recoverableWait:
         row.status === "FAILED_RECOVERABLE" ||
         (["ACKNOWLEDGED", "GENERATING", "VALIDATING"].includes(row.status) &&
-          Date.now() - row.acknowledged_at.getTime() > 10_000),
+          this.now() - row.acknowledged_at.getTime() > 10_000),
       statusReason: row.status_reason,
       progressUrl: `/v1/actions/${row.id}/progress`,
       eventsUrl: `/v1/actions/${row.id}/events`,
