@@ -363,11 +363,13 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
           seenRequest = request;
           return Promise.resolve({
             narrative: "A forged candidate must not become a proposal.",
+            responseSource: { type: "WORLD" },
             candidate: {
               schemaVersion: 1,
               actionId: request.actionId,
               expectedHeadCommitId: request.expectedHeadCommitId,
               narrative: "A forged candidate must not become a proposal.",
+              responseSource: { type: "WORLD" },
               operation: {
                 type: "UPDATE_CANONICAL_FACT",
                 targetFactId,
@@ -472,11 +474,17 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
       const narrative = "The later Action uses the corrected canonical statement.";
       return Promise.resolve({
         narrative,
+        responseSource: request.character
+          ? { type: "CHARACTER" as const, characterId: request.character.id }
+          : { type: "WORLD" as const },
         candidate: {
           schemaVersion: 1,
           actionId: request.actionId,
           expectedHeadCommitId: request.expectedHeadCommitId,
           narrative,
+          responseSource: request.character
+            ? { type: "CHARACTER" as const, characterId: request.character.id }
+            : { type: "WORLD" as const },
           operation: {
             type: "UPDATE_CANONICAL_FACT",
             targetFactId: request.targetFact.id,

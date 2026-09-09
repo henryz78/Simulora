@@ -28,6 +28,11 @@ describe("IP-6 deterministic orchestration boundary", () => {
         participation: { ...base.participation, initiativeMode },
       });
       expect(draft.narrative).toContain("Iora");
+      expect(draft.responseSource).toEqual({
+        type: "CHARACTER",
+        characterId: "character.iora",
+      });
+      expect(draft.candidate).toHaveProperty("responseSource", draft.responseSource);
       expect(draft.narrative).not.toMatch(/you (say|promise|spend|agree)/i);
       expect(draft.candidate).not.toHaveProperty("participation");
       expect(draft.candidate).not.toHaveProperty("userAvatarAction");

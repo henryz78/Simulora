@@ -12,6 +12,7 @@ let participation: ParticipationContract = {
 let staleOnce = false;
 let loseCommittedResponseOnce = false;
 let participationRequestCount = 0;
+let participationRequests: unknown[] = [];
 
 function stateResponse() {
   return {
@@ -89,6 +90,7 @@ test.beforeEach(async ({ page }) => {
   staleOnce = false;
   loseCommittedResponseOnce = false;
   participationRequestCount = 0;
+  participationRequests = [];
   await page.route(`**/v1/continuities/${continuityId}/state`, (route) =>
     route.fulfill({
       status: 200,
@@ -109,6 +111,7 @@ test.beforeEach(async ({ page }) => {
       after: typeof participation;
     };
     participationRequestCount += 1;
+    participationRequests.push(request);
     if (staleOnce) {
       staleOnce = false;
       participation = { initiativeMode: "DIRECT", structureMode: "OPEN_ENDED" };
@@ -196,5 +199,12 @@ test("reconciles a committed participation change after its first response is lo
   await expect(page.getByText("Participation changed by one direct user Commit.")).toBeVisible();
   await expect(page.getByText("World active · Open ended", { exact: true }).first()).toBeVisible();
   expect(participationRequestCount).toBe(2);
+  expect(participationRequests[1]).toEqual(participationRequests[0]);
+  expect(participationRequests[0]).toMatchObject({
+    expectedHeadCommitId: "61000000-0000-4000-8000-000000000003",
+    before: { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" },
+    after: { initiativeMode: "WORLD_ACTIVE", structureMode: "OPEN_ENDED" },
+  });
+  expect(participationRequests[0]).toHaveProperty("idempotencyKey");
   await expect(page.getByText(/current truth is unchanged/i)).toHaveCount(0);
 });

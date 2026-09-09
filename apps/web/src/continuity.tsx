@@ -853,6 +853,13 @@ export function ActionStatusCard({
       {action.proposal && action.status === "AWAITING_CONFIRMATION" ? (
         <div className="proposal-review">
           <p className="proposal-label">Provisional — not current truth</p>
+          {action.proposal.responseSource ? (
+            <p className="card-label">
+              {action.proposal.responseSource.type === "CHARACTER"
+                ? `Character response · ${labelMode(action.proposal.responseSource.characterId.split(".").at(-1) ?? "Character")}`
+                : "World response"}
+            </p>
+          ) : null}
           <p>{action.proposal.narrative}</p>
           <dl>
             <div>

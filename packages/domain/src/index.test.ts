@@ -66,6 +66,7 @@ describe("IP-4 Action Truth and correction domain", () => {
         actionId: "10000000-0000-4000-8000-000000000010",
         expectedHeadCommitId: "10000000-0000-4000-8000-000000000011",
         narrative: "The western lamp answers the keeper's work.",
+        responseSource: { type: "WORLD" },
         operation: {
           type: "UPDATE_CANONICAL_FACT",
           targetFactId: "fact.western-signal-dim",
@@ -198,6 +199,7 @@ describe("IP-4 Action Truth and correction domain", () => {
           actionId: "10000000-0000-4000-8000-000000000040",
           expectedHeadCommitId: "10000000-0000-4000-8000-000000000041",
           narrative: "A crafted candidate tries to reach an unprovided fact.",
+          responseSource: { type: "WORLD" },
           operation: {
             type: "UPDATE_CANONICAL_FACT",
             targetFactId: "fact.private-note",
@@ -314,6 +316,7 @@ describe("IP-6 participation and character authority", () => {
           actionId: "10000000-0000-4000-8000-000000000050",
           expectedHeadCommitId: "10000000-0000-4000-8000-000000000051",
           narrative: "Iora disagrees without speaking for the participant.",
+          responseSource: { type: "CHARACTER", characterId: "character.iora" },
           participation: { initiativeMode: "WORLD_ACTIVE", structureMode: "GOAL_FRAMED" },
           userAvatarAction: "The participant promises to leave.",
           operation: {
@@ -332,6 +335,56 @@ describe("IP-6 participation and character authority", () => {
         },
       ),
     ).toThrow();
+  });
+
+  it("binds Character attribution and rejects generated user commitments", () => {
+    const state = createInitialState(lanternReachSeed, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const base = {
+      schemaVersion: 1 as const,
+      actionId: "10000000-0000-4000-8000-000000000060",
+      expectedHeadCommitId: "10000000-0000-4000-8000-000000000061",
+      responseSource: { type: "CHARACTER" as const, characterId: "character.iora" },
+      operation: {
+        type: "UPDATE_CANONICAL_FACT" as const,
+        targetFactId: "fact.western-signal-dim",
+        beforeStatement: "The western signal is dim.",
+        afterStatement: "The western signal remains dim.",
+        scope: "SHARED" as const,
+        provenance: "Untrusted candidate",
+      },
+    };
+    const expected = {
+      actionId: base.actionId,
+      expectedHeadCommitId: base.expectedHeadCommitId,
+      state,
+      responseSource: base.responseSource,
+      userRoleName: "Keeper",
+    };
+    expect(() =>
+      validateActionCandidate(
+        { ...base, narrative: "Keeper agreed to transfer resources." },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        {
+          ...base,
+          narrative: "Iora refuses to light an unsafe signal.",
+          responseSource: { type: "WORLD" },
+        },
+        expected,
+      ),
+    ).toThrow(/response source/);
+    expect(
+      validateActionCandidate(
+        { ...base, narrative: "Iora refuses to light an unsafe signal." },
+        expected,
+      ).candidate.responseSource,
+    ).toEqual(base.responseSource);
   });
 
   it("activates only declared Goal-framed objectives and fabricates none for Open-ended", () => {

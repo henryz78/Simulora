@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   applyParticipationContractChange,
   applyValidatedActionCandidate,
+  assertGeneratedNarrativeDoesNotAuthorUser,
   applyRestorableState,
   applyValidatedDirectCorrectionCandidate,
   characterAssetDefinitionSchema,
@@ -15,6 +16,7 @@ import {
   validateActionCandidate,
   worldDocumentSchema,
   type ActionStatus,
+  type ActionResponseSource,
   type CharacterAssetDefinition,
   type CharacterGenerationContext,
   type ParticipationContract,
@@ -237,6 +239,7 @@ export type ActionProposalRecord = {
   impact: "L3";
   expiresAt: string;
   narrative: string;
+  responseSource: ActionResponseSource | null;
   displayEffect: {
     target: string;
     before: string;
@@ -377,7 +380,7 @@ export type ActionGenerator = (request: {
   participation: ActionGenerationContext["participation"];
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
-}) => Promise<{ narrative: string; candidate: unknown }>;
+}) => Promise<{ narrative: string; responseSource: ActionResponseSource; candidate: unknown }>;
 
 export class AccessDeniedError extends Error {}
 export class NotFoundError extends Error {}
@@ -1535,6 +1538,7 @@ export class AuthoritativeWorldRepository {
       let nextState: StateRevisionDocument;
       let displayEffect: ActionProposalRecord["displayEffect"];
       let candidateNarrative: string;
+      let responseSource: ActionResponseSource | null = null;
       if (action.operation_type === "CHANGE_PARTICIPATION_CONTRACT") {
         throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
       }
@@ -1553,6 +1557,7 @@ export class AuthoritativeWorldRepository {
         nextState = applyValidatedActionCandidate(expectedState, validated);
         displayEffect = validated.displayEffect;
         candidateNarrative = validated.candidate.narrative;
+        responseSource = validated.candidate.responseSource;
       } else {
         const validated = validateDirectCorrectionCandidate(proposal.candidate_transition, {
           actionId,
@@ -1645,9 +1650,20 @@ export class AuthoritativeWorldRepository {
         ],
       );
       await client.query(
-        `insert into simulora.conversation_entries (id, commit_id, branch_id, ordinal, role, content)
-         values ($1, $2, $3, 1, 'USER', $4), ($5, $2, $3, 2, 'WORLD', $6)`,
-        [randomUUID(), commitId, action.branch_id, action.intent, randomUUID(), candidateNarrative],
+        `insert into simulora.conversation_entries
+         (id, commit_id, branch_id, ordinal, role, content, speaker_character_id)
+         values ($1, $2, $3, 1, 'USER', $4, null),
+                ($5, $2, $3, 2, $6, $7, $8)`,
+        [
+          randomUUID(),
+          commitId,
+          action.branch_id,
+          action.intent,
+          randomUUID(),
+          responseSource?.type === "CHARACTER" ? "CHARACTER" : "WORLD",
+          candidateNarrative,
+          responseSource?.type === "CHARACTER" ? responseSource.characterId : null,
+        ],
       );
       const advanced = await client.query(
         `update simulora.branches
@@ -3621,6 +3637,7 @@ export class AuthoritativeWorldRepository {
         intent: action.intent,
         state,
         generationContext,
+        userRoleName: world.userRole.name,
       };
     });
     if (!prepared) return null;
@@ -3683,12 +3700,24 @@ export class AuthoritativeWorldRepository {
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
       });
+      const expectedResponseSource: ActionResponseSource = prepared.generationContext.character
+        ? { type: "CHARACTER", characterId: prepared.generationContext.character.id }
+        : { type: "WORLD" };
+      if (JSON.stringify(generated.responseSource) !== JSON.stringify(expectedResponseSource)) {
+        throw new Error("Generated response source does not match the compiled character context");
+      }
+      assertGeneratedNarrativeDoesNotAuthorUser(generated.narrative, prepared.userRoleName);
       const candidate = validateActionCandidate(generated.candidate, {
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         state: prepared.state,
         authorizedTargetFactIds: [prepared.generationContext.targetFact.id],
+        responseSource: expectedResponseSource,
+        userRoleName: prepared.userRoleName,
       });
+      if (generated.narrative !== candidate.candidate.narrative) {
+        throw new Error("Generated narrative does not match the candidate narrative");
+      }
       const proposalId = randomUUID();
       const expiresAt = new Date(Date.now() + 15 * 60_000);
       const digest = contentHash({
@@ -3736,6 +3765,7 @@ export class AuthoritativeWorldRepository {
         await this.appendProgressWithClient(client, actionId, "generation.draft", {
           status: "VALIDATING",
           narrative: candidate.candidate.narrative,
+          responseSource: candidate.candidate.responseSource,
           provisional: true,
         });
         await this.appendProgressWithClient(client, actionId, "confirmation.required", {
@@ -3840,6 +3870,7 @@ export class AuthoritativeWorldRepository {
       proposal_head: string | null;
       proposal_expires: Date | null;
       proposal_narrative: string | null;
+      proposal_response_source: ActionResponseSource | null;
       display_effect: ActionProposalRecord["displayEffect"] | null;
       commit_id: string | null;
       commit_head: string | null;
@@ -3850,7 +3881,9 @@ export class AuthoritativeWorldRepository {
               a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason,
               p.id as proposal_id, p.proposal_digest, p.expected_head_commit_id as proposal_head,
               p.expires_at as proposal_expires,
-              p.candidate_transition->>'narrative' as proposal_narrative, p.display_effect,
+               p.candidate_transition->>'narrative' as proposal_narrative,
+               p.candidate_transition->'responseSource' as proposal_response_source,
+               p.display_effect,
               c.id as commit_id, c.id as commit_head, sr.id as commit_state, c.created_at as committed_at
        from simulora.actions a
        left join simulora.action_proposals p on p.action_id = a.id
@@ -3893,6 +3926,7 @@ export class AuthoritativeWorldRepository {
               impact: "L3",
               expiresAt: row.proposal_expires.toISOString(),
               narrative: row.proposal_narrative,
+              responseSource: row.proposal_response_source,
               displayEffect: row.display_effect,
             }
           : null,

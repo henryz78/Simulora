@@ -232,6 +232,12 @@ export const actionProposalSchema = z.object({
   impact: z.literal("L3"),
   expiresAt: z.string().datetime(),
   narrative: nonEmptyTextSchema,
+  responseSource: z
+    .discriminatedUnion("type", [
+      z.object({ type: z.literal("WORLD") }).strict(),
+      z.object({ type: z.literal("CHARACTER"), characterId: z.string().min(1).max(120) }).strict(),
+    ])
+    .nullable(),
   displayEffect: z.object({
     target: z.string().min(1),
     before: nonEmptyTextSchema,

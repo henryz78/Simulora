@@ -39,6 +39,7 @@ export type WorldTurnRequest = {
 
 export type WorldTurnDraft = {
   narrative: string;
+  responseSource: { type: "WORLD" } | { type: "CHARACTER"; characterId: string };
   candidate: unknown;
 };
 
@@ -55,6 +56,9 @@ export class DeterministicModelGateway implements ModelGatewayPort {
   generateWorldTurn(request: WorldTurnRequest): Promise<WorldTurnDraft> {
     const intent = request.intent.trim();
     const actor = request.character ?? null;
+    const responseSource = actor
+      ? ({ type: "CHARACTER", characterId: actor.id } as const)
+      : ({ type: "WORLD" } as const);
     const narrative = actor
       ? request.participation.initiativeMode === "DIRECT"
         ? `${actor.name} responds only to your stated action from this stance: ${actor.stance}`
@@ -64,11 +68,13 @@ export class DeterministicModelGateway implements ModelGatewayPort {
       : `The world responds to your stated action: ${intent}`;
     return Promise.resolve({
       narrative,
+      responseSource,
       candidate: {
         schemaVersion: 1,
         actionId: request.actionId,
         expectedHeadCommitId: request.expectedHeadCommitId,
         narrative,
+        responseSource,
         operation: {
           type: "UPDATE_CANONICAL_FACT",
           targetFactId: request.targetFact.id,

@@ -176,6 +176,7 @@ function correctionAction(): ActionFixture {
       impact: "L3",
       expiresAt: "2026-09-03T01:00:00.000Z",
       narrative: "Replace the fact with the exact reviewed statement.",
+      responseSource: null,
       displayEffect: {
         target: factId,
         before: "The western signal is dim.",

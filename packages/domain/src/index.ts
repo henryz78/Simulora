@@ -343,6 +343,10 @@ export const actionCandidateSchema = z
     actionId: z.string().uuid(),
     expectedHeadCommitId: z.string().uuid(),
     narrative: nonEmptyTextSchema,
+    responseSource: z.discriminatedUnion("type", [
+      z.object({ type: z.literal("WORLD") }).strict(),
+      z.object({ type: z.literal("CHARACTER"), characterId: stableIdSchema }).strict(),
+    ]),
     operation: z
       .object({
         type: z.literal("UPDATE_CANONICAL_FACT"),
@@ -358,6 +362,7 @@ export const actionCandidateSchema = z
 
 export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type ActionCandidate = z.infer<typeof actionCandidateSchema>;
+export type ActionResponseSource = ActionCandidate["responseSource"];
 export type ConsequenceImpact = "L3";
 
 const directCorrectionOperationSchema = z.discriminatedUnion("type", [
@@ -433,6 +438,8 @@ export function validateActionCandidate(
      * naming another private fact that happened to be present in the snapshot.
      */
     authorizedTargetFactIds?: ReadonlySet<string> | readonly string[];
+    responseSource?: ActionResponseSource;
+    userRoleName?: string;
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -442,6 +449,21 @@ export function validateActionCandidate(
   if (candidate.expectedHeadCommitId !== expected.expectedHeadCommitId) {
     throw new Error("Candidate expected head does not match the durable Action");
   }
+  if (
+    expected.responseSource &&
+    JSON.stringify(candidate.responseSource) !== JSON.stringify(expected.responseSource)
+  ) {
+    throw new Error("Candidate response source does not match the compiled character context");
+  }
+  const responseCharacterId =
+    candidate.responseSource.type === "CHARACTER" ? candidate.responseSource.characterId : null;
+  if (
+    responseCharacterId &&
+    !expected.state.characters.some((character) => character.id === responseCharacterId)
+  ) {
+    throw new Error("Candidate response source is not present in the expected World state");
+  }
+  assertGeneratedNarrativeDoesNotAuthorUser(candidate.narrative, expected.userRoleName);
 
   const allowed = expected.authorizedTargetFactIds;
   if (
@@ -476,6 +498,29 @@ export function validateActionCandidate(
       scope: target.scope,
     },
   };
+}
+
+/**
+ * Generated narration may describe consequences and Character choices, but it
+ * cannot manufacture speech, consent or another protected commitment for the
+ * user's role. This narrow trust-boundary check complements the strict
+ * candidate shape; it is not a general prose classifier.
+ */
+export function assertGeneratedNarrativeDoesNotAuthorUser(
+  narrative: string,
+  userRoleName?: string,
+): void {
+  const escapedRole = userRoleName?.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const subjects = ["you", "the user", "the player", "the participant", escapedRole]
+    .filter(Boolean)
+    .join("|");
+  const protectedCommitment = new RegExp(
+    `\\b(?:${subjects})\\b\\s+(?:(?:has|have|had|will|did|does|is|was)\\s+)?(?:say|says|said|agree|agrees|agreed|promise|promises|promised|consent|consents|consented|accept|accepts|accepted|authorize|authorizes|authorized|pay|pays|paid|spend|spends|spent|transfer|transfers|transferred|share|shares|shared|publish|publishes|published|delete|deletes|deleted|surrender|surrenders|surrendered|sign|signs|signed|buy|buys|bought|sell|sells|sold)\\b`,
+    "i",
+  );
+  if (protectedCommitment.test(narrative)) {
+    throw new Error("Generated narrative cannot author user speech or protected commitments");
+  }
 }
 
 /**

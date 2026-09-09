@@ -240,10 +240,79 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     ).rejects.toThrow(/Continuity owner and current active Branch head/);
   });
 
+  it("rejects null, incomplete and extra participation authority JSON at the database boundary", async () => {
+    const continuity = await createContinuity();
+    const malformedExpectations = [
+      { initiativeMode: "GUIDED", structureMode: null },
+      { initiativeMode: "GUIDED" },
+      { ...continuity.state.participation, extraAuthority: true },
+    ];
+    for (const expectation of malformedExpectations) {
+      await expect(
+        pool.query(
+          `insert into simulora.actions
+           (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+            expected_head_commit_id, participation_expectation, intent, status)
+           values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, 'ACKNOWLEDGED')`,
+          [
+            randomUUID(),
+            account.accountId,
+            continuity.continuityId,
+            continuity.branchId,
+            `malformed-expectation-${randomUUID()}`,
+            continuity.headCommitId,
+            JSON.stringify(expectation),
+            "Malformed authority input",
+          ],
+        ),
+      ).rejects.toThrow(/exact current participation contract/);
+    }
+
+    const malformedAfterContracts = [
+      { initiativeMode: "DIRECT", structureMode: null },
+      { initiativeMode: "DIRECT" },
+      { initiativeMode: "DIRECT", structureMode: "OPEN_ENDED", extraAuthority: true },
+    ];
+    for (const after of malformedAfterContracts) {
+      await expect(
+        pool.query(
+          `insert into simulora.actions
+           (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+            expected_head_commit_id, participation_expectation, intent, operation_payload, status)
+           values ($1, $2, $3, $4, 'CHANGE_PARTICIPATION_CONTRACT', $5, $6, $7::jsonb,
+                   $8, $9::jsonb, 'ACKNOWLEDGED')`,
+          [
+            randomUUID(),
+            account.accountId,
+            continuity.continuityId,
+            continuity.branchId,
+            `malformed-change-${randomUUID()}`,
+            continuity.headCommitId,
+            JSON.stringify(continuity.state.participation),
+            "Malformed direct participation change",
+            JSON.stringify({ schemaVersion: 1, before: continuity.state.participation, after }),
+          ],
+        ),
+      ).rejects.toThrow(/exact complete before\/after contracts/);
+    }
+  });
+
   it("keeps proposal and confirmation authority evidence immutable", async () => {
     const continuity = await createContinuity();
     const proposed = await prepareOrdinaryAction(continuity);
     const proposal = proposed.proposal!;
+    await expect(
+      pool.query("update simulora.action_proposals set status = 'CONFIRMED' where id = $1", [
+        proposal.id,
+      ]),
+    ).rejects.toThrow(/requires its exact live confirmation/);
+    await expect(
+      pool.query(
+        `update simulora.generation_attempts set context_manifest = '{}'::jsonb
+         where action_id = $1`,
+        [proposed.id],
+      ),
+    ).rejects.toThrow(/compiled context are immutable/);
     await expect(
       pool.query(
         `update simulora.action_proposals
@@ -265,6 +334,14 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         [proposed.id],
       ),
     ).rejects.toThrow(/action_confirmations is immutable/);
+    await expect(
+      pool.query("update simulora.actions set terminal_at = null where id = $1", [proposed.id]),
+    ).rejects.toThrow(/Terminal Action requires terminal_at/);
+    await expect(
+      pool.query("update simulora.actions set acknowledged_at = now() where id = $1", [
+        proposed.id,
+      ]),
+    ).rejects.toThrow(/identity, authority and command binding are immutable/);
   });
 
   it("rejects wrong-source and arbitrary-state raw Action materialization", async () => {
@@ -558,5 +635,191 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       includedFactIds: ["fact.western-signal-dim", "fact.iora-context"],
       includedCharacterIds: ["character.iora"],
     });
+  });
+
+  it("carries stable Character attribution into the proposal and committed history", async () => {
+    const continuity = await createContinuity();
+    const proposed = await prepareOrdinaryAction(continuity);
+    expect(proposed.proposal?.responseSource).toEqual({
+      type: "CHARACTER",
+      characterId: "character.iora",
+    });
+    const committed = await repository.confirmAction(account, proposed.id, {
+      proposalId: proposed.proposal!.id,
+      proposalDigest: proposed.proposal!.digest,
+      expectedHeadCommitId: proposed.proposal!.expectedHeadCommitId,
+    });
+    const history = await pool.query<{
+      ordinal: number;
+      role: string;
+      speaker_character_id: string | null;
+      content: string;
+    }>(
+      `select ordinal, role, speaker_character_id, content
+       from simulora.conversation_entries where commit_id = $1 order by ordinal`,
+      [committed.commit!.id],
+    );
+    expect(history.rows).toEqual([
+      {
+        ordinal: 1,
+        role: "USER",
+        speaker_character_id: null,
+        content: "Ask Iora to inspect the western signal.",
+      },
+      {
+        ordinal: 2,
+        role: "CHARACTER",
+        speaker_character_id: "character.iora",
+        content: proposed.proposal!.narrative,
+      },
+    ]);
+  });
+
+  it("rejects generated user commitments before proposal or Commit creation", async () => {
+    const continuity = await createContinuity();
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `protected-narrative-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask Iora whether the signal should be lit.",
+    });
+    const processed = await repository.processAction(action.id, (request) => {
+      const responseSource = request.character
+        ? ({ type: "CHARACTER", characterId: request.character.id } as const)
+        : ({ type: "WORLD" } as const);
+      const narrative = "Keeper agreed to transfer resources.";
+      return Promise.resolve({
+        narrative,
+        responseSource,
+        candidate: {
+          schemaVersion: 1,
+          actionId: request.actionId,
+          expectedHeadCommitId: request.expectedHeadCommitId,
+          narrative,
+          responseSource,
+          operation: {
+            type: "UPDATE_CANONICAL_FACT",
+            targetFactId: request.targetFact.id,
+            beforeStatement: request.targetFact.statement,
+            afterStatement: "The signal remains dim.",
+            scope: request.targetFact.scope,
+            provenance: "Untrusted generated output",
+          },
+        },
+      });
+    });
+    expect(processed?.proposal).toBeNull();
+    expect(processed?.commit).toBeNull();
+    const materialized = await pool.query<{ proposals: number; commits: number }>(
+      `select
+        (select count(*)::int from simulora.action_proposals where action_id = $1) as proposals,
+        (select count(*)::int from simulora.world_commits where action_id = $1) as commits`,
+      [action.id],
+    );
+    expect(materialized.rows[0]).toEqual({ proposals: 0, commits: 0 });
+    const databaseGuard = await pool.query<{ unsafe: boolean; safe: boolean }>(
+      `select
+        simulora.generated_narrative_authors_user(
+          'Keeper agreed to transfer resources.', 'Keeper'
+        ) as unsafe,
+        simulora.generated_narrative_authors_user(
+          'Iora refuses to light an unsafe signal.', 'Keeper'
+        ) as safe`,
+    );
+    expect(databaseGuard.rows[0]).toEqual({ unsafe: true, safe: false });
+  });
+
+  it("rejects an otherwise exact raw Action Commit when attributed history is missing", async () => {
+    const continuity = await createContinuity();
+    const proposed = await prepareOrdinaryAction(continuity);
+    const proposal = proposed.proposal!;
+    const client = await pool.connect();
+    await client.query("begin");
+    try {
+      await client.query(
+        `insert into simulora.action_confirmations
+         (id, action_id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          randomUUID(),
+          proposed.id,
+          proposal.id,
+          account.accountId,
+          proposal.digest,
+          proposal.expectedHeadCommitId,
+        ],
+      );
+      await client.query(
+        "update simulora.action_proposals set status = 'CONFIRMED' where id = $1",
+        [proposal.id],
+      );
+      await client.query("update simulora.actions set status = 'COMMITTING' where id = $1", [
+        proposed.id,
+      ]);
+      const expected = await client.query<{ document: unknown }>(
+        "select simulora.expected_action_state($1) as document",
+        [proposed.id],
+      );
+      const document = expected.rows[0]!.document;
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      await client.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          action_id, source_type, reason)
+         values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'USER', $7)`,
+        [
+          commitId,
+          continuity.branchId,
+          continuity.headCommitId,
+          account.accountId,
+          stateRevisionId,
+          proposed.id,
+          proposed.id,
+        ],
+      );
+      await client.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [
+          stateRevisionId,
+          continuity.branchId,
+          commitId,
+          JSON.stringify(document),
+          contentHash(document),
+        ],
+      );
+      await client.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope,
+          cause_action_id)
+         values ($1, $2, $3, 'ACTION_RECORDED', $4::jsonb, 'USER', $5, $6)`,
+        [
+          randomUUID(),
+          continuity.branchId,
+          commitId,
+          JSON.stringify({ actionId: proposed.id, target: proposal.displayEffect.target }),
+          proposal.displayEffect.scope,
+          proposed.id,
+        ],
+      );
+      await client.query(
+        `update simulora.branches set head_commit_id = $2, head_state_revision_id = $3
+         where id = $1`,
+        [continuity.branchId, commitId, stateRevisionId],
+      );
+      await client.query(
+        "update simulora.actions set status = 'COMMITTED', terminal_at = now() where id = $1",
+        [proposed.id],
+      );
+      await expect(client.query("set constraints all immediate")).rejects.toThrow(
+        /exact attributed conversation history/,
+      );
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
   });
 });

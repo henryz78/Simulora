@@ -147,6 +147,7 @@ test.beforeEach(async ({ page }) => {
         impact: "L3",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         narrative: `Iora studies the consequence of: ${input.intent}`,
+        responseSource: { type: "CHARACTER", characterId: "character.iora" },
         displayEffect: {
           target: "fact.signal",
           before: fact,
@@ -239,6 +240,7 @@ test("Action Truth completes twice without confusing proposal and current truth"
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Received and durably recorded.")).toBeVisible();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  await expect(page.getByText("Character response · Iora")).toBeVisible();
   const worldContext = page.getByLabel("Current world context");
   await expect(worldContext.getByText("The western signal is dim.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
