@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { PoolClient } from "pg";
 import {
   contentHash,
   lanternReachSeed,
@@ -528,7 +527,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     const continuity = await createContinuity();
     const proposed = await prepareOrdinaryAction(continuity);
     const proposal = proposed.proposal!;
-    const prepareConfirmation = async (client: PoolClient) => {
+    const prepareConfirmation = async (client: Pick<typeof pool, "query">) => {
       await client.query(
         `insert into simulora.action_confirmations
          (id, action_id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
