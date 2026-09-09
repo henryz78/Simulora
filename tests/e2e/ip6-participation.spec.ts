@@ -10,6 +10,8 @@ let participation: ParticipationContract = {
   structureMode: "OPEN_ENDED",
 };
 let staleOnce = false;
+let loseCommittedResponseOnce = false;
+let participationRequestCount = 0;
 
 function stateResponse() {
   return {
@@ -85,6 +87,8 @@ test.beforeEach(async ({ page }) => {
   headCommitId = "61000000-0000-4000-8000-000000000003";
   participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" };
   staleOnce = false;
+  loseCommittedResponseOnce = false;
+  participationRequestCount = 0;
   await page.route(`**/v1/continuities/${continuityId}/state`, (route) =>
     route.fulfill({
       status: 200,
@@ -104,6 +108,7 @@ test.beforeEach(async ({ page }) => {
       before: typeof participation;
       after: typeof participation;
     };
+    participationRequestCount += 1;
     if (staleOnce) {
       staleOnce = false;
       participation = { initiativeMode: "DIRECT", structureMode: "OPEN_ENDED" };
@@ -116,6 +121,10 @@ test.beforeEach(async ({ page }) => {
     }
     participation = request.after;
     headCommitId = "61000000-0000-4000-8000-000000000006";
+    if (loseCommittedResponseOnce) {
+      loseCommittedResponseOnce = false;
+      return route.abort("failed");
+    }
     return route.fulfill({
       status: 201,
       contentType: "application/json",
@@ -173,4 +182,19 @@ test("stale review writes nothing and requires a fresh intentional review", asyn
   ).toBeVisible();
   await expect(page.getByText("Direct · Open ended", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Apply this exact contract" })).toHaveCount(0);
+});
+
+test("reconciles a committed participation change after its first response is lost", async ({
+  page,
+}) => {
+  loseCommittedResponseOnce = true;
+  await page.goto(`/continuities/${continuityId}/participation`);
+  await page.getByRole("radio", { name: /World-active/ }).check();
+  await page.getByRole("button", { name: "Review authority change" }).click();
+  await page.getByRole("button", { name: "Apply this exact contract" }).click();
+
+  await expect(page.getByText("Participation changed by one direct user Commit.")).toBeVisible();
+  await expect(page.getByText("World active · Open ended", { exact: true }).first()).toBeVisible();
+  expect(participationRequestCount).toBe(2);
+  await expect(page.getByText(/current truth is unchanged/i)).toHaveCount(0);
 });

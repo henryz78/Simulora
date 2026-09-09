@@ -1320,7 +1320,7 @@ export class AuthoritativeWorldRepository {
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
           expected_head_commit_id, participation_expectation, intent, operation_payload, status)
-         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, 'AWAITING_CONFIRMATION')
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, 'ACKNOWLEDGED')
          on conflict (actor_account_id, branch_id, idempotency_key) do nothing
          returning id`,
         [
@@ -1345,6 +1345,17 @@ export class AuthoritativeWorldRepository {
         if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
         return this.readActionWithClient(client, account, duplicate.rows[0].id);
       }
+
+      await this.appendProgressWithClient(client, actionId, "action.status", {
+        status: "ACKNOWLEDGED",
+        message: "The direct correction was received. Current World truth is unchanged.",
+      });
+      await client.query(
+        `update simulora.actions
+         set status = 'VALIDATING', updated_at = now(), row_version = row_version + 1
+         where id = $1`,
+        [actionId],
+      );
 
       const directCandidate = {
         schemaVersion: 1 as const,
@@ -1392,6 +1403,12 @@ export class AuthoritativeWorldRepository {
           JSON.stringify(validated.displayEffect),
           expiresAt,
         ],
+      );
+      await client.query(
+        `update simulora.actions
+         set status = 'AWAITING_CONFIRMATION', updated_at = now(), row_version = row_version + 1
+         where id = $1`,
+        [actionId],
       );
       await this.appendProgressWithClient(client, actionId, "action.status", {
         status: "AWAITING_CONFIRMATION",

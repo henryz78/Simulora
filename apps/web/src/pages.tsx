@@ -862,13 +862,17 @@ export function ParticipationPage(): ReactElement {
     setBusy(true);
     setMessage(null);
     idempotencyKey.current ??= crypto.randomUUID();
-    const result = await changeParticipationContract(loadState.data.continuity.branchId, {
+    const request = {
       schemaVersion: 1,
       idempotencyKey: idempotencyKey.current,
       expectedHeadCommitId: loadState.data.continuity.headCommitId,
       before: current,
       after: selection,
-    });
+    } as const;
+    let result = await changeParticipationContract(loadState.data.continuity.branchId, request);
+    if (!result.data && !result.errorCode) {
+      result = await changeParticipationContract(loadState.data.continuity.branchId, request);
+    }
     if (result.data?.status === "COMMITTED") {
       idempotencyKey.current = null;
       setReviewing(false);
@@ -883,8 +887,9 @@ export function ParticipationPage(): ReactElement {
       setReviewing(false);
       setMessage("The current path changed. Review its current contract before trying again.");
     } else {
+      await refresh();
       setMessage(
-        "The change was not confirmed. Retry with the same review; current truth is unchanged.",
+        "The result could not be verified. Current truth was refreshed; retrying this exact review is safe.",
       );
     }
     setBusy(false);

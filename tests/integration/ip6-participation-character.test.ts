@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { PoolClient } from "pg";
 import {
   contentHash,
   lanternReachSeed,
@@ -51,6 +52,21 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     const draft = await repository.createWorld(account, lanternReachSeed);
     const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
     return repository.startContinuity(account, revision.revisionId, initial);
+  }
+
+  async function prepareOrdinaryAction(continuity: Awaited<ReturnType<typeof createContinuity>>) {
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `g6-authority-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask Iora to inspect the western signal.",
+    });
+    const proposed = await repository.processAction(action.id, (request) =>
+      new DeterministicModelGateway().generateWorldTurn(request),
+    );
+    if (!proposed?.proposal) throw new Error("Expected a confirmed-review Action proposal");
+    return proposed;
   }
 
   it("commits all six independent contracts through direct user Actions only", async () => {
@@ -182,6 +198,191 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       [continuity.branchId],
     );
     expect(committed.rows[0]?.count).toBe(1);
+  });
+
+  it("rejects forged Action ownership and false terminal insertion at the database boundary", async () => {
+    const continuity = await createContinuity();
+    await pool.query(
+      `insert into simulora.accounts (id, eligibility) values ($1, 'ADULT')
+       on conflict (id) do nothing`,
+      [otherAccount.accountId],
+    );
+    const values = [
+      randomUUID(),
+      account.accountId,
+      continuity.continuityId,
+      continuity.branchId,
+      `false-terminal-${randomUUID()}`,
+      continuity.headCommitId,
+      JSON.stringify(continuity.state.participation),
+      "Forge a terminal receipt",
+    ];
+    await expect(
+      pool.query(
+        `insert into simulora.actions
+         (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+          expected_head_commit_id, participation_expectation, intent, status, terminal_at)
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, 'COMMITTED', now())`,
+        values,
+      ),
+    ).rejects.toThrow(/must begin as ACKNOWLEDGED/);
+    values[0] = randomUUID();
+    values[1] = otherAccount.accountId;
+    values[4] = `foreign-action-${randomUUID()}`;
+    await expect(
+      pool.query(
+        `insert into simulora.actions
+         (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+          expected_head_commit_id, participation_expectation, intent, status)
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, 'ACKNOWLEDGED')`,
+        values,
+      ),
+    ).rejects.toThrow(/Continuity owner and current active Branch head/);
+  });
+
+  it("keeps proposal and confirmation authority evidence immutable", async () => {
+    const continuity = await createContinuity();
+    const proposed = await prepareOrdinaryAction(continuity);
+    const proposal = proposed.proposal!;
+    await expect(
+      pool.query(
+        `update simulora.action_proposals
+         set display_effect = jsonb_set(display_effect, '{after}', '"misleading"'::jsonb)
+         where id = $1`,
+        [proposal.id],
+      ),
+    ).rejects.toThrow(/proposal evidence is immutable/);
+    const committed = await repository.confirmAction(account, proposed.id, {
+      proposalId: proposal.id,
+      proposalDigest: proposal.digest,
+      expectedHeadCommitId: proposal.expectedHeadCommitId,
+    });
+    expect(committed.status).toBe("COMMITTED");
+    await expect(
+      pool.query(
+        `update simulora.action_confirmations set proposal_digest = repeat('0', 64)
+         where action_id = $1`,
+        [proposed.id],
+      ),
+    ).rejects.toThrow(/action_confirmations is immutable/);
+  });
+
+  it("rejects wrong-source and arbitrary-state raw Action materialization", async () => {
+    const continuity = await createContinuity();
+    const proposed = await prepareOrdinaryAction(continuity);
+    const proposal = proposed.proposal!;
+    const prepareConfirmation = async (client: PoolClient) => {
+      await client.query(
+        `insert into simulora.action_confirmations
+         (id, action_id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          randomUUID(),
+          proposed.id,
+          proposal.id,
+          account.accountId,
+          proposal.digest,
+          proposal.expectedHeadCommitId,
+        ],
+      );
+      await client.query(
+        "update simulora.action_proposals set status = 'CONFIRMED' where id = $1",
+        [proposal.id],
+      );
+      await client.query("update simulora.actions set status = 'COMMITTING' where id = $1", [
+        proposed.id,
+      ]);
+    };
+
+    const wrongSource = await pool.connect();
+    await wrongSource.query("begin");
+    try {
+      await prepareConfirmation(wrongSource);
+      await expect(
+        wrongSource.query(
+          `insert into simulora.world_commits
+           (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+            action_id, source_type, reason)
+           values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'WORLD', $6)`,
+          [
+            randomUUID(),
+            continuity.branchId,
+            continuity.headCommitId,
+            account.accountId,
+            randomUUID(),
+            proposed.id,
+          ],
+        ),
+      ).rejects.toThrow(/exact user authority/);
+    } finally {
+      await wrongSource.query("rollback");
+      wrongSource.release();
+    }
+
+    const forged = await pool.connect();
+    await forged.query("begin");
+    try {
+      await prepareConfirmation(forged);
+      const commitId = randomUUID();
+      const stateRevisionId = randomUUID();
+      const forgedState = structuredClone(continuity.state);
+      forgedState.customState = { forgedOutsideCandidate: true };
+      await forged.query(
+        `insert into simulora.world_commits
+         (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
+          action_id, source_type, reason)
+         values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'USER', $6)`,
+        [
+          commitId,
+          continuity.branchId,
+          continuity.headCommitId,
+          account.accountId,
+          stateRevisionId,
+          proposed.id,
+        ],
+      );
+      await forged.query(
+        `insert into simulora.state_revisions
+         (id, branch_id, commit_id, schema_version, document, document_hash)
+         values ($1, $2, $3, 1, $4::jsonb, $5)`,
+        [
+          stateRevisionId,
+          continuity.branchId,
+          commitId,
+          JSON.stringify(forgedState),
+          contentHash(forgedState),
+        ],
+      );
+      await forged.query(
+        `insert into simulora.domain_events
+         (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope,
+          cause_action_id)
+         values ($1, $2, $3, 'ACTION_RECORDED', $4::jsonb, 'USER', $5, $6)`,
+        [
+          randomUUID(),
+          continuity.branchId,
+          commitId,
+          JSON.stringify({ actionId: proposed.id, target: proposal.displayEffect.target }),
+          proposal.displayEffect.scope,
+          proposed.id,
+        ],
+      );
+      await forged.query(
+        `update simulora.branches set head_commit_id = $2, head_state_revision_id = $3
+         where id = $1`,
+        [continuity.branchId, commitId, stateRevisionId],
+      );
+      await forged.query(
+        `update simulora.actions set status = 'COMMITTED', terminal_at = now() where id = $1`,
+        [proposed.id],
+      );
+      await expect(forged.query("set constraints all immediate")).rejects.toThrow(
+        /exact state, typed Event, terminal Action/,
+      );
+    } finally {
+      await forged.query("rollback");
+      forged.release();
+    }
   });
 
   it("rejects any non-direct Commit that changes participation", async () => {
