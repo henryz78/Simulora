@@ -124,7 +124,7 @@ describe("authoritative spine migrations", () => {
            where id = '00000000-0000-4000-8000-000000000106'
         `),
       ).rejects.toThrow(
-        /ACTIVE Continuity requires its Branch to remain active with complete heads/,
+        /Active Branch lifecycle cannot return to initialization|ACTIVE Continuity requires its Branch to remain active with complete heads/,
       );
     } finally {
       await database.close();

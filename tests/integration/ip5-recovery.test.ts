@@ -1299,6 +1299,79 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     ).rejects.toThrow(/only advance to a direct child Commit/);
   });
 
+  it("rejects lifecycle reset paths that could reinstall an earlier Branch head", async () => {
+    const continuity = await createContinuity();
+    await recordAction(
+      continuity.branchId,
+      continuity.headCommitId,
+      "Advance before attempting a lifecycle reset.",
+    );
+
+    await expect(
+      pool.query("update simulora.continuities set status = 'INITIALIZING' where id = $1", [
+        continuity.continuityId,
+      ]),
+    ).rejects.toThrow(/Continuity lifecycle cannot return to initialization/);
+    await expect(
+      pool.query("update simulora.branches set status = 'INITIALIZING' where id = $1", [
+        continuity.branchId,
+      ]),
+    ).rejects.toThrow(/Branch lifecycle cannot return to initialization/);
+    await expect(
+      pool.query(
+        `update simulora.branches
+            set status = 'INITIALIZING', head_commit_id = null, head_state_revision_id = null
+          where id = $1`,
+        [continuity.branchId],
+      ),
+    ).rejects.toThrow(/Branch lifecycle cannot return|Branch heads cannot be cleared/);
+
+    const current = await repository.readCurrentState(account, continuity.continuityId);
+    expect(current.headCommitId).not.toBe(continuity.headCommitId);
+  });
+
+  it("keeps Continuity ownership and its authorized pinned World Revision immutable", async () => {
+    const continuity = await createContinuity();
+    const otherDraft = await repository.createWorld(otherAccount, lanternReachSeed);
+    const otherRevision = await repository.createRevision(
+      otherAccount,
+      otherDraft.worldId,
+      otherDraft.rowVersion,
+    );
+
+    await expect(
+      pool.query("update simulora.continuities set owner_account_id = $2 where id = $1", [
+        continuity.continuityId,
+        otherAccount.accountId,
+      ]),
+    ).rejects.toThrow(/Continuity ownership.*immutable/);
+    await expect(
+      pool.query("update simulora.continuities set world_revision_id = $2 where id = $1", [
+        continuity.continuityId,
+        otherRevision.revisionId,
+      ]),
+    ).rejects.toThrow(/pinned World Revision.*immutable/);
+    await expect(
+      pool.query("update simulora.worlds set owner_account_id = $2 where id = $1", [
+        otherDraft.worldId,
+        account.accountId,
+      ]),
+    ).rejects.toThrow(/World ownership and identity are immutable/);
+    await expect(
+      repository.startContinuity(account, otherRevision.revisionId, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      }),
+    ).rejects.toThrow(NotFoundError);
+
+    expect(
+      (await repository.readCurrentState(account, continuity.continuityId)).worldRevisionId,
+    ).toBe(continuity.worldRevisionId);
+    await expect(
+      repository.readCurrentState(otherAccount, continuity.continuityId),
+    ).rejects.toThrow(NotFoundError);
+  });
+
   it("returns the original fork for a same-key retry after the active head advances", async () => {
     const continuity = await createContinuity();
     const idempotencyKey = `fork-head-retry-${randomUUID()}`;
