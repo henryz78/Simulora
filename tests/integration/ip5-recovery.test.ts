@@ -1048,6 +1048,12 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
 
   it("rejects Restore review and Commit creation outside an active current path", async () => {
     const reviewContinuity = await createContinuity();
+    const reviewFork = await repository.forkBranch(account, reviewContinuity.continuityId, {
+      idempotencyKey: `inactive-review-fork-${randomUUID()}`,
+      name: "Inactive review target",
+      sourceCommitId: reviewContinuity.headCommitId,
+      expectedHeadCommitId: reviewContinuity.headCommitId,
+    });
     const reviewPoint = await repository.createRecoveryPoint(account, reviewContinuity.branchId, {
       idempotencyKey: `inactive-review-${randomUUID()}`,
       label: "Before inactive review",
@@ -1065,9 +1071,7 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     await pool.query("update simulora.restore_proposals set status = 'EXPIRED' where id = $1", [
       reviewProposal.id,
     ]);
-    await pool.query("update simulora.continuities set status = 'INITIALIZING' where id = $1", [
-      reviewContinuity.continuityId,
-    ]);
+    await repository.selectBranch(account, reviewContinuity.continuityId, reviewFork.id);
     await expect(
       pool.query(
         `insert into simulora.restore_proposals
@@ -1083,6 +1087,12 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     ).rejects.toThrow(/exactly bind its scope, diff, hashes and digest/);
 
     const commitContinuity = await createContinuity();
+    const commitFork = await repository.forkBranch(account, commitContinuity.continuityId, {
+      idempotencyKey: `inactive-commit-fork-${randomUUID()}`,
+      name: "Inactive Commit target",
+      sourceCommitId: commitContinuity.headCommitId,
+      expectedHeadCommitId: commitContinuity.headCommitId,
+    });
     const commitPoint = await repository.createRecoveryPoint(account, commitContinuity.branchId, {
       idempotencyKey: `inactive-commit-${randomUUID()}`,
       label: "Before inactive Commit",
@@ -1097,9 +1107,6 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       commitContinuity.branchId,
       commitPoint.commitId,
     );
-    await pool.query("update simulora.continuities set status = 'INITIALIZING' where id = $1", [
-      commitContinuity.continuityId,
-    ]);
     await pool.query(
       `insert into simulora.restore_confirmations
        (id, proposal_id, actor_account_id, proposal_digest, expected_head_commit_id)
@@ -1115,6 +1122,7 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     await pool.query("update simulora.restore_proposals set status = 'CONFIRMED' where id = $1", [
       commitProposal.id,
     ]);
+    await repository.selectBranch(account, commitContinuity.continuityId, commitFork.id);
     await expect(
       pool.query(
         `insert into simulora.world_commits

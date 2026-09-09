@@ -94,6 +94,8 @@ suite("PostgreSQL authoritative World and Continuity spine", () => {
       pool!.query("update simulora.branches set status = 'INITIALIZING' where id = $1", [
         continuity.branchId,
       ]),
-    ).rejects.toThrow(/ACTIVE Continuity requires its Branch to remain active with complete heads/);
+    ).rejects.toThrow(
+      /Active Branch lifecycle cannot return to initialization|ACTIVE Continuity requires its Branch to remain active with complete heads/,
+    );
   });
 });
