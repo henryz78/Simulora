@@ -70,7 +70,7 @@ begin
   if new.status is distinct from 'ACKNOWLEDGED'
      or new.terminal_at is not null
      or new.status_reason is not null then
-    raise exception 'New Action must begin as non-terminal ACKNOWLEDGED';
+    raise exception 'New Action must begin as ACKNOWLEDGED; non-terminal ACKNOWLEDGED cannot carry terminal evidence';
   end if;
   return new;
 end;
