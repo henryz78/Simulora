@@ -303,7 +303,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           `insert into simulora.world_commits
            (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
             action_id, source_type, reason)
-           values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'WORLD', $6)`,
+           values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'WORLD', null)`,
           [
             randomUUID(),
             continuity.branchId,
@@ -331,7 +331,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         `insert into simulora.world_commits
          (id, branch_id, parent_commit_id, kind, actor_account_id, state_revision_id,
           action_id, source_type, reason)
-         values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'USER', $6)`,
+         values ($1, $2, $3, 'ACTION_COMMITTED', $4, $5, $6, 'USER', null)`,
         [
           commitId,
           continuity.branchId,

@@ -249,16 +249,16 @@ declare
 begin
   select action.status, action.operation_type into action_status, operation_type
     from simulora.actions action where action.id = new.action_id;
-  if action_status is distinct from 'VALIDATING'
-     or new.status is distinct from 'ACTIVE'
-     or not simulora.action_proposal_effect_is_valid(new) then
-    raise exception 'Proposal must exactly bind a validating Action, effect, digest and current head';
-  end if;
   if operation_type = 'PARTICIPATE' and new.generation_attempt_id is null then
     raise exception 'PARTICIPATE proposal requires a Generation Attempt';
   end if;
-  if operation_type <> 'PARTICIPATE' and new.generation_attempt_id is not null then
-    raise exception 'Direct proposal cannot bind a Generation Attempt';
+  if operation_type in ('CORRECT_CONTINUITY', 'REMOVE_CONTINUITY')
+     and new.generation_attempt_id is not null then
+    raise exception 'Direct correction proposal cannot bind a Generation Attempt';
+  end if;
+  if operation_type = 'CHANGE_PARTICIPATION_CONTRACT'
+     and new.generation_attempt_id is not null then
+    raise exception 'Direct participation proposal cannot bind a Generation Attempt';
   end if;
   if new.generation_attempt_id is not null then
     select action_id into attempt_action
@@ -266,6 +266,11 @@ begin
     if attempt_action is distinct from new.action_id then
       raise exception 'Proposal Generation Attempt must belong to its Action';
     end if;
+  end if;
+  if action_status is distinct from 'VALIDATING'
+     or new.status is distinct from 'ACTIVE'
+     or not simulora.action_proposal_effect_is_valid(new) then
+    raise exception 'Proposal must exactly bind a validating Action, effect, digest and current head';
   end if;
   return new;
 end;
