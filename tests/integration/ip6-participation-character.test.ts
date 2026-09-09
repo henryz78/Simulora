@@ -400,7 +400,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       pool.query("update simulora.action_proposals set status = 'CONFIRMED' where id = $1", [
         proposal.id,
       ]),
-    ).rejects.toThrow(/requires its exact live confirmation/);
+    ).rejects.toThrow(/exact current Action, Branch head and live confirmation/);
     await expect(
       pool.query(
         `update simulora.generation_attempts set context_manifest = '{}'::jsonb
