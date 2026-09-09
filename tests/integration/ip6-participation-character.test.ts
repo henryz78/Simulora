@@ -69,6 +69,99 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     return proposed;
   }
 
+  async function prepareRawParticipateProposal(
+    continuity: Awaited<ReturnType<typeof createContinuity>>,
+    options: {
+      manifest: unknown;
+      completeAttempt?: boolean;
+      afterStatement?: string;
+      attemptOutput?: unknown;
+    },
+  ) {
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `g6-raw-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask Iora whether the signal is safe.",
+    });
+    const narrative = "Iora refuses to light an unsafe signal.";
+    const responseSource = { type: "CHARACTER" as const, characterId: "character.iora" };
+    const target = continuity.state.facts.find(
+      (fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED",
+    )!;
+    const candidate = {
+      schemaVersion: 1 as const,
+      actionId: action.id,
+      expectedHeadCommitId: continuity.headCommitId,
+      narrative,
+      responseSource,
+      operation: {
+        type: "UPDATE_CANONICAL_FACT" as const,
+        targetFactId: target.id,
+        beforeStatement: target.statement,
+        afterStatement: options.afterStatement ?? "The western signal remains dim.",
+        scope: target.scope,
+        provenance: `Confirmed Action ${action.id}`,
+      },
+    };
+    const displayEffect = {
+      target: target.id,
+      before: target.statement,
+      after: candidate.operation.afterStatement,
+      scope: target.scope,
+    };
+    const attemptId = randomUUID();
+    const expiresAt = new Date(Date.now() + 15 * 60_000);
+    const digest = contentHash({
+      actionId: action.id,
+      actorAccountId: account.accountId,
+      expectedHeadCommitId: continuity.headCommitId,
+      candidate,
+      displayEffect,
+      expiresAt: expiresAt.toISOString(),
+    });
+    await pool.query("update simulora.actions set status = 'GENERATING' where id = $1", [
+      action.id,
+    ]);
+    await pool.query(
+      `insert into simulora.generation_attempts
+       (id, action_id, attempt_number, adapter, status, context_manifest)
+       values ($1, $2, 1, 'deterministic', 'RUNNING', $3::jsonb)`,
+      [attemptId, action.id, JSON.stringify(options.manifest)],
+    );
+    if (options.completeAttempt) {
+      await pool.query(
+        `update simulora.generation_attempts
+         set status = 'SUCCEEDED', output = $2::jsonb, completed_at = now()
+         where id = $1`,
+        [
+          attemptId,
+          JSON.stringify(options.attemptOutput ?? { narrative, responseSource, candidate }),
+        ],
+      );
+    }
+    await pool.query("update simulora.actions set status = 'VALIDATING' where id = $1", [
+      action.id,
+    ]);
+    return pool.query(
+      `insert into simulora.action_proposals
+       (id, action_id, generation_attempt_id, expected_head_commit_id, schema_version,
+        candidate_transition, impact_level, proposal_digest, display_effect, status, expires_at)
+       values ($1, $2, $3, $4, 1, $5::jsonb, 'L3', $6, $7::jsonb, 'ACTIVE', $8)`,
+      [
+        randomUUID(),
+        action.id,
+        attemptId,
+        continuity.headCommitId,
+        JSON.stringify(candidate),
+        digest,
+        JSON.stringify(displayEffect),
+        expiresAt,
+      ],
+    );
+  }
+
   it("commits all six independent contracts through direct user Actions only", async () => {
     const continuity = await createContinuity();
     let current = await repository.readCurrentState(account, continuity.continuityId);
@@ -337,11 +430,98 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     await expect(
       pool.query("update simulora.actions set terminal_at = null where id = $1", [proposed.id]),
     ).rejects.toThrow(/Terminal Action requires terminal_at/);
+  });
+
+  it("rejects false terminal inserts and unbound generation evidence", async () => {
+    const continuity = await createContinuity();
     await expect(
-      pool.query("update simulora.actions set acknowledged_at = now() where id = $1", [
-        proposed.id,
-      ]),
-    ).rejects.toThrow(/identity, authority and command binding are immutable/);
+      pool.query(
+        `insert into simulora.actions
+         (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+          expected_head_commit_id, participation_expectation, intent, status, terminal_at)
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8,
+                 'ACKNOWLEDGED', now())`,
+        [
+          randomUUID(),
+          account.accountId,
+          continuity.continuityId,
+          continuity.branchId,
+          `false-terminal-${randomUUID()}`,
+          continuity.headCommitId,
+          JSON.stringify(continuity.state.participation),
+          "False terminal acknowledgement",
+        ],
+      ),
+    ).rejects.toThrow(/non-terminal ACKNOWLEDGED/);
+
+    const manifest = {
+      compilerVersion: "ip6-context-v1",
+      expectedHeadCommitId: continuity.headCommitId,
+      participation: continuity.state.participation,
+      includedFactIds: ["fact.western-signal-dim"],
+      includedCharacterIds: ["character.iora"],
+      excludedScopeCounts: { unauthorized: continuity.state.facts.length - 1 },
+    };
+    await expect(prepareRawParticipateProposal(continuity, { manifest })).rejects.toThrow(
+      /Proposal must exactly bind/,
+    );
+    await expect(
+      prepareRawParticipateProposal(continuity, {
+        manifest,
+        completeAttempt: true,
+        attemptOutput: {
+          narrative: "Unbound output",
+          responseSource: { type: "WORLD" },
+          candidate: {},
+        },
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+    const missingCharacterScope: Record<string, unknown> = { ...manifest };
+    delete missingCharacterScope.includedCharacterIds;
+    await expect(
+      prepareRawParticipateProposal(continuity, {
+        manifest: missingCharacterScope,
+        completeAttempt: true,
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+    await expect(
+      prepareRawParticipateProposal(continuity, {
+        manifest,
+        completeAttempt: true,
+        afterStatement: "The keeper agreed to transfer resources.",
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+  });
+
+  it("rejects Character manifests containing private or undeclared context", async () => {
+    const world = structuredClone(lanternReachSeed);
+    world.facts.push({
+      id: "fact.keeper-private",
+      statement: "The keeper privately doubts the harbor council.",
+      scope: "ACCOUNT_PRIVATE",
+      provenance: "Direct user note",
+      lifecycle: "ACTIVE",
+    });
+    world.characters[0]!.knowledgeFactIds.push("fact.keeper-private");
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    await expect(
+      prepareRawParticipateProposal(continuity, {
+        manifest: {
+          compilerVersion: "ip6-context-v1",
+          expectedHeadCommitId: continuity.headCommitId,
+          participation: continuity.state.participation,
+          includedFactIds: ["fact.western-signal-dim", "fact.keeper-private"],
+          includedCharacterIds: ["character.iora"],
+          excludedScopeCounts: { unauthorized: continuity.state.facts.length - 2 },
+        },
+        completeAttempt: true,
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
   });
 
   it("rejects wrong-source and arbitrary-state raw Action materialization", async () => {

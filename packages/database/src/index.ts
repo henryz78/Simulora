@@ -442,6 +442,18 @@ function isGeneratorEligibleFact(fact: StateRevisionDocument["facts"][number]): 
   return fact.lifecycle === "ACTIVE" && fact.scope === "SHARED";
 }
 
+function compileActionGenerationContext(
+  world: WorldDocument,
+  state: StateRevisionDocument,
+): ActionGenerationContext | null {
+  const targetFact = state.facts.find(isGeneratorEligibleFact);
+  if (!targetFact) return null;
+  const character = world.characters
+    .map((spec) => compileCharacterContext(world, state, spec.id))
+    .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id));
+  return { participation: state.participation, character: character ?? null, targetFact };
+}
+
 function orientationPayload(
   continuityId: string,
   branchId: string,
@@ -1535,6 +1547,14 @@ export class AuthoritativeWorldRepository {
         [branch.head_state_revision_id],
       );
       const expectedState = stateRevisionDocumentSchema.parse(stateResult.rows[0]!.document);
+      const worldResult = await client.query<{ document: unknown }>(
+        `select revision.document
+         from simulora.continuities continuity
+         join simulora.world_revisions revision on revision.id = continuity.world_revision_id
+         where continuity.id = $1`,
+        [branch.continuity_id],
+      );
+      const world = worldDocumentSchema.parse(worldResult.rows[0]!.document);
       let nextState: StateRevisionDocument;
       let displayEffect: ActionProposalRecord["displayEffect"];
       let candidateNarrative: string;
@@ -1543,16 +1563,18 @@ export class AuthoritativeWorldRepository {
         throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
       }
       if (action.operation_type === "PARTICIPATE") {
-        // The deterministic/model request contains one target only. Do not
-        // let an untrusted candidate address another fact that happened to
-        // exist in the full owner snapshot.
+        const generationContext = compileActionGenerationContext(world, expectedState);
+        if (!generationContext) throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
+        const expectedResponseSource: ActionResponseSource = generationContext.character
+          ? { type: "CHARACTER", characterId: generationContext.character.id }
+          : { type: "WORLD" };
         const validated = validateActionCandidate(proposal.candidate_transition, {
           actionId,
           expectedHeadCommitId: request.expectedHeadCommitId,
           state: expectedState,
-          authorizedTargetFactIds: [
-            expectedState.facts.find((fact) => isGeneratorEligibleFact(fact))?.id ?? "",
-          ],
+          authorizedTargetFactIds: [generationContext.targetFact.id],
+          responseSource: expectedResponseSource,
+          userRoleName: world.userRole.name,
         });
         nextState = applyValidatedActionCandidate(expectedState, validated);
         displayEffect = validated.displayEffect;
@@ -3556,8 +3578,8 @@ export class AuthoritativeWorldRepository {
       }
       const state = stateRevisionDocumentSchema.parse(action.state_document);
       const world = worldDocumentSchema.parse(action.world_document);
-      const targetFact = state.facts.find((fact) => isGeneratorEligibleFact(fact));
-      if (!targetFact) {
+      const generationContext = compileActionGenerationContext(world, state);
+      if (!generationContext) {
         // This can happen when a previously accepted job is observed after
         // the last active fact was removed on a newer head. Resolve the job
         // explicitly instead of leaving an ACKNOWLEDGED record to retry
@@ -3589,14 +3611,6 @@ export class AuthoritativeWorldRepository {
         return null;
       }
       const attemptId = randomUUID();
-      const character = world.characters
-        .map((spec) => compileCharacterContext(world, state, spec.id))
-        .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id));
-      const generationContext: ActionGenerationContext = {
-        participation: state.participation,
-        character: character ?? null,
-        targetFact,
-      };
       const includedFactIds = [
         ...new Set([
           generationContext.targetFact.id,

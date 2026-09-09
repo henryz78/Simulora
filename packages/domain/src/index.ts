@@ -464,6 +464,11 @@ export function validateActionCandidate(
     throw new Error("Candidate response source is not present in the expected World state");
   }
   assertGeneratedNarrativeDoesNotAuthorUser(candidate.narrative, expected.userRoleName);
+  assertGeneratedNarrativeDoesNotAuthorUser(
+    candidate.operation.afterStatement,
+    expected.userRoleName,
+  );
+  assertGeneratedNarrativeDoesNotAuthorUser(candidate.operation.provenance, expected.userRoleName);
 
   const allowed = expected.authorizedTargetFactIds;
   if (
@@ -510,8 +515,11 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
   narrative: string,
   userRoleName?: string,
 ): void {
-  const escapedRole = userRoleName?.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const subjects = ["you", "the user", "the player", "the participant", escapedRole]
+  const roleNames = userRoleName?.trim().split(/\s+/) ?? [];
+  const escapedRoles = [userRoleName?.trim(), roleNames.at(-1)]
+    .filter((role): role is string => Boolean(role && role.length >= 3))
+    .map((role) => role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const subjects = ["you", "the user", "the player", "the participant", ...escapedRoles]
     .filter(Boolean)
     .join("|");
   const protectedCommitment = new RegExp(

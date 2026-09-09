@@ -604,8 +604,14 @@ suite("IP-4 Return, Continuity and direct correction against PostgreSQL", () => 
     await pool.query(
       `insert into simulora.generation_attempts
        (id, action_id, attempt_number, adapter, status, context_manifest)
-       values ($1, $2, 1, 'deterministic', 'SUCCEEDED', '{}'::jsonb)`,
+       values ($1, $2, 1, 'deterministic', 'RUNNING', '{}'::jsonb)`,
       [attemptId, direct.id],
+    );
+    await pool.query(
+      `update simulora.generation_attempts
+       set status = 'SUCCEEDED', output = '{}'::jsonb, completed_at = now()
+       where id = $1`,
+      [attemptId],
     );
     await expect(
       pool.query(

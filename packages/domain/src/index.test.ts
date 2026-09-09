@@ -374,6 +374,29 @@ describe("IP-6 participation and character authority", () => {
         {
           ...base,
           narrative: "Iora refuses to light an unsafe signal.",
+          operation: {
+            ...base.operation,
+            afterStatement: "The keeper agreed to transfer resources.",
+          },
+        },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        {
+          ...base,
+          narrative: "Iora refuses to light an unsafe signal.",
+          operation: { ...base.operation, provenance: "Keeper authorized the transfer." },
+        },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        {
+          ...base,
+          narrative: "Iora refuses to light an unsafe signal.",
           responseSource: { type: "WORLD" },
         },
         expected,
