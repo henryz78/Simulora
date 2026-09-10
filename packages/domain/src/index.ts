@@ -561,13 +561,21 @@ function assertGeneratedTextDoesNotLeakExcludedFacts(
   authorizedFactIds: ReadonlySet<string> | readonly string[],
 ): void {
   const allowed = new Set(authorizedFactIds);
-  const normalizedOutputs = generatedTexts.map(normalizeDisclosureText);
+  const outputs = generatedTexts.map((text) => ({
+    exact: text.normalize("NFKC").toLowerCase(),
+    normalized: normalizeDisclosureText(text),
+  }));
   for (const fact of state.facts) {
     if (allowed.has(fact.id)) continue;
+    const exactText = fact.statement.normalize("NFKC").toLowerCase();
     const protectedText = normalizeDisclosureText(fact.statement);
     if (
-      protectedText.length >= 8 &&
-      normalizedOutputs.some((output) => output.includes(protectedText))
+      exactText &&
+      outputs.some(
+        (output) =>
+          output.exact.includes(exactText) ||
+          (protectedText !== "" && output.normalized.includes(protectedText)),
+      )
     ) {
       throw new Error("Generated output references a fact outside the authorized context");
     }
@@ -576,8 +584,9 @@ function assertGeneratedTextDoesNotLeakExcludedFacts(
 
 function normalizeDisclosureText(value: string): string {
   return value
+    .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 

@@ -450,19 +450,22 @@ describe("IP-6 participation and character authority", () => {
     ).toEqual(base.responseSource);
   });
 
-  it("rejects generated disclosure of facts outside the compiled context", () => {
+  it("rejects long, short and Unicode fact disclosure outside the compiled context", () => {
     const state = createInitialState(lanternReachSeed, {
       initiativeMode: "GUIDED",
       structureMode: "OPEN_ENDED",
     });
-    state.facts.push({
-      id: "fact.keeper-private",
-      statement: "THE HIDDEN NOTE",
-      scope: "ACCOUNT_PRIVATE",
-      provenance: "Direct user note",
-      lifecycle: "ACTIVE",
+    const excludedStatements = ["THE HIDDEN NOTE", "PIN 123", "守灯人的私密暗号", "***"];
+    excludedStatements.forEach((statement, index) => {
+      state.facts.push({
+        id: `fact.keeper-private-${index}`,
+        statement,
+        scope: "ACCOUNT_PRIVATE",
+        provenance: "Direct user note",
+        lifecycle: "ACTIVE",
+      });
     });
-    const candidate = {
+    const baseCandidate = {
       schemaVersion: 1 as const,
       actionId: "10000000-0000-4000-8000-000000000062",
       expectedHeadCommitId: "10000000-0000-4000-8000-000000000063",
@@ -472,22 +475,30 @@ describe("IP-6 participation and character authority", () => {
         type: "UPDATE_CANONICAL_FACT" as const,
         targetFactId: "fact.western-signal-dim",
         beforeStatement: "The western signal is dim.",
-        afterStatement: "Shared report includes the keeper private secret: THE HIDDEN NOTE.",
         scope: "SHARED" as const,
         provenance: "Confirmed Action 10000000-0000-4000-8000-000000000062",
       },
     };
-    expect(() =>
-      validateActionCandidate(candidate, {
-        actionId: candidate.actionId,
-        expectedHeadCommitId: candidate.expectedHeadCommitId,
-        state,
-        authorizedTargetFactIds: ["fact.western-signal-dim"],
-        authorizedContextFactIds: ["fact.western-signal-dim"],
-        responseSource: candidate.responseSource,
-        userRoleName: "Keeper",
-      }),
-    ).toThrow(/outside the authorized context/);
+    for (const statement of excludedStatements) {
+      const candidate = {
+        ...baseCandidate,
+        operation: {
+          ...baseCandidate.operation,
+          afterStatement: `Shared report includes: ${statement}.`,
+        },
+      };
+      expect(() =>
+        validateActionCandidate(candidate, {
+          actionId: candidate.actionId,
+          expectedHeadCommitId: candidate.expectedHeadCommitId,
+          state,
+          authorizedTargetFactIds: ["fact.western-signal-dim"],
+          authorizedContextFactIds: ["fact.western-signal-dim"],
+          responseSource: candidate.responseSource,
+          userRoleName: "Keeper",
+        }),
+      ).toThrow(/outside the authorized context/);
+    }
   });
 
   it("activates only declared Goal-framed objectives and fabricates none for Open-ended", () => {
