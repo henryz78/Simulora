@@ -491,7 +491,7 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
             beforeStatement: request.targetFact.statement,
             afterStatement: correctedStatement,
             scope: request.targetFact.scope,
-            provenance: `Follow-up Action ${request.actionId}`,
+            provenance: `Confirmed Action ${request.actionId}`,
           },
         },
       });

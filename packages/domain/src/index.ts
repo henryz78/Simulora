@@ -438,6 +438,7 @@ export function validateActionCandidate(
      * naming another private fact that happened to be present in the snapshot.
      */
     authorizedTargetFactIds?: ReadonlySet<string> | readonly string[];
+    authorizedContextFactIds: ReadonlySet<string> | readonly string[];
     responseSource?: ActionResponseSource;
     userRoleName?: string;
   },
@@ -469,6 +470,9 @@ export function validateActionCandidate(
     expected.userRoleName,
   );
   assertGeneratedNarrativeDoesNotAuthorUser(candidate.operation.provenance, expected.userRoleName);
+  if (candidate.operation.provenance !== `Confirmed Action ${candidate.actionId}`) {
+    throw new Error("Candidate provenance must be the server-verifiable Action reference");
+  }
 
   const allowed = expected.authorizedTargetFactIds;
   if (
@@ -489,6 +493,11 @@ export function validateActionCandidate(
   ) {
     throw new Error("Candidate before-state or scope does not match the expected head");
   }
+  assertGeneratedTextDoesNotLeakExcludedFacts(
+    [candidate.narrative, candidate.operation.afterStatement],
+    expected.state,
+    expected.authorizedContextFactIds,
+  );
 
   // Rewriting an existing canonical fact is L3 under the frozen closed impact table.
   // The model's own label is intentionally absent and cannot lower this classification.
@@ -522,18 +531,54 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
   const subjects = ["you", "the user", "the player", "the participant", ...escapedRoles]
     .filter(Boolean)
     .join("|");
-  const userSubject = new RegExp(`\\b(?:${subjects})\\b`, "i");
+  const userSubject = `\\b(?:${subjects})\\b`;
   const protectedAuthority =
     /\b(?:say|says|said|agree|agrees|agreed|decide|decides|decided|choose|chooses|chose|chosen|commit|commits|committed|promise|promises|promised|consent|consents|consented|accept|accepts|accepted|approve|approves|approved|permit|permits|permitted|grant|grants|granted|waive|waives|waived|authorize|authorizes|authorized|pay|pays|paid|spend|spends|spent|transfer|transfers|transferred|share|shares|shared|publish|publishes|published|delete|deletes|deleted|surrender|surrenders|surrendered|sign|signs|signed|buy|buys|bought|sell|sells|sold)\b/i;
-  const authorsUser = narrative.split(/[.!?\n]+/).some((sentence) => {
-    const subject = userSubject.exec(sentence);
-    return subject
-      ? protectedAuthority.test(sentence.slice(subject.index + subject[0].length))
-      : false;
-  });
+  const passiveAuthority =
+    /\b(?:said|agreed|decided|chosen|committed|promised|consented|accepted|approved|permitted|granted|waived|authorized|paid|spent|transferred|shared|published|deleted|surrendered|signed|bought|sold)\b/i;
+  const authorityNoun =
+    /\b(?:speech|words|agreement|approval|decision|choice|commitment|promise|consent|acceptance|permission|grant|waiver|authorization|payment|spending|transfer|sharing|publication|deletion|surrender|signature|purchase|sale)\b/i;
+  const activeClaim = new RegExp(`${userSubject}[\\s\\S]*?${protectedAuthority.source}`, "i");
+  const passiveClaim = new RegExp(
+    `${passiveAuthority.source}[\\s\\S]*?\\bby\\s+(?:the\\s+)?${userSubject}`,
+    "i",
+  );
+  const possessiveClaim = new RegExp(`${userSubject}(?:[’']s)?\\s+${authorityNoun.source}`, "i");
+  const authorsUser = narrative
+    .split(/[.!?\n]+/)
+    .some(
+      (sentence) =>
+        activeClaim.test(sentence) || passiveClaim.test(sentence) || possessiveClaim.test(sentence),
+    );
   if (authorsUser) {
     throw new Error("Generated narrative cannot author user speech or protected commitments");
   }
+}
+
+function assertGeneratedTextDoesNotLeakExcludedFacts(
+  generatedTexts: readonly string[],
+  state: StateRevisionDocument,
+  authorizedFactIds: ReadonlySet<string> | readonly string[],
+): void {
+  const allowed = new Set(authorizedFactIds);
+  const normalizedOutputs = generatedTexts.map(normalizeDisclosureText);
+  for (const fact of state.facts) {
+    if (allowed.has(fact.id)) continue;
+    const protectedText = normalizeDisclosureText(fact.statement);
+    if (
+      protectedText.length >= 8 &&
+      normalizedOutputs.some((output) => output.includes(protectedText))
+    ) {
+      throw new Error("Generated output references a fact outside the authorized context");
+    }
+  }
+}
+
+function normalizeDisclosureText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 /**

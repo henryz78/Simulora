@@ -73,13 +73,14 @@ describe("IP-4 Action Truth and correction domain", () => {
           beforeStatement: "The western signal is dim.",
           afterStatement: "The western signal burns steadily.",
           scope: "SHARED",
-          provenance: "Confirmed test Action",
+          provenance: "Confirmed Action 10000000-0000-4000-8000-000000000010",
         },
       },
       {
         actionId: "10000000-0000-4000-8000-000000000010",
         expectedHeadCommitId: "10000000-0000-4000-8000-000000000011",
         state,
+        authorizedContextFactIds: ["fact.western-signal-dim"],
       },
     );
     expect(validated.impact).toBe("L3");
@@ -206,7 +207,7 @@ describe("IP-4 Action Truth and correction domain", () => {
             beforeStatement: "A private keeper note.",
             afterStatement: "The private note changed.",
             scope: "ACCOUNT_PRIVATE",
-            provenance: "Untrusted candidate",
+            provenance: "Confirmed Action 10000000-0000-4000-8000-000000000040",
           },
         },
         {
@@ -214,6 +215,7 @@ describe("IP-4 Action Truth and correction domain", () => {
           expectedHeadCommitId: "10000000-0000-4000-8000-000000000041",
           state,
           authorizedTargetFactIds: ["fact.western-signal-dim"],
+          authorizedContextFactIds: ["fact.western-signal-dim"],
         },
       ),
     ).toThrow(/outside the authorized context/);
@@ -332,6 +334,7 @@ describe("IP-6 participation and character authority", () => {
           actionId: "10000000-0000-4000-8000-000000000050",
           expectedHeadCommitId: "10000000-0000-4000-8000-000000000051",
           state,
+          authorizedContextFactIds: ["fact.western-signal-dim"],
         },
       ),
     ).toThrow();
@@ -353,7 +356,7 @@ describe("IP-6 participation and character authority", () => {
         beforeStatement: "The western signal is dim.",
         afterStatement: "The western signal remains dim.",
         scope: "SHARED" as const,
-        provenance: "Untrusted candidate",
+        provenance: "Confirmed Action 10000000-0000-4000-8000-000000000060",
       },
     };
     const expected = {
@@ -362,6 +365,7 @@ describe("IP-6 participation and character authority", () => {
       state,
       responseSource: base.responseSource,
       userRoleName: "Keeper",
+      authorizedContextFactIds: ["fact.western-signal-dim"],
     };
     expect(() =>
       validateActionCandidate(
@@ -378,6 +382,24 @@ describe("IP-6 participation and character authority", () => {
     expect(() =>
       validateActionCandidate(
         { ...base, narrative: "Keeper decided to share resources." },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        { ...base, narrative: "The permit was approved by Keeper." },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        { ...base, narrative: "Resources were transferred by the keeper." },
+        expected,
+      ),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      validateActionCandidate(
+        { ...base, narrative: "Keeper's consent authorized the transfer." },
         expected,
       ),
     ).toThrow(/cannot author user speech or protected commitments/);
@@ -420,6 +442,52 @@ describe("IP-6 participation and character authority", () => {
         expected,
       ).candidate.responseSource,
     ).toEqual(base.responseSource);
+    expect(
+      validateActionCandidate(
+        { ...base, narrative: "Iora agreed to help the Keeper inspect the signal." },
+        expected,
+      ).candidate.responseSource,
+    ).toEqual(base.responseSource);
+  });
+
+  it("rejects generated disclosure of facts outside the compiled context", () => {
+    const state = createInitialState(lanternReachSeed, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    state.facts.push({
+      id: "fact.keeper-private",
+      statement: "THE HIDDEN NOTE",
+      scope: "ACCOUNT_PRIVATE",
+      provenance: "Direct user note",
+      lifecycle: "ACTIVE",
+    });
+    const candidate = {
+      schemaVersion: 1 as const,
+      actionId: "10000000-0000-4000-8000-000000000062",
+      expectedHeadCommitId: "10000000-0000-4000-8000-000000000063",
+      narrative: "Iora refuses to light an unsafe signal.",
+      responseSource: { type: "CHARACTER" as const, characterId: "character.iora" },
+      operation: {
+        type: "UPDATE_CANONICAL_FACT" as const,
+        targetFactId: "fact.western-signal-dim",
+        beforeStatement: "The western signal is dim.",
+        afterStatement: "Shared report includes the keeper private secret: THE HIDDEN NOTE.",
+        scope: "SHARED" as const,
+        provenance: "Confirmed Action 10000000-0000-4000-8000-000000000062",
+      },
+    };
+    expect(() =>
+      validateActionCandidate(candidate, {
+        actionId: candidate.actionId,
+        expectedHeadCommitId: candidate.expectedHeadCommitId,
+        state,
+        authorizedTargetFactIds: ["fact.western-signal-dim"],
+        authorizedContextFactIds: ["fact.western-signal-dim"],
+        responseSource: candidate.responseSource,
+        userRoleName: "Keeper",
+      }),
+    ).toThrow(/outside the authorized context/);
   });
 
   it("activates only declared Goal-framed objectives and fabricates none for Open-ended", () => {

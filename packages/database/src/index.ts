@@ -1574,6 +1574,10 @@ export class AuthoritativeWorldRepository {
           expectedHeadCommitId: request.expectedHeadCommitId,
           state: expectedState,
           authorizedTargetFactIds: [generationContext.targetFact.id],
+          authorizedContextFactIds: [
+            generationContext.targetFact.id,
+            ...(generationContext.character?.knownFacts.map((fact) => fact.id) ?? []),
+          ],
           responseSource: expectedResponseSource,
           userRoleName: world.userRole.name,
         });
@@ -3727,6 +3731,10 @@ export class AuthoritativeWorldRepository {
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         state: prepared.state,
         authorizedTargetFactIds: [prepared.generationContext.targetFact.id],
+        authorizedContextFactIds: [
+          prepared.generationContext.targetFact.id,
+          ...(prepared.generationContext.character?.knownFacts.map((fact) => fact.id) ?? []),
+        ],
         responseSource: expectedResponseSource,
         userRoleName: prepared.userRoleName,
       });

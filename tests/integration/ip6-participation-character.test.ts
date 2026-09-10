@@ -546,7 +546,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           candidate: {},
         },
       }),
-    ).rejects.toThrow(/Proposal must exactly bind/);
+    ).rejects.toThrow(/exact current Action, Branch head and live confirmation/);
     const missingCharacterScope: Record<string, unknown> = { ...manifest };
     delete missingCharacterScope.includedCharacterIds;
     await expect(
@@ -888,6 +888,79 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     });
   });
 
+  it("rejects excluded private fact text at application and database materialization boundaries", async () => {
+    const world = structuredClone(lanternReachSeed);
+    world.facts.push({
+      id: "fact.keeper-private",
+      statement: "THE HIDDEN NOTE",
+      scope: "ACCOUNT_PRIVATE",
+      provenance: "Direct user note",
+      lifecycle: "ACTIVE",
+    });
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `private-output-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask Iora whether the signal is safe.",
+    });
+    const processed = await repository.processAction(action.id, (request) => {
+      const responseSource = request.character
+        ? ({ type: "CHARACTER", characterId: request.character.id } as const)
+        : ({ type: "WORLD" } as const);
+      const narrative = "Iora answers from the authorized signal context.";
+      return Promise.resolve({
+        narrative,
+        responseSource,
+        candidate: {
+          schemaVersion: 1,
+          actionId: request.actionId,
+          expectedHeadCommitId: request.expectedHeadCommitId,
+          narrative,
+          responseSource,
+          operation: {
+            type: "UPDATE_CANONICAL_FACT",
+            targetFactId: request.targetFact.id,
+            beforeStatement: request.targetFact.statement,
+            afterStatement: "Shared report includes the keeper private secret: THE HIDDEN NOTE.",
+            scope: request.targetFact.scope,
+            provenance: `Confirmed Action ${request.actionId}`,
+          },
+        },
+      });
+    });
+    expect(processed?.proposal).toBeNull();
+    expect(processed?.commit).toBeNull();
+
+    const databaseContinuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const forged = await prepareRawParticipateProposal(databaseContinuity, {
+      manifest: {
+        compilerVersion: "ip6-context-v1",
+        expectedHeadCommitId: databaseContinuity.headCommitId,
+        participation: databaseContinuity.state.participation,
+        includedFactIds: ["fact.western-signal-dim"],
+        includedCharacterIds: ["character.iora"],
+        excludedScopeCounts: { unauthorized: 1 },
+      },
+      completeAttempt: true,
+      afterStatement: "Shared report includes the keeper private secret: THE HIDDEN NOTE.",
+    });
+    await expect(
+      pool.query("update simulora.action_proposals set status = 'CONFIRMED' where id = $1", [
+        forged.proposalId,
+      ]),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+  });
+
   it("carries stable Character attribution into the proposal and committed history", async () => {
     const continuity = await createContinuity();
     const proposed = await prepareOrdinaryAction(continuity);
@@ -973,6 +1046,9 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       unsafe: boolean;
       interrupted: boolean;
       decided: boolean;
+      passive: boolean;
+      transferred: boolean;
+      possessive: boolean;
       safe: boolean;
     }>(
       `select
@@ -986,6 +1062,15 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           'Keeper decided to share resources.', 'Keeper'
         ) as decided,
         simulora.generated_narrative_authors_user(
+          'The permit was approved by Keeper.', 'Keeper'
+        ) as passive,
+        simulora.generated_narrative_authors_user(
+          'Resources were transferred by the keeper.', 'Keeper'
+        ) as transferred,
+        simulora.generated_narrative_authors_user(
+          'Keeper''s consent authorized the transfer.', 'Keeper'
+        ) as possessive,
+        simulora.generated_narrative_authors_user(
           'Iora refuses to light an unsafe signal.', 'Keeper'
         ) as safe`,
     );
@@ -993,6 +1078,9 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       unsafe: true,
       interrupted: true,
       decided: true,
+      passive: true,
+      transferred: true,
+      possessive: true,
       safe: false,
     });
   });
