@@ -962,9 +962,9 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     for (const statement of ["PIN 123", "守灯人的私密暗号", "***"]) {
       const result = await pool.query<{ leaked: boolean }>(
         `select simulora.generated_output_references_excluded_fact(
-           $1,
+           $1::text,
            jsonb_build_object(
-             'facts', jsonb_build_array(jsonb_build_object('id', 'fact.private', 'statement', $2))
+             'facts', jsonb_build_array(jsonb_build_object('id', 'fact.private', 'statement', $2::text))
            ),
            '[]'::jsonb
          ) as leaked`,
