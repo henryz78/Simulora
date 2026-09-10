@@ -546,7 +546,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           candidate: {},
         },
       }),
-    ).rejects.toThrow(/exact current Action, Branch head and live confirmation/);
+    ).rejects.toThrow(/Proposal must exactly bind/);
     const missingCharacterScope: Record<string, unknown> = { ...manifest };
     delete missingCharacterScope.includedCharacterIds;
     await expect(
@@ -942,22 +942,66 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       initiativeMode: "GUIDED",
       structureMode: "OPEN_ENDED",
     });
-    const forged = await prepareRawParticipateProposal(databaseContinuity, {
-      manifest: {
-        compilerVersion: "ip6-context-v1",
-        expectedHeadCommitId: databaseContinuity.headCommitId,
-        participation: databaseContinuity.state.participation,
-        includedFactIds: ["fact.western-signal-dim"],
-        includedCharacterIds: ["character.iora"],
-        excludedScopeCounts: { unauthorized: 1 },
-      },
-      completeAttempt: true,
-      afterStatement: "Shared report includes the keeper private secret: THE HIDDEN NOTE.",
-    });
     await expect(
-      pool.query("update simulora.action_proposals set status = 'CONFIRMED' where id = $1", [
-        forged.proposalId,
-      ]),
+      prepareRawParticipateProposal(databaseContinuity, {
+        manifest: {
+          compilerVersion: "ip6-context-v1",
+          expectedHeadCommitId: databaseContinuity.headCommitId,
+          participation: databaseContinuity.state.participation,
+          includedFactIds: ["fact.western-signal-dim"],
+          includedCharacterIds: ["character.iora"],
+          excludedScopeCounts: { unauthorized: 1 },
+        },
+        completeAttempt: true,
+        afterStatement: "Shared report includes the keeper private secret: THE HIDDEN NOTE.",
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+  });
+
+  it("rejects excluded inactive fact text at the database materialization boundary", async () => {
+    const world = structuredClone(lanternReachSeed);
+    world.facts.push({
+      id: "fact.keeper-removed-private",
+      statement: "THE REMOVED HIDDEN NOTE",
+      scope: "ACCOUNT_PRIVATE",
+      provenance: "Historical user note",
+      lifecycle: "ACTIVE",
+    });
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const removed = await repository.submitCorrection(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `remove-private-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      target: { type: "fact", id: "fact.keeper-removed-private" },
+      operation: "REMOVE_CONTINUITY",
+      before: { statement: "THE REMOVED HIDDEN NOTE", scope: "ACCOUNT_PRIVATE" },
+      reason: "Remove the private note from current continuity.",
+    });
+    const removedCommitted = await repository.confirmAction(account, removed.id, {
+      proposalId: removed.proposal!.id,
+      proposalDigest: removed.proposal!.digest,
+      expectedHeadCommitId: removed.proposal!.expectedHeadCommitId,
+    });
+    expect(removedCommitted.status).toBe("COMMITTED");
+    const databaseContinuity = await repository.readCurrentState(account, continuity.continuityId);
+    await expect(
+      prepareRawParticipateProposal(databaseContinuity, {
+        manifest: {
+          compilerVersion: "ip6-context-v1",
+          expectedHeadCommitId: databaseContinuity.headCommitId,
+          participation: databaseContinuity.state.participation,
+          includedFactIds: ["fact.western-signal-dim"],
+          includedCharacterIds: ["character.iora"],
+          excludedScopeCounts: { unauthorized: databaseContinuity.state.facts.length - 1 },
+        },
+        completeAttempt: true,
+        afterStatement: "The report includes THE REMOVED HIDDEN NOTE.",
+      }),
     ).rejects.toThrow(/Proposal must exactly bind/);
   });
 
@@ -1028,7 +1072,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
             beforeStatement: request.targetFact.statement,
             afterStatement: "The signal remains dim.",
             scope: request.targetFact.scope,
-            provenance: "Untrusted generated output",
+            provenance: `Confirmed Action ${request.actionId}`,
           },
         },
       });
