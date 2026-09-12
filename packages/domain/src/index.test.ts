@@ -12,6 +12,7 @@ import {
   stateRevisionDocumentSchema,
   worldDocumentSchema,
   applyValidatedDirectCorrectionCandidate,
+  assertGeneratedNarrativeDoesNotAuthorUser,
   validateDirectCorrectionCandidate,
   validateActionCandidate,
 } from "./index.js";
@@ -499,6 +500,36 @@ describe("IP-6 participation and character authority", () => {
         }),
       ).toThrow(/outside the authorized context/);
     }
+  });
+
+  it("fails closed for short roles and localized protected commitments", () => {
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("AI agreed to transfer resources.", "AI"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("Keeper refuses to transfer resources.", "Keeper"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("守灯人同意转移资源。", "守灯人"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("守灯人 agreed to transfer resources.", "守灯人"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("守灯人拒绝点亮危险信号。", "守灯人"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("守灯人同意\u3000转移资源。", "守灯人"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("守灯人看向灯塔。", "守灯人"),
+    ).not.toThrow();
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser("守灯人は同意した。", "守灯人")).toThrow(
+      /cannot author user speech or protected commitments/,
+    );
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser("AIは同意した。", "AI")).toThrow(
+      /cannot author user speech or protected commitments/,
+    );
   });
 
   it("activates only declared Goal-framed objectives and fabricates none for Open-ended", () => {

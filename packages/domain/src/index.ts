@@ -524,18 +524,20 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
   narrative: string,
   userRoleName?: string,
 ): void {
-  const roleNames = userRoleName?.trim().split(/\s+/) ?? [];
-  const escapedRoles = [userRoleName?.trim(), roleNames.at(-1)]
-    .filter((role): role is string => Boolean(role && role.length >= 3))
+  const normalizedNarrative = narrative.normalize("NFKC").toLowerCase();
+  const normalizedRole = normalizeAuthoritySubject(userRoleName);
+  const roleNames = normalizedRole?.split(/\s+/) ?? [];
+  const escapedRoles = [normalizedRole, roleNames.at(-1)]
+    .filter((role): role is string => Boolean(role))
     .map((role) => role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const subjects = ["you", "the user", "the player", "the participant", ...escapedRoles]
     .filter(Boolean)
     .join("|");
   const userSubject = `\\b(?:${subjects})\\b`;
   const protectedAuthority =
-    /\b(?:say|says|said|agree|agrees|agreed|decide|decides|decided|choose|chooses|chose|chosen|commit|commits|committed|promise|promises|promised|consent|consents|consented|accept|accepts|accepted|approve|approves|approved|permit|permits|permitted|grant|grants|granted|waive|waives|waived|authorize|authorizes|authorized|pay|pays|paid|spend|spends|spent|transfer|transfers|transferred|share|shares|shared|publish|publishes|published|delete|deletes|deleted|surrender|surrenders|surrendered|sign|signs|signed|buy|buys|bought|sell|sells|sold)\b/i;
+    /\b(?:say|says|said|agree|agrees|agreed|decide|decides|decided|choose|chooses|chose|chosen|commit|commits|committed|promise|promises|promised|consent|consents|consented|accept|accepts|accepted|approve|approves|approved|permit|permits|permitted|grant|grants|granted|waive|waives|waived|authorize|authorizes|authorized|pay|pays|paid|spend|spends|spent|transfer|transfers|transferred|share|shares|shared|publish|publishes|published|delete|deletes|deleted|surrender|surrenders|surrendered|sign|signs|signed|buy|buys|bought|sell|sells|sold|refuse|refuses|refused|decline|declines|declined|reject|rejects|rejected)\b/i;
   const passiveAuthority =
-    /\b(?:said|agreed|decided|chosen|committed|promised|consented|accepted|approved|permitted|granted|waived|authorized|paid|spent|transferred|shared|published|deleted|surrendered|signed|bought|sold)\b/i;
+    /\b(?:said|agreed|decided|chosen|committed|promised|consented|accepted|approved|permitted|granted|waived|authorized|paid|spent|transferred|shared|published|deleted|surrendered|signed|bought|sold|refused|declined|rejected)\b/i;
   const authorityNoun =
     /\b(?:speech|words|agreement|approval|decision|choice|commitment|promise|consent|acceptance|permission|grant|waiver|authorization|payment|spending|transfer|sharing|publication|deletion|surrender|signature|purchase|sale)\b/i;
   const activeClaim = new RegExp(`${userSubject}[\\s\\S]*?${protectedAuthority.source}`, "i");
@@ -544,15 +546,237 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
     "i",
   );
   const possessiveClaim = new RegExp(`${userSubject}(?:[’']s)?\\s+${authorityNoun.source}`, "i");
-  const authorsUser = narrative
-    .split(/[.!?\n]+/)
-    .some(
-      (sentence) =>
-        activeClaim.test(sentence) || passiveClaim.test(sentence) || possessiveClaim.test(sentence),
+  const localizedClaim = normalizedNarrative
+    .split(/[.!?\n。！？]+/u)
+    .some((sentence) =>
+      hasLocalizedAuthorityClaim(sentence, [
+        "你",
+        "用户",
+        "玩家",
+        "参与者",
+        ...(normalizedRole
+          ? [normalizedRole, roleNames.at(-1)].filter((subject): subject is string =>
+              Boolean(subject),
+            )
+          : []),
+      ]),
     );
+  const authorsUser =
+    normalizedNarrative
+      .split(/[.!?\n]+/)
+      .some(
+        (sentence) =>
+          activeClaim.test(sentence) ||
+          passiveClaim.test(sentence) ||
+          possessiveClaim.test(sentence),
+      ) || localizedClaim;
   if (authorsUser) {
     throw new Error("Generated narrative cannot author user speech or protected commitments");
   }
+}
+
+function normalizeAuthoritySubject(value: string | undefined): string | undefined {
+  const normalized = value
+    ?.normalize("NFKC")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, " ");
+  return normalized?.trim() || undefined;
+}
+
+function hasLocalizedAuthorityClaim(sentence: string, subjects: readonly string[]): boolean {
+  const authorityWords = [
+    "say",
+    "says",
+    "said",
+    "agree",
+    "agrees",
+    "agreed",
+    "decide",
+    "decides",
+    "decided",
+    "choose",
+    "chooses",
+    "chose",
+    "chosen",
+    "commit",
+    "commits",
+    "committed",
+    "promise",
+    "promises",
+    "promised",
+    "consent",
+    "consents",
+    "consented",
+    "accept",
+    "accepts",
+    "accepted",
+    "approve",
+    "approves",
+    "approved",
+    "permit",
+    "permits",
+    "permitted",
+    "grant",
+    "grants",
+    "granted",
+    "waive",
+    "waives",
+    "waived",
+    "authorize",
+    "authorizes",
+    "authorized",
+    "pay",
+    "pays",
+    "paid",
+    "spend",
+    "spends",
+    "spent",
+    "transfer",
+    "transfers",
+    "transferred",
+    "share",
+    "shares",
+    "shared",
+    "publish",
+    "publishes",
+    "published",
+    "delete",
+    "deletes",
+    "deleted",
+    "surrender",
+    "surrenders",
+    "surrendered",
+    "sign",
+    "signs",
+    "signed",
+    "buy",
+    "buys",
+    "bought",
+    "sell",
+    "sells",
+    "sold",
+    "refuse",
+    "refuses",
+    "refused",
+    "decline",
+    "declines",
+    "declined",
+    "reject",
+    "rejects",
+    "rejected",
+    "说",
+    "同意",
+    "答应",
+    "决定",
+    "选择",
+    "承诺",
+    "接受",
+    "批准",
+    "允许",
+    "授权",
+    "支付",
+    "花费",
+    "转移",
+    "分享",
+    "发布",
+    "删除",
+    "放弃",
+    "签署",
+    "购买",
+    "出售",
+    "拒绝",
+  ];
+  const authorityNouns = [
+    "speech",
+    "words",
+    "agreement",
+    "approval",
+    "decision",
+    "choice",
+    "commitment",
+    "promise",
+    "consent",
+    "acceptance",
+    "permission",
+    "grant",
+    "waiver",
+    "authorization",
+    "payment",
+    "spending",
+    "transfer",
+    "sharing",
+    "publication",
+    "deletion",
+    "surrender",
+    "signature",
+    "purchase",
+    "sale",
+    "发言",
+    "话语",
+    "同意",
+    "决定",
+    "选择",
+    "承诺",
+    "许可",
+    "授权",
+    "付款",
+    "转移",
+    "分享",
+    "发布",
+    "删除",
+    "签名",
+    "购买",
+    "出售",
+  ];
+  for (const subject of subjects) {
+    const subjectIndex = findAuthoritySubject(sentence, subject);
+    if (subjectIndex < 0) continue;
+    const tail = sentence.slice(subjectIndex + subject.length);
+    if (authorityWords.some((word) => containsAuthorityWord(tail, word))) return true;
+    const beforeSubject = sentence.slice(0, subjectIndex);
+    if (
+      (beforeSubject.includes("由") || beforeSubject.includes("被")) &&
+      authorityWords.some((word) => containsAuthorityWord(beforeSubject, word))
+    ) {
+      return true;
+    }
+    const possessiveTail = tail.replace(/^\s*(?:['’]s|的)\s*/u, "");
+    if (authorityNouns.some((word) => possessiveTail.includes(word))) return true;
+    if (hasUnsupportedAuthorityScript(sentence)) return true;
+  }
+  return false;
+}
+
+function findAuthoritySubject(sentence: string, subject: string): number {
+  if (/^[\p{Script=Latin}\p{N}_ ]+$/u.test(subject)) {
+    const match = new RegExp(
+      "(?<![A-Za-z0-9_])" + escapeAuthorityRegex(subject) + "(?![A-Za-z0-9_])",
+      "u",
+    ).exec(sentence);
+    return match?.index ?? -1;
+  }
+  return sentence.indexOf(subject);
+}
+
+function containsAuthorityWord(text: string, word: string): boolean {
+  if (/^[\p{Script=Latin}\p{N}_]+$/u.test(word)) {
+    return new RegExp(
+      "(?<![A-Za-z0-9_])" + escapeAuthorityRegex(word) + "(?![A-Za-z0-9_])",
+      "u",
+    ).test(text);
+  }
+  return text.includes(word);
+}
+
+function escapeAuthorityRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasUnsupportedAuthorityScript(value: string): boolean {
+  return /[^\p{Script=Latin}\p{Script=Han}\p{Script=Common}\p{Script=Inherited}\p{Number}\p{Punctuation}\p{Separator}\p{Symbol}\p{Mark}]/u.test(
+    value,
+  );
 }
 
 function assertGeneratedTextDoesNotLeakExcludedFacts(

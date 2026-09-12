@@ -1145,6 +1145,60 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     });
   });
 
+  it("keeps the database authority guard closed for short and localized roles", async () => {
+    const result = await pool.query<{
+      short_role: boolean;
+      english_refusal: boolean;
+      localized: boolean;
+      han_english: boolean;
+      localized_refusal: boolean;
+      localized_spacing: boolean;
+      safe_han: boolean;
+      unsupported_script: boolean;
+      short_role_unsupported_script: boolean;
+    }>(
+      `select
+        simulora.generated_narrative_authors_user(
+          'AI agreed to transfer resources.', 'AI'
+        ) as short_role,
+        simulora.generated_narrative_authors_user(
+          'Keeper refuses to transfer resources.', 'Keeper'
+        ) as english_refusal,
+        simulora.generated_narrative_authors_user(
+          '守灯人同意转移资源。', '守灯人'
+        ) as localized,
+        simulora.generated_narrative_authors_user(
+          '守灯人 agreed to transfer resources.', '守灯人'
+        ) as han_english,
+        simulora.generated_narrative_authors_user(
+          '守灯人拒绝点亮危险信号。', '守灯人'
+        ) as localized_refusal,
+        simulora.generated_narrative_authors_user(
+          '守灯人同意\u3000转移资源。', '守灯人'
+        ) as localized_spacing,
+        simulora.generated_narrative_authors_user(
+          '守灯人看向灯塔。', '守灯人'
+        ) as safe_han,
+        simulora.generated_narrative_authors_user(
+          '守灯人は同意した。', '守灯人'
+        ) as unsupported_script,
+        simulora.generated_narrative_authors_user(
+          'AIは同意した。', 'AI'
+        ) as short_role_unsupported_script`,
+    );
+    expect(result.rows[0]).toEqual({
+      short_role: true,
+      english_refusal: true,
+      localized: true,
+      han_english: true,
+      localized_refusal: true,
+      localized_spacing: true,
+      safe_han: false,
+      unsupported_script: true,
+      short_role_unsupported_script: true,
+    });
+  });
+
   it("rejects an otherwise exact raw Action Commit when attributed history is missing", async () => {
     const continuity = await createContinuity();
     const proposed = await prepareOrdinaryAction(continuity);
