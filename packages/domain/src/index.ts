@@ -525,9 +525,13 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
   userRoleName?: string,
 ): void {
   const normalizedNarrative = narrative.normalize("NFKC").toLowerCase();
+  if (hasUnsupportedAuthorityScript(normalizedNarrative)) {
+    throw new Error("Generated narrative cannot author user speech or protected commitments");
+  }
   const normalizedRole = normalizeAuthoritySubject(userRoleName);
+  const rawRole = userRoleName?.normalize("NFKC").toLowerCase().trim() || undefined;
   const roleNames = normalizedRole?.split(/\s+/) ?? [];
-  const escapedRoles = [normalizedRole, roleNames.at(-1)]
+  const escapedRoles = [normalizedRole, rawRole, roleNames.at(-1)]
     .filter((role): role is string => Boolean(role))
     .map((role) => role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const subjects = ["you", "the user", "the player", "the participant", ...escapedRoles]
@@ -555,7 +559,7 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
         "玩家",
         "参与者",
         ...(normalizedRole
-          ? [normalizedRole, roleNames.at(-1)].filter((subject): subject is string =>
+          ? [normalizedRole, rawRole, roleNames.at(-1)].filter((subject): subject is string =>
               Boolean(subject),
             )
           : []),
@@ -738,6 +742,14 @@ function hasLocalizedAuthorityClaim(sentence: string, subjects: readonly string[
     if (
       (beforeSubject.includes("由") || beforeSubject.includes("被")) &&
       authorityWords.some((word) => containsAuthorityWord(beforeSubject, word))
+    ) {
+      return true;
+    }
+    if (
+      /\bby\b[\p{P}\p{Z}]*$/iu.test(beforeSubject) &&
+      authorityWords.some(
+        (word) => /^[a-z]/i.test(word) && containsAuthorityWord(beforeSubject, word),
+      )
     ) {
       return true;
     }

@@ -522,8 +522,24 @@ describe("IP-6 participation and character authority", () => {
       assertGeneratedNarrativeDoesNotAuthorUser("守灯人同意\u3000转移资源。", "守灯人"),
     ).toThrow(/cannot author user speech or protected commitments/);
     expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("The plan was approved by 守灯人.", "守灯人"),
+    ).toThrow(/cannot author user speech or protected commitments/);
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser("A_B agreed to go.", "A_B")).toThrow(
+      /cannot author user speech or protected commitments/,
+    );
+    expect(() =>
       assertGeneratedNarrativeDoesNotAuthorUser("守灯人看向灯塔。", "守灯人"),
     ).not.toThrow();
+    for (const unsupportedClaim of [
+      "المستخدم وافق على نقل الموارد.",
+      "ユーザーは資源の移転に同意した。",
+      "Пользователь согласился передать ресурсы.",
+      "사용자는 자원 이전에 동의했다.",
+    ]) {
+      expect(() => assertGeneratedNarrativeDoesNotAuthorUser(unsupportedClaim, "守灯人")).toThrow(
+        /cannot author user speech or protected commitments/,
+      );
+    }
     expect(() => assertGeneratedNarrativeDoesNotAuthorUser("守灯人は同意した。", "守灯人")).toThrow(
       /cannot author user speech or protected commitments/,
     );

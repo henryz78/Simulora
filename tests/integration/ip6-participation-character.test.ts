@@ -1153,8 +1153,14 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       han_english: boolean;
       localized_refusal: boolean;
       localized_spacing: boolean;
+      cjk_passive: boolean;
+      punctuation_role: boolean;
       safe_han: boolean;
       unsupported_script: boolean;
+      unsupported_arabic: boolean;
+      unsupported_japanese: boolean;
+      unsupported_cyrillic: boolean;
+      unsupported_korean: boolean;
       short_role_unsupported_script: boolean;
     }>(
       `select
@@ -1177,11 +1183,29 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           '守灯人同意\u3000转移资源。', '守灯人'
         ) as localized_spacing,
         simulora.generated_narrative_authors_user(
+          'The plan was approved by 守灯人.', '守灯人'
+        ) as cjk_passive,
+        simulora.generated_narrative_authors_user(
+          'A_B agreed to go.', 'A_B'
+        ) as punctuation_role,
+        simulora.generated_narrative_authors_user(
           '守灯人看向灯塔。', '守灯人'
         ) as safe_han,
         simulora.generated_narrative_authors_user(
           '守灯人は同意した。', '守灯人'
         ) as unsupported_script,
+        simulora.generated_narrative_authors_user(
+          'المستخدم وافق على نقل الموارد。', '守灯人'
+        ) as unsupported_arabic,
+        simulora.generated_narrative_authors_user(
+          'ユーザーは資源の移転に同意した。', '守灯人'
+        ) as unsupported_japanese,
+        simulora.generated_narrative_authors_user(
+          'Пользователь согласился передать ресурсы.', '守灯人'
+        ) as unsupported_cyrillic,
+        simulora.generated_narrative_authors_user(
+          '사용자는 자원 이전에 동의했다.', '守灯人'
+        ) as unsupported_korean,
         simulora.generated_narrative_authors_user(
           'AIは同意した。', 'AI'
         ) as short_role_unsupported_script`,
@@ -1193,8 +1217,14 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       han_english: true,
       localized_refusal: true,
       localized_spacing: true,
+      cjk_passive: true,
+      punctuation_role: true,
       safe_han: false,
       unsupported_script: true,
+      unsupported_arabic: true,
+      unsupported_japanese: true,
+      unsupported_cyrillic: true,
+      unsupported_korean: true,
       short_role_unsupported_script: true,
     });
   });
