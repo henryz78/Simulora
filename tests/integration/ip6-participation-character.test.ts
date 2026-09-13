@@ -1235,7 +1235,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           'The plan was rejected by, the, 守灯人.', '守灯人'
         ) as cjk_passive_punctuation,
         simulora.generated_narrative_authors_user(
-          'BY THE 守灯人.', '守灯人'
+          'The plan was approved BY THE 守灯人.', '守灯人'
         ) as cjk_passive_case`,
     );
     expect(result.rows[0]).toEqual({
