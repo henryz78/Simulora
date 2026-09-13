@@ -1162,6 +1162,13 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       unsupported_cyrillic: boolean;
       unsupported_korean: boolean;
       short_role_unsupported_script: boolean;
+      generic_active: boolean;
+      generic_passive: boolean;
+      generic_possessive: boolean;
+      generic_safe: boolean;
+      cjk_passive_article: boolean;
+      cjk_passive_punctuation: boolean;
+      cjk_passive_case: boolean;
     }>(
       `select
         simulora.generated_narrative_authors_user(
@@ -1208,7 +1215,28 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         ) as unsupported_korean,
         simulora.generated_narrative_authors_user(
           'AIは同意した。', 'AI'
-        ) as short_role_unsupported_script`,
+        ) as short_role_unsupported_script,
+        simulora.generated_narrative_authors_user(
+          'User agreed to transfer resources.', 'Keeper'
+        ) as generic_active,
+        simulora.generated_narrative_authors_user(
+          'The plan was approved by the Participant.', 'Keeper'
+        ) as generic_passive,
+        simulora.generated_narrative_authors_user(
+          'User''s consent authorized the transfer.', 'Keeper'
+        ) as generic_possessive,
+        simulora.generated_narrative_authors_user(
+          'A user guide describes the signal.', 'Keeper'
+        ) as generic_safe,
+        simulora.generated_narrative_authors_user(
+          'The plan was approved by the 守灯人.', '守灯人'
+        ) as cjk_passive_article,
+        simulora.generated_narrative_authors_user(
+          'The plan was rejected by, the, 守灯人.', '守灯人'
+        ) as cjk_passive_punctuation,
+        simulora.generated_narrative_authors_user(
+          'BY THE 守灯人.', '守灯人'
+        ) as cjk_passive_case`,
     );
     expect(result.rows[0]).toEqual({
       short_role: true,
@@ -1226,6 +1254,13 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       unsupported_cyrillic: true,
       unsupported_korean: true,
       short_role_unsupported_script: true,
+      generic_active: true,
+      generic_passive: true,
+      generic_possessive: true,
+      generic_safe: false,
+      cjk_passive_article: true,
+      cjk_passive_punctuation: true,
+      cjk_passive_case: true,
     });
   });
 

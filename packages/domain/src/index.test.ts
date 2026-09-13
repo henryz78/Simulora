@@ -506,6 +506,21 @@ describe("IP-6 participation and character authority", () => {
     expect(() =>
       assertGeneratedNarrativeDoesNotAuthorUser("AI agreed to transfer resources.", "AI"),
     ).toThrow(/cannot author user speech or protected commitments/);
+    for (const genericClaim of [
+      "User agreed to transfer resources.",
+      "Player approved the plan.",
+      "Participant promised to pay.",
+      "The plan was approved by User.",
+      "The plan was approved by the Participant.",
+      "User's consent authorized the transfer.",
+    ]) {
+      expect(() => assertGeneratedNarrativeDoesNotAuthorUser(genericClaim, "Keeper")).toThrow(
+        /cannot author user speech or protected commitments/,
+      );
+    }
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser("A user guide describes the signal.", "Keeper"),
+    ).not.toThrow();
     expect(() =>
       assertGeneratedNarrativeDoesNotAuthorUser("Keeper refuses to transfer resources.", "Keeper"),
     ).toThrow(/cannot author user speech or protected commitments/);
@@ -524,6 +539,15 @@ describe("IP-6 participation and character authority", () => {
     expect(() =>
       assertGeneratedNarrativeDoesNotAuthorUser("The plan was approved by 守灯人.", "守灯人"),
     ).toThrow(/cannot author user speech or protected commitments/);
+    for (const passiveClaim of [
+      "The plan was approved by the 守灯人.",
+      "The plan was rejected by, the, 守灯人.",
+      "The plan was approved BY THE 守灯人.",
+    ]) {
+      expect(() => assertGeneratedNarrativeDoesNotAuthorUser(passiveClaim, "守灯人")).toThrow(
+        /cannot author user speech or protected commitments/,
+      );
+    }
     expect(() => assertGeneratedNarrativeDoesNotAuthorUser("A_B agreed to go.", "A_B")).toThrow(
       /cannot author user speech or protected commitments/,
     );

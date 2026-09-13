@@ -911,6 +911,7 @@ export function ParticipationPage(): ReactElement {
                 type="radio"
                 name="initiative"
                 checked={selection.initiativeMode === option.value}
+                disabled={busy}
                 onChange={() => update({ ...selection, initiativeMode: option.value })}
               />
               <span>
@@ -928,6 +929,7 @@ export function ParticipationPage(): ReactElement {
                 type="radio"
                 name="structure"
                 checked={selection.structureMode === option.value}
+                disabled={busy}
                 onChange={() => update({ ...selection, structureMode: option.value })}
               />
               <span>
@@ -1675,6 +1677,7 @@ export function CorrectionReviewPage(): ReactElement {
           <button
             type="button"
             className={operation === "CORRECT_CONTINUITY" ? "selected" : ""}
+            disabled={working}
             onClick={() => setOperation("CORRECT_CONTINUITY")}
           >
             Replace statement
@@ -1682,6 +1685,7 @@ export function CorrectionReviewPage(): ReactElement {
           <button
             type="button"
             className={operation === "REMOVE_CONTINUITY" ? "selected" : ""}
+            disabled={working}
             onClick={() => setOperation("REMOVE_CONTINUITY")}
           >
             Remove fact
@@ -1693,6 +1697,7 @@ export function CorrectionReviewPage(): ReactElement {
             <textarea
               id="correction-after"
               value={after}
+              disabled={working}
               onChange={(event) => setAfter(event.target.value)}
               rows={4}
             />
@@ -1703,6 +1708,7 @@ export function CorrectionReviewPage(): ReactElement {
           <textarea
             id="correction-reason"
             value={reason}
+            disabled={working}
             onChange={(event) => setReason(event.target.value)}
             rows={4}
           />

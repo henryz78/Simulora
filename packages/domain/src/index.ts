@@ -534,7 +534,20 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
   const escapedRoles = [normalizedRole, rawRole, roleNames.at(-1)]
     .filter((role): role is string => Boolean(role))
     .map((role) => role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const subjects = ["you", "the user", "the player", "the participant", ...escapedRoles]
+  // Bare generic subjects are included because generated output commonly
+  // drops the article ("User agreed …"). First-person pronouns stay out of
+  // this prose heuristic: Character voice may legitimately use “I/me/we”; the
+  // response-source and actor bindings remain the authority boundary there.
+  const subjects = [
+    "you",
+    "the user",
+    "the player",
+    "the participant",
+    "user",
+    "player",
+    "participant",
+    ...escapedRoles,
+  ]
     .filter(Boolean)
     .join("|");
   const userSubject = `\\b(?:${subjects})\\b`;
@@ -746,7 +759,7 @@ function hasLocalizedAuthorityClaim(sentence: string, subjects: readonly string[
       return true;
     }
     if (
-      /\bby\b[\p{P}\p{Z}]*$/iu.test(beforeSubject) &&
+      /\bby\b(?:[\p{P}\p{Z}]+the)?[\p{P}\p{Z}]*$/iu.test(beforeSubject) &&
       authorityWords.some(
         (word) => /^[a-z]/i.test(word) && containsAuthorityWord(beforeSubject, word),
       )
