@@ -576,10 +576,22 @@ suite("IP-4 Return, Continuity and direct correction against PostgreSQL", () => 
       target: { type: "fact", id: fact.id },
       operation: "CORRECT_CONTINUITY",
       before: { statement: fact.statement, scope: fact.scope },
-      after: { statement: "A different retry body is ignored by idempotency." },
+      after: { statement: "The signal record is corrected." },
       reason: direct.intent,
     });
     expect(duplicate.id).toBe(direct.id);
+    await expect(
+      repository.submitCorrection(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: directKey,
+        expectedHeadCommitId: continuity.headCommitId,
+        target: { type: "fact", id: fact.id },
+        operation: "CORRECT_CONTINUITY",
+        before: { statement: fact.statement, scope: fact.scope },
+        after: { statement: "A different retry body must be rejected." },
+        reason: direct.intent,
+      }),
+    ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
     await expect(
       repository.confirmAction(account, direct.id, {
         proposalId: direct.proposal!.id,

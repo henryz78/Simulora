@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
-import { lanternReachSeed } from "../../packages/domain/src/index.js";
+import { contentHash, lanternReachSeed } from "../../packages/domain/src/index.js";
 import {
   AuthoritativeWorldRepository,
   createDatabasePool,
@@ -183,6 +183,66 @@ suite("IP-3 Action Truth against PostgreSQL", () => {
       [pending.id],
     );
     expect(commits.rows[0]?.count).toBe(0);
+  });
+
+  it("rejects idempotency-key reuse when the canonical request changes", async () => {
+    const current = await repository.readCurrentState(account, continuity.continuityId);
+    const idempotencyKey = "action-truth-reuse";
+    const first = await repository.submitAction(account, current.branchId, {
+      schemaVersion: 1,
+      idempotencyKey,
+      expectedHeadCommitId: current.headCommitId,
+      participationExpectation: current.state.participation,
+      intent: "Keep the first request bound to this key.",
+    });
+    const stored = await pool.query<{ idempotency_request_digest: string | null }>(
+      "select idempotency_request_digest from simulora.actions where id = $1",
+      [first.id],
+    );
+    expect(stored.rows[0]?.idempotency_request_digest).toBe(
+      contentHash({
+        schemaVersion: 1,
+        operationType: "PARTICIPATE",
+        expectedHeadCommitId: current.headCommitId,
+        participationExpectation: current.state.participation,
+        intent: "Keep the first request bound to this key.",
+      }),
+    );
+    await expect(
+      repository.submitAction(account, current.branchId, {
+        schemaVersion: 1,
+        idempotencyKey,
+        expectedHeadCommitId: current.headCommitId,
+        participationExpectation: current.state.participation,
+        intent: "A changed request must not reuse the first Action.",
+      }),
+    ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
+    await expect(
+      repository.submitAction(account, current.branchId, {
+        schemaVersion: 1,
+        idempotencyKey,
+        expectedHeadCommitId: "00000000-0000-4000-8000-000000000099",
+        participationExpectation: current.state.participation,
+        intent: "Keep the first request bound to this key.",
+      }),
+    ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
+    const fact = current.state.facts[0]!;
+    await expect(
+      repository.submitCorrection(account, current.branchId, {
+        schemaVersion: 1,
+        idempotencyKey,
+        expectedHeadCommitId: current.headCommitId,
+        target: { type: "fact", id: fact.id },
+        operation: "CORRECT_CONTINUITY",
+        before: { statement: fact.statement, scope: fact.scope },
+        after: { statement: "This cross-operation reuse must be rejected." },
+        reason: "A correction cannot reuse an ordinary Action key.",
+      }),
+    ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
+    await expect(repository.cancelAction(account, first.id)).resolves.toMatchObject({
+      id: first.id,
+      status: "CANCELLED",
+    });
   });
 
   it("serializes a concurrent cancel and Commit race into one truthful terminal result", async () => {

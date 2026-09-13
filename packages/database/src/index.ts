@@ -387,6 +387,15 @@ export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
 export class ValidationError extends Error {}
 
+function assertIdempotencyRequestMatches(
+  storedDigest: string | null,
+  requestDigest: string,
+  legacyFieldsMatch: boolean,
+): void {
+  if (storedDigest === requestDigest || (storedDigest === null && legacyFieldsMatch)) return;
+  throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+}
+
 function databaseEligibility(eligibility: SyntheticAccount["eligibility"]): string {
   return eligibility.toUpperCase();
 }
@@ -933,14 +942,43 @@ export class AuthoritativeWorldRepository {
     input: SubmitActionDatabaseInput,
   ): Promise<ActionRecord> {
     this.assertEligible(account);
+    const intent = input.intent.trim();
+    const requestDigest = contentHash({
+      schemaVersion: input.schemaVersion,
+      operationType: "PARTICIPATE",
+      expectedHeadCommitId: input.expectedHeadCommitId,
+      participationExpectation: input.participationExpectation,
+      intent,
+    });
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
-      const existing = await client.query<{ id: string }>(
-        `select id from simulora.actions
+      const existing = await client.query<{
+        id: string;
+        idempotency_request_digest: string | null;
+        operation_type: ActionOperationType;
+        expected_head_commit_id: string;
+        participation_expectation: ParticipationContract;
+        intent: string;
+      }>(
+        `select id, idempotency_request_digest, operation_type,
+                expected_head_commit_id, participation_expectation, intent
+         from simulora.actions
          where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
         [account.accountId, branchId, input.idempotencyKey],
       );
-      if (existing.rows[0]) return this.readActionWithClient(client, account, existing.rows[0].id);
+      if (existing.rows[0]) {
+        const prior = existing.rows[0];
+        assertIdempotencyRequestMatches(
+          prior.idempotency_request_digest,
+          requestDigest,
+          prior.operation_type === "PARTICIPATE" &&
+            prior.expected_head_commit_id === input.expectedHeadCommitId &&
+            contentHash(prior.participation_expectation) ===
+              contentHash(input.participationExpectation) &&
+            prior.intent === intent,
+        );
+        return this.readActionWithClient(client, account, prior.id);
+      }
 
       const currentPath = await client.query<{ active_branch_id: string }>(
         `select active_branch_id from simulora.continuities
@@ -985,8 +1023,9 @@ export class AuthoritativeWorldRepository {
       const inserted = await client.query<{ id: string }>(
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
-          expected_head_commit_id, participation_expectation, intent, status)
-         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, 'ACKNOWLEDGED')
+          expected_head_commit_id, participation_expectation, intent,
+          idempotency_request_digest, status)
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, $9, 'ACKNOWLEDGED')
          on conflict (actor_account_id, branch_id, idempotency_key) do nothing
          returning id`,
         [
@@ -997,17 +1036,37 @@ export class AuthoritativeWorldRepository {
           input.idempotencyKey,
           input.expectedHeadCommitId,
           JSON.stringify(input.participationExpectation),
-          input.intent.trim(),
+          intent,
+          requestDigest,
         ],
       );
       if (!inserted.rows[0]) {
-        const duplicate = await client.query<{ id: string }>(
-          `select id from simulora.actions
+        const duplicate = await client.query<{
+          id: string;
+          idempotency_request_digest: string | null;
+          operation_type: ActionOperationType;
+          expected_head_commit_id: string;
+          participation_expectation: ParticipationContract;
+          intent: string;
+        }>(
+          `select id, idempotency_request_digest, operation_type,
+                  expected_head_commit_id, participation_expectation, intent
+           from simulora.actions
            where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
           [account.accountId, branchId, input.idempotencyKey],
         );
         if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
-        return this.readActionWithClient(client, account, duplicate.rows[0].id);
+        const prior = duplicate.rows[0];
+        assertIdempotencyRequestMatches(
+          prior.idempotency_request_digest,
+          requestDigest,
+          prior.operation_type === "PARTICIPATE" &&
+            prior.expected_head_commit_id === input.expectedHeadCommitId &&
+            contentHash(prior.participation_expectation) ===
+              contentHash(input.participationExpectation) &&
+            prior.intent === intent,
+        );
+        return this.readActionWithClient(client, account, prior.id);
       }
       await client.query(
         `insert into simulora.durable_jobs (id, type, action_id, dedupe_key, status)
@@ -1036,31 +1095,40 @@ export class AuthoritativeWorldRepository {
     ) {
       throw new ValidationError("Participation contract is unchanged");
     }
+    const requestDigest = contentHash({
+      schemaVersion: input.schemaVersion,
+      operationType: "CHANGE_PARTICIPATION_CONTRACT",
+      expectedHeadCommitId: input.expectedHeadCommitId,
+      before,
+      after,
+    });
 
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
       const findExisting = async (): Promise<ActionRecord | null> => {
         const existing = await client.query<{
           id: string;
+          idempotency_request_digest: string | null;
           operation_type: ActionOperationType;
           expected_head_commit_id: string;
           operation_payload: { before?: ParticipationContract; after?: ParticipationContract };
         }>(
-          `select id, operation_type, expected_head_commit_id, operation_payload
+          `select id, idempotency_request_digest, operation_type,
+                  expected_head_commit_id, operation_payload
            from simulora.actions
            where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
           [account.accountId, branchId, input.idempotencyKey],
         );
         const prior = existing.rows[0];
         if (!prior) return null;
-        if (
-          prior.operation_type !== "CHANGE_PARTICIPATION_CONTRACT" ||
-          prior.expected_head_commit_id !== input.expectedHeadCommitId ||
-          contentHash(prior.operation_payload.before) !== contentHash(before) ||
-          contentHash(prior.operation_payload.after) !== contentHash(after)
-        ) {
-          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
-        }
+        assertIdempotencyRequestMatches(
+          prior.idempotency_request_digest,
+          requestDigest,
+          prior.operation_type === "CHANGE_PARTICIPATION_CONTRACT" &&
+            prior.expected_head_commit_id === input.expectedHeadCommitId &&
+            contentHash(prior.operation_payload.before) === contentHash(before) &&
+            contentHash(prior.operation_payload.after) === contentHash(after),
+        );
         return this.readActionWithClient(client, account, prior.id);
       };
       const existing = await findExisting();
@@ -1128,9 +1196,10 @@ export class AuthoritativeWorldRepository {
       await client.query(
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
-          expected_head_commit_id, participation_expectation, intent, operation_payload, status)
+          expected_head_commit_id, participation_expectation, intent, operation_payload,
+          idempotency_request_digest, status)
          values ($1, $2, $3, $4, 'CHANGE_PARTICIPATION_CONTRACT', $5, $6, $7::jsonb,
-                 $8, $9::jsonb, 'ACKNOWLEDGED')`,
+                 $8, $9::jsonb, $10, 'ACKNOWLEDGED')`,
         [
           actionId,
           account.accountId,
@@ -1141,6 +1210,7 @@ export class AuthoritativeWorldRepository {
           JSON.stringify(before),
           `Change participation to ${displayEffect.after}`,
           JSON.stringify({ schemaVersion: 1, before, after }),
+          requestDigest,
         ],
       );
       await this.appendProgressWithClient(client, actionId, "action.status", {
@@ -1275,14 +1345,46 @@ export class AuthoritativeWorldRepository {
     if (input.operation === "REMOVE_CONTINUITY" && input.after) {
       throw new ValidationError("Removal cannot include an after statement");
     }
+    const reason = input.reason.trim();
+    const operationPayload = {
+      schemaVersion: 1,
+      target: input.target,
+      before: input.before,
+      ...(input.after ? { after: input.after } : {}),
+      reason,
+    };
+    const requestDigest = contentHash({
+      schemaVersion: input.schemaVersion,
+      operationType: input.operation,
+      expectedHeadCommitId: input.expectedHeadCommitId,
+      operationPayload,
+    });
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
-      const existing = await client.query<{ id: string }>(
-        `select id from simulora.actions
+      const existing = await client.query<{
+        id: string;
+        idempotency_request_digest: string | null;
+        operation_type: ActionOperationType;
+        expected_head_commit_id: string;
+        operation_payload: Record<string, unknown>;
+      }>(
+        `select id, idempotency_request_digest, operation_type,
+                expected_head_commit_id, operation_payload
+         from simulora.actions
          where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
         [account.accountId, branchId, input.idempotencyKey],
       );
-      if (existing.rows[0]) return this.readActionWithClient(client, account, existing.rows[0].id);
+      if (existing.rows[0]) {
+        const prior = existing.rows[0];
+        assertIdempotencyRequestMatches(
+          prior.idempotency_request_digest,
+          requestDigest,
+          prior.operation_type === input.operation &&
+            prior.expected_head_commit_id === input.expectedHeadCommitId &&
+            contentHash(prior.operation_payload) === contentHash(operationPayload),
+        );
+        return this.readActionWithClient(client, account, prior.id);
+      }
 
       const currentPath = await client.query<{ active_branch_id: string }>(
         `select active_branch_id from simulora.continuities
@@ -1324,19 +1426,13 @@ export class AuthoritativeWorldRepository {
 
       const actionId = randomUUID();
       const operationType = input.operation;
-      const operationPayload = {
-        schemaVersion: 1,
-        target: input.target,
-        before: input.before,
-        ...(input.after ? { after: input.after } : {}),
-        reason: input.reason.trim(),
-      };
-      const intent = input.reason.trim();
+      const intent = reason;
       const inserted = await client.query<{ id: string }>(
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
-          expected_head_commit_id, participation_expectation, intent, operation_payload, status)
-         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, 'ACKNOWLEDGED')
+          expected_head_commit_id, participation_expectation, intent, operation_payload,
+          idempotency_request_digest, status)
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, $11, 'ACKNOWLEDGED')
          on conflict (actor_account_id, branch_id, idempotency_key) do nothing
          returning id`,
         [
@@ -1350,16 +1446,33 @@ export class AuthoritativeWorldRepository {
           JSON.stringify(state.participation),
           intent,
           JSON.stringify(operationPayload),
+          requestDigest,
         ],
       );
       if (!inserted.rows[0]) {
-        const duplicate = await client.query<{ id: string }>(
-          `select id from simulora.actions
+        const duplicate = await client.query<{
+          id: string;
+          idempotency_request_digest: string | null;
+          operation_type: ActionOperationType;
+          expected_head_commit_id: string;
+          operation_payload: Record<string, unknown>;
+        }>(
+          `select id, idempotency_request_digest, operation_type,
+                  expected_head_commit_id, operation_payload
+           from simulora.actions
            where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
           [account.accountId, branchId, input.idempotencyKey],
         );
         if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
-        return this.readActionWithClient(client, account, duplicate.rows[0].id);
+        const prior = duplicate.rows[0];
+        assertIdempotencyRequestMatches(
+          prior.idempotency_request_digest,
+          requestDigest,
+          prior.operation_type === input.operation &&
+            prior.expected_head_commit_id === input.expectedHeadCommitId &&
+            contentHash(prior.operation_payload) === contentHash(operationPayload),
+        );
+        return this.readActionWithClient(client, account, prior.id);
       }
 
       await this.appendProgressWithClient(client, actionId, "action.status", {
