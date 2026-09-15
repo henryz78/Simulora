@@ -525,20 +525,22 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       ),
     ).rejects.toThrow(/non-terminal ACKNOWLEDGED/);
 
-    const manifest = {
+    const manifestFor = (fixture: typeof continuity) => ({
       compilerVersion: "ip6-context-v1",
-      expectedHeadCommitId: continuity.headCommitId,
-      participation: continuity.state.participation,
+      expectedHeadCommitId: fixture.headCommitId,
+      participation: fixture.state.participation,
       includedFactIds: ["fact.western-signal-dim"],
       includedCharacterIds: ["character.iora"],
-      excludedScopeCounts: { unauthorized: continuity.state.facts.length - 1 },
-    };
-    await expect(prepareRawParticipateProposal(continuity, { manifest })).rejects.toThrow(
-      /Proposal must exactly bind/,
-    );
+      excludedScopeCounts: { unauthorized: fixture.state.facts.length - 1 },
+    });
+    const incomplete = await createContinuity();
     await expect(
-      prepareRawParticipateProposal(continuity, {
-        manifest,
+      prepareRawParticipateProposal(incomplete, { manifest: manifestFor(incomplete) }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+    const unboundOutput = await createContinuity();
+    await expect(
+      prepareRawParticipateProposal(unboundOutput, {
+        manifest: manifestFor(unboundOutput),
         completeAttempt: true,
         attemptOutput: {
           narrative: "Unbound output",
@@ -547,17 +549,19 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         },
       }),
     ).rejects.toThrow(/Proposal must exactly bind/);
-    const missingCharacterScope: Record<string, unknown> = { ...manifest };
+    const missingScope = await createContinuity();
+    const missingCharacterScope: Record<string, unknown> = { ...manifestFor(missingScope) };
     delete missingCharacterScope.includedCharacterIds;
     await expect(
-      prepareRawParticipateProposal(continuity, {
+      prepareRawParticipateProposal(missingScope, {
         manifest: missingCharacterScope,
         completeAttempt: true,
       }),
     ).rejects.toThrow(/Proposal must exactly bind/);
+    const authoredCommitment = await createContinuity();
     await expect(
-      prepareRawParticipateProposal(continuity, {
-        manifest,
+      prepareRawParticipateProposal(authoredCommitment, {
+        manifest: manifestFor(authoredCommitment),
         completeAttempt: true,
         afterStatement: "The keeper agreed to transfer resources.",
       }),

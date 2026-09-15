@@ -414,6 +414,7 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
         [submitted.id],
       );
       expect(counts.rows[0]).toEqual({ proposal_count: 0, commit_count: 0 });
+      await repository.cancelAction(account, submitted.id);
     }
 
     await forgeCandidate(privateActiveId, privateActiveStatement, "CONTINUITY_PRIVATE");
