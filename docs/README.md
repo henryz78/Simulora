@@ -48,7 +48,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [RE-2 Authorized Context / Character Selection — Implementation Evidence](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md)
 - [RE-2 Independent Review / Next Reality-Check Proposal](implementation-planning/RE-2-INDEPENDENT-REVIEW.md)
 - [RE-2 Context Reality Check — Actual Outputs / Limits / Guard False Positive](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md)
-- [RE-2 Dialogue Attribution Repair — Local PASS / Independent Review Pending](implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
+- [RE-2 Dialogue Attribution Repair — CLOSED / Independent Review + CI PASS](implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
 - [RE-3 Routine Effect / No-Change Contract — Proposed](implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md)
 - [Bounded Runtime Enablement — Proposed Follow-up](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)

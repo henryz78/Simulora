@@ -39,8 +39,10 @@ RE-3 routine effects、RE-4 新一轮 live/human validation、IP-7 均未获实�
 用户继续后已实施最小 RE-2 Character dialogue attribution 修复，见
 `docs/implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md`；只识别绑定角色的
 comma-delimited says/said，应用／SQL 两条 proposal 校验一致，原失败实验未改写。
-real PG 118/118、desktop/390×844 54/54、build/runtime 本地 PASS；独立修复复核及
-exact-SHA CI 尚未确认，不替换已批准 `3d14dc6...`。没有新模型调用。
+real PG 118/118、desktop/390×844 54/54、build/runtime 本地 PASS；随后同一独立 Reviewer
+focused Review PASS，0/0/0，独立 domain 19/19、PG 38/38，exact-SHA CI `35034518562` PASS。
+已批准修复行为 SHA 为 `d6d6ea9a8278a8510e83ffa70d54baa0503463d8`，原 `3d14dc6...`
+RE-2 批准及失败实验证据保留；小修复 CLOSED，没有新模型调用，不宣称完整 AI World。
 RE-3 具体候选契约见 `docs/implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md`：
 受限 NPC movement + L0 no-world-effect 比较，PROPOSED／待批准，未实施；IP-7 未开始。
 

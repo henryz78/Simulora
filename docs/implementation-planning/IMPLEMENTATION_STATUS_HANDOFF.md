@@ -560,3 +560,30 @@ Next: focused independent repair check/exact-SHA CI, then user approval of the
 RE-3 contract/policy. After its implementation and review, small human/browser live
 play checks causal continuity and confirmation burden. RE-3/full RE-4/IP-7 remain
 not implemented/not authorized; no roadmap change or production live switch.
+
+## 20. Dialogue repair independent closure
+
+The same independent Reviewer returned **FOCUSED REPAIR REVIEW PASS / 0/0/0**.
+Original result is preserved in
+[Dialogue repair — independent closure](RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md#independent-closure--original-reviewer-result).
+Approved repair behavior is **`d6d6ea9a8278a8510e83ffa70d54baa0503463d8`**.
+Section 19's pending status is historical, not an open Gate. Original RE-2 approval,
+failed live experiment, local failed replay/repair and subsequent PASS remain intact.
+
+Reviewer independently confirmed main/HEAD/origin alignment and tracked clean;
+domain **19/19**, fresh real PG17 focused **38/38**. It checked exact-SHA
+[CI run 35034518562](https://github.com/henryz78/Simulora/actions/runs/35034518562),
+[quality job](https://github.com/henryz78/Simulora/actions/runs/35034518562/job/104600447908):
+**success**, including migration, authoritative PG, IP-5, container/build and
+desktop/390×844 browser steps. Browser evidence upload was intentionally skipped.
+No local Docker or additional live-model run is claimed. Main-Agent full PG118
+and browser54 evidence remains separate from the focused independent counts.
+
+This closure changes **documents only**, not behavior or frozen contracts. Small
+English-attribution repair CLOSED; production remains deterministic and the
+single-fact/L3 envelope remains a known ceiling, not a final product definition.
+
+Next requires user approval of the concrete RE-3 contract/policy; it is proposed,
+not implemented. Human/browser live play follows its implementation and review.
+Durable advice-only dialogue is still a separate product decision. RE-3/full
+RE-4/IP-7, production live enablement and deployment are not started/authorized.

@@ -90,7 +90,7 @@ Concrete [routine-effect / no-change contract](RE-3-ROUTINE-EFFECT-CONTRACT.md)
 is now proposed: one allowed NPC/public-route movement and uncommitted L0
 advice/refusal comparison. Await approval and the bounded policy ADR; no RE-3
 code has started. The preceding [dialogue attribution repair](RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
-is locally verified and awaits focused independent closure.
+is closed after focused independent PASS (0/0/0) and exact-SHA CI PASS at `d6d6ea9`.
 
 Do not implement until the effect subset and its acceptance matrix are reviewed.
 Start with one meaningful routine effect supported by the frozen L2 allowance,
