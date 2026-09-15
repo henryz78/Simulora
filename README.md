@@ -38,6 +38,10 @@ completed after credential update: nine dispatches including the initial 429,
 eight actual outputs and three explicitly reviewed synthetic Commits. The report
 records promising short continuation, an agency-guard false positive and the
 remaining single-fact/L3 ceiling; no production live switch or IP-7 was started.
+The subsequent [minimal dialogue attribution repair](docs/implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
+passed local app/PostgreSQL/browser/build checks and awaits independent closure.
+[RE-3 movement/no-change contract](docs/implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md)
+is proposed only; no RE-3 implementation or new live experiment began.
 
 ## Development and verification
 

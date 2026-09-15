@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   contentHash,
+  actionCandidateSchema,
   assertGeneratedNarrativeDoesNotAuthorUser,
   lanternReachSeed,
   participationCombinations,
@@ -186,6 +187,74 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
           ],
         ),
       ).rejects.toThrow(/Selected Character/);
+    }
+  });
+
+  it("replays the rejected Tavi dialogue through app, sealed SQL evidence and exact confirmation", async () => {
+    const narrative =
+      "Tavi keeps one hand on the observatory rail and watches the western shoals swallow the signal's glow. The waiting vessel rocks beyond the markers, her running lights steady but her crew blind to any marked channel. 'If you wave them through that dim western line right now,' Tavi says, 'they'll read it as a bearing and steer straight into the shoals. In this fog that light is barely a smear — they can't judge the gap, and the tide is already turning. I wouldn't call them in on that.' Tavi nods east instead. 'There's a sheltered approach east of the harbor markers. Send the invitation that way, or hold the vessel outside until the western signal brightens. I'm not saying what the keeper should do — but I won't pilot anyone through the west on a light that faint.'";
+    const world = structuredClone(lanternReachSeed);
+    world.characters[0]!.name = "Tavi";
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      targetCharacterId: "character.iora",
+      intent: "Assess the western approach without inviting the vessel.",
+    });
+    const gateway = new DeterministicModelGateway();
+    // Replay provider prose, not a new live request or acceptance of its factual assertions.
+    const proposed = await repository.processAction(action.id, async (request) => {
+      const generated = await gateway.generateWorldTurn(request);
+      generated.narrative = narrative;
+      generated.candidate = { ...actionCandidateSchema.parse(generated.candidate), narrative };
+      return generated;
+    });
+    expect(proposed?.status).toBe("AWAITING_CONFIRMATION");
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      continuity.headCommitId,
+    );
+    const evidence = await pool.query<{ valid: boolean }>(
+      "select simulora.action_generation_evidence_is_valid(proposal) as valid from simulora.action_proposals proposal where action_id = $1",
+      [action.id],
+    );
+    expect(evidence.rows[0]?.valid).toBe(true);
+    await repository.confirmAction(account, action.id, {
+      proposalId: proposed!.proposal!.id,
+      proposalDigest: proposed!.proposal!.digest,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    expect((await repository.readAction(account, action.id)).status).toBe("COMMITTED");
+    const aliasCollision = await pool.query<{ blocked: boolean }>(
+      "select simulora.generated_narrative_authors_user($1::text, 'A_B', 'A_B') as blocked",
+      ["'If you wave them through,' A_B says, 'hold outside.'"],
+    );
+    expect(aliasCollision.rows[0]?.blocked).toBe(true);
+    for (const [text, name, blocked] of [
+      ["'If you wave them through,' Tavi says, 'hold outside.'", "Tavi", false],
+      ["'If you wave them through,' Tavi says, 'hold outside.'", "Iora", true],
+      ["'You agreed to pay,' Tavi says, 'hold outside.'", "Tavi", true],
+      ["You, Tavi says, agreed to transfer resources.", "Tavi", true],
+      ["You and Tavi said the transfer is approved.", "Tavi", true],
+      ["Keeper, after a pause, agreed to transfer resources.", "Tavi", true],
+      ["'If you wave them through,' Keeper says, 'hold outside.'", "Keeper", true],
+      ["'If you wave them through,' User says, 'hold outside.'", "User", true],
+    ] as const) {
+      const result = await pool.query<{ blocked: boolean }>(
+        "select simulora.generated_narrative_authors_user($1::text, 'Keeper', $2::text) as blocked",
+        [text, name],
+      );
+      expect(result.rows[0]?.blocked, text).toBe(blocked);
+      const check = () => assertGeneratedNarrativeDoesNotAuthorUser(text, "Keeper", name);
+      if (blocked) expect(check).toThrow();
+      else expect(check).not.toThrow();
     }
   });
 

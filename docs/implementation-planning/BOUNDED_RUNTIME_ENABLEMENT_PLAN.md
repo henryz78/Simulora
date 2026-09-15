@@ -86,6 +86,12 @@ regression; real PostgreSQL and desktop/390×844 pointer paths.
 
 ### RE-3 — Small closed routine-effect comparison
 
+Concrete [routine-effect / no-change contract](RE-3-ROUTINE-EFFECT-CONTRACT.md)
+is now proposed: one allowed NPC/public-route movement and uncommitted L0
+advice/refusal comparison. Await approval and the bounded policy ADR; no RE-3
+code has started. The preceding [dialogue attribution repair](RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
+is locally verified and awaits focused independent closure.
+
 Do not implement until the effect subset and its acceptance matrix are reviewed.
 Start with one meaningful routine effect supported by the frozen L2 allowance,
 plus an honest uncommitted/no-world-change response for comparison. Avoid broad

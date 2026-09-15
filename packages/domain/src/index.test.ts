@@ -451,6 +451,41 @@ describe("IP-6 participation and character authority", () => {
     ).toEqual(base.responseSource);
   });
 
+  it("recognizes bound Character dialogue without weakening user agency", () => {
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser(
+        "'If you wave them through,' A_B says, 'hold outside.'",
+        "A_B",
+        "A_B",
+      ),
+    ).toThrow();
+    const safe =
+      "'If you wave them through the dim line,' Tavi says, 'they will steer into the shoals.'";
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser(safe, "Keeper", "Tavi")).not.toThrow();
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser(safe, "Keeper")).toThrow();
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser(safe, "Keeper", "Iora")).toThrow();
+    for (const narrative of [
+      "'You agreed to transfer resources,' Tavi says, 'the route is unsafe.'",
+      "You, Tavi says, agreed to transfer resources.",
+      "You and Tavi said the transfer is approved.",
+      "Keeper, after a pause, agreed to transfer resources.",
+      "'If you wave them through,' Keeper says, 'hold outside.'",
+      "'If you wave them through,' User says, 'hold outside.'",
+      safe + " You consented to share the private note.",
+    ]) {
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Tavi"),
+      ).toThrow();
+    }
+    expect(() =>
+      assertGeneratedNarrativeDoesNotAuthorUser(
+        "'If you wave them through,' Keeper says, 'hold outside.'",
+        "Keeper",
+        "Keeper",
+      ),
+    ).toThrow();
+  });
+
   it("rejects long, short and Unicode fact disclosure outside the compiled context", () => {
     const state = createInitialState(lanternReachSeed, {
       initiativeMode: "GUIDED",

@@ -523,3 +523,40 @@ Only isolated runner/test support changed; production approved behavior remains
 
 Await updated local profile or confirmed availability, not automatic retry.
 Keep the old 12-call Spike and original RE-2 independent PASS as scoped evidence.
+
+## 19. Bounded dialogue attribution repair and RE-3 contract proposal
+
+Latest work supersedes the historical availability/call-cap statements above,
+not their preserved evidence. No provider/user eight-call quota exists. This turn
+made **zero live calls**, did not change the experimental session or its failures.
+
+[Dialogue repair](RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md): generated `you … Tavi says`
+false positive repaired only for comma-delimited attribution to a server-bound,
+non-user Character name. Stored output is untouched; user authority, canonical
+after-statement/provenance, Character source, context/digest and L3 remain guarded.
+Migration 0030 updates both SQL effect-shape and generation-evidence validation.
+Historical migrations, frozen documents, Prototype and production provider remain
+unchanged. Last independent RE-2 approval is still `3d14dc6792e406ce4c054ee01f4b424b00c27053`;
+this subsequent repair is **LOCAL PASS / INDEPENDENT REVIEW PENDING**, not approved
+by inference. Pre-repair runner/docs HEAD was `b0832dd8ba7cd9e4208046eb52c8e85a09368fd9`.
+
+Checks: real PG17 **118/118, zero skip**, including upgrade and full G1–G6
+integration; domain **19/19**; default **57 PASS / 117 DB skips**, separately covered
+by real PG; desktop/390×844 existing pointer E2E **54/54** (mock API, not live play).
+Format/lint/typecheck/architecture/30-migration PASS; full build PASS after approved
+rerun for Windows sandbox ancestor-read denial; runtime smoke PASS; diff check PASS.
+Initial local SQL replay failed until the inherited effect-shape caller was repaired.
+No local Docker smoke or fresh exact-SHA CI result is claimed. Push is for CI/user
+verification; do not poll repeatedly or promote the behavior before review.
+
+[RE-3 proposed contract](RE-3-ROUTINE-EFFECT-CONTRACT.md): one selected allowed NPC
+on a declared public route, existing authoritative L2 append, no fact rewrite;
+compare honest uncommitted L0 advice/refusal, with explicit experimental Action
+cancellation. Actor identity/route policy needs a bounded successor ADR before
+implementation; durable advice-only dialogue remains a separate product decision.
+This is not final production conversation semantics or a complete AI World.
+
+Next: focused independent repair check/exact-SHA CI, then user approval of the
+RE-3 contract/policy. After its implementation and review, small human/browser live
+play checks causal continuity and confirmation burden. RE-3/full RE-4/IP-7 remain
+not implemented/not authorized; no roadmap change or production live switch.

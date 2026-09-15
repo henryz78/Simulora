@@ -4122,7 +4122,13 @@ export class AuthoritativeWorldRepository {
       if (JSON.stringify(generated.responseSource) !== JSON.stringify(expectedResponseSource)) {
         throw new Error("Generated response source does not match the compiled character context");
       }
-      assertGeneratedNarrativeDoesNotAuthorUser(generated.narrative, prepared.userRoleName);
+      assertGeneratedNarrativeDoesNotAuthorUser(
+        generated.narrative,
+        prepared.userRoleName,
+        prepared.state.characters.find(
+          (character) => character.id === prepared.generationContext.character?.id,
+        )?.name,
+      );
       const candidate = validateActionCandidate(generated.candidate, {
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,

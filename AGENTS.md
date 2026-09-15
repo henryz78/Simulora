@@ -36,6 +36,14 @@ RE-3 routine effects、RE-4 新一轮 live/human validation、IP-7 均未获实�
 仍记录次数、达到供应商限制即停，不无限重试、不擅自换模型。这不是 full RE-4 授权。
 后续仅文档 commit 不替换行为审查基线。
 
+用户继续后已实施最小 RE-2 Character dialogue attribution 修复，见
+`docs/implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md`；只识别绑定角色的
+comma-delimited says/said，应用／SQL 两条 proposal 校验一致，原失败实验未改写。
+real PG 118/118、desktop/390×844 54/54、build/runtime 本地 PASS；独立修复复核及
+exact-SHA CI 尚未确认，不替换已批准 `3d14dc6...`。没有新模型调用。
+RE-3 具体候选契约见 `docs/implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md`：
+受限 NPC movement + L0 no-world-effect 比较，PROPOSED／待批准，未实施；IP-7 未开始。
+
 ## Long-Term Product Direction
 
 用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：

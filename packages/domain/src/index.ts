@@ -464,7 +464,11 @@ export function validateActionCandidate(
   ) {
     throw new Error("Candidate response source is not present in the expected World state");
   }
-  assertGeneratedNarrativeDoesNotAuthorUser(candidate.narrative, expected.userRoleName);
+  assertGeneratedNarrativeDoesNotAuthorUser(
+    candidate.narrative,
+    expected.userRoleName,
+    expected.state.characters.find((character) => character.id === responseCharacterId)?.name,
+  );
   assertGeneratedNarrativeDoesNotAuthorUser(
     candidate.operation.afterStatement,
     expected.userRoleName,
@@ -523,14 +527,32 @@ export function validateActionCandidate(
 export function assertGeneratedNarrativeDoesNotAuthorUser(
   narrative: string,
   userRoleName?: string,
+  responseCharacterName?: string,
 ): void {
-  const normalizedNarrative = narrative.normalize("NFKC").toLowerCase();
+  let normalizedNarrative = narrative.normalize("NFKC").toLowerCase();
   if (hasUnsupportedAuthorityScript(normalizedNarrative)) {
     throw new Error("Generated narrative cannot author user speech or protected commitments");
   }
   const normalizedRole = normalizeAuthoritySubject(userRoleName);
   const rawRole = userRoleName?.normalize("NFKC").toLowerCase().trim() || undefined;
   const roleNames = normalizedRole?.split(/\s+/) ?? [];
+  const narrator = responseCharacterName?.normalize("NFKC").toLowerCase().trim();
+  // ponytail: recognize only an explicit comma-delimited English attribution,
+  // not general grammar. Keep the entire utterance under the existing guard.
+  // The name comes from the bound Character state, never from generated prose.
+  if (
+    narrator &&
+    /^[a-z][a-z0-9_]*(?: [a-z][a-z0-9_]*)*$/.test(narrator) &&
+    !narrator
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(" ")
+      .some((name) => ["you", "user", "player", "participant", ...roleNames].includes(name))
+  ) {
+    normalizedNarrative = normalizedNarrative.replace(
+      new RegExp(`(,[\\s'"]*${escapeAuthorityRegex(narrator)}\\s+)(?:says|said)(\\s*,)`, "g"),
+      "$1narrates$2",
+    );
+  }
   const escapedRoles = [normalizedRole, rawRole, roleNames.at(-1)]
     .filter((role): role is string => Boolean(role))
     .map((role) => role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
