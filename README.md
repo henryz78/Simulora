@@ -34,8 +34,10 @@ RE-3/full RE-4 remain not authorized; the smaller RE-2 live comparison was
 subsequently authorized, with actual status below.
 Production adapter/configuration remains unchanged.
 The subsequent [authorized RE-2 live context comparison](docs/implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md)
-is paused after its first dispatch returned provider HTTP 429; no model output or
-world mutation occurred, and no automatic retry was made.
+completed after credential update: nine dispatches including the initial 429,
+eight actual outputs and three explicitly reviewed synthetic Commits. The report
+records promising short continuation, an agency-guard false positive and the
+remaining single-fact/L3 ceiling; no production live switch or IP-7 was started.
 
 ## Development and verification
 

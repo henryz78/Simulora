@@ -22,7 +22,7 @@ const directory = path.join(
 );
 const sessionPath = path.join(directory, "session.json");
 const journalPath = path.join(directory, "evidence.jsonl");
-const requestCap = re2 ? 8 : 16;
+const requestCap = 16; // Historical Spike cap only; RE-2 has no user-imposed dispatch cap.
 const privateSentinel = "SYNTHETIC_PRIVATE_COPPER_7319";
 type Request = Parameters<ActionGenerator>[0];
 type Profile = { key: string; endpoint: string; model: string };
@@ -131,7 +131,7 @@ async function call(profile: Profile, prompt: string, label: string): Promise<un
     !events.some((event) => event.type === "hard_stop"),
     "Prior Spike hard stop requires review",
   );
-  assert(dispatches < requestCap, "Spike request cap reached; stop and review coverage");
+  assert(re2 || dispatches < requestCap, "Spike request cap reached; stop and review coverage");
   assert(
     prompt.length <= 48_000 && !prompt.includes(profile.key) && !prompt.includes(privateSentinel),
     "Unsafe/oversized model context",
@@ -521,7 +521,7 @@ async function main() {
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as { type: string; prompt?: string; content?: string });
-      assert(events.filter((event) => event.type === "dispatch").length <= requestCap);
+      assert(re2 || events.filter((event) => event.type === "dispatch").length <= requestCap);
       assert(
         !events.some(
           (event) =>

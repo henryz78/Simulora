@@ -25,10 +25,15 @@
 独立 PostgreSQL 117/117、desktop/390×844 focused 浏览器 18/18 PASS；主 Agent full 浏览器 54/54 为另份自测证据。
 仍保留单事实 L3 effect envelope，production deterministic adapter 未变，不宣称完整 AI 世界已验证。
 RE-3 routine effects、RE-4 新一轮 live/human validation、IP-7 均未获实施授权，不自动进入。
-用户随后授权最多 8 次 RE-2 隔离 context-only live comparison，见
+用户随后授权 RE-2 隔离 context-only live comparison，见
 `docs/implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md`。已派发 1 次，供应商 HTTP 429；
-无模型输出、无 proposal/Commit，明确取消 pending Action，head 不变。现暂停，剩余 7 次；
-不自动重试或更换模型，待用户更新受忽略的 profile 或确认供应商可用。这不是 full RE-4 授权。
+该次无模型输出、无 proposal/Commit，明确取消 pending Action，head 不变。该暂停为历史；
+用户随后提供新密钥，明确没有 8 次使用上限（八次是 Agent 的实验批次，不是用户限额）；
+本地受忽略 profile 已更新，endpoint/model 不变，RE-2 人为 dispatch cap 移除。
+实验现完成：共 9 次派发（首个 429 + 8 个输出），2 ordinary + 1 correction Commit，
+其余 Actions 明确 cancelled、head/Return 一致。观察到真实对白 agency guard 误拦截和
+单事实/L3 envelope 天花板，原文及最小复现见上述报告；没有放宽 guard 或开始 RE-3/IP-7。
+仍记录次数、达到供应商限制即停，不无限重试、不擅自换模型。这不是 full RE-4 授权。
 后续仅文档 commit 不替换行为审查基线。
 
 ## Long-Term Product Direction

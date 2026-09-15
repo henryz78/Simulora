@@ -47,7 +47,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [RE-1 Independent Review and Closure](implementation-planning/RE-1-INDEPENDENT-REVIEW.md)
 - [RE-2 Authorized Context / Character Selection — Implementation Evidence](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md)
 - [RE-2 Independent Review / Next Reality-Check Proposal](implementation-planning/RE-2-INDEPENDENT-REVIEW.md)
-- [RE-2 Context Reality Check — 1/8 Dispatched, Paused on Provider 429](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md)
+- [RE-2 Context Reality Check — Actual Outputs / Limits / Guard False Positive](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md)
 - [Bounded Runtime Enablement — Proposed Follow-up](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
@@ -187,7 +187,7 @@ RE-1 passed [independent review](implementation-planning/RE-1-INDEPENDENT-REVIEW
 RE-2 is [implemented and locally verified](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md),
 [independent review and exact-SHA CI PASS](implementation-planning/RE-2-INDEPENDENT-REVIEW.md).
 RE-3/full RE-4 and IP-7 are not authorized. The narrower RE-2 live comparison
-was subsequently authorized and is [paused on provider HTTP 429](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md).
+was subsequently authorized and [completed after credential update](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md).
 No automatic roadmap change is authorized. G1–G6 approval
 does not claim real-model quality, universal semantic-language safety or release readiness. Update the
 living handoff and affected navigation at phase/repair/review/CI milestones;

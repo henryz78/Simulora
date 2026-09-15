@@ -53,7 +53,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next input:                        RE-2 live comparison paused on HTTP 429; profile/availability
+Next decision:                     agency false-positive repair / select exact RE-3 contract
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -465,8 +465,8 @@ started/not authorized. No additional live calls were made in RE-2.
 
 ## 17. RE-2 independent closure and proposed reality check
 
-Subsequent user acceptance authorizes the proposed maximum-eight-call isolated
-context comparison only. Current execution/results entry:
+Subsequent user acceptance authorizes the isolated context comparison only; the
+user clarified that eight was an Agent corpus, not a usage limit. Results entry:
 [RE-2 Context Reality Check](RE-2-CONTEXT-REALITY-CHECK.md). The original proposal
 and review below remain historical; RE-3/full RE-4/IP-7 are still not authorized.
 
@@ -495,7 +495,24 @@ changes still receive risk-proportionate adversarial verification.
 
 ## 18. RE-2 context-only live comparison — external availability pause
 
-The user accepted the maximum-eight-dispatch isolated comparison. See
+Latest clarification: user supplied a new credential and rejected an eight-call
+usage cap. That was the main Agent's proposed corpus, not a user/provider quota.
+Ignored profile updated, same endpoint/model; RE-2 runner cap removed. Resuming
+finite useful scenarios, with accounting and no endless retry. Original pause
+below is historical; no RE-3/IP-7 or production provider switch is authorized.
+
+Subsequent completion: nine total dispatches (one 429, eight returned outputs),
+13,819 reported tokens, two ordinary plus one correction Commit, all other Actions
+cancelled, no pending, FRESH Return equals current green fact. Model identity
+matched on successful calls; no private sentinel in requests/outputs. Actual
+two-Character/context contrast and recorded-detail continuation were observed,
+not a human/browser live-play qualification. Tavi's conditional Character speech
+was falsely rejected by existing sentence-wide `you … says` agency regex, with a
+direct minimal probe. No guard disabled/changed. Report preserves all outcomes.
+Next choose narrow repair and RE-3 routine/no-change contract; neither implemented
+here. Eight calls was an Agent corpus, never a user/provider quota.
+
+The user accepted the isolated comparison, without a user dispatch cap. See
 [actual attempt/evidence](RE-2-CONTEXT-REALITY-CHECK.md): one enriched Iora request,
 provider HTTP 429, no text/usage/returned-model evidence, no retry/substitution.
 Its durable pending Action was explicitly cancelled; initial head and Participation
