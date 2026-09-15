@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / LIVE SPIKE EXECUTED / RESULTS AWAITING REVIEW / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / SPIKE EXECUTED / RE-1 REPAIRED, REVIEW PENDING / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -36,16 +36,17 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next execution:                    awaiting decision on bounded runtime follow-up
+Next execution:                    RE-1 review / bounded RE-2–RE-4 scope decision
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
 not green CI or the primary agent's self-tests alone. The full original result
 is retained in the review document linked above.
 
-This handoff update is documentation-only. A later documentation commit is not
-a new reviewed behavior baseline. Git determines the live HEAD/worktree state;
-the hashes and clean-state evidence here describe the approved snapshot.
+The approved snapshot above is distinct from the later isolated Spike and RE-1
+display repair. RE-1 changes production projection/rendering, not authority, and
+is not independently approved yet. Git determines live HEAD/worktree state;
+the hashes and clean-state evidence above describe the approved snapshot.
 
 ## 2. Binding inputs and boundaries
 
@@ -309,7 +310,9 @@ This experiment does not rewrite the approved roadmap or weaken authority
 contracts. Its outcome, not a predetermined PASS, will inform the IP-7 decision.
 The experiment is now complete; see [actual results](PRODUCT_REALITY_SPIKE_REPORT.md).
 One newly verified IMPORTANT Return display issue and runtime ceilings remain;
-they are not silently repaired or covered by the earlier G1–G6 approval counts.
+they are not covered by the earlier G1–G6 approval counts. The user's subsequent
+instruction to continue is applied to the minimal RE-1 display repair and a
+bounded follow-up plan; latest closure/limits are in section 14 below.
 
 Update this living handoff at every phase start/completion, material repair,
 independent Gate decision and CI evidence closure, before calling the work
@@ -329,8 +332,8 @@ BLOCKERS / IMPORTANT / MINOR: 0 / 0 / 0
 IP-7: NOT STARTED
 LIVE MODEL / PRODUCT REALITY SPIKE: EXECUTED / 12 CALLS / REPORT READY
 LIVE PROFILE / QUOTA: USER AUTHORIZED / QUOTA NOT HIT
-NEW SPIKE RETURN DISPLAY ISSUE: 1 IMPORTANT / NOT REPAIRED
-RUNTIME-ENABLEMENT FOLLOW-UP: RECOMMENDED / NOT AUTHORIZED OR STARTED
+NEW SPIKE RETURN DISPLAY ISSUE: RE-1 REPAIRED / INDEPENDENT REVIEW PENDING
+RUNTIME-ENABLEMENT FOLLOW-UP: RE-2–RE-4 PROPOSED / NOT AUTHORIZED OR STARTED
 IP-7 AUTHORIZATION: NOT GIVEN
 PRODUCT RELEASE: NOT STARTED
 ```
@@ -363,4 +366,34 @@ New Spike commit CI is not claimed successful until independently observed.
 Recommendation: approve a bounded source-bound context/Character-selection/
 routine-effect follow-up while retaining L3 protected authority. Do not implement
 the model's shadow schema or change the frozen roadmap without approval. IP-7
-and this follow-up both remain not started pending the user's decision.
+remains not started. This paragraph records the original Spike recommendation;
+the subsequently authorized minimal RE-1 repair is recorded below.
+
+## 14. RE-1 current-situation repair and bounded follow-up
+
+The user's next instruction to continue is applied to the confirmed R1 display
+repair, its tests and planning. Backend Return builder and frontend World/
+Continuity/Return fallback now select an ACTIVE SHARED current fact rather than
+`openThreads[0]`. Stale Return remains bound to its explicitly marked source head;
+Correction history, append-only Restore and the canonical state model are intact.
+No model call, migration, provider switch or Prototype behavior change occurred.
+
+Local closure: format/lint/typecheck/architecture/28-migration checks PASS;
+default tests 55 PASS / 113 PostgreSQL-dependent skips; **explicit real PostgreSQL
+114/114 PASS, 0 skip**; full build (after approved Windows sandbox retry) and
+worker runtime PASS; desktop/390×844 G4 pointer browser **16/16 PASS**; diff check
+PASS. A read-only check of the original retained live Spike database confirms
+current green fact equals its FRESH Return lead. No fresh container/full non-G4
+browser Gate or new-commit CI success is claimed.
+
+See [RE-1 Repair Report](RETURN_CURRENT_SITUATION_REPAIR_REPORT.md) for actual
+validation and coverage limits. This repair is locally verified, not a new
+independently approved G1–G6 behavior SHA. Preserve the historical approved SHA
+and original Spike IMPORTANT evidence rather than silently replacing them.
+
+[Bounded Runtime Enablement Plan](BOUNDED_RUNTIME_ENABLEMENT_PLAN.md) proposes
+RE-2 authorized context/explicit Character selection, RE-3 a reviewed small closed
+routine-effect envelope and RE-4 human/live comparison. Those stages are not
+implemented or authorized; state-meaning changes need successor ADR/rehearsal and
+protected L3 operations keep exact review. Next step is RE-1 review and a bounded
+scope decision, not IP-7, deployment or a production live-provider launch.

@@ -82,6 +82,135 @@ suite("IP-4 Return, Continuity and direct correction against PostgreSQL", () => 
     });
   }
 
+  it.each(["CORRECT_CONTINUITY", "REMOVE_CONTINUITY"] as const)(
+    "derives Return's current situation from source-head facts after %s and later Actions",
+    async (operation) => {
+      const continuity = await createContinuity();
+      const fact = continuity.state.facts[0]!;
+      const statement = "The western signal is steady green.";
+      const correction = await repository.submitCorrection(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: continuity.headCommitId,
+        target: { type: "fact", id: fact.id },
+        operation,
+        before: { statement: fact.statement, scope: fact.scope },
+        ...(operation === "CORRECT_CONTINUITY" ? { after: { statement } } : {}),
+        reason: "The keeper checked the signal directly.",
+      });
+      await confirm(correction);
+      const corrected = await repository.readCurrentState(account, continuity.continuityId);
+      const expectedSituation =
+        operation === "CORRECT_CONTINUITY" ? statement : corrected.state.worldClock.label;
+      const stale = await repository.readOrientation(account, continuity.continuityId);
+      expect(stale.current.situation).toBe(fact.statement);
+      expect(stale.freshness.status).toBe("STALE");
+      expect(stale.freshness.sourceHeadCommitId).toBe(continuity.headCommitId);
+      expect(stale.freshness.currentHeadCommitId).toBe(corrected.headCommitId);
+      expect(
+        (await repository.rebuildReturnOrientation(account, continuity.branchId)).current.situation,
+      ).toBe(expectedSituation);
+
+      // Move the correction outside the bounded ten-Commit Return trace.
+      if (operation === "CORRECT_CONTINUITY") {
+        for (let turn = 0; turn < 11; turn++) {
+          const current = await repository.readCurrentState(account, continuity.continuityId);
+          const action = await repository.submitAction(account, continuity.branchId, {
+            schemaVersion: 1,
+            idempotencyKey: randomUUID(),
+            expectedHeadCommitId: current.headCommitId,
+            participationExpectation: current.state.participation,
+            intent: "Inspect the steady green signal.",
+          });
+          const proposed = await repository.processAction(
+            action.id,
+            (request) => {
+              const narrative = "The world shows the signal holding steady green.";
+              const responseSource = request.character
+                ? ({ type: "CHARACTER", characterId: request.character.id } as const)
+                : ({ type: "WORLD" } as const);
+              return Promise.resolve({
+                narrative,
+                responseSource,
+                candidate: {
+                  schemaVersion: 1,
+                  actionId: request.actionId,
+                  expectedHeadCommitId: request.expectedHeadCommitId,
+                  narrative,
+                  responseSource,
+                  operation: {
+                    type: "UPDATE_CANONICAL_FACT",
+                    targetFactId: request.targetFact.id,
+                    beforeStatement: request.targetFact.statement,
+                    afterStatement: statement,
+                    scope: request.targetFact.scope,
+                    provenance: `Confirmed Action ${request.actionId}`,
+                  },
+                },
+              });
+            },
+            `return-worker-${randomUUID()}`,
+          );
+          if (!proposed?.proposal)
+            throw new Error(`Expected a provisional inspection: ${proposed?.statusReason}`);
+          expect(
+            (await repository.readCurrentState(account, continuity.continuityId)).headCommitId,
+          ).toBe(current.headCommitId);
+          expect(
+            (await repository.readOrientation(account, continuity.continuityId)).current.situation,
+          ).toBe(statement);
+          await confirm(proposed);
+        }
+      }
+      const rebuilt = await repository.rebuildReturnOrientation(account, continuity.branchId);
+      const current = await repository.readCurrentState(account, continuity.continuityId);
+      expect(rebuilt.current.situation).toBe(expectedSituation);
+      expect(rebuilt.freshness).toMatchObject({
+        status: "FRESH",
+        sourceHeadCommitId: current.headCommitId,
+        currentHeadCommitId: current.headCommitId,
+      });
+      expect(
+        (await repository.readOrientation(account, continuity.continuityId)).current.situation,
+      ).toBe(expectedSituation);
+      expect(current.state.openThreads[0]).toBe(continuity.state.openThreads[0]);
+      const restore = await repository.prepareRestore(
+        account,
+        continuity.branchId,
+        continuity.headCommitId,
+      );
+      await repository.confirmRestore(account, continuity.branchId, {
+        proposalId: restore.id,
+        digest: restore.digest,
+        expectedHeadCommitId: restore.expectedHeadCommitId,
+      });
+      const restored = await repository.rebuildReturnOrientation(account, continuity.branchId);
+      expect(restored.current.situation).toBe(fact.statement);
+      expect(restored.freshness.sourceHeadCommitId).not.toBe(continuity.headCommitId);
+    },
+  );
+
+  it("does not promote a private fact into the shared current-situation lead", async () => {
+    const continuity = await createContinuity({
+      ...lanternReachSeed,
+      facts: [
+        {
+          id: "fact.private-return",
+          statement: "A private note stays outside the shared lead.",
+          scope: "ACCOUNT_PRIVATE",
+          provenance: "Synthetic private fixture",
+          lifecycle: "ACTIVE",
+        },
+        ...lanternReachSeed.facts,
+      ],
+    });
+    const orientation = await repository.rebuildReturnOrientation(account, continuity.branchId);
+    expect(orientation.current.situation).toBe(lanternReachSeed.facts[0]!.statement);
+    expect(
+      (await repository.readOrientation(account, continuity.continuityId)).current.situation,
+    ).toBe(orientation.current.situation);
+  });
+
   it.each([
     { operation: "CORRECT_CONTINUITY" as const, fail: false },
     { operation: "REMOVE_CONTINUITY" as const, fail: false },

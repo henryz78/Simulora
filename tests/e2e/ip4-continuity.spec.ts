@@ -19,6 +19,7 @@ type ActionFixture = Record<string, unknown> & {
 };
 
 type RouteOptions = {
+  state?: Record<string, unknown>;
   history?: Array<Record<string, unknown>>;
   actions?: Map<string, ActionFixture>;
   orientation?: Record<string, unknown>;
@@ -273,7 +274,7 @@ async function installRoutes(page: Page, options: RouteOptions = {}): Promise<vo
   const history = options.history ?? [];
   const actions = options.actions ?? new Map<string, ActionFixture>();
   await page.route(`**/v1/continuities/${continuityId}/state**`, (route) =>
-    json(route, worldResponse()),
+    json(route, options.state ?? worldResponse()),
   );
   await page.route(`**/v1/branches/${branchId}/actions**`, (route) =>
     json(route, { branchId, actions: history }),
@@ -347,6 +348,41 @@ async function installCountingEventSource(page: Page): Promise<void> {
     (window as unknown as { EventSource: unknown }).EventSource = CountingEventSource;
   });
 }
+
+test("World, Continuity and Return fallback use current shared facts, not earlier threads", async ({
+  page,
+}) => {
+  const statement = "The western signal is steady green.";
+  const state = worldResponse(statement);
+  const document = state.state as Record<string, unknown>;
+  document.openThreads = ["The western signal has dimmed."];
+  document.facts = [
+    {
+      id: "fact.private",
+      statement: "Private lead must stay private.",
+      scope: "ACCOUNT_PRIVATE",
+      lifecycle: "ACTIVE",
+    },
+    {
+      id: "fact.removed",
+      statement: "A removed signal fact.",
+      scope: "SHARED",
+      lifecycle: "REMOVED",
+    },
+    { id: factId, statement, scope: "SHARED", lifecycle: "ACTIVE" },
+  ];
+  await installRoutes(page, { state, orientation: missingProjectionResponse() });
+  await page.goto(`/continuities/${continuityId}`);
+  await expect(page.locator(".situation-card")).toContainText(statement);
+  await expect(page.locator(".situation-card")).not.toContainText("Private lead");
+  await expect(page.locator(".starting-background")).toContainText("has dimmed");
+  await page.getByRole("link", { name: "Continuity", exact: true }).click();
+  await expect(page.getByRole("region", { name: "What currently holds" })).toContainText(statement);
+  await page.getByRole("link", { name: "Return", exact: true }).click();
+  await expect(page.locator(".orientation-lead")).toHaveText(statement);
+  await page.getByRole("link", { name: "Continue in world" }).click();
+  await expect(page.locator(".situation-card")).toContainText(statement);
+});
 
 test("Return surfaces bounded freshness and falls back to the authoritative World", async ({
   page,

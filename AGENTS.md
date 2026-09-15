@@ -14,7 +14,10 @@
 `docs/implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md`；使用本地受忽略的
 `.secret.txt` profile，达到供应商限额即停下联系用户。不能擅自放开 production 入口或冻结契约。
 该实验已完成 12 次真实调用，结果见 `docs/implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md`。
-新发现的 Return 展示问题与 runtime ceiling 未自动修复；下一步等待用户审批 bounded follow-up，不进入 IP-7。
+用户随后要求继续：已执行最小 RE-1 Return/current-situation 修复，报告见
+`docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md`；待独立复核，不替换已批准行为基线。
+其余 context/Character/routine-effect follow-up 仅形成
+`docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md`，尚未获实施授权；不进入 IP-7。
 后续仅文档 commit 不替换行为审查基线。
 
 下方 Research Status 中的实现状态是研究封版时的历史边界，不是当前开发状态；

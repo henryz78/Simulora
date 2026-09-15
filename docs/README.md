@@ -42,6 +42,8 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [G1–G6 Consolidated Repair Report](implementation-planning/G1-G6-CONSOLIDATED-REPAIR-REPORT.md)
 - [Bounded Product Reality Spike Plan](implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md)
 - [Product Reality Spike — Actual Results](implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md)
+- [Return Current Situation — RE-1 Repair](implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
+- [Bounded Runtime Enablement — Proposed Follow-up](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
 - [Parity matrix](research/worldos/04_WORLDOS_PARITY_MATRIX.md)
@@ -172,8 +174,12 @@ IP-7 remains unauthorized/not started. The user has authorized bounded Spike
 execution with a local compatible API profile; stop at provider quota. See the
 [Spike Plan](implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md) and
 [Actual Results](implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md). The
-experiment recommends a bounded runtime-enablement follow-up; no automatic
-implementation/route change is authorized. G1–G6 approval
+experiment recommends a bounded runtime-enablement follow-up. The user's next
+instruction to continue is applied to the confirmed
+[RE-1 display repair](implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
+and a [bounded follow-up plan](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md).
+RE-1 is implemented pending review; broader RE-2–RE-4 work is not authorized.
+No automatic roadmap change is authorized. G1–G6 approval
 does not claim real-model quality, universal semantic-language safety or release readiness. Update the
 living handoff and affected navigation at phase/repair/review/CI milestones;
 preserve frozen and historical source records.

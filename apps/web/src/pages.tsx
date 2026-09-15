@@ -1749,7 +1749,13 @@ export function CorrectionReviewPage(): ReactElement {
 }
 
 function currentSituation(data: AuthoritativeStateResponse): string {
-  return data.state.openThreads[0] ?? data.state.worldClock.label;
+  // Match the Return projection: historical thread text is not the current lead.
+  return (
+    data.state.facts
+      .filter(isCurrentFactValue)
+      .map(currentFact)
+      .find((fact) => fact?.scope === "SHARED")?.statement ?? data.state.worldClock.label
+  );
 }
 
 type CurrentFact = {

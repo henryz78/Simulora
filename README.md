@@ -18,8 +18,11 @@ and production deployment have not started. A
 [bounded Product Reality Spike](docs/implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md)
 has completed 12 isolated live calls using the user's local compatible API profile.
 The [actual results](docs/implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md)
-identify runtime limitations and one new Return display issue; a bounded follow-up
-is recommended but not started. Production adapter/configuration remains unchanged.
+identify runtime limitations and one new Return display issue. The minimal
+[RE-1 display repair](docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
+is implemented, pending independent review; the remaining
+[bounded runtime follow-up](docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
+is proposed, not authorized. Production adapter/configuration remains unchanged.
 
 ## Development and verification
 

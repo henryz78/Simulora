@@ -479,7 +479,11 @@ function orientationPayload(
   const payload: OrientationResponse = {
     continuity: { id: continuityId, branchId, worldRevisionId },
     current: {
-      situation: state.openThreads[0] ?? state.worldClock.label,
+      // ponytail: one source-head shared fact, not a complete scene summary;
+      // structured current threads can replace this lead when the runtime supports them.
+      situation:
+        state.facts.find((fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED")
+          ?.statement ?? state.worldClock.label,
       locationId: state.locations[0]?.id ?? null,
       worldClock: state.worldClock,
     },
@@ -506,15 +510,6 @@ function orientationPayload(
     },
     projectionUpdatedAt: updatedAt,
   };
-  const latestEventType = commits[0]?.events[0]?.type;
-  if (
-    latestEventType === "CONTINUITY_ITEM_CORRECTED" ||
-    latestEventType === "CONTINUITY_ITEM_REMOVED"
-  ) {
-    // Old open-thread wording remains history, not the current canonical update.
-    payload.current.situation =
-      "The continuity is at its current branch head after a recorded canonical update.";
-  }
   payload.recentChanges = commits
     .filter((commit) => commit.kind !== "CONTINUITY_INITIALIZED")
     .flatMap((commit) =>
