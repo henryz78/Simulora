@@ -1,11 +1,24 @@
 # Bounded Runtime Enablement — Proposed Follow-up
 
-**State:** `RE-1 IMPLEMENTED / RE-2–RE-4 PROPOSED, NOT AUTHORIZED`.
+**State:** `RE-1 APPROVED / RE-2 AUTHORIZED, IN PROGRESS / RE-3–RE-4 PROPOSED, NOT AUTHORIZED`.
 
 This is a bounded follow-up to the [actual Product Reality Spike](PRODUCT_REALITY_SPIKE_REPORT.md),
 not IP-7, a replacement roadmap, or a waiver of frozen Product/System/Experience.
 The user's subsequent instruction to continue is applied to the confirmed Return
-repair and this planning step. Broader context/effect changes wait for review.
+repair and this planning step. After independent RE-1 PASS, the user instructed
+the agent to begin the recommended documentation closure and RE-2. That now
+authorizes section RE-2 only; broader effects/live execution still wait for review.
+
+### Long-term direction guardrail
+
+The user's [explicit final product goal](PRODUCT_DIRECTION_GUARDRAILS.md) is an AI
+World that can be continued over time, with both world-director shaping and
+in-world role participation where the user controls only themselves. This is not
+ordinary chat or a single-fact editor. RE-2/RE-3 and later reality checks must move
+toward distinct Characters, meaningful world effects and causal continuity, not
+normalize today's narrow envelope as the final product. The goal does not grant
+new implementation scope, collapse participation axes, authorize off-session
+mutation or weaken Revision/Continuity and L3 authority boundaries.
 
 ## 1. Decision from actual evidence
 
@@ -45,7 +58,7 @@ Self-test closure does not grant independent approval of a new behavior SHA.
 
 ### RE-2 — Authorized fixed-head context and explicit Character selection
 
-Proposed scope, before writing code:
+Authorized scope (user instruction following the RE-1 result and next-step sequence):
 
 1. Bind an optional explicit Character target to the ordinary Action request,
    request digest, idempotency identity and expected head. A model cannot choose

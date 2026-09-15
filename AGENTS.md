@@ -15,10 +15,24 @@
 `.secret.txt` profile，达到供应商限额即停下联系用户。不能擅自放开 production 入口或冻结契约。
 该实验已完成 12 次真实调用，结果见 `docs/implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md`。
 用户随后要求继续：已执行最小 RE-1 Return/current-situation 修复，报告见
-`docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md`；待独立复核，不替换已批准行为基线。
-其余 context/Character/routine-effect follow-up 仅形成
-`docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md`，尚未获实施授权；不进入 IP-7。
+`docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md`；独立 RE-1 Review PASS，
+审查行为基线 `7d668daa64f1b579eec0196c16f2500f255169ab`，原结果见
+`docs/implementation-planning/RE-1-INDEPENDENT-REVIEW.md`，不宣称完整 runtime 已获批准。
+用户已授权文档收尾及 RE-2 authorized context / explicit Character selection，实施中；
+范围见 `docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md`。
+RE-3 routine effects、RE-4 新一轮 live/human validation、IP-7 均未获实施授权，不自动进入。
 后续仅文档 commit 不替换行为审查基线。
+
+## Long-Term Product Direction
+
+用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：
+Simulora 是可长期继续的 AI 世界，不是普通 chat、状态管理系统或单事实修改器。
+须保留世界导演/控制者塑造世界与用户进入角色、只控制自己的两种体验视角；
+其他角色和世界依据连续状态自然回应，仍遵守冻结 participation / authority。
+后续 RE-2/RE-3、Reality validation 和未来 IP-7 必须检查多角色、丰富世界变化、
+因果连续性和长期可玩性；当前 first-fact/first-Character/single-rewrite 只是实现天花板，
+不得默认为最终产品范围。发现路线收窄须主动指出。该目标不改写冻结契约、不授权
+离线自动推进、模型越权或新阶段实施；WorldOS 仍只是研究参考，不复制其表达。
 
 下方 Research Status 中的实现状态是研究封版时的历史边界，不是当前开发状态；
 不要用冻结研究交接或旧 Gate 文档中的 `NOT STARTED` / `PENDING` 推翻最新独立结论。

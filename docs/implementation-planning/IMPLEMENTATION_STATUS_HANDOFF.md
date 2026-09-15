@@ -1,12 +1,26 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / SPIKE EXECUTED / RE-1 REPAIRED, REVIEW PENDING / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 AUTHORIZED, IN PROGRESS / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
 **Snapshot date:** `2026-09-15`.
 
 **Current independent decision:** [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
+
+**Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
+behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
+Same-SHA CI `34990847673` succeeded. The independent local PG run was 113/114,
+not wholly green; its upgrade-test observation is preserved in the original result.
+RE-2 is subsequently authorized, not independently approved or complete.
+
+**Final product direction:** [User goal and direction guardrails](PRODUCT_DIRECTION_GUARDRAILS.md).
+Simulora must remain a long-lived playable AI World: world-director shaping and
+in-world role participation with user agency, independent Characters and causal
+continuity. Today's first-fact/first-Character/single-rewrite envelope is a known
+implementation ceiling, not the final scope. Future RE-2/RE-3, reality checks and
+IP-7 must explicitly test against that goal. This clarification changes no frozen
+contract, reviewed behavior baseline or next-phase authorization.
 
 ## 1. Executive status
 
@@ -36,7 +50,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next execution:                    RE-1 review / bounded RE-2–RE-4 scope decision
+Next execution:                    RE-2 authorized context / explicit Character selection
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -45,7 +59,8 @@ is retained in the review document linked above.
 
 The approved snapshot above is distinct from the later isolated Spike and RE-1
 display repair. RE-1 changes production projection/rendering, not authority, and
-is not independently approved yet. Git determines live HEAD/worktree state;
+now has focused independent approval at `7d668daa`. RE-2 remains in progress.
+Git determines live HEAD/worktree state;
 the hashes and clean-state evidence above describe the approved snapshot.
 
 ## 2. Binding inputs and boundaries
@@ -332,8 +347,8 @@ BLOCKERS / IMPORTANT / MINOR: 0 / 0 / 0
 IP-7: NOT STARTED
 LIVE MODEL / PRODUCT REALITY SPIKE: EXECUTED / 12 CALLS / REPORT READY
 LIVE PROFILE / QUOTA: USER AUTHORIZED / QUOTA NOT HIT
-NEW SPIKE RETURN DISPLAY ISSUE: RE-1 REPAIRED / INDEPENDENT REVIEW PENDING
-RUNTIME-ENABLEMENT FOLLOW-UP: RE-2–RE-4 PROPOSED / NOT AUTHORIZED OR STARTED
+NEW SPIKE RETURN DISPLAY ISSUE: RE-1 APPROVED AT 7d668daa
+RUNTIME-ENABLEMENT FOLLOW-UP: RE-2 AUTHORIZED / RE-3–RE-4 NOT AUTHORIZED
 IP-7 AUTHORIZATION: NOT GIVEN
 PRODUCT RELEASE: NOT STARTED
 ```
@@ -397,3 +412,18 @@ routine-effect envelope and RE-4 human/live comparison. Those stages are not
 implemented or authorized; state-meaning changes need successor ADR/rehearsal and
 protected L3 operations keep exact review. Next step is RE-1 review and a bounded
 scope decision, not IP-7, deployment or a production live-provider launch.
+
+## 15. RE-1 closure and RE-2 authorization
+
+The independent RE-1 Review passed and the user accepted its conclusion. Original
+findings, exact-SHA CI and the local upgrade-test failure qualification are retained
+in [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md). Direction guardrails are
+now recorded and linked above; this documentation closure changes no behavior.
+
+The user's subsequent instruction to begin authorizes RE-2 only: explicit
+Character selection bound to durable Action identity and fixed-head authorized
+World/current-state/history context through the existing worker seam. Preserve
+ordinary Action lifecycle, closed L3 validation, exact confirmation, privacy,
+Participation independence and Recovery invariants. No new live calls, arbitrary
+effects, L2 adoption, unattended mutation or production provider entrypoint.
+RE-3/RE-4 and IP-7 are not authorized. RE-2 validation/review remain pending.

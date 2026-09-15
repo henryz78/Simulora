@@ -4,6 +4,12 @@ Simulora's frozen Research, Product, System Design and Experience evidence lives
 
 ## Current production status
 
+The [final product goal](docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
+is a long-lived playable AI World, supporting world-director shaping and in-world
+role participation with independent Characters and preserved user agency—not
+ordinary chat or a single-fact editor. Current runtime limits are intermediate,
+not the final product scope; frozen authority contracts remain binding.
+
 IP-1–IP-6 are implemented and approved by the final independent G1–G6 / Integrated
 Review at behavior baseline `eb55734f258fc9be6f4837df888700e34eaa67e2`.
 The [current implementation handoff](docs/implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md)
@@ -20,9 +26,10 @@ has completed 12 isolated live calls using the user's local compatible API profi
 The [actual results](docs/implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md)
 identify runtime limitations and one new Return display issue. The minimal
 [RE-1 display repair](docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
-is implemented, pending independent review; the remaining
+passed [independent review](docs/implementation-planning/RE-1-INDEPENDENT-REVIEW.md); the
 [bounded runtime follow-up](docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
-is proposed, not authorized. Production adapter/configuration remains unchanged.
+now has RE-2 authorized and in progress; RE-3–RE-4 remain proposed, not authorized.
+Production adapter/configuration remains unchanged.
 
 ## Development and verification
 

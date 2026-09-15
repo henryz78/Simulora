@@ -1,6 +1,10 @@
 # Return Current Situation — RE-1 Repair
 
-**State:** `IMPLEMENTED / LOCAL VALIDATION PASS / INDEPENDENT REVIEW PENDING`.
+**State:** `IMPLEMENTED / INDEPENDENT REVIEW PASS / USER ACCEPTED`.
+
+Focused review at `7d668daa64f1b579eec0196c16f2500f255169ab`: [original result and
+coverage qualifications](RE-1-INDEPENDENT-REVIEW.md). Historical local evidence
+below is retained; no full-runtime qualification is implied.
 
 ## Evidence and cause
 
