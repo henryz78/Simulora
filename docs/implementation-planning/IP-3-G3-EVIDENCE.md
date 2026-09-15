@@ -1,5 +1,10 @@
 # IP-3 / Gate G3 Evidence — Action Truth
 
+Historical slice evidence: earlier FAIL/pending states below are retained, not
+current Gate decisions. G1–G6 are PASS on `eb55734`; see
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md) and
+[Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md).
+
 **Status:** `G3 REVIEW FAILED ON 9a3c711f — FOCUSED REPAIR AWAITING CI AND INDEPENDENT RE-REVIEW`
 
 **Scope:** This slice implements the server-side Action Truth vertical path only. IP-4 Return/Continuity/Correction, Recovery, Character autonomy, World Studio, live model providers and formal deployment remain out of scope.

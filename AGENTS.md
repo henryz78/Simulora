@@ -4,6 +4,17 @@
 
 仓库文档总导航见 `docs/README.md`；主研究会话最终交接见 `docs/coordination/FINAL_MAIN_AGENT_HANDOFF.md`；历史迁移与路径例外见 `docs/REORGANIZATION_MANIFEST.md`。
 
+## Current Implementation Navigation
+
+当前生产实现状态以 `docs/implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md`
+为入口；最新独立结论见 `docs/implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md`。
+已批准行为基线为 `eb55734f258fc9be6f4837df888700e34eaa67e2`：IP-1～IP-6
+已完成，G1～G6 Final / Integrated Review 已通过。IP-7 和 Live Model / Product
+Reality Spike 尚未开始，必须等待用户另行授权。后续仅文档 commit 不替换行为审查基线。
+
+下方 Research Status 中的实现状态是研究封版时的历史边界，不是当前开发状态；
+不要用冻结研究交接或旧 Gate 文档中的 `NOT STARTED` / `PENDING` 推翻最新独立结论。
+
 ## Repository Layout
 
 - `docs/research/worldos/` — 已冻结的主 WorldOS 黑盒研究与系统级证据。
@@ -21,7 +32,7 @@
 - WorldOS product-level black-box research: `STOP`。
 - Original Product Definition V1: `FROZEN`。
 - Original System Design V1: `FROZEN`; Architecture Audit: `PASSED`。
-- Original product implementation: `NOT STARTED`。
+- Original product implementation at research freeze: `NOT STARTED`；当前状态见上方实现交接。
 - 研究封版基线：70 个 Feature ID、64 个 Parity Test、47 个 Open Question、251 条主证据（截至 `EVD-0251`）、30 个页面/嵌套控件面、37 条跨系统关系。
 - `UNKNOWN`、`BLOCKED`、`NOT_DISCOVERABLE_IN_NORMAL_UI` 和已确认 defect/quirk 仍然存在；它们已被明确归档，不阻塞研究封版。
 - 不要自行恢复全站黑盒调查。只有当某个未决问题真正影响已批准的原创设计时，才进行范围明确的 targeted validation。
@@ -166,6 +177,8 @@ Owner、logged-in non-owner 和 Guest 的控件与结果不同。Public、link-v
 6. 实现测试以原创产品规格为准；Parity Test Suite 是研究输入，不是自动覆盖原创决策的最终验收标准。
 7. 不要为“看起来像 WorldOS”牺牲数据一致性、隐私、安全、可访问性或原创性。
 8. 不要在研究文档中记录真实 API Key、支付信息或其他秘密；不要执行真实付款、权限绕过或隐藏接口探测。
+9. 文档同步是阶段完成条件：阶段开始/完成、重要修复、独立 Gate 决定和 CI evidence 收尾时，必须同步 `IMPLEMENTATION_STATUS_HANDOFF.md` 及受影响的 README/导航；长任务在 scope、blocker 或批准基线发生实质变化时更新。交付前核对实现范围、Gate 状态、行为 baseline、CI SHA/结果和下一阶段授权是否一致，不能只口头宣布完成。
+10. 历史 Audit/Gate FAIL、repair 和原始 Reviewer 结果必须保留；旧文档加最新结论入口而非改写历史。已冻结的 Research/Product/System/Experience 不用于维护开发状态。后续 Gate 追加独立 evidence/closure，行为 commit 与 documentation-only commit 必须明确区分。
 
 ## Quick Start for a New Agent
 

@@ -212,3 +212,30 @@ Status: repair candidate, **not independently approved**. Required next step is
 focused verification of the complete batch, followed by G1–G6 integrated
 review on one fixed commit and its real CI evidence. No IP-7, Live Model Spike,
 new production feature, or frozen Prototype behavior change is included.
+
+## Independent closure — 2026-09-15
+
+The candidate status above is the historical pre-review state, not the current
+disposition. The same independent Reviewer completed fixed-baseline focused
+verification and integrated G1–G6 review on
+`eb55734f258fc9be6f4837df888700e34eaa67e2`:
+
+- **G1–G6: PASS; Integrated G1–G6: APPROVED.**
+- **0 BLOCKER / 0 IMPORTANT / 0 MINOR.**
+- Independent fresh real PostgreSQL: **111/111 PASS, 0 skip**; PGlite migration
+  contracts: **3/3 PASS**. Exact predecessor `0026` checksum compatibility and
+  arbitrary-checksum refusal were independently exercised.
+- [Exact-commit CI run 34981973475](https://github.com/henryz78/Simulora/actions/runs/34981973475):
+  Ubuntu migration, quality/build/runtime, real PostgreSQL, API/worker container
+  smoke and desktop / 390×844 E2E all succeeded.
+
+The [complete independent report](G1-G6-FINAL-INTEGRATED-REVIEW.md) retains the
+original report and coverage limits. The
+[current implementation handoff](IMPLEMENTATION_STATUS_HANDOFF.md) records the
+approved behavior baseline separately from subsequent documentation commits.
+
+The known in-scope findings are closed. Bounded textual guard coverage is not a
+claim of universal model semantics or release readiness. IP-7 and the proposed
+Live Model / Product Reality Spike remain **not started** and require separate
+user authorization. No frozen Product/System/Experience or Prototype behavior
+is modified by this documentation closure.

@@ -1,5 +1,11 @@
 # Simulora Implementation Planning Handoff
 
+This is the historical planning-approval handoff, not the live implementation
+status. IP-1–IP-6 are now complete and independently approved on `eb55734`;
+see [Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md) and
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
+The original planning boundary below remains unchanged.
+
 **Status:** `IMPLEMENTATION PLANNING: COMPLETE / APPROVED`
 
 **Date:** `2026-08-29` (`Asia/Shanghai`)

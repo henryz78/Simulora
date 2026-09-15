@@ -1,5 +1,10 @@
 # IP-5 / Gate G5 Evidence — Non-destructive Recovery
 
+Historical slice evidence: earlier pending/review-candidate states below are
+retained, not current Gate decisions. G1–G6 are PASS on `eb55734`; see
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md) and
+[Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md).
+
 Status: `IP-5 IMPLEMENTATION COMPLETE / GATE G5 RE-REVIEW CANDIDATE / INDEPENDENT RE-REVIEW REQUIRED`.
 
 The original production candidate was `a988051637fc15ab8cc29ad67c1e9ee0db55f967`. Independent review returned `PASS WITH ISSUES` (`0 BLOCKER / 3 IMPORTANT / 1 MINOR`) and did not approve G5. The focused repair candidate is `f1ae65e2bae457afeba8544b4dae345dd3089ce5`. This record does not approve G5 or authorize IP-6. The frozen Product, System and Experience documents and `prototypes/simulora-experience/` were not modified.

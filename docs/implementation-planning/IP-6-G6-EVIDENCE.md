@@ -1,5 +1,10 @@
 # IP-6 / Gate G6 Evidence — Participation and Character Authority
 
+Historical slice evidence: earlier review-candidate states below are retained,
+not current Gate decisions. G1–G6 are PASS on `eb55734`; see
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md) and
+[Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md).
+
 Status: `IP-6 IMPLEMENTATION COMPLETE / GATE G6 REVIEW CANDIDATE / INDEPENDENT REVIEW REQUIRED`.
 
 Production implementation baseline: `4e682f7732e514b74062c32f512f9f2ed1522e29`.

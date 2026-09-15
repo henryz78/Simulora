@@ -1,5 +1,10 @@
 # IP-2 Gate G2 Evidence — Authoritative World and Continuity Spine
 
+Historical slice evidence: the states and deferrals below describe their original
+baselines, not current production scope. G1–G6 are PASS on `eb55734`; see
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md) and
+[Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md).
+
 **Status:** `IP-2 IMPLEMENTATION: COMPLETE / GATE G2: READY FOR REVIEW`
 
 **Evidence commit:** recorded with the implementation commit that accompanies this report.

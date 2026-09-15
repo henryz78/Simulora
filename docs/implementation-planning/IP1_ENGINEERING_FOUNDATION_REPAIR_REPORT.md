@@ -1,5 +1,10 @@
 # IP-1 Engineering Foundation Repair Report
 
+Historical slice evidence: the pending states below describe their original
+baselines. Current G1–G6 decisions are PASS on `eb55734`; see
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md) and
+[Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md).
+
 **Status:** `G1 REPAIR COMPLETE — READY FOR INDEPENDENT REVIEW`
 
 **Repair baseline:** `5463e47eb552972978071812c444045d01a15c12`

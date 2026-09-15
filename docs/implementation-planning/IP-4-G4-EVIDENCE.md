@@ -1,5 +1,10 @@
 # IP-4 / Gate G4 Evidence — Return, Continuity and Correction
 
+Historical slice evidence: the states and scope below describe their original
+baselines. G1–G6 are independently reaffirmed PASS on `eb55734`; see
+[Final Independent / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md) and
+[Current Implementation Handoff](IMPLEMENTATION_STATUS_HANDOFF.md).
+
 Status: `IP-4 IMPLEMENTATION: COMPLETE / GATE G4: PASSED`.
 
 This document records the production IP-4 vertical slice. It does not modify the frozen Prototype or approve IP-5. The scope and acceptance map are in [Execution Plan](IP-4-EXECUTION-PLAN.md) and [Test Matrix](IP-4-G4-TEST-MATRIX.md).

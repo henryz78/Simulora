@@ -37,6 +37,9 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Implementation Roadmap and Work Breakdown](implementation-planning/ROADMAP_AND_WORK_BREAKDOWN.md)
 - [Implementation Planning Consistency Audit](implementation-planning/IMPLEMENTATION_PLANNING_CONSISTENCY_AUDIT.md)
 - [Implementation Planning Handoff](implementation-planning/IMPLEMENTATION_PLANNING_HANDOFF.md)
+- [Current Implementation Status Handoff](implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md)
+- [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)
+- [G1–G6 Consolidated Repair Report](implementation-planning/G1-G6-CONSOLIDATED-REPAIR-REPORT.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
 - [Parity matrix](research/worldos/04_WORLDOS_PARITY_MATRIX.md)
@@ -109,7 +112,10 @@ External evidence keeps its original provenance and limitations. It becomes part
 
 The six completed external packages supplied on 2026-08-26 are integrated—not copied or replaced—through [research/integration](research/integration/). This layer distinguishes user evidence from competitor observation, mechanism/content references, production resources, feasibility research and frozen brand exploration.
 
-`INTEGRATED RESEARCH V1: FROZEN`; `PRODUCT IMPLEMENTATION: NOT STARTED`; `FINAL BRAND: NOT DECIDED`.
+Historical integration-freeze snapshot: `INTEGRATED RESEARCH V1: FROZEN`;
+`PRODUCT IMPLEMENTATION AT THAT FREEZE: NOT STARTED`; `FINAL BRAND: NOT DECIDED`.
+Current production scope is recorded in the implementation handoff, not changed
+retroactively in the frozen research package.
 
 Start with the [final integration handoff](research/integration/FINAL_INTEGRATION_HANDOFF.md). Routine reading should use the extracted package directories above. Original ZIPs remain unchanged in [archive/source-packages](archive/source-packages/README.md) and are identified by hash in the [freeze manifest](research/integration/RESEARCH_FREEZE_MANIFEST.md).
 
@@ -117,7 +123,9 @@ Start with the [final integration handoff](research/integration/FINAL_INTEGRATIO
 
 The original Product Definition is frozen in [product](product/), with the current gate recorded in the [Product Definition Handoff](product/PRODUCT_DEFINITION_HANDOFF.md). The approved original architecture is frozen separately in [system-design](system-design/); begin with the [System Design Handoff](system-design/SYSTEM_DESIGN_HANDOFF.md).
 
-`SYSTEM DESIGN V1: FROZEN`; `ARCHITECTURE AUDIT: PASSED`; `READY FOR EXPERIENCE DESIGN / PROTOTYPE: YES`; `PRODUCT IMPLEMENTATION: NOT STARTED`.
+Historical System Design freeze snapshot: `SYSTEM DESIGN V1: FROZEN`;
+`ARCHITECTURE AUDIT: PASSED`; `READY FOR EXPERIENCE DESIGN / PROTOTYPE: YES`;
+`PRODUCT IMPLEMENTATION AT THAT FREEZE: NOT STARTED`.
 
 The Product Definition handoff retains its historical “Architecture not started” phase-gate text. Current architecture status is authoritative in the System Design Handoff; the frozen Product Definition record is not rewritten retroactively.
 
@@ -127,23 +135,41 @@ The approved end-to-end Experience is frozen at implementation baseline `877f4d5
 
 Begin the frozen handoff at [Experience Freeze Handoff](deliverables/experience-structure/EXPERIENCE_FREEZE_HANDOFF.md).
 
-`EXPERIENCE: FROZEN`; `IMPLEMENTATION PLANNING: COMPLETE / APPROVED`; `PRODUCT IMPLEMENTATION: IP-1 ONLY`.
+`EXPERIENCE: FROZEN`; `IMPLEMENTATION PLANNING: COMPLETE / APPROVED`;
+`PRODUCT IMPLEMENTATION: IP-1–IP-6 COMPLETE / FINAL REVIEW APPROVED`.
 
 ## Implementation Planning
 
 The first production implementation plan is in [implementation-planning](implementation-planning/). Start with the [Implementation Planning Handoff](implementation-planning/IMPLEMENTATION_PLANNING_HANDOFF.md), then read the [Implementation Plan](implementation-planning/IMPLEMENTATION_PLAN.md), [Roadmap / Work Breakdown](implementation-planning/ROADMAP_AND_WORK_BREAKDOWN.md) and [Consistency Audit](implementation-planning/IMPLEMENTATION_PLANNING_CONSISTENCY_AUDIT.md).
 
-`IMPLEMENTATION PLANNING: COMPLETE / APPROVED`; `PRODUCT IMPLEMENTATION: IP-1 ONLY`.
+`IMPLEMENTATION PLANNING: COMPLETE / APPROVED`; implementation status is maintained
+in the [current handoff](implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md).
+The approved plan/roadmap and historical planning handoff are not live Gate ledgers.
 
 ## Product Implementation
 
-Product implementation is authorized only through IP-1 Engineering Foundation. The production pnpm workspace is separate from the frozen Prototype and currently contains no World, Continuity or Action semantics.
+IP-1–IP-6 are implemented. Final independent verification and Integrated G1–G6
+Review approved behavior baseline `eb55734f258fc9be6f4837df888700e34eaa67e2`
+with `0 BLOCKER / 0 IMPORTANT / 0 MINOR`. The production pnpm workspace remains
+separate from the frozen Prototype and uses one PostgreSQL authoritative spine.
 
-Start with the [IP-1 Engineering Foundation Report](implementation-planning/IP1_ENGINEERING_FOUNDATION_REPORT.md).
+Start with the [current implementation handoff](implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md)
+and [complete final independent report](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md).
+The [consolidated repair report](implementation-planning/G1-G6-CONSOLIDATED-REPAIR-REPORT.md)
+retains the original failures, follow-up findings, repairs and final closure.
 
-The focused repair is recorded in [IP-1 Engineering Foundation Repair Report](implementation-planning/IP1_ENGINEERING_FOUNDATION_REPAIR_REPORT.md).
+Original IP-1–IP-6 reports remain dated evidence; their earlier failed/pending
+statuses are historical, not current Gate decisions. The approved behavior SHA
+is distinct from later documentation-only commit hashes.
 
-`IP-1 ENGINEERING FOUNDATION: COMPLETE`; `G1 REPAIR: COMPLETE / READY FOR INDEPENDENT REVIEW`; `IP-2: NOT STARTED`.
+`G1–G6: PASS`; `INTEGRATED G1–G6: APPROVED`; `IP-7: NOT STARTED`;
+`LIVE MODEL / PRODUCT REALITY SPIKE: PROPOSED ONLY / NOT STARTED`;
+`PRODUCTION DEPLOYMENT / RELEASE: NOT STARTED`.
+
+The next phase awaits user authorization. Approval does not claim real-model
+quality, universal semantic-language safety or release readiness. Update the
+living handoff and affected navigation at phase/repair/review/CI milestones;
+preserve frozen and historical source records.
 
 ## Supporting Material
 
