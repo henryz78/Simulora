@@ -1,6 +1,6 @@
 # Bounded Runtime Enablement — Proposed Follow-up
 
-**State:** `RE-1 APPROVED / RE-2 IMPLEMENTED, REVIEW PENDING / RE-3–RE-4 PROPOSED, NOT AUTHORIZED`.
+**State:** `RE-1 APPROVED / RE-2 INDEPENDENT REVIEW PASS / RE-3–RE-4 PROPOSED, NOT AUTHORIZED`.
 
 This is a bounded follow-up to the [actual Product Reality Spike](PRODUCT_REALITY_SPIKE_REPORT.md),
 not IP-7, a replacement roadmap, or a waiver of frozen Product/System/Experience.
@@ -60,7 +60,8 @@ Self-test closure does not grant independent approval of a new behavior SHA.
 
 Implementation and local checks are complete; see
 [RE-2 Implementation Report](RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md).
-This does not grant independent approval. Single-fact L3 effects remain the known
+Subsequent [independent review](RE-2-INDEPENDENT-REVIEW.md) and exact-SHA CI passed.
+Single-fact L3 effects remain the known
 ceiling; RE-3/RE-4 and production live execution have not started.
 
 Authorized scope (user instruction following the RE-1 result and next-step sequence):
@@ -128,9 +129,11 @@ Stop for new protected authority, unclear durable semantics, schema meaning
 changes without an ADR/rehearsal, unknown target bounds or provider quota. Do not
 solve quality by granting model authority or adopting shadow causal claims.
 
-RE-1 is approved; next independently review the RE-2 implementation candidate and
-its exact-SHA CI. Then choose whether to authorize the exact RE-3 effect envelope
-and a bounded reality check. Do not execute those proposed stages automatically.
+RE-1 is approved; RE-2 independent review and exact-SHA CI passed. The latest
+recommendation is a small context-only live comparison before RE-3, then select
+the exact routine-effect envelope, then human/live multi-turn validation after its
+review. See [RE-2 closure](RE-2-INDEPENDENT-REVIEW.md) for the proposed bounded
+experiment. This proposal does not authorize execution or replace the roadmap.
 Decide normal IP-7 sequencing from those results; **IP-7 remains not started**.
 Production live model, cloud persistence, deployment and roadmap redesign are out
 of scope throughout this proposal.

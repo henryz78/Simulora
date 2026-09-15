@@ -46,6 +46,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Return Current Situation — RE-1 Repair](implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
 - [RE-1 Independent Review and Closure](implementation-planning/RE-1-INDEPENDENT-REVIEW.md)
 - [RE-2 Authorized Context / Character Selection — Implementation Evidence](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md)
+- [RE-2 Independent Review / Next Reality-Check Proposal](implementation-planning/RE-2-INDEPENDENT-REVIEW.md)
 - [Bounded Runtime Enablement — Proposed Follow-up](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
@@ -183,7 +184,8 @@ instruction to continue is applied to the confirmed
 and a [bounded follow-up plan](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md).
 RE-1 passed [independent review](implementation-planning/RE-1-INDEPENDENT-REVIEW.md);
 RE-2 is [implemented and locally verified](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md),
-pending independent review and exact-candidate CI. RE-3–RE-4 and IP-7 are not authorized.
+[independent review and exact-SHA CI PASS](implementation-planning/RE-2-INDEPENDENT-REVIEW.md).
+RE-3–RE-4, the proposed next live comparison and IP-7 are not authorized.
 No automatic roadmap change is authorized. G1–G6 approval
 does not claim real-model quality, universal semantic-language safety or release readiness. Update the
 living handoff and affected navigation at phase/repair/review/CI milestones;

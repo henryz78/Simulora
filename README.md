@@ -29,7 +29,8 @@ identify runtime limitations and one new Return display issue. The minimal
 passed [independent review](docs/implementation-planning/RE-1-INDEPENDENT-REVIEW.md); the
 [bounded runtime follow-up](docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
 now has [RE-2 implemented and locally verified](docs/implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md),
-pending independent review and exact-candidate CI; RE-3–RE-4 remain proposed, not authorized.
+[independent review and exact-SHA CI PASS](docs/implementation-planning/RE-2-INDEPENDENT-REVIEW.md);
+RE-3–RE-4 and the proposed next live comparison remain not authorized.
 Production adapter/configuration remains unchanged.
 
 ## Development and verification

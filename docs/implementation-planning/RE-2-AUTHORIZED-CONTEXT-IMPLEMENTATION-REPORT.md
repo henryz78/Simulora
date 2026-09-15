@@ -1,7 +1,13 @@
 # RE-2 — Authorized Context / Explicit Character Selection
 
-**State:** `IMPLEMENTED / LOCAL CHECKS PASS / INDEPENDENT REVIEW PENDING`.
+**State:** `IMPLEMENTED / LOCAL CHECKS PASS / INDEPENDENT REVIEW PASS`.
 **Date:** `2026-09-15`. This is implementation evidence, not independent approval.
+
+Subsequent [independent review](RE-2-INDEPENDENT-REVIEW.md) passed at
+`3d14dc6792e406ce4c054ee01f4b424b00c27053`, 0/0/0; exact-SHA CI `35028511913`
+succeeded. The evidence table below preserves the original implementation-time
+handoff, when CI and independent review were still pending. No behavior changed
+in this documentation closure.
 
 ## Scope and baseline chain
 

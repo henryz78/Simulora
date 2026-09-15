@@ -18,9 +18,11 @@
 `docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md`；独立 RE-1 Review PASS，
 审查行为基线 `7d668daa64f1b579eec0196c16f2500f255169ab`，原结果见
 `docs/implementation-planning/RE-1-INDEPENDENT-REVIEW.md`，不宣称完整 runtime 已获批准。
-用户已授权文档收尾及 RE-2 authorized context / explicit Character selection，已实施、自测通过、待独立 Review；
+用户已授权文档收尾及 RE-2 authorized context / explicit Character selection，已实施、独立 Review PASS，0/0/0；
 报告见 `docs/implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md`。
-真实 PostgreSQL 117/117、desktop/390×844 浏览器 54/54 PASS；candidate CI 待核验，不能继承旧 CI。
+独立结果见 `docs/implementation-planning/RE-2-INDEPENDENT-REVIEW.md`，行为 SHA
+`3d14dc6792e406ce4c054ee01f4b424b00c27053`、exact-SHA CI `35028511913` PASS。
+独立 PostgreSQL 117/117、desktop/390×844 focused 浏览器 18/18 PASS；主 Agent full 浏览器 54/54 为另份自测证据。
 仍保留单事实 L3 effect envelope，production deterministic adapter 未变，不宣称完整 AI 世界已验证。
 RE-3 routine effects、RE-4 新一轮 live/human validation、IP-7 均未获实施授权，不自动进入。
 后续仅文档 commit 不替换行为审查基线。

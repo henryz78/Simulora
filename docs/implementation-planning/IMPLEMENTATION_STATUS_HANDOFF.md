@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 IMPLEMENTED, REVIEW PENDING / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 INDEPENDENT REVIEW PASS / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -12,9 +12,10 @@
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
 Same-SHA CI `34990847673` succeeded. The independent local PG run was 113/114,
 not wholly green; its upgrade-test observation is preserved in the original result.
-RE-2 is subsequently authorized and implemented with local checks complete;
-[candidate evidence](RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md) is not independent
-approval or exact-candidate CI success.
+RE-2 subsequently [passed independent review](RE-2-INDEPENDENT-REVIEW.md) at
+`3d14dc6792e406ce4c054ee01f4b424b00c27053`, 0/0/0, exact-SHA CI `35028511913`
+success. Independent PostgreSQL 117/117, focused desktop/mobile 18/18 PASS. The
+main Agent's earlier 54/54 full browser run is separate self-test evidence.
 
 **Final product direction:** [User goal and direction guardrails](PRODUCT_DIRECTION_GUARDRAILS.md).
 Simulora must remain a long-lived playable AI World: world-director shaping and
@@ -52,7 +53,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next step:                         independent RE-2 Review / exact-candidate CI
+Next decision:                     authorize bounded RE-2 live context comparison
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -61,7 +62,8 @@ is retained in the review document linked above.
 
 The approved snapshot above is distinct from the later isolated Spike and RE-1
 display repair. RE-1 changes production projection/rendering, not authority, and
-now has focused independent approval at `7d668daa`. RE-2 is implemented, review pending.
+now has focused independent approval at `7d668daa`. RE-2 independent review passed
+at `3d14dc6`; later documentation-only HEADs do not replace that behavior SHA.
 Git determines live HEAD/worktree state;
 the hashes and clean-state evidence above describe the approved snapshot.
 
@@ -433,6 +435,8 @@ independent approval remains pending.
 
 ## 16. RE-2 implementation closure — independent review pending
 
+Historical implementation-time handoff. Subsequent independent closure is §17.
+
 Candidate implementation is the commit containing migration `0029` and
 [RE-2 Implementation Report](RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md).
 Resolve its exact SHA from Git; neither it nor later documentation changes replace
@@ -458,3 +462,28 @@ The report retains intermediate failures, coverage and context/retrieval ceiling
 Next: independent RE-2 Review, exact-SHA CI/build/PostgreSQL/container/browser
 evidence. RE-3/RE-4, IP-7, deployment and production live integration remain not
 started/not authorized. No additional live calls were made in RE-2.
+
+## 17. RE-2 independent closure and proposed reality check
+
+[Original independent result](RE-2-INDEPENDENT-REVIEW.md): PASS, 0/0/0 at
+`3d14dc6792e406ce4c054ee01f4b424b00c27053`; independently created PostgreSQL
+database 117/117, focused desktop/390×844 18/18 and exact-SHA CI `35028511913`
+(including real PG/container/browser steps) PASS. Local Docker was not run.
+No tracked behavior was changed by the Reviewer or this documentation closure.
+
+RE-2 resolves selected-character identity/authorized-input plumbing. It does not
+prove real-model grounding, meaningful world evolution or acceptable L3 burden.
+First shared-fact mutation remains a real ceiling. The next recommendation is
+an isolated context-only comparison, at most eight total live dispatches, before
+RE-3: two explicit Characters, differing knowledge/stance, short continuation and
+Correction-follow-up; same model/schema, read-only controlled contrasts and
+explicit test-actor decisions for executable L3 proposals. Report a few actual
+scene excerpts and failures, not just database results. Proposed, not executed or
+newly authorized. Then select/review the exact RE-3 effect before implementation;
+after its review, do human/live multi-turn play to assess confirmation burden and
+world richness. RE-3/RE-4/IP-7 remain not started; production live switch forbidden.
+
+User asks future simple repairs to receive bounded focused review, not unlimited
+depth. Use changed-path checks plus direct regression/exact-SHA CI, collect real
+issues once, and stop expanding into observations. Authority/privacy/migration
+changes still receive risk-proportionate adversarial verification.
