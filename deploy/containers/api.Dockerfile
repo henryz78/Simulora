@@ -11,8 +11,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV SIMULORA_ENV=production
 ENV SIMULORA_API_HOST=0.0.0.0
-COPY --from=build /out/package.json ./package.json
-COPY --from=build /out/dist ./dist
+COPY --from=build /out ./
+RUN rm -rf node_modules/@simulora
 USER node
 EXPOSE 4000
 CMD ["node", "dist/index.js"]

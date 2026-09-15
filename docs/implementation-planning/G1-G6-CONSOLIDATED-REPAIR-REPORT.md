@@ -46,8 +46,8 @@ finding. They reduce to these shared root causes:
   no longer claim the Branch definitely was not created.
 - Ordinary Action error paths refresh durable state before allowing the user to
   proceed, while the database constraint remains the authority under races.
-- API and worker runtime images copy only their bundled `dist` output and
-  package metadata, not unused workspace symlinks.
+- API and worker runtime images retain external third-party dependencies from
+  the deploy artifact while removing unused broken workspace symlinks.
 
 ## Verification
 

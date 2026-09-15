@@ -10,7 +10,7 @@ FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV SIMULORA_ENV=production
-COPY --from=build /out/package.json ./package.json
-COPY --from=build /out/dist ./dist
+COPY --from=build /out ./
+RUN rm -rf node_modules/@simulora
 USER node
 CMD ["node", "dist/index.js"]
