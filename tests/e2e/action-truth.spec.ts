@@ -267,15 +267,19 @@ test("an unresolved Action is recovered after refresh by durable Action ID", asy
   await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
 });
 
-test("retries a lost acknowledgement with the same idempotency key", async ({ page }) => {
+test("reconciles a lost acknowledgement before another Action", async ({ page }) => {
   await page.goto(`/continuities/${continuityId}`);
   await page.getByLabel("Your Action").fill("Retry after lost ACK by the western signal.");
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByRole("alert")).toHaveText(
-    "The acknowledgement could not be confirmed. Retry is safe and uses the same submission.",
+    "The acknowledgement could not be confirmed. Current durable Action state was refreshed; retrying the same intent is safe.",
   );
-  await page.getByRole("button", { name: "Send Action" }).click();
-  await expect(page.getByText("Received and durably recorded.")).toBeVisible();
-  expect(observedIdempotencyKeys).toHaveLength(2);
-  expect(observedIdempotencyKeys[0]).toBe(observedIdempotencyKeys[1]);
+  await expect(
+    page.getByRole("link", {
+      name: "Awaiting confirmation · Retry after lost ACK by the western signal.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send Action" })).toBeDisabled();
+  expect(observedIdempotencyKeys).toHaveLength(1);
 });
