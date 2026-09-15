@@ -13,9 +13,13 @@ retains the decision and exact-baseline CI evidence.
 
 Production includes World/Continuity, durable Action Truth, Return/Correction,
 non-destructive Recovery and direct Participation/Character authority. It still
-uses deterministic generation and development authentication. IP-7 World Studio,
-the proposed Live Model / Product Reality Spike and production deployment have
-not started; the next phase awaits user authorization.
+uses deterministic generation and development authentication. IP-7 World Studio
+and production deployment have not started. A
+[bounded Product Reality Spike](docs/implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md)
+has completed 12 isolated live calls using the user's local compatible API profile.
+The [actual results](docs/implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md)
+identify runtime limitations and one new Return display issue; a bounded follow-up
+is recommended but not started. Production adapter/configuration remains unchanged.
 
 ## Development and verification
 

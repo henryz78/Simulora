@@ -40,6 +40,8 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Current Implementation Status Handoff](implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)
 - [G1–G6 Consolidated Repair Report](implementation-planning/G1-G6-CONSOLIDATED-REPAIR-REPORT.md)
+- [Bounded Product Reality Spike Plan](implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md)
+- [Product Reality Spike — Actual Results](implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md)
 - [Final WorldOS research report](deliverables/worldos-research/FINAL_WORLDOS_RESEARCH_REPORT.md)
 - [Main research index](research/worldos/00_RESEARCH_INDEX.md)
 - [Parity matrix](research/worldos/04_WORLDOS_PARITY_MATRIX.md)
@@ -163,11 +165,16 @@ statuses are historical, not current Gate decisions. The approved behavior SHA
 is distinct from later documentation-only commit hashes.
 
 `G1–G6: PASS`; `INTEGRATED G1–G6: APPROVED`; `IP-7: NOT STARTED`;
-`LIVE MODEL / PRODUCT REALITY SPIKE: PROPOSED ONLY / NOT STARTED`;
+`LIVE MODEL / PRODUCT REALITY SPIKE: EXECUTED / AWAITING RESULT REVIEW`;
 `PRODUCTION DEPLOYMENT / RELEASE: NOT STARTED`.
 
-The next phase awaits user authorization. Approval does not claim real-model
-quality, universal semantic-language safety or release readiness. Update the
+IP-7 remains unauthorized/not started. The user has authorized bounded Spike
+execution with a local compatible API profile; stop at provider quota. See the
+[Spike Plan](implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md) and
+[Actual Results](implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md). The
+experiment recommends a bounded runtime-enablement follow-up; no automatic
+implementation/route change is authorized. G1–G6 approval
+does not claim real-model quality, universal semantic-language safety or release readiness. Update the
 living handoff and affected navigation at phase/repair/review/CI milestones;
 preserve frozen and historical source records.
 

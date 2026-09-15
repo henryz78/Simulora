@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 COMPLETE / G1–G6 FINAL AND INTEGRATED REVIEW APPROVED / NEXT PHASE AWAITING AUTHORIZATION`
+**Status:** `IP-1–IP-6 APPROVED / LIVE SPIKE EXECUTED / RESULTS AWAITING REVIEW / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -34,9 +34,9 @@ IP-6 Participation / characters:   implementation complete / approved
 IP-7 World Studio:                 not started
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
-Live Model / Product Reality Spike: proposed only / not authorized or started
+Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next phase:                        awaiting user authorization
+Next execution:                    awaiting decision on bounded runtime follow-up
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -297,12 +297,19 @@ universal model behavior or real-world product quality.
 
 ## 12. Next-phase decision and documentation maintenance
 
-The roadmap's next phase is IP-7 World Studio. Before proceeding, the primary
-agent recommends a bounded Live Model / Product Reality Spike to evaluate
-continuous play, the current single-fact candidate's expressiveness, confirmation
-burden and guard false positives. This recommendation does not rewrite the
-approved roadmap or weaken authority contracts. Both alternatives require new
-user authorization; neither has started.
+The roadmap's next production phase is IP-7 World Studio; it remains not started.
+After documentation closure the user instructed the agent to continue, following
+the proposed bounded Live Model / Product Reality Spike. Live execution is now
+authorized, with [scope/corpus/decision standards](PRODUCT_REALITY_SPIKE_PLAN.md).
+The user supplied a local ignored compatible API profile and authorized public
+API quota usage; stop at quota and contact the user. An isolated harness reuses
+the repository generator seam in a new local database. No production adapter,
+configuration, migration or approved behavior has been changed.
+This experiment does not rewrite the approved roadmap or weaken authority
+contracts. Its outcome, not a predetermined PASS, will inform the IP-7 decision.
+The experiment is now complete; see [actual results](PRODUCT_REALITY_SPIKE_REPORT.md).
+One newly verified IMPORTANT Return display issue and runtime ceilings remain;
+they are not silently repaired or covered by the earlier G1–G6 approval counts.
 
 Update this living handoff at every phase start/completion, material repair,
 independent Gate decision and CI evidence closure, before calling the work
@@ -320,7 +327,40 @@ APPROVED BEHAVIOR BASELINE: eb55734f258fc9be6f4837df888700e34eaa67e2
 EXACT-BASELINE CI: SUCCESS
 BLOCKERS / IMPORTANT / MINOR: 0 / 0 / 0
 IP-7: NOT STARTED
-LIVE MODEL / PRODUCT REALITY SPIKE: NOT STARTED / NOT AUTHORIZED
-NEXT PHASE: AWAITING USER AUTHORIZATION
+LIVE MODEL / PRODUCT REALITY SPIKE: EXECUTED / 12 CALLS / REPORT READY
+LIVE PROFILE / QUOTA: USER AUTHORIZED / QUOTA NOT HIT
+NEW SPIKE RETURN DISPLAY ISSUE: 1 IMPORTANT / NOT REPAIRED
+RUNTIME-ENABLEMENT FOLLOW-UP: RECOMMENDED / NOT AUTHORIZED OR STARTED
+IP-7 AUTHORIZATION: NOT GIVEN
 PRODUCT RELEASE: NOT STARTED
 ```
+
+## 13. Bounded Product Reality Spike completion
+
+The historical 0/0/0 Gate counts above describe the independently approved G1–G6
+snapshot, not a claim that all possible real-model product behavior is qualified.
+The live experiment found a new reproducible current-situation display problem:
+FRESH Return keeps the seed “signal has dimmed” sentence after corrected green
+truth and a later recorded Action. Actual authoritative fact/head remain correct.
+Full evidence, source lines and bounded next-step recommendation are in the
+[Spike Report](PRODUCT_REALITY_SPIKE_REPORT.md); no production repair occurred.
+
+Executed against a fresh isolated PostgreSQL 17.11 database using the unchanged
+approved repository/migrations. Eight valid ordinary Action proposals were L3;
+six were explicitly confirmed, two cancelled. Direct Correction was separately
+confirmed. Source-preserving fork and append-only Restore passed actual checks.
+Three read-only context/envelope contrasts never mutated truth. Initial empty
+length-limited compatibility response was cancelled; total 12 requests / 22,569
+reported tokens, no quota hit. Keys/raw reasoning are not report artifacts.
+
+Local engineering evidence: lint, format, typecheck, architecture, 28-migration
+check, full production build and worker runtime PASS; default tests 55 PASS /
+110 PostgreSQL tests skipped, including 3/3 PGlite migration PASS. A separate
+actual PostgreSQL experiment and `verify` assertions passed. This is not a full
+PostgreSQL/concurrency/browser/container Gate rerun; no live frontend was added.
+New Spike commit CI is not claimed successful until independently observed.
+
+Recommendation: approve a bounded source-bound context/Character-selection/
+routine-effect follow-up while retaining L3 protected authority. Do not implement
+the model's shadow schema or change the frozen roadmap without approval. IP-7
+and this follow-up both remain not started pending the user's decision.

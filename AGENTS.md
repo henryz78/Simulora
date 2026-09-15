@@ -9,8 +9,13 @@
 当前生产实现状态以 `docs/implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md`
 为入口；最新独立结论见 `docs/implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md`。
 已批准行为基线为 `eb55734f258fc9be6f4837df888700e34eaa67e2`：IP-1～IP-6
-已完成，G1～G6 Final / Integrated Review 已通过。IP-7 和 Live Model / Product
-Reality Spike 尚未开始，必须等待用户另行授权。后续仅文档 commit 不替换行为审查基线。
+已完成，G1～G6 Final / Integrated Review 已通过。IP-7 尚未开始、未获新授权。
+用户已授权 bounded Live Model / Product Reality Spike 及所提供公益 API 的真实调用，范围见
+`docs/implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md`；使用本地受忽略的
+`.secret.txt` profile，达到供应商限额即停下联系用户。不能擅自放开 production 入口或冻结契约。
+该实验已完成 12 次真实调用，结果见 `docs/implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md`。
+新发现的 Return 展示问题与 runtime ceiling 未自动修复；下一步等待用户审批 bounded follow-up，不进入 IP-7。
+后续仅文档 commit 不替换行为审查基线。
 
 下方 Research Status 中的实现状态是研究封版时的历史边界，不是当前开发状态；
 不要用冻结研究交接或旧 Gate 文档中的 `NOT STARTED` / `PENDING` 推翻最新独立结论。

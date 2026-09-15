@@ -11,6 +11,10 @@ decision below; it does not substitute its own self-test for Gate approval.
 
 ## 1. Closure decision
 
+Next-phase flags below are the review-closure snapshot. Subsequent authorization
+and experiment preparation are maintained in the current handoff, without
+rewriting this independent decision or its approved behavior baseline.
+
 ```text
 G1: PASS
 G2: PASS
@@ -75,7 +79,10 @@ confirmation burden remain unproven, not retrospectively declared Gate failures.
 
 The roadmap's next phase remains IP-7. The primary agent has recommended a
 bounded Live Model / Product Reality Spike before further creator implementation;
-that is a proposal only, not a route change or authorization to execute it.
+At review closure that was a proposal, not automatic next-phase authorization.
+The user has since authorized the bounded experiment; current scope/results live
+in the [implementation handoff](IMPLEMENTATION_STATUS_HANDOFF.md). This does not
+change the original independent decision below or authorize IP-7.
 
 ## 3. Complete original independent report
 

@@ -10,4 +10,6 @@ test-results
 prototypes
 docs
 .env*
+.secret
+.secret.*
 .local-data
