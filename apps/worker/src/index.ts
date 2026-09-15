@@ -17,7 +17,12 @@ const interval = setInterval(() => {
   void composition
     .processNextAction()
     .then((action) => {
-      if (action) logger.info("action.processed", { action_id: action.id, status: action.status });
+      if (action)
+        logger.info("action.processed", {
+          action_id: action.id,
+          status: action.status,
+          correlation_id: action.correlationId ?? undefined,
+        });
     })
     .catch((error: unknown) => {
       logger.error("action.process_failed", {

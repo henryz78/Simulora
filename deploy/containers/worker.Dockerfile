@@ -9,6 +9,8 @@ RUN pnpm deploy --filter @simulora/worker --prod --legacy /out
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /out ./
+ENV SIMULORA_ENV=production
+COPY --from=build /out/package.json ./package.json
+COPY --from=build /out/dist ./dist
 USER node
 CMD ["node", "dist/index.js"]

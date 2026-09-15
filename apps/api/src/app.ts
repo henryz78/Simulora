@@ -331,7 +331,8 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const account = await authenticatedAccount(request, auth);
       const { branchId } = request.params as { branchId: string };
       const body = submitActionRequestSchema.parse(request.body);
-      const result = await actions.submitAction(account, branchId, body);
+      const correlationId = String(reply.getHeader("x-correlation-id"));
+      const result = await actions.submitAction(account, branchId, body, correlationId);
       logger.info("action.acknowledged", {
         request_id: request.id,
         correlation_id: reply.getHeader("x-correlation-id"),

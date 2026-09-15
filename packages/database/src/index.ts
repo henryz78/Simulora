@@ -230,6 +230,7 @@ export type SubmitActionDatabaseInput = {
   expectedHeadCommitId: string;
   participationExpectation: ParticipationContract;
   intent: string;
+  correlationId?: string;
 };
 
 export type ActionProposalRecord = {
@@ -273,6 +274,8 @@ export type ActionRecord = {
   eventsUrl: string;
   proposal: ActionProposalRecord | null;
   commit: ActionCommitRecord | null;
+  /** Internal lineage field; transport schemas intentionally omit it. */
+  correlationId?: string | null;
 };
 
 export type ActionProgressRecord = {
@@ -940,9 +943,11 @@ export class AuthoritativeWorldRepository {
     account: SyntheticAccount,
     branchId: string,
     input: SubmitActionDatabaseInput,
+    correlationId?: string,
   ): Promise<ActionRecord> {
     this.assertEligible(account);
     const intent = input.intent.trim();
+    const durableCorrelationId = correlationId ?? input.correlationId ?? null;
     const requestDigest = contentHash({
       schemaVersion: input.schemaVersion,
       operationType: "PARTICIPATE",
@@ -1019,14 +1024,25 @@ export class AuthoritativeWorldRepository {
         throw new ConflictError("PARTICIPATION_EXPECTATION_MISMATCH");
       }
 
+      const pending = await client.query<{ id: string }>(
+        `select id from simulora.actions
+         where branch_id = $1 and expected_head_commit_id = $2
+           and operation_type = 'PARTICIPATE'
+           and status in ('ACKNOWLEDGED', 'GENERATING', 'VALIDATING',
+                          'AWAITING_CONFIRMATION', 'COMMITTING', 'FAILED_RECOVERABLE')
+         order by created_at limit 1`,
+        [branchId, input.expectedHeadCommitId],
+      );
+      if (pending.rows[0]) throw new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION");
+
       const actionId = randomUUID();
       const inserted = await client.query<{ id: string }>(
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
           expected_head_commit_id, participation_expectation, intent,
-          idempotency_request_digest, status)
-         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, $9, 'ACKNOWLEDGED')
-         on conflict (actor_account_id, branch_id, idempotency_key) do nothing
+          idempotency_request_digest, correlation_id, status)
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, $9, $10, 'ACKNOWLEDGED')
+         on conflict do nothing
          returning id`,
         [
           actionId,
@@ -1038,6 +1054,7 @@ export class AuthoritativeWorldRepository {
           JSON.stringify(input.participationExpectation),
           intent,
           requestDigest,
+          durableCorrelationId,
         ],
       );
       if (!inserted.rows[0]) {
@@ -1055,7 +1072,21 @@ export class AuthoritativeWorldRepository {
            where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
           [account.accountId, branchId, input.idempotencyKey],
         );
-        if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        if (!duplicate.rows[0]) {
+          const pendingAfterRace = await client.query<{ id: string }>(
+            `select id from simulora.actions
+             where branch_id = $1 and expected_head_commit_id = $2
+               and operation_type = 'PARTICIPATE'
+               and status in ('ACKNOWLEDGED', 'GENERATING', 'VALIDATING',
+                              'AWAITING_CONFIRMATION', 'COMMITTING', 'FAILED_RECOVERABLE')
+             order by created_at limit 1`,
+            [branchId, input.expectedHeadCommitId],
+          );
+          if (pendingAfterRace.rows[0]) {
+            throw new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION");
+          }
+          throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        }
         const prior = duplicate.rows[0];
         assertIdempotencyRequestMatches(
           prior.idempotency_request_digest,
@@ -1069,9 +1100,10 @@ export class AuthoritativeWorldRepository {
         return this.readActionWithClient(client, account, prior.id);
       }
       await client.query(
-        `insert into simulora.durable_jobs (id, type, action_id, dedupe_key, status)
-         values ($1, 'ACTION_PROCESS', $2, $3, 'AVAILABLE')`,
-        [randomUUID(), actionId, `action:${actionId}`],
+        `insert into simulora.durable_jobs
+         (id, type, action_id, dedupe_key, correlation_id, status)
+         values ($1, 'ACTION_PROCESS', $2, $3, $4, 'AVAILABLE')`,
+        [randomUUID(), actionId, `action:${actionId}`, durableCorrelationId],
       );
       await this.appendProgressWithClient(client, actionId, "action.status", {
         status: "ACKNOWLEDGED",
@@ -2226,12 +2258,25 @@ export class AuthoritativeWorldRepository {
     this.assertEligible(account);
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
+      const requestDigest = contentHash({
+        schemaVersion: 1,
+        continuityId,
+        name: input.name.trim(),
+        sourceCommitId: input.sourceCommitId,
+        expectedHeadCommitId: input.expectedHeadCommitId,
+      });
       const findExistingFork = async (): Promise<RecoveryBranchRecord | null> => {
-        const duplicate = await client.query<{ id: string }>(
-          `select id from simulora.branches
+        const duplicate = await client.query<{ id: string; fork_request_digest: string | null }>(
+          `select id, fork_request_digest from simulora.branches
            where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
           [account.accountId, continuityId, input.idempotencyKey],
         );
+        if (
+          duplicate.rows[0]?.fork_request_digest &&
+          duplicate.rows[0].fork_request_digest !== requestDigest
+        ) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
         return duplicate.rows[0]
           ? this.readRecoveryBranchWithClient(client, account.accountId, duplicate.rows[0].id)
           : null;
@@ -2273,8 +2318,8 @@ export class AuthoritativeWorldRepository {
       const inserted = await client.query<{ id: string }>(
         `insert into simulora.branches
          (id, continuity_id, name, status, parent_branch_id, fork_source_commit_id,
-          created_by_account_id, idempotency_key)
-         values ($1, $2, $3, 'INITIALIZING', $4, $5, $6, $7)
+          created_by_account_id, idempotency_key, fork_request_digest)
+         values ($1, $2, $3, 'INITIALIZING', $4, $5, $6, $7, $8)
          on conflict (created_by_account_id, continuity_id, idempotency_key)
           where idempotency_key is not null do nothing
          returning id`,
@@ -2286,6 +2331,7 @@ export class AuthoritativeWorldRepository {
           input.sourceCommitId,
           account.accountId,
           input.idempotencyKey,
+          requestDigest,
         ],
       );
       if (!inserted.rows[0]) {
@@ -3651,17 +3697,27 @@ export class AuthoritativeWorldRepository {
       // All lifecycle transactions lock Action -> job -> attempt, including cancellation.
       const actionResult = await client.query<{
         actor_account_id: string;
+        correlation_id: string | null;
+        action_branch_id: string;
         expected_head_commit_id: string;
         intent: string;
         status: ActionStatus;
+        branch_head_commit_id: string;
+        branch_status: string;
+        active_branch_id: string;
+        continuity_status: string;
         state_document: unknown;
         world_document: unknown;
       }>(
-        `select a.actor_account_id, a.expected_head_commit_id, a.intent, a.status,
+        `select a.actor_account_id, a.correlation_id, a.branch_id as action_branch_id,
+                a.expected_head_commit_id, a.intent, a.status,
+                branch.head_commit_id as branch_head_commit_id, branch.status as branch_status,
+                continuity.active_branch_id, continuity.status as continuity_status,
                 s.document as state_document, wr.document as world_document
          from simulora.actions a
          join simulora.world_commits c on c.id = a.expected_head_commit_id
          join simulora.state_revisions s on s.id = c.state_revision_id
+         join simulora.branches branch on branch.id = a.branch_id
          join simulora.continuities continuity on continuity.id = a.continuity_id
          join simulora.world_revisions wr on wr.id = continuity.world_revision_id
          where a.id = $1 for update of a`,
@@ -3670,6 +3726,32 @@ export class AuthoritativeWorldRepository {
       const action = actionResult.rows[0];
       if (!action) throw new NotFoundError("Action not found");
       if (!["ACKNOWLEDGED", "GENERATING"].includes(action.status)) return null;
+      if (
+        action.branch_status !== "ACTIVE" ||
+        action.continuity_status !== "ACTIVE" ||
+        action.active_branch_id !== action.action_branch_id ||
+        action.branch_head_commit_id !== action.expected_head_commit_id
+      ) {
+        await client.query(
+          `update simulora.actions
+             set status = 'CONFLICT', status_reason = 'BRANCH_HEAD_CONFLICT',
+                 updated_at = now(), row_version = row_version + 1
+           where id = $1 and status in ('ACKNOWLEDGED', 'GENERATING')`,
+          [actionId],
+        );
+        await client.query(
+          `update simulora.durable_jobs
+             set status = 'DEAD', lease_owner = null, lease_until = null,
+                 last_error = 'BRANCH_HEAD_CONFLICT', updated_at = now()
+           where action_id = $1`,
+          [actionId],
+        );
+        await this.appendProgressWithClient(client, actionId, "action.failed", {
+          status: "CONFLICT",
+          reason: "BRANCH_HEAD_CONFLICT",
+        });
+        return null;
+      }
       const lease = await client.query<{ id: string; attempts: number }>(
         `update simulora.durable_jobs
          set status = 'LEASED', lease_owner = $1,
@@ -3752,9 +3834,15 @@ export class AuthoritativeWorldRepository {
       };
       await client.query(
         `insert into simulora.generation_attempts
-         (id, action_id, attempt_number, adapter, status, context_manifest)
-         values ($1, $2, $3, 'deterministic', 'RUNNING', $4::jsonb)`,
-        [attemptId, actionId, lease.rows[0].attempts, JSON.stringify(manifest)],
+         (id, action_id, attempt_number, adapter, status, context_manifest, correlation_id)
+         values ($1, $2, $3, 'deterministic', 'RUNNING', $4::jsonb, $5)`,
+        [
+          attemptId,
+          actionId,
+          lease.rows[0].attempts,
+          JSON.stringify(manifest),
+          action.correlation_id,
+        ],
       );
       await this.appendProgressWithClient(client, actionId, "action.status", {
         status: "GENERATING",
@@ -3765,6 +3853,7 @@ export class AuthoritativeWorldRepository {
         attempts: lease.rows[0].attempts,
         attemptId,
         actorAccountId: action.actor_account_id,
+        correlationId: action.correlation_id,
         expectedHeadCommitId: action.expected_head_commit_id,
         intent: action.intent,
         state,
@@ -3993,6 +4082,7 @@ export class AuthoritativeWorldRepository {
       id: string;
       continuity_id: string;
       branch_id: string;
+      correlation_id: string | null;
       expected_head_commit_id: string;
       operation_type: ActionOperationType;
       status: ActionStatus;
@@ -4013,7 +4103,7 @@ export class AuthoritativeWorldRepository {
       commit_state: string | null;
       committed_at: Date | null;
     }>(
-      `select a.id, a.continuity_id, a.branch_id, a.expected_head_commit_id, a.operation_type, a.status, a.intent,
+      `select a.id, a.continuity_id, a.branch_id, a.correlation_id, a.expected_head_commit_id, a.operation_type, a.status, a.intent,
               a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason,
               p.id as proposal_id, p.proposal_digest, p.expected_head_commit_id as proposal_head,
               p.expires_at as proposal_expires,
@@ -4034,6 +4124,7 @@ export class AuthoritativeWorldRepository {
       id: row.id,
       continuityId: row.continuity_id,
       branchId: row.branch_id,
+      correlationId: row.correlation_id,
       expectedHeadCommitId: row.expected_head_commit_id,
       operationType: row.operation_type,
       status: row.status,

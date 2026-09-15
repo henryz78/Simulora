@@ -1193,7 +1193,10 @@ export function RecoveryPage(): ReactElement {
             <select
               id="branch-source"
               value={branchSourceCommitId || head}
-              onChange={(event) => setBranchSourceCommitId(event.target.value)}
+              onChange={(event) => {
+                setBranchSourceCommitId(event.target.value);
+                branchKey.current = null;
+              }}
             >
               <option value={head}>Current head · {shortId(head)}</option>
               {commitSources
@@ -1220,7 +1223,9 @@ export function RecoveryPage(): ReactElement {
                   expectedHeadCommitId: head,
                 });
                 if (!result.data) {
-                  setMessage("The Branch was not created. The source path remains unchanged.");
+                  setMessage(
+                    "The Branch result could not be confirmed. Re-open Recovery to reconcile the durable Branch list before retrying.",
+                  );
                   return;
                 }
                 branchKey.current = null;

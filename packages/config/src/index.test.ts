@@ -46,4 +46,13 @@ describe("server config", () => {
       expect(() => loadServerConfig({ SIMULORA_ENV: environment })).toThrow(/must fail closed/);
     }
   });
+
+  it("fails closed when a production-shaped runtime omits its Simulora environment", () => {
+    expect(() => loadServerConfig({ NODE_ENV: "production" })).toThrow(
+      /SIMULORA_ENV must be explicitly set/,
+    );
+    expect(loadServerConfig({ NODE_ENV: "production", SIMULORA_ENV: "test" }).SIMULORA_ENV).toBe(
+      "test",
+    );
+  });
 });

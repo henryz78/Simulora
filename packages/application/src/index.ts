@@ -51,6 +51,7 @@ export interface ActionTruthPort {
     account: EligibleAccount,
     branchId: string,
     request: SubmitActionRequest,
+    correlationId?: string,
   ): Promise<ActionResponse>;
   changeParticipationContract?(
     account: EligibleAccount,
@@ -81,8 +82,13 @@ export interface ActionTruthPort {
 export class ActionTruthService {
   constructor(private readonly port: ActionTruthPort) {}
 
-  submitAction(account: EligibleAccount, branchId: string, request: SubmitActionRequest) {
-    return this.port.submitAction(account, branchId, request);
+  submitAction(
+    account: EligibleAccount,
+    branchId: string,
+    request: SubmitActionRequest,
+    correlationId?: string,
+  ) {
+    return this.port.submitAction(account, branchId, request, correlationId);
   }
 
   changeParticipationContract(

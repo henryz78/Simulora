@@ -445,15 +445,17 @@ export function ContinuityProvider({
         if (!response.ok) {
           if (response.status >= 400 && response.status < 500) {
             pendingSubmission.current.delete(submissionKey);
+            await refresh().catch(() => undefined);
             return {
               action: null,
               error: "The Action was not accepted. Review the current world and try again.",
             };
           }
+          await refresh().catch(() => undefined);
           return {
             action: null,
             error:
-              "The acknowledgement could not be confirmed. Retry is safe and uses the same submission.",
+              "The acknowledgement could not be confirmed. Current durable Action state was refreshed; retrying the same intent is safe.",
           };
         }
         const action = actionResponseSchema.parse(await response.json());
@@ -461,14 +463,15 @@ export function ContinuityProvider({
         if (action.continuityId === continuityId) upsertAction(action);
         return { action, error: null };
       } catch {
+        await refresh().catch(() => undefined);
         return {
           action: null,
           error:
-            "The acknowledgement could not be confirmed. Retry is safe and uses the same submission.",
+            "The acknowledgement could not be confirmed. Current durable Action state was refreshed; retrying the same intent is safe.",
         };
       }
     },
-    [continuityId, loadState, upsertAction],
+    [continuityId, loadState, refresh, upsertAction],
   );
 
   const confirmAction = useCallback(

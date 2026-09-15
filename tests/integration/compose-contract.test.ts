@@ -24,7 +24,10 @@ describe("local dependency composition", () => {
     expect(workerDockerfile).toContain(
       "pnpm deploy --filter @simulora/worker --prod --legacy /out",
     );
-    expect(apiDockerfile).toContain("COPY --from=build /out ./");
-    expect(workerDockerfile).toContain("COPY --from=build /out ./");
+    for (const dockerfile of [apiDockerfile, workerDockerfile]) {
+      expect(dockerfile).toContain("COPY --from=build /out/package.json ./package.json");
+      expect(dockerfile).toContain("COPY --from=build /out/dist ./dist");
+      expect(dockerfile).not.toContain("COPY --from=build /out ./");
+    }
   });
 });

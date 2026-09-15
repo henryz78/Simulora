@@ -64,7 +64,13 @@ export function loadLocalEnvironment(options: LocalEnvironmentOptions = {}): str
 }
 
 export function loadServerConfig(environment: NodeJS.ProcessEnv = process.env): ServerConfig {
-  return serverConfigSchema.parse(environment);
+  const config = serverConfigSchema.parse(environment);
+  // A production-shaped runtime must never silently fall back to the local
+  // development identity/model adapters when SIMULORA_ENV is omitted.
+  if (environment.NODE_ENV === "production" && config.SIMULORA_ENV === "local") {
+    throw new Error("SIMULORA_ENV must be explicitly set for production-shaped runtimes");
+  }
+  return config;
 }
 
 export function redactConfig(config: ServerConfig): Record<string, unknown> {
