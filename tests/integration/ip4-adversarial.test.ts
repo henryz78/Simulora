@@ -633,6 +633,37 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
     expect(reloaded.authoritativeFallback.stateRevisionId).toBe(current.stateRevisionId);
   });
 
+  it("does not serve foreign projection content with relabeled local identity", async () => {
+    const first = await startFixture(repository, [makeFact("fact.local", "The local fact.")]);
+    const second = await startFixture(repository, [makeFact("fact.foreign", "The foreign fact.")]);
+    const foreign = await repository.readOrientation(
+      second.account,
+      second.continuity.continuityId,
+    );
+    const sentinel = "FOREIGN_PROJECTION_CONTENT_SENTINEL";
+    foreign.continuity = {
+      id: first.continuity.continuityId,
+      branchId: first.continuity.branchId,
+      worldRevisionId: first.continuity.worldRevisionId,
+    };
+    foreign.current.situation = sentinel;
+    foreign.openThreads = [sentinel];
+    foreign.relationships = [{ id: "relationship.foreign", description: sentinel }];
+    foreign.nextParticipation.label = sentinel;
+    await pool.query(
+      `update simulora.return_orientation_projections
+          set payload = $2::jsonb, source_head_commit_id = $3, status = 'FRESH', rebuilt_at = now()
+        where branch_id = $1`,
+      [first.continuity.branchId, JSON.stringify(foreign), first.continuity.headCommitId],
+    );
+    const orientation = await repository.readOrientation(
+      first.account,
+      first.continuity.continuityId,
+    );
+    expect(JSON.stringify(orientation)).not.toContain(sentinel);
+    expect(orientation.continuity.id).toBe(first.continuity.continuityId);
+  });
+
   it("discovers a missing projection and enforces its Branch/head integrity", async () => {
     const first = await startFixture(repository, [
       makeFact("fact.projection-repair", "The projection repair fixture is active."),

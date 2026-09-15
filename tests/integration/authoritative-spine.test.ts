@@ -1,6 +1,12 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { participationCombinations, lanternReachSeed } from "../../packages/domain/src/index.js";
+import { randomUUID } from "node:crypto";
+import {
+  createInitialState,
+  participationCombinations,
+  lanternReachSeed,
+  stateRevisionDocumentSchema,
+} from "../../packages/domain/src/index.js";
 import {
   AuthoritativeWorldRepository,
   createDatabasePool,
@@ -24,6 +30,32 @@ suite("PostgreSQL authoritative World and Continuity spine", () => {
 
   afterAll(async () => {
     await pool?.end();
+  });
+
+  it.each(["\u2003", "\u00a0", "\t", "\n", "\ufeff"])(
+    "rejects whitespace-only required text: %j",
+    async (title) => {
+      const result = await pool!.query<{ valid: boolean }>(
+        "select simulora.valid_world_revision_document($1::jsonb) as valid",
+        [JSON.stringify({ ...lanternReachSeed, title })],
+      );
+      expect(result.rows[0]?.valid).toBe(false);
+    },
+  );
+
+  it("keeps the world clock within the domain's safe-integer range", async () => {
+    for (const turn of [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 1, 1e20]) {
+      const state = createInitialState(lanternReachSeed, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+      state.worldClock.turn = turn;
+      const result = await pool!.query<{ valid: boolean }>(
+        "select simulora.valid_state_revision_document($1::jsonb) as valid",
+        [JSON.stringify(state)],
+      );
+      expect(result.rows[0]?.valid).toBe(stateRevisionDocumentSchema.safeParse(state).success);
+    }
   });
 
   it("creates an immutable revision and atomically initializes every participation contract", async () => {
@@ -97,5 +129,55 @@ suite("PostgreSQL authoritative World and Continuity spine", () => {
     ).rejects.toThrow(
       /Active Branch lifecycle cannot return to initialization|ACTIVE Continuity requires its Branch to remain active with complete heads/,
     );
+  });
+
+  it("keeps database document validation and participant access aligned with the domain", async () => {
+    const state = createInitialState(lanternReachSeed, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const validation = await pool!.query<{
+      numeric_motive: boolean;
+      string_turn: boolean;
+      string_resource: boolean;
+    }>(
+      `select simulora.valid_world_revision_document($1::jsonb) as numeric_motive,
+              simulora.valid_state_revision_document($2::jsonb) as string_turn,
+              simulora.valid_state_revision_document($3::jsonb) as string_resource`,
+      [
+        JSON.stringify({
+          ...lanternReachSeed,
+          characters: [{ ...lanternReachSeed.characters[0]!, motives: [123] }],
+        }),
+        JSON.stringify({ ...state, worldClock: { ...state.worldClock, turn: "0" } }),
+        JSON.stringify({ ...state, resources: { lanternOil: "full" } }),
+      ],
+    );
+    expect(validation.rows[0]).toEqual({
+      numeric_motive: false,
+      string_turn: false,
+      string_resource: false,
+    });
+
+    const repository = new AuthoritativeWorldRepository(pool!);
+    const draft = await repository.createWorld(account, lanternReachSeed);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const viewerId = randomUUID();
+    await pool!.query("insert into simulora.accounts (id, eligibility) values ($1, 'ADULT')", [
+      viewerId,
+    ]);
+    await pool!.query(
+      `insert into simulora.world_access_grants (world_id, account_id, role, status)
+       values ($1, $2, 'VIEWER', 'ACTIVE')`,
+      [draft.worldId, viewerId],
+    );
+    await expect(
+      pool!.query(
+        `insert into simulora.continuities
+           (id, owner_account_id, world_revision_id, status)
+         values ($1, $2, $3, 'INITIALIZING')`,
+        [randomUUID(), viewerId, revision.revisionId],
+      ),
+    ).rejects.toThrow(/active participant access/);
   });
 });

@@ -4,6 +4,10 @@ import path from "node:path";
 import { Client } from "pg";
 
 const advisoryLock = 7_243_611_001;
+// 0026's final schema is unchanged; its amended pre-index transition only
+// repairs databases that had not yet applied it. Preserve the exact known
+// already-applied version without weakening checksum checks for other files.
+const prior0026Checksum = "4c054edf6dddf50918f6703c40379b77668b8fb298d666a045ca1312d4fac195";
 
 export type MigrationResult = {
   applied: string[];
@@ -42,7 +46,10 @@ export async function runMigrations(
       );
 
       if (existing.rows[0]) {
-        if (existing.rows[0].checksum !== checksum) {
+        const compatible0026 =
+          file === "0026_integrated_authority_repairs.sql" &&
+          existing.rows[0].checksum === prior0026Checksum;
+        if (existing.rows[0].checksum !== checksum && !compatible0026) {
           throw new Error(`Migration checksum changed: ${file}`);
         }
         result.alreadyApplied.push(file);

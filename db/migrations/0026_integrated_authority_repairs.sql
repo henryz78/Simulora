@@ -376,6 +376,93 @@ for each row execute function simulora.prevent_pending_active_branch_switch();
 -- One unresolved ordinary Action may occupy a Branch/head.  CONFLICT is kept
 -- visible but no longer owns generation authority, so a corrected path can
 -- continue after the conflict is surfaced.
+--
+-- Earlier approved schemas allowed several unresolved ordinary Actions at the
+-- same head.  Preserve every row while deterministically retiring all but the
+-- oldest before installing the stronger invariant, so populated databases can
+-- actually upgrade.
+drop trigger action_status_transition on simulora.actions;
+
+update simulora.generation_attempts attempt
+   set status = 'FAILED',
+       error_class = 'MIGRATED_MULTIPLE_UNRESOLVED',
+       completed_at = coalesce(attempt.completed_at, now())
+ where attempt.status = 'RUNNING'
+   and attempt.action_id in (
+     select id
+       from (
+         select id,
+                row_number() over (
+                  partition by branch_id, expected_head_commit_id
+                  order by created_at, id
+                ) as ordinal
+           from simulora.actions
+          where operation_type = 'PARTICIPATE'
+            and status in ('ACKNOWLEDGED', 'GENERATING', 'VALIDATING',
+                           'AWAITING_CONFIRMATION', 'COMMITTING', 'FAILED_RECOVERABLE')
+       ) ranked
+      where ordinal > 1
+   );
+
+update simulora.durable_jobs job
+   set status = 'DEAD',
+       lease_owner = null,
+       lease_until = null,
+       last_error = 'MIGRATED_MULTIPLE_UNRESOLVED',
+       updated_at = now()
+ where job.status in ('AVAILABLE', 'LEASED', 'FAILED')
+   and job.action_id in (
+     select id
+       from (
+         select id,
+                row_number() over (
+                  partition by branch_id, expected_head_commit_id
+                  order by created_at, id
+                ) as ordinal
+           from simulora.actions
+          where operation_type = 'PARTICIPATE'
+            and status in ('ACKNOWLEDGED', 'GENERATING', 'VALIDATING',
+                           'AWAITING_CONFIRMATION', 'COMMITTING', 'FAILED_RECOVERABLE')
+       ) ranked
+      where ordinal > 1
+   );
+
+update simulora.actions action
+   set status = 'CONFLICT',
+       status_reason = 'MIGRATED_MULTIPLE_UNRESOLVED',
+       terminal_at = null,
+       updated_at = now()
+ where action.id in (
+   select id
+     from (
+       select id,
+              row_number() over (
+                partition by branch_id, expected_head_commit_id
+                order by created_at, id
+              ) as ordinal
+         from simulora.actions
+        where operation_type = 'PARTICIPATE'
+          and status in ('ACKNOWLEDGED', 'GENERATING', 'VALIDATING',
+                         'AWAITING_CONFIRMATION', 'COMMITTING', 'FAILED_RECOVERABLE')
+     ) ranked
+    where ordinal > 1
+ );
+
+-- Retained proposal evidence is historical, not an active confirmation target.
+update simulora.action_proposals proposal
+   set status = 'REJECTED'
+ where proposal.status = 'ACTIVE'
+   and exists (
+     select 1 from simulora.actions action
+      where action.id = proposal.action_id
+        and action.status = 'CONFLICT'
+        and action.status_reason = 'MIGRATED_MULTIPLE_UNRESOLVED'
+   );
+
+create trigger action_status_transition
+before update of status, status_reason, terminal_at on simulora.actions
+for each row execute function simulora.validate_action_status_transition();
+
 create unique index actions_one_unresolved_participate_head_idx
   on simulora.actions(branch_id, expected_head_commit_id)
   where operation_type = 'PARTICIPATE'

@@ -11,6 +11,6 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV SIMULORA_ENV=production
 COPY --from=build /out ./
-RUN rm -rf node_modules/@simulora
+RUN rm -rf node_modules/@simulora node_modules/.pnpm/node_modules/@simulora
 USER node
 CMD ["node", "dist/index.js"]

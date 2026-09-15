@@ -93,6 +93,87 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     });
   }
 
+  it.each([true, false])(
+    "serializes direct Action insertion and path selection, switchFirst=%s",
+    async (switchFirst) => {
+      const continuity = await createContinuity();
+      const fork = await repository.forkBranch(account, continuity.continuityId, {
+        idempotencyKey: randomUUID(),
+        name: "Concurrent fork",
+        sourceCommitId: continuity.headCommitId,
+        expectedHeadCommitId: continuity.headCommitId,
+      });
+      const selection = await pool.connect();
+      const insertion = await pool.connect();
+      const actionId = randomUUID();
+      try {
+        await selection.query("begin");
+        await insertion.query("begin");
+        const insert = () =>
+          insertion.query(
+            `insert into simulora.actions
+        (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
+         expected_head_commit_id, participation_expectation, intent, status)
+        values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, 'Inspect signal.', 'ACKNOWLEDGED')`,
+            [
+              actionId,
+              account.accountId,
+              continuity.continuityId,
+              continuity.branchId,
+              randomUUID(),
+              continuity.headCommitId,
+              JSON.stringify(continuity.state.participation),
+            ],
+          );
+        const select = () =>
+          selection.query("update simulora.continuities set active_branch_id = $2 where id = $1", [
+            continuity.continuityId,
+            fork.id,
+          ]);
+        const settle = (operation: Promise<unknown>) =>
+          operation.then(
+            () => ({ accepted: true, error: null }),
+            (error: unknown) => ({
+              accepted: false,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
+        if (switchFirst)
+          await selection.query("select id from simulora.continuities where id = $1 for update", [
+            continuity.continuityId,
+          ]);
+        else await insert();
+        const waiting = settle(switchFirst ? insert() : select());
+        const holder = switchFirst ? selection : insertion;
+        let blocked = false;
+        for (let attempt = 0; attempt < 100 && !blocked; attempt++) {
+          await holder.query("select pg_stat_clear_snapshot()");
+          const result = await holder.query<{ blocked: boolean }>(`select exists (
+          select 1 from pg_stat_activity where pid <> pg_backend_pid()
+            and pg_backend_pid() = any(pg_blocking_pids(pid))) as blocked`);
+          blocked = result.rows[0]!.blocked;
+          if (!blocked) await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(blocked).toBe(true);
+        if (switchFirst) await select();
+        await holder.query("commit");
+        const loser = await waiting;
+        expect(loser.accepted).toBe(false);
+        expect(loser.error).toMatch(
+          switchFirst ? /current active Branch head/ : /unresolved Action/,
+        );
+        await (switchFirst ? insertion : selection).query("rollback");
+        const current = await repository.readCurrentState(account, continuity.continuityId);
+        expect(current.branchId).toBe(switchFirst ? fork.id : continuity.branchId);
+      } finally {
+        await selection.query("rollback");
+        await insertion.query("rollback");
+        selection.release();
+        insertion.release();
+      }
+    },
+  );
+
   it("keeps Safe Points reference-only and creates an isolated idempotent Branch fork", async () => {
     const continuity = await createContinuity();
     const originalState = await repository.readCurrentState(account, continuity.continuityId);
@@ -114,6 +195,19 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     expect(retry.id).toBe(point.id);
     expect(retry.label).toBe("Before the experiment");
     expect(point.commitId).toBe(continuity.headCommitId);
+    await expect(
+      repository.createRecoveryPoint(account, continuity.branchId, {
+        idempotencyKey: pointKey,
+        label: "A changed request",
+      }),
+    ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
+    await expect(
+      repository.createRecoveryPoint(account, continuity.branchId, {
+        idempotencyKey: pointKey,
+        label: point.label,
+        commitId: randomUUID(),
+      }),
+    ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
     const stateCopies = await pool.query<{ count: number }>(
       "select count(*)::int as count from simulora.state_revisions where branch_id = $1",
       [continuity.branchId],
@@ -438,6 +532,12 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       repository.selectBranch(account, continuity.continuityId, fork.id),
     ).rejects.toThrow(new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION"));
 
+    await expect(
+      pool.query("update simulora.continuities set active_branch_id = $2 where id = $1", [
+        continuity.continuityId,
+        fork.id,
+      ]),
+    ).rejects.toThrow(/unresolved Action/);
     const superseded = await repository.cancelAction(account, conflicted.id);
     expect(superseded.status).toBe("SUPERSEDED");
     expect(

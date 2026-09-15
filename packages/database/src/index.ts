@@ -474,8 +474,9 @@ function orientationPayload(
   headCommitId: string,
   stateRevisionId: string,
   updatedAt: string,
+  commits: TraceCommit[] = [],
 ): OrientationResponse {
-  return {
+  const payload: OrientationResponse = {
     continuity: { id: continuityId, branchId, worldRevisionId },
     current: {
       situation: state.openThreads[0] ?? state.worldClock.label,
@@ -505,6 +506,42 @@ function orientationPayload(
     },
     projectionUpdatedAt: updatedAt,
   };
+  const latestEventType = commits[0]?.events[0]?.type;
+  if (
+    latestEventType === "CONTINUITY_ITEM_CORRECTED" ||
+    latestEventType === "CONTINUITY_ITEM_REMOVED"
+  ) {
+    // Old open-thread wording remains history, not the current canonical update.
+    payload.current.situation =
+      "The continuity is at its current branch head after a recorded canonical update.";
+  }
+  payload.recentChanges = commits
+    .filter((commit) => commit.kind !== "CONTINUITY_INITIALIZED")
+    .flatMap((commit) =>
+      commit.events.length
+        ? commit.events.map((event) => ({
+            commitId: commit.id,
+            eventType: event.type,
+            summary: event.summary,
+            sourceClass: commit.sourceClass,
+            scope: event.scope,
+            occurredAt: commit.createdAt,
+            ...(event.targetId ? { targetId: event.targetId } : {}),
+          }))
+        : [
+            {
+              commitId: commit.id,
+              eventType: commit.kind,
+              summary: eventSummary(commit.kind),
+              sourceClass: commit.sourceClass,
+              scope: "SHARED" as const,
+              occurredAt: commit.createdAt,
+            },
+          ],
+    )
+    .slice(0, 3)
+    .reverse();
+  return payload;
 }
 
 type TraceCursor = { createdAt: string; id: string };
@@ -759,14 +796,6 @@ export class AuthoritativeWorldRepository {
           validationRunId,
         ],
       );
-      for (const character of parsed.data.characters) {
-        await client.query(
-          `insert into simulora.world_revision_characters
-           (world_revision_id, character_spec_id, source_asset_id, spec)
-           values ($1, $2, $3, $4::jsonb)`,
-          [revisionId, character.id, character.sourceAssetId ?? null, JSON.stringify(character)],
-        );
-      }
       return {
         revisionId,
         worldId,
@@ -988,7 +1017,7 @@ export class AuthoritativeWorldRepository {
       const currentPath = await client.query<{ active_branch_id: string }>(
         `select active_branch_id from simulora.continuities
          where owner_account_id = $1 and active_branch_id = $2 and status = 'ACTIVE'
-         for share`,
+         for update`,
         [account.accountId, branchId],
       );
       if (!currentPath.rows[0]) throw new NotFoundError("Branch not found");
@@ -1166,6 +1195,13 @@ export class AuthoritativeWorldRepository {
       const existing = await findExisting();
       if (existing) return existing;
 
+      await client.query(
+        `select id from simulora.continuities
+          where owner_account_id = $1 and active_branch_id = $2 and status = 'ACTIVE'
+          for update`,
+        [account.accountId, branchId],
+      );
+
       const branchResult = await client.query<{
         continuity_id: string;
         head_commit_id: string;
@@ -1179,7 +1215,7 @@ export class AuthoritativeWorldRepository {
           and c.active_branch_id = b.id and c.owner_account_id = $2 and c.status = 'ACTIVE'
          join simulora.state_revisions s on s.id = b.head_state_revision_id
          where b.id = $1 and b.status = 'ACTIVE'
-         for update of b, c`,
+         for update of b`,
         [branchId, account.accountId],
       );
       const branch = branchResult.rows[0];
@@ -1421,11 +1457,10 @@ export class AuthoritativeWorldRepository {
       const currentPath = await client.query<{ active_branch_id: string }>(
         `select active_branch_id from simulora.continuities
          where owner_account_id = $1 and active_branch_id = $2 and status = 'ACTIVE'
-         for share`,
+         for update`,
         [account.accountId, branchId],
       );
       if (!currentPath.rows[0]) throw new NotFoundError("Branch not found");
-
       const branchResult = await client.query<{
         continuity_id: string;
         head_commit_id: string;
@@ -1672,6 +1707,12 @@ export class AuthoritativeWorldRepository {
         throw new ConflictError("CONFIRMATION_EXPIRED_OR_PROPOSAL_CHANGED");
       }
 
+      await client.query(
+        `select id from simulora.continuities
+          where id = (select continuity_id from simulora.branches where id = $1)
+          for update`,
+        [action.branch_id],
+      );
       const branchResult = await client.query<{
         continuity_id: string;
         head_commit_id: string;
@@ -2167,13 +2208,23 @@ export class AuthoritativeWorldRepository {
     this.assertEligible(account);
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
+      const readRetry = async (id: string): Promise<RecoveryPointRecord> => {
+        const point = await this.readRecoveryPointWithClient(client, account.accountId, id);
+        if (
+          point.label !== input.label.trim() ||
+          (input.commitId !== undefined && point.commitId !== input.commitId)
+        ) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return point;
+      };
       const existing = await client.query<{ id: string }>(
         `select id from simulora.recovery_points
          where created_by_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
         [account.accountId, branchId, input.idempotencyKey],
       );
       if (existing.rows[0]) {
-        return this.readRecoveryPointWithClient(client, account.accountId, existing.rows[0].id);
+        return readRetry(existing.rows[0].id);
       }
       const branch = await client.query<{ continuity_id: string; head_commit_id: string }>(
         `select b.continuity_id, b.head_commit_id from simulora.branches b
@@ -2214,7 +2265,7 @@ export class AuthoritativeWorldRepository {
           [account.accountId, branchId, input.idempotencyKey],
         );
         if (!duplicate.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
-        return this.readRecoveryPointWithClient(client, account.accountId, duplicate.rows[0].id);
+        return readRetry(duplicate.rows[0].id);
       }
       return this.readRecoveryPointWithClient(client, account.accountId, id);
     });
@@ -2271,10 +2322,7 @@ export class AuthoritativeWorldRepository {
            where created_by_account_id = $1 and continuity_id = $2 and idempotency_key = $3`,
           [account.accountId, continuityId, input.idempotencyKey],
         );
-        if (
-          duplicate.rows[0]?.fork_request_digest &&
-          duplicate.rows[0].fork_request_digest !== requestDigest
-        ) {
+        if (duplicate.rows[0] && duplicate.rows[0].fork_request_digest !== requestDigest) {
           throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
         }
         return duplicate.rows[0]
@@ -2283,6 +2331,11 @@ export class AuthoritativeWorldRepository {
       };
       const existingFork = await findExistingFork();
       if (existingFork) return existingFork;
+      await client.query(
+        `select id from simulora.continuities
+          where id = $1 and owner_account_id = $2 and status = 'ACTIVE' for update`,
+        [continuityId, account.accountId],
+      );
       const source = await client.query<{
         source_branch_id: string;
         source_state_revision_id: string;
@@ -2301,7 +2354,7 @@ export class AuthoritativeWorldRepository {
           and source_branch.continuity_id = c.id
          join simulora.state_revisions state on state.id = source.state_revision_id
          where c.id = $1 and c.owner_account_id = $2 and c.status = 'ACTIVE'
-         for update of c, active`,
+         for update of active`,
         [continuityId, account.accountId, input.sourceCommitId],
       );
       const row = source.rows[0];
@@ -2341,7 +2394,9 @@ export class AuthoritativeWorldRepository {
           [account.accountId, continuityId, input.idempotencyKey],
         );
         if (!insertRace.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
-        return this.readRecoveryBranchWithClient(client, account.accountId, insertRace.rows[0].id);
+        const existing = await findExistingFork();
+        if (!existing) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        return existing;
       }
       await client.query(
         `insert into simulora.world_commits
@@ -2825,14 +2880,13 @@ export class AuthoritativeWorldRepository {
         head_state_revision_id: string;
         state_document: unknown;
         projection_source_head: string | null;
-        projection_payload: unknown;
         projection_status: OrientationProjectionStatus | null;
         projection_rebuilt_at: Date | null;
       }>(
         `select c.id as continuity_id, b.id as branch_id, c.world_revision_id,
                 b.head_commit_id, b.head_state_revision_id, s.document as state_document,
                 p.source_head_commit_id as projection_source_head,
-                p.payload as projection_payload, p.status as projection_status,
+                p.status as projection_status,
                 p.rebuilt_at as projection_rebuilt_at
          from simulora.branches b
          join simulora.continuities c on c.id = b.continuity_id
@@ -2871,22 +2925,11 @@ export class AuthoritativeWorldRepository {
       let sourceHeadCommitId = row.projection_source_head ?? row.head_commit_id;
       let status: OrientationProjectionStatus = row.projection_status ?? "REBUILDING";
       const projectionUpdatedAt = row.projection_rebuilt_at?.toISOString() ?? null;
-      let payload: OrientationResponse;
-      if (row.projection_payload) {
-        payload = row.projection_payload as OrientationResponse;
-      } else {
-        payload = orientationPayload(
-          row.continuity_id,
-          row.branch_id,
-          row.world_revision_id,
-          state,
-          row.head_commit_id,
-          row.head_state_revision_id,
-          new Date().toISOString(),
-        );
-      }
-
-      const distanceResult = await client.query<{ distance: number | null }>(
+      const distanceResult = await client.query<{
+        distance: number;
+        state_document: unknown;
+        state_revision_id: string;
+      }>(
         `with recursive ancestors(id, parent_commit_id, distance) as (
            select id, parent_commit_id, 0 from simulora.world_commits where id = $1
            union all
@@ -2894,14 +2937,40 @@ export class AuthoritativeWorldRepository {
            from simulora.world_commits c join ancestors on c.id = ancestors.parent_commit_id
            where ancestors.distance < 1000
          )
-         select distance from ancestors where id = $2 limit 1`,
-        [row.head_commit_id, sourceHeadCommitId],
+         select ancestors.distance, state.document as state_document, state.id as state_revision_id
+           from ancestors
+           join simulora.world_commits source on source.id = ancestors.id and source.branch_id = $3
+           join simulora.state_revisions state on state.id = source.state_revision_id
+          where ancestors.id = $2 limit 1`,
+        [row.head_commit_id, sourceHeadCommitId, row.branch_id],
       );
-      const headDistance =
-        distanceResult.rows[0]?.distance ?? (sourceHeadCommitId === row.head_commit_id ? 0 : 1);
+      const source = distanceResult.rows[0];
+      if (!source) {
+        sourceHeadCommitId = row.head_commit_id;
+        status = "REBUILDING";
+      }
+      const headDistance = source?.distance ?? 0;
       if (sourceHeadCommitId !== row.head_commit_id && status === "FRESH") status = "STALE";
-      if (status === "FRESH") sourceHeadCommitId = row.head_commit_id;
-      payload = {
+      // Cached payload is derived, not an authority or privacy boundary. Read
+      // only authorized source records and reuse the worker's presentation logic.
+      const trace = await this.readTracePageWithClient(
+        client,
+        row.branch_id,
+        sourceHeadCommitId,
+        undefined,
+        10,
+      );
+      const payload = orientationPayload(
+        row.continuity_id,
+        row.branch_id,
+        row.world_revision_id,
+        source ? stateRevisionDocumentSchema.parse(source.state_document) : state,
+        sourceHeadCommitId,
+        source?.state_revision_id ?? row.head_state_revision_id,
+        projectionUpdatedAt ?? new Date().toISOString(),
+        trace.commits,
+      );
+      return {
         ...payload,
         // Pending actions and the next participation point are always based on
         // the authoritative current head, even while the narrative projection
@@ -2924,7 +2993,6 @@ export class AuthoritativeWorldRepository {
         },
         projectionUpdatedAt,
       };
-      return payload;
     });
   }
 
@@ -2979,48 +3047,8 @@ export class AuthoritativeWorldRepository {
         branch.head_commit_id,
         branch.head_state_revision_id,
         updatedAt,
+        trace.commits,
       );
-      const latestEventType = trace.commits[0]?.events[0]?.type;
-      if (
-        latestEventType === "CONTINUITY_ITEM_CORRECTED" ||
-        latestEventType === "CONTINUITY_ITEM_REMOVED"
-      ) {
-        // The immutable State Revision intentionally retains old open-thread
-        // narrative. Do not promote that historical wording to the Return
-        // "Now" card after a correction/removal; current canonical truth is
-        // represented by the active fact set and the explicit change record.
-        payload.current.situation =
-          "The continuity is at its current branch head after a recorded canonical update.";
-      }
-      payload.recentChanges = trace.commits
-        .filter((commit) => commit.kind !== "CONTINUITY_INITIALIZED")
-        .flatMap((commit) =>
-          commit.events.length
-            ? commit.events.map((event) => ({
-                commitId: commit.id,
-                eventType: event.type,
-                summary: event.summary,
-                sourceClass: commit.sourceClass,
-                scope: event.scope,
-                occurredAt: commit.createdAt,
-                ...(event.targetId ? { targetId: event.targetId } : {}),
-              }))
-            : [
-                {
-                  commitId: commit.id,
-                  eventType: commit.kind,
-                  summary: eventSummary(commit.kind),
-                  sourceClass: commit.sourceClass,
-                  scope: "SHARED" as const,
-                  occurredAt: commit.createdAt,
-                },
-              ],
-        )
-        // Trace commits arrive newest-first. Keep the newest bounded set and
-        // present that set chronologically so the latest correction cannot be
-        // dropped by taking the tail of a descending list.
-        .slice(0, 3)
-        .reverse();
       payload.pendingActions = pending.rows.map((action) => ({
         id: action.id,
         operationType: action.operation_type,
@@ -3870,11 +3898,18 @@ export class AuthoritativeWorldRepository {
     const leaseIdentity = [prepared.jobId, workerId, prepared.attempts, prepared.attemptId];
     // The epoch and attempt ID fence even two executions sharing a worker name.
     const lockOwnedLease = async (client: PoolClient): Promise<boolean> => {
-      const current = await client.query<{ status: ActionStatus }>(
-        `select status from simulora.actions where id = $1 for update`,
+      const current = await client.query<{
+        status: ActionStatus;
+        branch_id: string;
+        continuity_id: string;
+        expected_head_commit_id: string;
+      }>(
+        `select status, branch_id, continuity_id, expected_head_commit_id
+           from simulora.actions where id = $1 for update`,
         [actionId],
       );
-      if (current.rows[0]?.status !== "GENERATING") return false;
+      const action = current.rows[0];
+      if (action?.status !== "GENERATING") return false;
       const owned = await client.query(
         `select j.id from simulora.durable_jobs j
          join simulora.generation_attempts g on g.action_id = j.action_id
@@ -3884,7 +3919,59 @@ export class AuthoritativeWorldRepository {
          for update of j`,
         leaseIdentity,
       );
-      return owned.rowCount === 1;
+      if (owned.rowCount !== 1) return false;
+      const continuity = await client.query<{
+        active_branch_id: string;
+        status: string;
+      }>(
+        `select active_branch_id, status from simulora.continuities
+          where id = $1 for update`,
+        [action.continuity_id],
+      );
+      const path = await client.query<{
+        head_commit_id: string;
+        branch_status: string;
+      }>(
+        `select branch.head_commit_id, branch.status as branch_status
+           from simulora.branches branch
+          where branch.id = $1 and branch.continuity_id = $2
+          for update`,
+        [action.branch_id, action.continuity_id],
+      );
+      const currentPath = path.rows[0];
+      if (
+        currentPath?.branch_status === "ACTIVE" &&
+        continuity.rows[0]?.status === "ACTIVE" &&
+        continuity.rows[0].active_branch_id === action.branch_id &&
+        currentPath.head_commit_id === action.expected_head_commit_id
+      ) {
+        return true;
+      }
+      await client.query(
+        `update simulora.generation_attempts
+           set status = 'FAILED', error_class = 'BRANCH_HEAD_CONFLICT', completed_at = now()
+         where id = $1`,
+        [prepared.attemptId],
+      );
+      await client.query(
+        `update simulora.actions
+           set status = 'CONFLICT', status_reason = 'BRANCH_HEAD_CONFLICT',
+               updated_at = now(), row_version = row_version + 1
+         where id = $1`,
+        [actionId],
+      );
+      await client.query(
+        `update simulora.durable_jobs
+           set status = 'DEAD', lease_owner = null, lease_until = null,
+               last_error = 'BRANCH_HEAD_CONFLICT', updated_at = now()
+         where id = $1`,
+        [prepared.jobId],
+      );
+      await this.appendProgressWithClient(client, actionId, "action.failed", {
+        status: "CONFLICT",
+        reason: "BRANCH_HEAD_CONFLICT",
+      });
+      return false;
     };
     let renewal: Promise<void> | undefined;
     const heartbeat = setInterval(() => {
@@ -4113,6 +4200,7 @@ export class AuthoritativeWorldRepository {
               c.id as commit_id, c.id as commit_head, sr.id as commit_state, c.created_at as committed_at
        from simulora.actions a
        left join simulora.action_proposals p on p.action_id = a.id
+         and p.status in ('ACTIVE', 'CONFIRMED')
        left join simulora.world_commits c on c.action_id = a.id
        left join simulora.state_revisions sr on sr.commit_id = c.id
        where a.id = $1 and a.actor_account_id = $2`,
@@ -4201,8 +4289,14 @@ export class AuthoritativeWorldRepository {
     reason: string,
   ): Promise<void> {
     await client.query(
-      `update simulora.actions set status = 'CONFLICT', terminal_at = null, status_reason = $2, updated_at = now(), row_version = row_version + 1 where id = $1 and status not in ('COMMITTED', 'CANCELLED')`,
+      `update simulora.actions set status = 'CONFLICT', terminal_at = null, status_reason = $2, updated_at = now(), row_version = row_version + 1 where id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')`,
       [actionId, reason],
+    );
+    await client.query(
+      `update simulora.action_proposals set status = 'REJECTED'
+        where action_id = $1 and status = 'ACTIVE'
+          and exists (select 1 from simulora.actions where id = $1 and status = 'CONFLICT')`,
+      [actionId],
     );
     await this.appendProgressWithClient(client, actionId, "action.failed", {
       status: "CONFLICT",

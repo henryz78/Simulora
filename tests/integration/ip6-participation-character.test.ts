@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   contentHash,
+  assertGeneratedNarrativeDoesNotAuthorUser,
   lanternReachSeed,
   participationCombinations,
   type ParticipationContract,
@@ -42,6 +43,126 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
 
   afterAll(async () => pool?.end());
 
+  it("rejects unavailable Character Asset lineage in a direct SQL Revision", async () => {
+    const world = structuredClone(lanternReachSeed);
+    world.characters[0]!.sourceAssetId = randomUUID();
+    const draft = await repository.createWorld(account, world);
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const validationId = randomUUID();
+      await client.query(
+        `insert into simulora.authoring_validation_runs
+        (id, world_id, draft_row_version, outcome, findings)
+        values ($1, $2, $3, 'VALID', '[]'::jsonb)`,
+        [validationId, draft.worldId, draft.rowVersion],
+      );
+      await expect(
+        client.query(
+          `insert into simulora.world_revisions
+        (id, world_id, revision_number, source_draft_row_version, document, document_hash, validation_run_id)
+        select $1, world_id, 1, row_version, document, document_hash, $2
+          from simulora.world_drafts where world_id = $3`,
+          [randomUUID(), validationId, draft.worldId],
+        ),
+      ).rejects.toThrow(/Character Asset must be active and owned/);
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  });
+
+  it.each([
+    "用户 said the gate",
+    "用户 chose the gate",
+    "用户 paid the gate",
+    "守灯人 said the gate",
+  ])("rejects mixed-script protected speech at both boundaries: %s", async (narrative) => {
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser(narrative, "守灯人")).toThrow();
+    const result = await pool.query<{ rejected: boolean }>(
+      "select simulora.generated_narrative_authors_user($1::text, $2::text) as rejected",
+      [narrative, "守灯人"],
+    );
+    expect(result.rows[0]?.rejected).toBe(true);
+  });
+
+  it.each([
+    ["守灯人的私密暗号。", "守灯人的私密暗号"],
+    ["中文😀", "中文"],
+    ["PIN 123", "PIN   123"],
+    ["ＰＩＮ１２３。", "PIN123"],
+  ])("protects normalized excluded text: %s", async (fact, output) => {
+    const result = await pool.query<{ rejected: boolean }>(
+      `select simulora.generated_output_references_excluded_fact($1::text,
+         jsonb_build_object('facts', jsonb_build_array(jsonb_build_object('id', 'fact.private', 'statement', $2::text))),
+         '[]'::jsonb) as rejected`,
+      [output, fact],
+    );
+    expect(result.rows[0]?.rejected).toBe(true);
+  });
+
+  it.each([
+    { narrative: "用户 chose the gate", privateFact: undefined, afterStatement: undefined },
+    { narrative: "守灯人 said the gate", privateFact: undefined, afterStatement: undefined },
+    { narrative: undefined, privateFact: "守灯人的私密暗号。", afterStatement: "守灯人的私密暗号" },
+    { narrative: undefined, privateFact: "中文😀", afterStatement: "中文" },
+  ])("rejects protected output with an otherwise valid materialization: %j", async (fixture) => {
+    const world = structuredClone(lanternReachSeed);
+    world.userRole.name = "守灯人";
+    if (fixture.privateFact) {
+      world.facts.push({
+        id: "fact.private-output",
+        statement: fixture.privateFact,
+        scope: "ACCOUNT_PRIVATE",
+        provenance: "Direct private note",
+        lifecycle: "ACTIVE",
+      });
+    }
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const safe = await prepareOrdinaryAction(continuity);
+    const attempt = await pool.query<{ context_manifest: unknown }>(
+      "select context_manifest from simulora.generation_attempts where action_id = $1",
+      [safe.id],
+    );
+    await repository.cancelAction(account, safe.id);
+    await expect(
+      prepareRawParticipateProposal(continuity, {
+        manifest: attempt.rows[0]!.context_manifest,
+        completeAttempt: true,
+        ...(fixture.narrative !== undefined ? { narrative: fixture.narrative } : {}),
+        ...(fixture.afterStatement !== undefined ? { afterStatement: fixture.afterStatement } : {}),
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      continuity.headCommitId,
+    );
+  });
+
+  it("rejects malformed reusable Character Assets even with the correct hash", async () => {
+    const document = {
+      schemaVersion: 1,
+      name: "",
+      role: "valid",
+      motives: [123],
+      stance: "",
+      knowledgeFactIds: ["NOT A STABLE ID"],
+      extra: true,
+    };
+    await repository.ensureAccount(account);
+    await expect(
+      pool.query(
+        `insert into simulora.character_assets (id, owner_account_id, document, document_hash)
+      values ($1, $2, $3::jsonb, $4)`,
+        [randomUUID(), account.accountId, JSON.stringify(document), contentHash(document)],
+      ),
+    ).rejects.toThrow(/document_shape/);
+  });
+
   async function createContinuity(
     initial: ParticipationContract = {
       initiativeMode: "GUIDED",
@@ -74,6 +195,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       manifest: unknown;
       completeAttempt?: boolean;
       afterStatement?: string;
+      narrative?: string;
       attemptOutput?: unknown;
       expiresInMs?: number;
     },
@@ -85,7 +207,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       participationExpectation: continuity.state.participation,
       intent: "Ask Iora whether the signal is safe.",
     });
-    const narrative = "Iora refuses to light an unsafe signal.";
+    const narrative = options.narrative ?? "Iora refuses to light an unsafe signal.";
     const responseSource = { type: "CHARACTER" as const, characterId: "character.iora" };
     const target = continuity.state.facts.find(
       (fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED",

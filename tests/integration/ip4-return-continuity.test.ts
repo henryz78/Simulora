@@ -82,6 +82,157 @@ suite("IP-4 Return, Continuity and direct correction against PostgreSQL", () => 
     });
   }
 
+  it.each([
+    { operation: "CORRECT_CONTINUITY" as const, fail: false },
+    { operation: "REMOVE_CONTINUITY" as const, fail: false },
+    { operation: "CORRECT_CONTINUITY" as const, fail: true },
+    { operation: "REMOVE_CONTINUITY" as const, fail: true },
+  ])(
+    "fences an in-flight callback after a direct change: $operation, failure=$fail",
+    async ({ operation, fail }) => {
+      const continuity = await createContinuity();
+      const fact = continuity.state.facts[0]!;
+      const pending = await repository.submitAction(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: `in-flight-${randomUUID()}`,
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: "Inspect the western signal.",
+      });
+      let entered!: () => void;
+      let release!: () => void;
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const processing = repository.processAction(
+        pending.id,
+        async (request) => {
+          entered();
+          await gate;
+          if (fail) throw new Error("Late generator failure");
+          return gateway.generateWorldTurn(request);
+        },
+        `in-flight-worker-${randomUUID()}`,
+      );
+      await started;
+      try {
+        const correction = await repository.submitCorrection(account, continuity.branchId, {
+          schemaVersion: 1,
+          idempotencyKey: `in-flight-direct-${randomUUID()}`,
+          expectedHeadCommitId: continuity.headCommitId,
+          target: { type: "fact", id: fact.id },
+          operation,
+          before: { statement: fact.statement, scope: fact.scope },
+          ...(operation === "CORRECT_CONTINUITY"
+            ? { after: { statement: "The signal is steady." } }
+            : {}),
+          reason: "Directly verified while the earlier generation was running.",
+        });
+        await confirm(correction);
+      } finally {
+        release();
+      }
+      const result = await processing;
+      expect(result).toMatchObject({ status: "CONFLICT", proposal: null, commit: null });
+      const evidence = await pool.query<{
+        job_status: string;
+        attempt_status: string;
+        proposals: number;
+      }>(
+        `select job.status as job_status, attempt.status as attempt_status,
+              (select count(*)::integer from simulora.action_proposals where action_id = $1) as proposals
+         from simulora.durable_jobs job
+         join simulora.generation_attempts attempt on attempt.action_id = job.action_id
+        where job.action_id = $1`,
+        [pending.id],
+      );
+      expect(evidence.rows).toEqual([
+        { job_status: "DEAD", attempt_status: "FAILED", proposals: 0 },
+      ]);
+      const current = await repository.readCurrentState(account, continuity.continuityId);
+      expect(current.headCommitId).not.toBe(continuity.headCommitId);
+      expect(current.state.facts.find((item) => item.id === fact.id)?.lifecycle).toBe(
+        operation === "REMOVE_CONTINUITY" ? "REMOVED" : "ACTIVE",
+      );
+      if (operation === "CORRECT_CONTINUITY") {
+        expect(current.state.facts.find((item) => item.id === fact.id)?.statement).toBe(
+          "The signal is steady.",
+        );
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "locks Continuity before Branch in a callback, failure=%s",
+    async (fail) => {
+      const continuity = await createContinuity();
+      const pending = await repository.submitAction(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: "Inspect the signal.",
+      });
+      let entered!: () => void;
+      let release!: () => void;
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const processing = repository.processAction(
+        pending.id,
+        async (request) => {
+          entered();
+          await gate;
+          if (fail) throw new Error("Generator failed");
+          return gateway.generateWorldTurn(request);
+        },
+        "lock-order-worker",
+      );
+      await started;
+      const recovery = await pool.connect();
+      try {
+        await recovery.query("begin");
+        await recovery.query("set local lock_timeout = '3s'");
+        await recovery.query("select id from simulora.continuities where id = $1 for update", [
+          continuity.continuityId,
+        ]);
+        release();
+        // Wait for the callback to block on this transaction's Continuity lock.
+        // No timing assumption: inspect PostgreSQL's actual blocking graph.
+        let blocked = false;
+        for (let attempt = 0; attempt < 100 && !blocked; attempt++) {
+          await recovery.query("select pg_stat_clear_snapshot()");
+          const waiting = await recovery.query<{ blocked: boolean }>(
+            `select exists (select 1 from pg_stat_activity
+            where pid <> pg_backend_pid()
+              and pg_backend_pid() = any(pg_blocking_pids(pid))) as blocked`,
+          );
+          blocked = waiting.rows[0]!.blocked;
+          if (!blocked) await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(blocked).toBe(true);
+        await recovery.query("select id from simulora.branches where id = $1 for update", [
+          continuity.branchId,
+        ]);
+        await recovery.query("commit");
+      } finally {
+        await recovery.query("rollback");
+        recovery.release();
+        release();
+        await processing;
+      }
+      expect((await repository.readAction(account, pending.id)).status).toBe(
+        fail ? "GENERATING" : "AWAITING_CONFIRMATION",
+      );
+    },
+  );
+
   it("serves repository-backed Return/Trace/Explanation routes and marks projection freshness honestly", async () => {
     const continuity = await createContinuity();
     let authenticated = account;
@@ -318,6 +469,12 @@ suite("IP-4 Return, Continuity and direct correction against PostgreSQL", () => 
     });
     expect(conflicted.status).toBe("CONFLICT");
     expect(conflicted.commit).toBeNull();
+    expect(conflicted.proposal).toBeNull();
+    const invalidated = await pool.query<{ status: string }>(
+      "select status from simulora.action_proposals where action_id = $1",
+      [pending.id],
+    );
+    expect(invalidated.rows[0]?.status).toBe("REJECTED");
     const commits = await pool.query<{ count: number }>(
       "select count(*)::int as count from simulora.world_commits where branch_id = $1 and action_id is not null",
       [continuity.branchId],

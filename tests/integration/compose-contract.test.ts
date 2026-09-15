@@ -26,7 +26,9 @@ describe("local dependency composition", () => {
     );
     for (const dockerfile of [apiDockerfile, workerDockerfile]) {
       expect(dockerfile).toContain("COPY --from=build /out ./");
-      expect(dockerfile).toContain("RUN rm -rf node_modules/@simulora");
+      expect(dockerfile).toContain(
+        "RUN rm -rf node_modules/@simulora node_modules/.pnpm/node_modules/@simulora",
+      );
     }
   });
 });
