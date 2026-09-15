@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   assertExperimentDatabase,
   parseProfile,
+  predecessorStyleRequest,
   redact,
 } from "../../scripts/product-reality-spike.js";
 
@@ -22,4 +23,25 @@ it("keeps the isolated provider profile secret and forbids non-Spike database ta
   ]) {
     expect(() => assertExperimentDatabase(url)).toThrow();
   }
+});
+
+it("makes a read-only predecessor-style contrast without changing the selected actor or truth inputs", () => {
+  const request = {
+    actionId: "synthetic-action",
+    expectedHeadCommitId: "synthetic-head",
+    intent: "Inspect the signal.",
+    participation: { initiativeMode: "GUIDED" as const, structureMode: "OPEN_ENDED" as const },
+    character: null,
+    targetFact: { id: "fact.signal", statement: "The signal is dim.", scope: "SHARED" as const },
+    context: { source: { headCommitId: "synthetic-head" } },
+  };
+  expect(predecessorStyleRequest(request)).toEqual({
+    actionId: request.actionId,
+    expectedHeadCommitId: request.expectedHeadCommitId,
+    intent: request.intent,
+    participation: request.participation,
+    character: request.character,
+    targetFact: request.targetFact,
+  });
+  expect(request.context).toBeDefined();
 });

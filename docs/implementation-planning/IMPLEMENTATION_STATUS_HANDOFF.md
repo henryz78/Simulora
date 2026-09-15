@@ -53,7 +53,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next decision:                     authorize bounded RE-2 live context comparison
+Next input:                        RE-2 live comparison paused on HTTP 429; profile/availability
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -465,6 +465,11 @@ started/not authorized. No additional live calls were made in RE-2.
 
 ## 17. RE-2 independent closure and proposed reality check
 
+Subsequent user acceptance authorizes the proposed maximum-eight-call isolated
+context comparison only. Current execution/results entry:
+[RE-2 Context Reality Check](RE-2-CONTEXT-REALITY-CHECK.md). The original proposal
+and review below remain historical; RE-3/full RE-4/IP-7 are still not authorized.
+
 [Original independent result](RE-2-INDEPENDENT-REVIEW.md): PASS, 0/0/0 at
 `3d14dc6792e406ce4c054ee01f4b424b00c27053`; independently created PostgreSQL
 database 117/117, focused desktop/390×844 18/18 and exact-SHA CI `35028511913`
@@ -487,3 +492,17 @@ User asks future simple repairs to receive bounded focused review, not unlimited
 depth. Use changed-path checks plus direct regression/exact-SHA CI, collect real
 issues once, and stop expanding into observations. Authority/privacy/migration
 changes still receive risk-proportionate adversarial verification.
+
+## 18. RE-2 context-only live comparison — external availability pause
+
+The user accepted the maximum-eight-dispatch isolated comparison. See
+[actual attempt/evidence](RE-2-CONTEXT-REALITY-CHECK.md): one enriched Iora request,
+provider HTTP 429, no text/usage/returned-model evidence, no retry/substitution.
+Its durable pending Action was explicitly cancelled; initial head and Participation
+remain unchanged, no proposal/Commit. Remaining cap is seven, including failures.
+This does not establish poor/good model quality or authorize full RE-4/RE-3/IP-7.
+Only isolated runner/test support changed; production approved behavior remains
+`3d14dc6792e406ce4c054ee01f4b424b00c27053`. Do not replace it with the runner/docs SHA.
+
+Await updated local profile or confirmed availability, not automatic retry.
+Keep the old 12-call Spike and original RE-2 independent PASS as scoped evidence.

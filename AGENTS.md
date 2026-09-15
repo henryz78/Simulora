@@ -25,6 +25,10 @@
 独立 PostgreSQL 117/117、desktop/390×844 focused 浏览器 18/18 PASS；主 Agent full 浏览器 54/54 为另份自测证据。
 仍保留单事实 L3 effect envelope，production deterministic adapter 未变，不宣称完整 AI 世界已验证。
 RE-3 routine effects、RE-4 新一轮 live/human validation、IP-7 均未获实施授权，不自动进入。
+用户随后授权最多 8 次 RE-2 隔离 context-only live comparison，见
+`docs/implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md`。已派发 1 次，供应商 HTTP 429；
+无模型输出、无 proposal/Commit，明确取消 pending Action，head 不变。现暂停，剩余 7 次；
+不自动重试或更换模型，待用户更新受忽略的 profile 或确认供应商可用。这不是 full RE-4 授权。
 后续仅文档 commit 不替换行为审查基线。
 
 ## Long-Term Product Direction

@@ -64,4 +64,6 @@ lead，不是最终 World 的定义。短暂而流畅的角色回应也不证明
 如果路线开始固化为单事实修改器、普通聊天，或者只有管理界面而没有可玩世界，
 主 Agent 必须主动指出具体实现证据、体验后果和最小后续决策，不能默默接受收窄。
 RE-1 通过后，用户已授权 RE-2 的 bounded context / Character 实施；RE-3 与新一轮
-Reality 执行范围仍待批准。最终目标不自动批准后续阶段；**IP-7 尚未开始**。
+full Reality 执行范围仍待批准。用户随后授权最多 8 次 RE-2 context-only comparison，
+现 [1/8 派发后因供应商 HTTP 429 暂停](RE-2-CONTEXT-REALITY-CHECK.md)，无模型输出；
+这不证明世界质量、不授权 RE-3/full RE-4。最终目标不自动批准后续阶段；**IP-7 尚未开始**。
