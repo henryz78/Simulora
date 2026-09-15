@@ -83,6 +83,15 @@ export const worldDocumentSchema = z
         }),
       )
       .min(1),
+    routineRoutes: z
+      .array(
+        z.object({
+          fromLocationId: stableIdSchema,
+          toLocationId: stableIdSchema,
+          label: nonEmptyTextSchema,
+        }),
+      )
+      .optional(),
     characters: z.array(worldCharacterSpecSchema).min(1),
     facts: z.array(worldFactSchema).min(1),
     relationships: z.array(
@@ -225,6 +234,7 @@ export type CharacterGenerationContext = {
   role: string;
   motives: string[];
   stance: string;
+  locationId: string;
   currentState: string;
   knownFacts: StateFact[];
   relationships: StateRevisionDocument["relationships"];
@@ -275,6 +285,7 @@ export function compileCharacterContext(
     role: spec.role,
     motives: spec.motives,
     stance: spec.stance,
+    locationId: runtime.locationId,
     currentState: runtime.currentState,
     knownFacts: state.facts.filter(
       (fact) =>
@@ -347,23 +358,41 @@ export const actionCandidateSchema = z
       z.object({ type: z.literal("WORLD") }).strict(),
       z.object({ type: z.literal("CHARACTER"), characterId: stableIdSchema }).strict(),
     ]),
-    operation: z
-      .object({
-        type: z.literal("UPDATE_CANONICAL_FACT"),
-        targetFactId: stableIdSchema,
-        beforeStatement: nonEmptyTextSchema,
-        afterStatement: nonEmptyTextSchema,
-        scope: factScopeSchema,
-        provenance: nonEmptyTextSchema,
-      })
-      .strict(),
+    operation: z.discriminatedUnion("type", [
+      z
+        .object({
+          type: z.literal("UPDATE_CANONICAL_FACT"),
+          targetFactId: stableIdSchema,
+          beforeStatement: nonEmptyTextSchema,
+          afterStatement: nonEmptyTextSchema,
+          scope: factScopeSchema,
+          provenance: nonEmptyTextSchema,
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal("MOVE_CHARACTER"),
+          characterId: stableIdSchema,
+          beforeLocationId: stableIdSchema,
+          afterLocationId: stableIdSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal("NO_WORLD_EFFECT"),
+          reason: nonEmptyTextSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
+    ]),
   })
   .strict();
 
 export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type ActionCandidate = z.infer<typeof actionCandidateSchema>;
 export type ActionResponseSource = ActionCandidate["responseSource"];
-export type ConsequenceImpact = "L3";
+export type ConsequenceImpact = "L0" | "L2" | "L3";
 
 const directCorrectionOperationSchema = z.discriminatedUnion("type", [
   z
@@ -416,8 +445,8 @@ export type ValidatedDirectCorrectionCandidate = {
 export type ValidatedActionCandidate = {
   candidate: ActionCandidate;
   impact: ConsequenceImpact;
-  requiresExactConfirmation: true;
-  displayEffect: {
+  requiresExactConfirmation: boolean;
+  displayEffect?: {
     target: string;
     before: string;
     after: string;
@@ -441,6 +470,8 @@ export function validateActionCandidate(
     authorizedContextFactIds: ReadonlySet<string> | readonly string[];
     responseSource?: ActionResponseSource;
     userRoleName?: string;
+    requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+    authorizedRoutineRoutes?: ReadonlySet<string> | readonly string[];
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -469,12 +500,68 @@ export function validateActionCandidate(
     expected.userRoleName,
     expected.state.characters.find((character) => character.id === responseCharacterId)?.name,
   );
-  assertGeneratedNarrativeDoesNotAuthorUser(
-    candidate.operation.afterStatement,
-    expected.userRoleName,
-  );
-  assertGeneratedNarrativeDoesNotAuthorUser(candidate.operation.provenance, expected.userRoleName);
-  if (candidate.operation.provenance !== `Confirmed Action ${candidate.actionId}`) {
+  const requestedEffect = expected.requestedEffect ?? "FACT_REWRITE";
+  const operation = candidate.operation;
+  if (
+    (requestedEffect === "FACT_REWRITE" && operation.type !== "UPDATE_CANONICAL_FACT") ||
+    (requestedEffect === "ROUTINE_EFFECT" && operation.type !== "MOVE_CHARACTER") ||
+    (requestedEffect === "NO_WORLD_EFFECT" && operation.type !== "NO_WORLD_EFFECT")
+  ) {
+    throw new Error("Candidate effect does not match the requested closed effect envelope");
+  }
+  const allowedContext = new Set(expected.authorizedContextFactIds);
+  if (operation.type === "NO_WORLD_EFFECT") {
+    if (operation.causalFactIds.some((id) => !allowedContext.has(id))) {
+      throw new Error("No-world-effect source is outside the authorized context");
+    }
+    return { candidate, impact: "L0", requiresExactConfirmation: false };
+  }
+  if (operation.type === "MOVE_CHARACTER") {
+    if (
+      candidate.responseSource.type !== "CHARACTER" ||
+      candidate.responseSource.characterId !== operation.characterId
+    ) {
+      throw new Error("Routine effect must be attributed to its selected Character");
+    }
+    const character = expected.state.characters.find((item) => item.id === operation.characterId);
+    if (!character) throw new Error("Routine effect Character is not present at the expected head");
+    if (character.locationId !== operation.beforeLocationId) {
+      throw new Error("Routine effect before location does not match the expected head");
+    }
+    if (operation.beforeLocationId === operation.afterLocationId) {
+      throw new Error("Routine effect must change the Character location");
+    }
+    if (!expected.state.locations.some((location) => location.id === operation.afterLocationId)) {
+      throw new Error("Routine effect destination is not present at the expected head");
+    }
+    const routes = Array.isArray(expected.authorizedRoutineRoutes)
+      ? expected.authorizedRoutineRoutes
+      : [...(expected.authorizedRoutineRoutes ?? [])];
+    if (!routes.includes(`${operation.beforeLocationId}->${operation.afterLocationId}`)) {
+      throw new Error("Routine effect route is outside the authorized closed policy");
+    }
+    if (operation.causalFactIds.some((id) => !allowedContext.has(id))) {
+      throw new Error("Routine effect source is outside the authorized context");
+    }
+    return {
+      candidate,
+      impact: "L2",
+      requiresExactConfirmation: true,
+      displayEffect: {
+        target: operation.characterId,
+        before: operation.beforeLocationId,
+        after: operation.afterLocationId,
+        scope: "SHARED",
+      },
+    };
+  }
+  if (operation.type !== "UPDATE_CANONICAL_FACT") {
+    throw new Error("Unsupported requested effect operation");
+  }
+  const factOperation = operation;
+  assertGeneratedNarrativeDoesNotAuthorUser(factOperation.afterStatement, expected.userRoleName);
+  assertGeneratedNarrativeDoesNotAuthorUser(factOperation.provenance, expected.userRoleName);
+  if (factOperation.provenance !== `Confirmed Action ${candidate.actionId}`) {
     throw new Error("Candidate provenance must be the server-verifiable Action reference");
   }
 
@@ -482,23 +569,20 @@ export function validateActionCandidate(
   if (
     allowed &&
     !(Array.isArray(allowed)
-      ? allowed.includes(candidate.operation.targetFactId)
-      : (allowed as ReadonlySet<string>).has(candidate.operation.targetFactId))
+      ? allowed.includes(factOperation.targetFactId)
+      : (allowed as ReadonlySet<string>).has(factOperation.targetFactId))
   ) {
     throw new Error("Candidate target fact is outside the authorized context");
   }
   const target = expected.state.facts.find(
-    (fact) => fact.id === candidate.operation.targetFactId && fact.lifecycle === "ACTIVE",
+    (fact) => fact.id === factOperation.targetFactId && fact.lifecycle === "ACTIVE",
   );
   if (!target) throw new Error("Candidate target fact is not present at the expected head");
-  if (
-    target.statement !== candidate.operation.beforeStatement ||
-    target.scope !== candidate.operation.scope
-  ) {
+  if (target.statement !== factOperation.beforeStatement || target.scope !== factOperation.scope) {
     throw new Error("Candidate before-state or scope does not match the expected head");
   }
   assertGeneratedTextDoesNotLeakExcludedFacts(
-    [candidate.narrative, candidate.operation.afterStatement],
+    [candidate.narrative, factOperation.afterStatement],
     expected.state,
     expected.authorizedContextFactIds,
   );
@@ -512,7 +596,7 @@ export function validateActionCandidate(
     displayEffect: {
       target: target.id,
       before: target.statement,
-      after: candidate.operation.afterStatement,
+      after: factOperation.afterStatement,
       scope: target.scope,
     },
   };
@@ -967,6 +1051,33 @@ export function applyValidatedActionCandidate(
 ): StateRevisionDocument {
   const state = stateRevisionDocumentSchema.parse(stateInput);
   const operation = validated.candidate.operation;
+  if (operation.type === "NO_WORLD_EFFECT") {
+    throw new Error("A no-world-effect candidate cannot mutate World state");
+  }
+  if (operation.type === "MOVE_CHARACTER") {
+    const character = state.characters.find((item) => item.id === operation.characterId);
+    if (!character || character.locationId !== operation.beforeLocationId) {
+      throw new Error("Validated Character location is no longer current");
+    }
+    const destination = state.locations.find((item) => item.id === operation.afterLocationId);
+    if (!destination) throw new Error("Validated destination is no longer present");
+    return stateRevisionDocumentSchema.parse({
+      ...state,
+      worldClock: {
+        turn: state.worldClock.turn + 1,
+        label: `After action ${state.worldClock.turn + 1}`,
+      },
+      characters: state.characters.map((item) =>
+        item.id === operation.characterId
+          ? { ...item, locationId: destination.id, currentState: `Present at ${destination.name}.` }
+          : item,
+      ),
+      openThreads: [...state.openThreads, validated.candidate.narrative],
+    });
+  }
+  if (operation.type !== "UPDATE_CANONICAL_FACT") {
+    throw new Error("Unsupported validated action operation");
+  }
   const found = state.facts.some(
     (fact) => fact.id === operation.targetFactId && fact.lifecycle === "ACTIVE",
   );

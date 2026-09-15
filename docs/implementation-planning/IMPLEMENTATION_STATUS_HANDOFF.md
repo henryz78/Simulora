@@ -587,3 +587,14 @@ Next requires user approval of the concrete RE-3 contract/policy; it is proposed
 not implemented. Human/browser live play follows its implementation and review.
 Durable advice-only dialogue is still a separate product decision. RE-3/full
 RE-4/IP-7, production live enablement and deployment are not started/authorized.
+
+## 21. RE-3 bounded routine effects implementation
+
+The user approved the bounded RE-3 contract. The implementation adds only a
+route-bound `MOVE_CHARACTER` L2 operation for a selected Character and an
+explicit non-mutating `NO_WORLD_EFFECT` outcome. L2 still uses exact confirmation
+and the existing atomic Commit path; no participation axis, recovery semantics,
+live provider, or IP-7 scope changed. See [RE-3 implementation report](RE-3-IMPLEMENTATION-REPORT.md).
+
+Current status: local validation pass, independent review pending. No live calls
+or production model switch have occurred.

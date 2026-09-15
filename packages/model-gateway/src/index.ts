@@ -7,6 +7,8 @@ export type WorldTurnRequest = {
   actionId: string;
   expectedHeadCommitId: string;
   intent: string;
+  requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+  routineRoutes?: Array<{ fromLocationId: string; toLocationId: string; label: string }>;
   context?: Readonly<Record<string, unknown>>;
   participation: {
     initiativeMode: "DIRECT" | "GUIDED" | "WORLD_ACTIVE";
@@ -19,6 +21,7 @@ export type WorldTurnRequest = {
     motives: string[];
     stance: string;
     currentState: string;
+    locationId?: string;
     knownFacts: Array<{
       id: string;
       statement: string;
@@ -67,6 +70,49 @@ export class DeterministicModelGateway implements ModelGatewayPort {
           ? `${actor.name} considers your action and answers from a distinct motive: ${actor.motives[0]}`
           : `${actor.name} advances one bounded response during this user-triggered cycle: ${actor.motives[0]}`
       : `The world responds to your stated action: ${intent}`;
+    const requestedEffect = request.requestedEffect ?? "FACT_REWRITE";
+    const route = request.routineRoutes?.find(
+      (item) =>
+        actor && item.fromLocationId === actor.locationId && item.toLocationId !== actor.locationId,
+    );
+    if (requestedEffect === "NO_WORLD_EFFECT") {
+      return Promise.resolve({
+        narrative,
+        responseSource,
+        candidate: {
+          schemaVersion: 1,
+          actionId: request.actionId,
+          expectedHeadCommitId: request.expectedHeadCommitId,
+          narrative,
+          responseSource,
+          operation: {
+            type: "NO_WORLD_EFFECT",
+            reason: "No canonical change is warranted for this response.",
+            causalFactIds: [request.targetFact.id],
+          },
+        },
+      });
+    }
+    if (requestedEffect === "ROUTINE_EFFECT" && actor && route) {
+      return Promise.resolve({
+        narrative: `${actor.name} moves along the familiar route toward ${route.label}.`,
+        responseSource,
+        candidate: {
+          schemaVersion: 1,
+          actionId: request.actionId,
+          expectedHeadCommitId: request.expectedHeadCommitId,
+          narrative: `${actor.name} moves along the familiar route toward ${route.label}.`,
+          responseSource,
+          operation: {
+            type: "MOVE_CHARACTER",
+            characterId: actor.id,
+            beforeLocationId: route.fromLocationId,
+            afterLocationId: route.toLocationId,
+            causalFactIds: [request.targetFact.id],
+          },
+        },
+      });
+    }
     return Promise.resolve({
       narrative,
       responseSource,

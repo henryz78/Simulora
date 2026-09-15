@@ -223,6 +223,88 @@ describe("IP-4 Action Truth and correction domain", () => {
   });
 });
 
+describe("RE-3 bounded routine effects", () => {
+  it("moves a selected Character only along an authorized route", () => {
+    const world = worldDocumentSchema.parse({
+      ...lanternReachSeed,
+      locations: [
+        ...lanternReachSeed.locations,
+        { id: "location.harbor", name: "Harbor", description: "A fogbound harbor." },
+      ],
+      routineRoutes: [
+        {
+          fromLocationId: "location.tidal-observatory",
+          toLocationId: "location.harbor",
+          label: "the harbor road",
+        },
+      ],
+    });
+    const state = createInitialState(world, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const actionId = "00000000-0000-4000-8000-000000000201";
+    const candidate = {
+      schemaVersion: 1,
+      actionId,
+      expectedHeadCommitId: "00000000-0000-4000-8000-000000000202",
+      narrative: "Iora walks toward the harbor.",
+      responseSource: { type: "CHARACTER", characterId: "character.iora" },
+      operation: {
+        type: "MOVE_CHARACTER",
+        characterId: "character.iora",
+        beforeLocationId: "location.tidal-observatory",
+        afterLocationId: "location.harbor",
+        causalFactIds: ["fact.western-signal-dim"],
+      },
+    } as const;
+    const validated = validateActionCandidate(candidate, {
+      actionId,
+      expectedHeadCommitId: candidate.expectedHeadCommitId,
+      state,
+      authorizedTargetFactIds: ["fact.western-signal-dim"],
+      authorizedContextFactIds: ["fact.western-signal-dim"],
+      responseSource: candidate.responseSource,
+      userRoleName: world.userRole.name,
+      requestedEffect: "ROUTINE_EFFECT",
+      authorizedRoutineRoutes: ["location.tidal-observatory->location.harbor"],
+    });
+    expect(validated.impact).toBe("L2");
+    const next = applyValidatedActionCandidate(state, validated);
+    expect(next.characters[0]?.locationId).toBe("location.harbor");
+    expect(next.facts).toEqual(state.facts);
+    expect(next.participation).toEqual(state.participation);
+  });
+
+  it("treats NO_WORLD_EFFECT as non-mutating and rejects it at apply time", () => {
+    const state = createInitialState(lanternReachSeed, {
+      initiativeMode: "DIRECT",
+      structureMode: "OPEN_ENDED",
+    });
+    const candidate = {
+      schemaVersion: 1,
+      actionId: "00000000-0000-4000-8000-000000000203",
+      expectedHeadCommitId: "00000000-0000-4000-8000-000000000204",
+      narrative: "The fog remains quiet.",
+      responseSource: { type: "WORLD" },
+      operation: {
+        type: "NO_WORLD_EFFECT",
+        reason: "No change is warranted.",
+        causalFactIds: ["fact.western-signal-dim"],
+      },
+    } as const;
+    const validated = validateActionCandidate(candidate, {
+      actionId: candidate.actionId,
+      expectedHeadCommitId: candidate.expectedHeadCommitId,
+      state,
+      authorizedContextFactIds: ["fact.western-signal-dim"],
+      requestedEffect: "NO_WORLD_EFFECT",
+    });
+    expect(validated.impact).toBe("L0");
+    expect(() => applyValidatedActionCandidate(state, validated)).toThrow(/cannot mutate/);
+  });
+});
+
 describe("IP-6 participation and character authority", () => {
   it("changes only the complete two-axis contract after an exact current-state match", () => {
     const state = createInitialState(lanternReachSeed, {

@@ -230,6 +230,7 @@ export type SubmitActionDatabaseInput = {
   expectedHeadCommitId: string;
   participationExpectation: ParticipationContract;
   intent: string;
+  requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
   correlationId?: string;
   targetCharacterId?: string;
 };
@@ -238,7 +239,7 @@ export type ActionProposalRecord = {
   id: string;
   digest: string;
   expectedHeadCommitId: string;
-  impact: "L3";
+  impact: "L0" | "L2" | "L3";
   expiresAt: string;
   narrative: string;
   responseSource: ActionResponseSource | null;
@@ -388,6 +389,7 @@ export type ActionGenerator = (request: {
   actionId: string;
   expectedHeadCommitId: string;
   intent: string;
+  requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
   participation: ActionGenerationContext["participation"];
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
@@ -1002,6 +1004,10 @@ export class AuthoritativeWorldRepository {
     this.assertEligible(account);
     const intent = input.intent.trim();
     const targetCharacterId = input.targetCharacterId;
+    const requestedEffect = input.requestedEffect ?? "FACT_REWRITE";
+    if (requestedEffect === "ROUTINE_EFFECT" && !targetCharacterId) {
+      throw new ValidationError("Routine effects require a selected Character");
+    }
     if (
       targetCharacterId !== undefined &&
       !/^[a-z0-9][a-z0-9._-]{0,119}$/.test(targetCharacterId)
@@ -1015,6 +1021,7 @@ export class AuthoritativeWorldRepository {
       expectedHeadCommitId: input.expectedHeadCommitId,
       participationExpectation: input.participationExpectation,
       intent,
+      requestedEffect,
       ...(targetCharacterId ? { targetCharacterId } : {}),
     });
     return transaction(this.pool, async (client) => {
@@ -1026,7 +1033,7 @@ export class AuthoritativeWorldRepository {
         expected_head_commit_id: string;
         participation_expectation: ParticipationContract;
         intent: string;
-        operation_payload: { targetCharacterId?: string };
+        operation_payload: { targetCharacterId?: string; requestedEffect?: string };
       }>(
         `select id, idempotency_request_digest, operation_type,
                 expected_head_commit_id, participation_expectation, intent, operation_payload
@@ -1044,7 +1051,8 @@ export class AuthoritativeWorldRepository {
             contentHash(prior.participation_expectation) ===
               contentHash(input.participationExpectation) &&
             prior.intent === intent &&
-            prior.operation_payload.targetCharacterId === targetCharacterId,
+            prior.operation_payload.targetCharacterId === targetCharacterId &&
+            (prior.operation_payload.requestedEffect ?? "FACT_REWRITE") === requestedEffect,
         );
         return this.readActionWithClient(client, account, prior.id);
       }
@@ -1138,7 +1146,10 @@ export class AuthoritativeWorldRepository {
           intent,
           requestDigest,
           durableCorrelationId,
-          JSON.stringify(targetCharacterId ? { targetCharacterId } : {}),
+          JSON.stringify({
+            ...(targetCharacterId ? { targetCharacterId } : {}),
+            ...(requestedEffect !== "FACT_REWRITE" ? { requestedEffect } : {}),
+          }),
         ],
       );
       if (!inserted.rows[0]) {
@@ -1149,7 +1160,7 @@ export class AuthoritativeWorldRepository {
           expected_head_commit_id: string;
           participation_expectation: ParticipationContract;
           intent: string;
-          operation_payload: { targetCharacterId?: string };
+          operation_payload: { targetCharacterId?: string; requestedEffect?: string };
         }>(
           `select id, idempotency_request_digest, operation_type,
                   expected_head_commit_id, participation_expectation, intent, operation_payload
@@ -1181,7 +1192,8 @@ export class AuthoritativeWorldRepository {
             contentHash(prior.participation_expectation) ===
               contentHash(input.participationExpectation) &&
             prior.intent === intent &&
-            prior.operation_payload.targetCharacterId === targetCharacterId,
+            prior.operation_payload.targetCharacterId === targetCharacterId &&
+            (prior.operation_payload.requestedEffect ?? "FACT_REWRITE") === requestedEffect,
         );
         return this.readActionWithClient(client, account, prior.id);
       }
@@ -1829,8 +1841,15 @@ export class AuthoritativeWorldRepository {
           ],
           responseSource: expectedResponseSource,
           userRoleName: world.userRole.name,
+          requestedEffect: (action.operation_payload.requestedEffect ?? "FACT_REWRITE") as
+            "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT",
+          authorizedRoutineRoutes: (world.routineRoutes ?? []).map(
+            (route) => `${route.fromLocationId}->${route.toLocationId}`,
+          ),
         });
         nextState = applyValidatedActionCandidate(expectedState, validated);
+        if (!validated.displayEffect)
+          throw new Error("Committed Action is missing an effect display");
         displayEffect = validated.displayEffect;
         candidateNarrative = validated.candidate.narrative;
         responseSource = validated.candidate.responseSource;
@@ -3799,7 +3818,7 @@ export class AuthoritativeWorldRepository {
         continuity_status: string;
         state_document: unknown;
         world_document: unknown;
-        operation_payload: { targetCharacterId?: string };
+        operation_payload: { targetCharacterId?: string; requestedEffect?: string };
         supports_re2_context: boolean;
       }>(
         `select a.actor_account_id, a.correlation_id, a.branch_id as action_branch_id,
@@ -3990,6 +4009,8 @@ export class AuthoritativeWorldRepository {
         correlationId: action.correlation_id,
         expectedHeadCommitId: action.expected_head_commit_id,
         intent: action.intent,
+        operationPayload: action.operation_payload,
+        world,
         state,
         generationContext,
         context,
@@ -4107,10 +4128,13 @@ export class AuthoritativeWorldRepository {
     }, this.actionLease.heartbeatMs);
     heartbeat.unref();
     try {
+      const requestedEffect = (prepared.operationPayload.requestedEffect ?? "FACT_REWRITE") as
+        "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
       const generated = await generator({
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         intent: prepared.intent,
+        requestedEffect,
         participation: prepared.generationContext.participation,
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
@@ -4140,6 +4164,10 @@ export class AuthoritativeWorldRepository {
         ],
         responseSource: expectedResponseSource,
         userRoleName: prepared.userRoleName,
+        requestedEffect,
+        authorizedRoutineRoutes: (prepared.world.routineRoutes ?? []).map(
+          (route) => `${route.fromLocationId}->${route.toLocationId}`,
+        ),
       });
       if (generated.narrative !== candidate.candidate.narrative) {
         throw new Error("Generated narrative does not match the candidate narrative");
@@ -4168,19 +4196,42 @@ export class AuthoritativeWorldRepository {
           `update simulora.actions set status = 'VALIDATING', updated_at = now(), row_version = row_version + 1 where id = $1`,
           [actionId],
         );
+        if (candidate.impact === "L0") {
+          await client.query(
+            `update simulora.actions set status = 'FAILED_RECOVERABLE', status_reason = 'NO_WORLD_EFFECT', updated_at = now(), row_version = row_version + 1 where id = $1`,
+            [actionId],
+          );
+          await client.query(
+            `update simulora.durable_jobs set status = 'DEAD', lease_owner = null, lease_until = null, last_error = 'NO_WORLD_EFFECT', updated_at = now() where action_id = $1`,
+            [actionId],
+          );
+          await this.appendProgressWithClient(client, actionId, "generation.draft", {
+            status: "NO_WORLD_EFFECT",
+            narrative: generated.narrative,
+            responseSource: generated.responseSource,
+            provisional: true,
+            message: "The response was generated without a canonical World change.",
+          });
+          await this.appendProgressWithClient(client, actionId, "action.failed", {
+            status: "FAILED_RECOVERABLE",
+            reason: "NO_WORLD_EFFECT",
+          });
+          return this.readActionWithClient(client, account, actionId);
+        }
         await client.query(
           `insert into simulora.action_proposals
            (id, action_id, generation_attempt_id, expected_head_commit_id, schema_version,
             candidate_transition, impact_level, proposal_digest, display_effect, status, expires_at)
-           values ($1, $2, $3, $4, 1, $5::jsonb, 'L3', $6, $7::jsonb, 'ACTIVE', $8)`,
+           values ($1, $2, $3, $4, 1, $5::jsonb, $6, $7, $8::jsonb, 'ACTIVE', $9)`,
           [
             proposalId,
             actionId,
             prepared.attemptId,
             prepared.expectedHeadCommitId,
             JSON.stringify(candidate.candidate),
+            candidate.impact,
             digest,
-            JSON.stringify(candidate.displayEffect),
+            JSON.stringify(candidate.displayEffect ?? {}),
             expiresAt,
           ],
         );

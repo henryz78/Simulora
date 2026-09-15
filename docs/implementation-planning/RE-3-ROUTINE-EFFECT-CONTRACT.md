@@ -1,6 +1,6 @@
-# RE-3 Routine Effect / No-Change Comparison — Proposed Contract
+# RE-3 Routine Effect / No-Change Comparison — Implemented Contract
 
-**PROPOSED / NOT IMPLEMENTED / AWAITING APPROVAL**.
+**IMPLEMENTED (bounded deterministic adapter) / independent review pending**.
 This translates frozen Domain §5.5 and Runtime §6–§8 into a small comparison.
 It does not replace the roadmap, authorize IP-7 or enable production live execution.
 Input evidence: [RE-2 actual results](RE-2-CONTEXT-REALITY-CHECK.md) and
@@ -15,8 +15,8 @@ Recommend one closed operation: **MOVE_CHARACTER**, a selected non-user Characte
 moving between two already declared, public locations on one pre-approved safe
 route. For example, Tavi walks from the observatory to the sheltered east lookout
 to inspect the approach. It does not move/invite a ship or move the player.
-The current seed has only one location: use a separate synthetic two-location
-World Revision, not silent edits to approved production worlds or creator UI.
+The production seed remains unchanged; tests use a synthetic two-location World
+Revision so this bounded effect does not silently edit approved worlds or add creator UI.
 
 Required typed fields: selected Character ID, before/after location IDs and
 authorized causal source references. The request, compiled context and proposal
@@ -54,7 +54,7 @@ Any `currentState` location description must be updated deterministically by the
 server to match the move, not left claiming the old location or freely authored
 by the model. No arbitrary Character status rewrite is included.
 
-Validated L2 may append using the existing authoritative transaction: one Action
+This implementation keeps the existing exact confirmation step for L2, then appends using the authoritative transaction: one Action
 terminal, Commit, State Revision, causal Domain Event, attributed history and
 Branch head. Preserve canonical facts byte-for-byte and all non-allowed sections.
 Use existing successful-turn clock bookkeeping, with no invented elapsed duration.
@@ -111,5 +111,5 @@ Two Characters plus one movement are still not a complete magic-world simulation
 or long-term qualification. Expand only when observed play demonstrates a missing
 causal capability, not by reopening every frozen contract.
 
-Next approval sought: this bounded effect/no-effect contract and its policy ADR;
-RE-3 code, full RE-4 and IP-7 have not started.
+RE-3 is implemented for deterministic validation and awaits focused review/live comparison;
+full RE-4 and IP-7 have not started.

@@ -57,6 +57,15 @@ export const worldDocumentInputSchema = z.object({
       z.object({ id: z.string().min(1), name: z.string().min(1), description: nonEmptyTextSchema }),
     )
     .min(1),
+  routineRoutes: z
+    .array(
+      z.object({
+        fromLocationId: z.string().min(1),
+        toLocationId: z.string().min(1),
+        label: nonEmptyTextSchema,
+      }),
+    )
+    .optional(),
   characters: z
     .array(
       z.object({
@@ -229,13 +238,14 @@ export const submitActionRequestSchema = z.object({
     .max(120)
     .regex(/^[a-z0-9][a-z0-9._-]*$/)
     .optional(),
+  requestedEffect: z.enum(["FACT_REWRITE", "ROUTINE_EFFECT", "NO_WORLD_EFFECT"]).optional(),
 });
 
 export const actionProposalSchema = z.object({
   id: stableIdSchema,
   digest: z.string().regex(/^[0-9a-f]{64}$/),
   expectedHeadCommitId: stableIdSchema,
-  impact: z.literal("L3"),
+  impact: z.enum(["L0", "L2", "L3"]),
   expiresAt: z.string().datetime(),
   narrative: nonEmptyTextSchema,
   responseSource: z
