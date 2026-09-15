@@ -4,6 +4,7 @@ import { DeterministicModelGateway } from "../../packages/model-gateway/src/inde
 import { contentHash, lanternReachSeed } from "../../packages/domain/src/index.js";
 import {
   AuthoritativeWorldRepository,
+  ConflictError,
   createDatabasePool,
 } from "../../packages/database/src/index.js";
 import { runMigrations } from "../../packages/database/src/migrations.js";
@@ -279,7 +280,7 @@ suite("IP-3 Action Truth against PostgreSQL", () => {
     expect(commits.rows[0]?.count).toBe(finalAction.status === "COMMITTED" ? 1 : 0);
   });
 
-  it("turns a head change after proposal into a conflict without a second mutation", async () => {
+  it("allows only one unresolved ordinary Action against a Branch head", async () => {
     const current = await repository.readCurrentState(account, continuity.continuityId);
     const input = (key: string, intent: string) => ({
       schemaVersion: 1 as const,
@@ -288,57 +289,30 @@ suite("IP-3 Action Truth against PostgreSQL", () => {
       participationExpectation: current.state.participation,
       intent,
     });
-    const first = await repository.submitAction(
-      account,
-      current.branchId,
-      input("action-race-first", "Turn the lens toward the harbor mouth."),
-    );
-    const second = await repository.submitAction(
-      account,
-      current.branchId,
-      input("action-race-second", "Turn the lens toward the western shoal."),
-    );
-    const [firstProposal, secondProposal] = await Promise.all([
-      repository.processAction(
-        first.id,
-        (request) => gateway.generateWorldTurn(request),
-        "worker-a",
+    const attempts = await Promise.allSettled([
+      repository.submitAction(
+        account,
+        current.branchId,
+        input("action-race-first", "Turn the lens toward the harbor mouth."),
       ),
-      repository.processAction(
-        second.id,
-        (request) => gateway.generateWorldTurn(request),
-        "worker-b",
+      repository.submitAction(
+        account,
+        current.branchId,
+        input("action-race-second", "Turn the lens toward the western shoal."),
       ),
     ]);
-    const firstCommit = await repository.confirmAction(account, first.id, {
-      proposalId: firstProposal!.proposal!.id,
-      proposalDigest: firstProposal!.proposal!.digest,
-      expectedHeadCommitId: firstProposal!.proposal!.expectedHeadCommitId,
+    const accepted = attempts.find(
+      (
+        attempt,
+      ): attempt is PromiseFulfilledResult<Awaited<ReturnType<typeof repository.submitAction>>> =>
+        attempt.status === "fulfilled",
+    );
+    expect(attempts.filter((attempt) => attempt.status === "fulfilled")).toHaveLength(1);
+    expect(attempts.filter((attempt) => attempt.status === "rejected")).toHaveLength(1);
+    expect(attempts.find((attempt) => attempt.status === "rejected")).toMatchObject({
+      reason: new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION"),
     });
-    const conflicted = await repository.confirmAction(account, second.id, {
-      proposalId: secondProposal!.proposal!.id,
-      proposalDigest: secondProposal!.proposal!.digest,
-      expectedHeadCommitId: secondProposal!.proposal!.expectedHeadCommitId,
-    });
-    expect(firstCommit.status).toBe("COMMITTED");
-    expect(conflicted.status).toBe("CONFLICT");
-    expect((await repository.readProgress(account, second.id, 0)).terminal).toBe(false);
-    expect((await repository.listBranchActions(account, current.branchId)).actions).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: second.id, status: "CONFLICT" })]),
-    );
-    const conflictCommit = await pool.query<{ count: number }>(
-      "select count(*)::int as count from simulora.world_commits where action_id = $1",
-      [second.id],
-    );
-    expect(conflictCommit.rows[0]?.count).toBe(0);
-    const superseded = await repository.cancelAction(account, second.id);
-    expect(superseded).toMatchObject({ status: "SUPERSEDED", commit: null });
-    expect((await repository.readProgress(account, second.id, 0)).terminal).toBe(true);
-    const proposal = await pool.query<{ status: string }>(
-      "select status from simulora.action_proposals where action_id = $1",
-      [second.id],
-    );
-    expect(proposal.rows[0]?.status).toBe("REJECTED");
+    await repository.cancelAction(account, accepted!.value.id);
   });
 
   it("keeps durable acknowledgement below the one-second experience target in the deterministic fixture", async () => {

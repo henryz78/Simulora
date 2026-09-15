@@ -55,7 +55,7 @@ finding. They reduce to these shared root causes:
 - lint: PASS
 - strict typecheck: PASS
 - architecture check: PASS
-- migration check: PASS (26 migrations)
+- migration check: PASS (27 migrations)
 - unit/contract/PGlite tests: PASS (53 passed; PostgreSQL-only suites require CI)
 - migration negative probes: PASS for invalid document shape, projection
   identity, denied cross-owner Continuity, and explicit grant acceptance

@@ -413,43 +413,32 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       sourceCommitId: continuity.headCommitId,
       expectedHeadCommitId: continuity.headCommitId,
     });
-    const submit = (intent: string) =>
-      repository.submitAction(account, continuity.branchId, {
-        schemaVersion: 1,
-        idempotencyKey: `conflict-action-${randomUUID()}`,
-        expectedHeadCommitId: continuity.headCommitId,
-        participationExpectation: continuity.state.participation,
-        intent,
-      });
-    const [first, second] = await Promise.all([
-      submit("Advance the current path."),
-      submit("Keep this proposal for conflict review."),
-    ]);
-    const [firstProposal, secondProposal] = await Promise.all([
-      repository.processAction(first.id, (request) => gateway.generateWorldTurn(request)),
-      repository.processAction(second.id, (request) => gateway.generateWorldTurn(request)),
-    ]);
-    await repository.confirmAction(account, first.id, {
-      proposalId: firstProposal!.proposal!.id,
-      proposalDigest: firstProposal!.proposal!.digest,
-      expectedHeadCommitId: firstProposal!.proposal!.expectedHeadCommitId,
+    const conflicted = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `conflict-action-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Keep this action for conflict review.",
     });
-    const conflicted = await repository.confirmAction(account, second.id, {
-      proposalId: secondProposal!.proposal!.id,
-      proposalDigest: secondProposal!.proposal!.digest,
-      expectedHeadCommitId: secondProposal!.proposal!.expectedHeadCommitId,
-    });
-    expect(conflicted.status).toBe("CONFLICT");
+    await pool.query(
+      `update simulora.actions
+          set status = 'CONFLICT', status_reason = 'BRANCH_HEAD_CONFLICT',
+              updated_at = now(), row_version = row_version + 1
+        where id = $1`,
+      [conflicted.id],
+    );
+    const currentConflict = await repository.readAction(account, conflicted.id);
+    expect(currentConflict.status).toBe("CONFLICT");
     expect(
       (await repository.readOrientation(account, continuity.continuityId)).pendingActions,
     ).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: second.id, status: "CONFLICT" })]),
+      expect.arrayContaining([expect.objectContaining({ id: conflicted.id, status: "CONFLICT" })]),
     );
     await expect(
       repository.selectBranch(account, continuity.continuityId, fork.id),
     ).rejects.toThrow(new ConflictError("PENDING_ACTIONS_REQUIRE_RESOLUTION"));
 
-    const superseded = await repository.cancelAction(account, second.id);
+    const superseded = await repository.cancelAction(account, conflicted.id);
     expect(superseded.status).toBe("SUPERSEDED");
     expect(
       (await repository.selectBranch(account, continuity.continuityId, fork.id)).currentBranchId,
