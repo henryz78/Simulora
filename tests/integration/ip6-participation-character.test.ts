@@ -43,6 +43,258 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
 
   afterAll(async () => pool?.end());
 
+  it("binds explicit Character selection, authorized world context and source digest", async () => {
+    const world = structuredClone(lanternReachSeed);
+    const target = world.facts[0]!;
+    world.facts.push(
+      {
+        id: "fact.account",
+        statement: "ACCOUNT PRIVATE SENTINEL",
+        scope: "ACCOUNT_PRIVATE",
+        lifecycle: "ACTIVE",
+        provenance: "Synthetic fixture",
+      },
+      {
+        id: "fact.iora",
+        statement: "IORA ONLY SENTINEL",
+        scope: "CONTINUITY_PRIVATE",
+        lifecycle: "ACTIVE",
+        provenance: "Synthetic fixture",
+      },
+      {
+        id: "fact.tavi",
+        statement: "TAVI ONLY SENTINEL",
+        scope: "CONTINUITY_PRIVATE",
+        lifecycle: "ACTIVE",
+        provenance: "Synthetic fixture",
+      },
+    );
+    world.characters[0]!.knowledgeFactIds.push("fact.iora", "fact.account");
+    world.characters.push({
+      ...world.characters[0]!,
+      id: "character.tavi",
+      name: "Tavi",
+      motives: ["Study tidal magic without risking the harbor."],
+      knowledgeFactIds: [target.id, "fact.tavi"],
+    });
+    world.characters.push({
+      ...world.characters[0]!,
+      id: "character.observer",
+      name: "Observer",
+      knowledgeFactIds: [],
+    });
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const gateway = new DeterministicModelGateway();
+    for (const selected of ["character.iora", "character.tavi"]) {
+      const input = {
+        schemaVersion: 1 as const,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: "Inspect the signal.",
+        targetCharacterId: selected,
+      };
+      const action = await repository.submitAction(account, continuity.branchId, input);
+      expect(action.targetCharacterId).toBe(selected);
+      expect((await repository.submitAction(account, continuity.branchId, input)).id).toBe(
+        action.id,
+      );
+      await expect(
+        repository.submitAction(account, continuity.branchId, {
+          ...input,
+          targetCharacterId: selected === "character.iora" ? "character.tavi" : "character.iora",
+        }),
+      ).rejects.toThrow(/IDEMPOTENCY_KEY_REUSED/);
+      let context: Readonly<Record<string, unknown>> | undefined;
+      const proposed = await repository.processAction(action.id, (request) => {
+        context = request.context;
+        expect(request.character?.id).toBe(selected);
+        return gateway.generateWorldTurn(request);
+      });
+      expect(proposed?.proposal?.responseSource).toEqual({
+        type: "CHARACTER",
+        characterId: selected,
+      });
+      expect(context?.source).toMatchObject({
+        headCommitId: continuity.headCommitId,
+        worldRevisionId: revision.revisionId,
+        stateRevisionId: continuity.stateRevisionId,
+      });
+      expect(context?.current).toMatchObject({
+        location: continuity.state.locations.find(
+          (location) => location.id === continuity.state.characters[0]!.locationId,
+        ),
+      });
+      const text = JSON.stringify(context);
+      expect(text).toContain(world.premise);
+      expect(text).toContain(
+        selected === "character.iora" ? "IORA ONLY SENTINEL" : "TAVI ONLY SENTINEL",
+      );
+      expect(text).not.toContain(
+        selected === "character.iora" ? "TAVI ONLY SENTINEL" : "IORA ONLY SENTINEL",
+      );
+      expect(text).not.toContain("ACCOUNT PRIVATE SENTINEL");
+      const evidence = await pool.query<{
+        context_manifest: { compilerVersion: string; sourceContextDigest: string };
+      }>("select context_manifest from simulora.generation_attempts where action_id = $1", [
+        action.id,
+      ]);
+      expect(evidence.rows[0]?.context_manifest).toMatchObject({
+        compilerVersion: "re2-context-v1",
+        sourceContextDigest: contentHash(context),
+      });
+      expect(
+        (await repository.readCurrentState(account, continuity.continuityId)).headCommitId,
+      ).toBe(continuity.headCommitId);
+      await expect(
+        pool.query("update simulora.actions set operation_payload = '{}'::jsonb where id = $1", [
+          action.id,
+        ]),
+      ).rejects.toThrow(/immutable/);
+      await repository.cancelAction(account, action.id);
+    }
+    for (const denied of ["character.unknown", "character.observer"]) {
+      await expect(
+        repository.submitAction(account, continuity.branchId, {
+          schemaVersion: 1,
+          idempotencyKey: randomUUID(),
+          expectedHeadCommitId: continuity.headCommitId,
+          participationExpectation: continuity.state.participation,
+          intent: "Inspect the signal.",
+          targetCharacterId: denied,
+        }),
+      ).rejects.toThrow(/unavailable/);
+      await expect(
+        pool.query(
+          `insert into simulora.actions
+      (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key, expected_head_commit_id, participation_expectation, intent, operation_payload, status)
+      values ($1,$2,$3,$4,'PARTICIPATE',$5,$6,$7::jsonb,'Inspect signal.',$8::jsonb,'ACKNOWLEDGED')`,
+          [
+            randomUUID(),
+            account.accountId,
+            continuity.continuityId,
+            continuity.branchId,
+            randomUUID(),
+            continuity.headCommitId,
+            JSON.stringify(continuity.state.participation),
+            JSON.stringify({ targetCharacterId: denied }),
+          ],
+        ),
+      ).rejects.toThrow(/Selected Character/);
+    }
+  });
+
+  it("does not resurrect pre-correction dialogue as current generation knowledge", async () => {
+    const draft = await repository.createWorld(account, lanternReachSeed);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const ordinary = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Inspect the signal.",
+      targetCharacterId: "character.iora",
+    });
+    const proposal = await repository.processAction(ordinary.id, (request) =>
+      new DeterministicModelGateway().generateWorldTurn(request),
+    );
+    if (!proposal?.proposal) throw new Error("Expected ordinary proposal");
+    await repository.confirmAction(account, ordinary.id, {
+      proposalId: proposal.proposal.id,
+      proposalDigest: proposal.proposal.digest,
+      expectedHeadCommitId: proposal.expectedHeadCommitId,
+    });
+    const before = await repository.readCurrentState(account, continuity.continuityId);
+    const fact = before.state.facts[0]!;
+    const correctedStatement = "The western signal is steady green.";
+    const direct = await repository.submitCorrection(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: before.headCommitId,
+      target: { type: "fact", id: fact.id },
+      operation: "CORRECT_CONTINUITY",
+      before: { statement: fact.statement, scope: fact.scope },
+      after: { statement: correctedStatement },
+      reason: "The instrument reading was checked.",
+    });
+    if (!direct.proposal) throw new Error("Expected correction proposal");
+    await repository.confirmAction(account, direct.id, {
+      proposalId: direct.proposal.id,
+      proposalDigest: direct.proposal.digest,
+      expectedHeadCommitId: direct.expectedHeadCommitId,
+    });
+    const current = await repository.readCurrentState(account, continuity.continuityId);
+    const next = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: current.headCommitId,
+      participationExpectation: current.state.participation,
+      intent: "Ask Iora about the current green signal.",
+      targetCharacterId: "character.iora",
+    });
+    const generated = await repository.processAction(next.id, (request) => {
+      const text = JSON.stringify(request.context);
+      expect(text).toContain(correctedStatement);
+      expect(text).not.toContain(fact.statement);
+      expect(text).not.toContain(proposal.proposal!.narrative);
+      return new DeterministicModelGateway().generateWorldTurn(request);
+    });
+    expect(generated?.status).toBe("AWAITING_CONFIRMATION");
+    await repository.cancelAction(account, next.id);
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      current.headCommitId,
+    );
+  });
+
+  it("keeps an over-budget context recoverable without calling the generator", async () => {
+    const world = structuredClone(lanternReachSeed);
+    world.locations.push(
+      ...Array.from({ length: 13 }, (_, index) => ({
+        id: `location.budget-${index}`,
+        name: "Remote observatory",
+        description: "x".repeat(4000),
+      })),
+    );
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Inspect the signal.",
+    });
+    let called = false;
+    await repository.processAction(action.id, (request) => {
+      called = true;
+      return new DeterministicModelGateway().generateWorldTurn(request);
+    });
+    expect(called).toBe(false);
+    expect(await repository.readAction(account, action.id)).toMatchObject({
+      status: "FAILED_RECOVERABLE",
+      statusReason: "AUTHORIZED_CONTEXT_UNAVAILABLE",
+      proposal: null,
+      commit: null,
+    });
+    await repository.cancelAction(account, action.id);
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      continuity.headCommitId,
+    );
+  });
+
   it("rejects unavailable Character Asset lineage in a direct SQL Revision", async () => {
     const world = structuredClone(lanternReachSeed);
     world.characters[0]!.sourceAssetId = randomUUID();
@@ -658,6 +910,17 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     const incomplete = await createContinuity();
     await expect(
       prepareRawParticipateProposal(incomplete, { manifest: manifestFor(incomplete) }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+    const forgedContext = await createContinuity();
+    await expect(
+      prepareRawParticipateProposal(forgedContext, {
+        manifest: {
+          ...manifestFor(forgedContext),
+          compilerVersion: "re2-context-v1",
+          sourceContextDigest: "0".repeat(64),
+        },
+        completeAttempt: true,
+      }),
     ).rejects.toThrow(/Proposal must exactly bind/);
     const unboundOutput = await createContinuity();
     await expect(

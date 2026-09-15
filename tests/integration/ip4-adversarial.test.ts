@@ -497,12 +497,11 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
         },
       });
     });
-    expect(followUpTarget).toMatchObject({
+    // Generation gets authorized content, not ledger provenance/lifecycle.
+    expect(followUpTarget).toEqual({
       id: targetFactId,
       statement: correctedStatement,
       scope: "SHARED",
-      lifecycle: "ACTIVE",
-      provenance: expect.stringContaining("Direct user correction"),
     });
 
     const removed = await commitDirectChange(

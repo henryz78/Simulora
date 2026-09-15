@@ -223,6 +223,12 @@ export const submitActionRequestSchema = z.object({
   expectedHeadCommitId: stableIdSchema,
   participationExpectation: participationSchema,
   intent: nonEmptyTextSchema,
+  targetCharacterId: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9][a-z0-9._-]*$/)
+    .optional(),
 });
 
 export const actionProposalSchema = z.object({
@@ -263,6 +269,7 @@ export const actionResponseSchema = z.object({
   // exposing the direct correction/removal operation to new clients.
   operationType: actionOperationTypeSchema.default("PARTICIPATE"),
   intent: nonEmptyTextSchema,
+  targetCharacterId: z.string().min(1).max(120).optional(),
   participationExpectation: participationSchema,
   acknowledgedAt: z.string().datetime(),
   terminalAt: z.string().datetime().nullable(),

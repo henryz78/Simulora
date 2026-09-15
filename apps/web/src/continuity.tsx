@@ -62,7 +62,7 @@ export type ContinuityContextValue = {
   setSelectedActionId: (actionId: string | null) => void;
   refresh: () => Promise<void>;
   readAction: (actionId: string) => Promise<ActionResponse | null>;
-  submitAction: (intent: string) => Promise<ActionResult>;
+  submitAction: (intent: string, targetCharacterId?: string) => Promise<ActionResult>;
   submitCorrection: (request: CorrectionRequest) => Promise<CorrectionResult>;
   confirmAction: (action: ActionResponse) => Promise<ActionResult>;
   cancelAction: (action: ActionResponse) => Promise<ActionResult>;
@@ -415,14 +415,19 @@ export function ContinuityProvider({
   }, [pendingSubscriptionKey, refresh, upsertAction]);
 
   const submitAction = useCallback(
-    async (rawIntent: string): Promise<ActionResult> => {
+    async (rawIntent: string, targetCharacterId?: string): Promise<ActionResult> => {
       const normalizedIntent = rawIntent.trim();
       if (!normalizedIntent || loadState.status !== "ready") {
         return { action: null, error: "Describe an Action in the current world first." };
       }
       const branchId = loadState.data.continuity.branchId;
       const expectedHeadCommitId = loadState.data.continuity.headCommitId;
-      const submissionKey = `${branchId}:${expectedHeadCommitId}:${normalizedIntent}`;
+      const submissionKey = JSON.stringify([
+        branchId,
+        expectedHeadCommitId,
+        normalizedIntent,
+        targetCharacterId ?? null,
+      ]);
       const existingAttempt = pendingSubmission.current.get(submissionKey);
       const submission = existingAttempt ?? {
         idempotencyKey: crypto.randomUUID(),
@@ -440,6 +445,7 @@ export function ContinuityProvider({
             expectedHeadCommitId,
             participationExpectation: loadState.data.state.participation,
             intent: normalizedIntent,
+            ...(targetCharacterId ? { targetCharacterId } : {}),
           }),
         });
         if (!response.ok) {
@@ -1089,6 +1095,7 @@ function snapshotEventSources(actions: ActionResponse[], onEvent: () => void): E
 export function ActionComposer(): ReactElement {
   const { historyState, loadState, pendingActionRefs, submitAction } = useContinuity();
   const [intent, setIntent] = useState("");
+  const [targetCharacterId, setTargetCharacterId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const hasUnresolvedAction = pendingActionRefs.length > 0;
@@ -1099,7 +1106,7 @@ export function ActionComposer(): ReactElement {
     if (working || !intent.trim() || hasUnresolvedAction || historyState !== "ready") return;
     setWorking(true);
     setError(null);
-    const result = await submitAction(intent);
+    const result = await submitAction(intent, targetCharacterId || undefined);
     setWorking(false);
     if (result.error) {
       setError(result.error);
@@ -1119,6 +1126,39 @@ export function ActionComposer(): ReactElement {
         ) : null}
       </div>
       <form onSubmit={(event) => void submit(event)}>
+        <label htmlFor="action-character">Address a character</label>
+        <select
+          id="action-character"
+          value={targetCharacterId}
+          onChange={(event) => setTargetCharacterId(event.target.value)}
+          disabled={
+            working ||
+            hasUnresolvedAction ||
+            historyState !== "ready" ||
+            loadState.status !== "ready"
+          }
+        >
+          <option value="">Let the world respond</option>
+          {loadState.status === "ready"
+            ? loadState.data.world.characters
+                .filter((character) =>
+                  loadState.data.state.characters.some(
+                    (runtime) =>
+                      readText(
+                        typeof runtime === "object" && runtime !== null
+                          ? (runtime as Record<string, unknown>)
+                          : null,
+                        "id",
+                      ) === character.id,
+                  ),
+                )
+                .map((character) => (
+                  <option key={character.id} value={character.id}>
+                    {character.name}
+                  </option>
+                ))
+            : null}
+        </select>
         <label htmlFor="world-action">Your Action</label>
         <textarea
           id="world-action"

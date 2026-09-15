@@ -28,7 +28,8 @@ identify runtime limitations and one new Return display issue. The minimal
 [RE-1 display repair](docs/implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
 passed [independent review](docs/implementation-planning/RE-1-INDEPENDENT-REVIEW.md); the
 [bounded runtime follow-up](docs/implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
-now has RE-2 authorized and in progress; RE-3–RE-4 remain proposed, not authorized.
+now has [RE-2 implemented and locally verified](docs/implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md),
+pending independent review and exact-candidate CI; RE-3–RE-4 remain proposed, not authorized.
 Production adapter/configuration remains unchanged.
 
 ## Development and verification

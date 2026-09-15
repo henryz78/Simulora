@@ -1,6 +1,6 @@
 # Bounded Runtime Enablement — Proposed Follow-up
 
-**State:** `RE-1 APPROVED / RE-2 AUTHORIZED, IN PROGRESS / RE-3–RE-4 PROPOSED, NOT AUTHORIZED`.
+**State:** `RE-1 APPROVED / RE-2 IMPLEMENTED, REVIEW PENDING / RE-3–RE-4 PROPOSED, NOT AUTHORIZED`.
 
 This is a bounded follow-up to the [actual Product Reality Spike](PRODUCT_REALITY_SPIKE_REPORT.md),
 not IP-7, a replacement roadmap, or a waiver of frozen Product/System/Experience.
@@ -57,6 +57,11 @@ Return fallback parity, existing PostgreSQL regression and desktop/mobile checks
 Self-test closure does not grant independent approval of a new behavior SHA.
 
 ### RE-2 — Authorized fixed-head context and explicit Character selection
+
+Implementation and local checks are complete; see
+[RE-2 Implementation Report](RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md).
+This does not grant independent approval. Single-fact L3 effects remain the known
+ceiling; RE-3/RE-4 and production live execution have not started.
 
 Authorized scope (user instruction following the RE-1 result and next-step sequence):
 
@@ -123,8 +128,9 @@ Stop for new protected authority, unclear durable semantics, schema meaning
 changes without an ADR/rehearsal, unknown target bounds or provider quota. Do not
 solve quality by granting model authority or adopting shadow causal claims.
 
-Next review should accept/reject RE-1 and choose the exact RE-2/RE-3 envelope.
-Then execute only the authorized subset and repeat the bounded reality check.
+RE-1 is approved; next independently review the RE-2 implementation candidate and
+its exact-SHA CI. Then choose whether to authorize the exact RE-3 effect envelope
+and a bounded reality check. Do not execute those proposed stages automatically.
 Decide normal IP-7 sequencing from those results; **IP-7 remains not started**.
 Production live model, cloud persistence, deployment and roadmap redesign are out
 of scope throughout this proposal.

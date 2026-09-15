@@ -231,6 +231,7 @@ export type SubmitActionDatabaseInput = {
   participationExpectation: ParticipationContract;
   intent: string;
   correlationId?: string;
+  targetCharacterId?: string;
 };
 
 export type ActionProposalRecord = {
@@ -265,6 +266,7 @@ export type ActionRecord = {
   operationType: ActionOperationType;
   status: ActionStatus;
   intent: string;
+  targetCharacterId?: string;
   participationExpectation: ParticipationContract;
   acknowledgedAt: string;
   terminalAt: string | null;
@@ -368,7 +370,13 @@ export type RestoreCommitRecord = {
 
 export type ActionGenerationContext = {
   participation: ParticipationContract;
-  character: CharacterGenerationContext | null;
+  character:
+    | (Omit<CharacterGenerationContext, "knownFacts"> & {
+        knownFacts: Array<
+          Pick<StateRevisionDocument["facts"][number], "id" | "statement" | "scope">
+        >;
+      })
+    | null;
   targetFact: {
     id: string;
     statement: string;
@@ -383,6 +391,7 @@ export type ActionGenerator = (request: {
   participation: ActionGenerationContext["participation"];
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
+  context?: Readonly<Record<string, unknown>>;
 }) => Promise<{ narrative: string; responseSource: ActionResponseSource; candidate: unknown }>;
 
 export class AccessDeniedError extends Error {}
@@ -457,13 +466,34 @@ function isGeneratorEligibleFact(fact: StateRevisionDocument["facts"][number]): 
 function compileActionGenerationContext(
   world: WorldDocument,
   state: StateRevisionDocument,
+  targetCharacterId?: string,
 ): ActionGenerationContext | null {
   const targetFact = state.facts.find(isGeneratorEligibleFact);
   if (!targetFact) return null;
-  const character = world.characters
-    .map((spec) => compileCharacterContext(world, state, spec.id))
-    .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id));
-  return { participation: state.participation, character: character ?? null, targetFact };
+  const character = targetCharacterId
+    ? compileCharacterContext(world, state, targetCharacterId)
+    : world.characters
+        .map((spec) => compileCharacterContext(world, state, spec.id))
+        .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id));
+  if (targetCharacterId && !character?.knownFacts.some((fact) => fact.id === targetFact.id)) {
+    throw new ValidationError(
+      "Character has no authorized canonical target in the current effect envelope",
+    );
+  }
+  return {
+    participation: state.participation,
+    character: character
+      ? {
+          ...character,
+          knownFacts: character.knownFacts.map(({ id, statement, scope }) => ({
+            id,
+            statement,
+            scope,
+          })),
+        }
+      : null,
+    targetFact: { id: targetFact.id, statement: targetFact.statement, scope: targetFact.scope },
+  };
 }
 
 function orientationPayload(
@@ -971,6 +1001,13 @@ export class AuthoritativeWorldRepository {
   ): Promise<ActionRecord> {
     this.assertEligible(account);
     const intent = input.intent.trim();
+    const targetCharacterId = input.targetCharacterId;
+    if (
+      targetCharacterId !== undefined &&
+      !/^[a-z0-9][a-z0-9._-]{0,119}$/.test(targetCharacterId)
+    ) {
+      throw new ValidationError("Invalid Character target identity");
+    }
     const durableCorrelationId = correlationId ?? input.correlationId ?? null;
     const requestDigest = contentHash({
       schemaVersion: input.schemaVersion,
@@ -978,6 +1015,7 @@ export class AuthoritativeWorldRepository {
       expectedHeadCommitId: input.expectedHeadCommitId,
       participationExpectation: input.participationExpectation,
       intent,
+      ...(targetCharacterId ? { targetCharacterId } : {}),
     });
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
@@ -988,9 +1026,10 @@ export class AuthoritativeWorldRepository {
         expected_head_commit_id: string;
         participation_expectation: ParticipationContract;
         intent: string;
+        operation_payload: { targetCharacterId?: string };
       }>(
         `select id, idempotency_request_digest, operation_type,
-                expected_head_commit_id, participation_expectation, intent
+                expected_head_commit_id, participation_expectation, intent, operation_payload
          from simulora.actions
          where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
         [account.accountId, branchId, input.idempotencyKey],
@@ -1004,7 +1043,8 @@ export class AuthoritativeWorldRepository {
             prior.expected_head_commit_id === input.expectedHeadCommitId &&
             contentHash(prior.participation_expectation) ===
               contentHash(input.participationExpectation) &&
-            prior.intent === intent,
+            prior.intent === intent &&
+            prior.operation_payload.targetCharacterId === targetCharacterId,
         );
         return this.readActionWithClient(client, account, prior.id);
       }
@@ -1041,6 +1081,25 @@ export class AuthoritativeWorldRepository {
       if (!state.facts.some((fact) => isGeneratorEligibleFact(fact))) {
         throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
       }
+      if (targetCharacterId) {
+        const worldResult = await client.query<{ document: unknown }>(
+          `select revision.document from simulora.continuities continuity
+           join simulora.world_revisions revision on revision.id = continuity.world_revision_id
+           where continuity.id = $1`,
+          [row.continuity_id],
+        );
+        try {
+          compileActionGenerationContext(
+            worldDocumentSchema.parse(worldResult.rows[0]!.document),
+            state,
+            targetCharacterId,
+          );
+        } catch {
+          throw new ValidationError(
+            "The selected Character is unavailable or cannot know this Action target",
+          );
+        }
+      }
       if (
         state.participation.initiativeMode !== input.participationExpectation.initiativeMode ||
         state.participation.structureMode !== input.participationExpectation.structureMode
@@ -1064,8 +1123,8 @@ export class AuthoritativeWorldRepository {
         `insert into simulora.actions
          (id, actor_account_id, continuity_id, branch_id, operation_type, idempotency_key,
           expected_head_commit_id, participation_expectation, intent,
-          idempotency_request_digest, correlation_id, status)
-         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, $9, $10, 'ACKNOWLEDGED')
+          idempotency_request_digest, correlation_id, operation_payload, status)
+         values ($1, $2, $3, $4, 'PARTICIPATE', $5, $6, $7::jsonb, $8, $9, $10, $11::jsonb, 'ACKNOWLEDGED')
          on conflict do nothing
          returning id`,
         [
@@ -1079,6 +1138,7 @@ export class AuthoritativeWorldRepository {
           intent,
           requestDigest,
           durableCorrelationId,
+          JSON.stringify(targetCharacterId ? { targetCharacterId } : {}),
         ],
       );
       if (!inserted.rows[0]) {
@@ -1089,9 +1149,10 @@ export class AuthoritativeWorldRepository {
           expected_head_commit_id: string;
           participation_expectation: ParticipationContract;
           intent: string;
+          operation_payload: { targetCharacterId?: string };
         }>(
           `select id, idempotency_request_digest, operation_type,
-                  expected_head_commit_id, participation_expectation, intent
+                  expected_head_commit_id, participation_expectation, intent, operation_payload
            from simulora.actions
            where actor_account_id = $1 and branch_id = $2 and idempotency_key = $3`,
           [account.accountId, branchId, input.idempotencyKey],
@@ -1119,7 +1180,8 @@ export class AuthoritativeWorldRepository {
             prior.expected_head_commit_id === input.expectedHeadCommitId &&
             contentHash(prior.participation_expectation) ===
               contentHash(input.participationExpectation) &&
-            prior.intent === intent,
+            prior.intent === intent &&
+            prior.operation_payload.targetCharacterId === targetCharacterId,
         );
         return this.readActionWithClient(client, account, prior.id);
       }
@@ -1745,7 +1807,13 @@ export class AuthoritativeWorldRepository {
         throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
       }
       if (action.operation_type === "PARTICIPATE") {
-        const generationContext = compileActionGenerationContext(world, expectedState);
+        const generationContext = compileActionGenerationContext(
+          world,
+          expectedState,
+          typeof action.operation_payload.targetCharacterId === "string"
+            ? action.operation_payload.targetCharacterId
+            : undefined,
+        );
         if (!generationContext) throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
         const expectedResponseSource: ActionResponseSource = generationContext.character
           ? { type: "CHARACTER", characterId: generationContext.character.id }
@@ -3731,12 +3799,15 @@ export class AuthoritativeWorldRepository {
         continuity_status: string;
         state_document: unknown;
         world_document: unknown;
+        operation_payload: { targetCharacterId?: string };
+        supports_re2_context: boolean;
       }>(
         `select a.actor_account_id, a.correlation_id, a.branch_id as action_branch_id,
                 a.expected_head_commit_id, a.intent, a.status,
                 branch.head_commit_id as branch_head_commit_id, branch.status as branch_status,
                 continuity.active_branch_id, continuity.status as continuity_status,
-                s.document as state_document, wr.document as world_document
+                s.document as state_document, wr.document as world_document, a.operation_payload,
+                to_regprocedure('simulora.re2_generation_context(uuid)') is not null as supports_re2_context
          from simulora.actions a
          join simulora.world_commits c on c.id = a.expected_head_commit_id
          join simulora.state_revisions s on s.id = c.state_revision_id
@@ -3801,8 +3872,39 @@ export class AuthoritativeWorldRepository {
       }
       const state = stateRevisionDocumentSchema.parse(action.state_document);
       const world = worldDocumentSchema.parse(action.world_document);
-      const generationContext = compileActionGenerationContext(world, state);
-      if (!generationContext) {
+      const generationContext = compileActionGenerationContext(
+        world,
+        state,
+        action.operation_payload.targetCharacterId,
+      );
+      let context: Record<string, unknown> | undefined;
+      if (generationContext && action.supports_re2_context) {
+        const compiled = await client.query<{ context: Record<string, unknown> | null }>(
+          `select simulora.re2_generation_context($1::uuid) as context`,
+          [actionId],
+        );
+        context = compiled.rows[0]?.context ?? undefined;
+        if (
+          context &&
+          Buffer.byteLength(
+            JSON.stringify({
+              actionId,
+              expectedHeadCommitId: action.expected_head_commit_id,
+              intent: action.intent,
+              participation: generationContext.participation,
+              character: generationContext.character,
+              targetFact: generationContext.targetFact,
+              context,
+            }),
+            "utf8",
+          ) > 64000
+        )
+          context = undefined;
+      }
+      if (!generationContext || (action.supports_re2_context && !context)) {
+        const reason = generationContext
+          ? "AUTHORIZED_CONTEXT_UNAVAILABLE"
+          : "NO_ACTIVE_CANONICAL_FACT";
         // This can happen when a previously accepted job is observed after
         // the last active fact was removed on a newer head. Resolve the job
         // explicitly instead of leaving an ACKNOWLEDGED record to retry
@@ -3815,21 +3917,21 @@ export class AuthoritativeWorldRepository {
         );
         await client.query(
           `update simulora.actions
-            set status = 'FAILED_RECOVERABLE', status_reason = 'NO_ACTIVE_CANONICAL_FACT',
+            set status = 'FAILED_RECOVERABLE', status_reason = $2,
                 updated_at = now(), row_version = row_version + 1
             where id = $1 and status = 'GENERATING'`,
-          [actionId],
+          [actionId, reason],
         );
         await client.query(
           `update simulora.durable_jobs
-            set status = 'DEAD', last_error = 'NO_ACTIVE_CANONICAL_FACT',
+            set status = 'DEAD', last_error = $2,
                 lease_owner = null, lease_until = null, updated_at = now()
             where action_id = $1`,
-          [actionId],
+          [actionId, reason],
         );
         await this.appendProgressWithClient(client, actionId, "action.failed", {
           status: "FAILED_RECOVERABLE",
-          reason: "NO_ACTIVE_CANONICAL_FACT",
+          reason,
         });
         return null;
       }
@@ -3855,6 +3957,15 @@ export class AuthoritativeWorldRepository {
           unauthorized: state.facts.filter((fact) => !includedFactIds.includes(fact.id)).length,
         },
       };
+      // The predecessor-schema upgrade fixture still uses v1. Current migrated
+      // databases use the source-bound SQL compiler and v2 digest evidence.
+      const contextManifest = context
+        ? {
+            ...manifest,
+            compilerVersion: "re2-context-v1",
+            sourceContextDigest: contentHash(context),
+          }
+        : manifest;
       await client.query(
         `insert into simulora.generation_attempts
          (id, action_id, attempt_number, adapter, status, context_manifest, correlation_id)
@@ -3863,7 +3974,7 @@ export class AuthoritativeWorldRepository {
           attemptId,
           actionId,
           lease.rows[0].attempts,
-          JSON.stringify(manifest),
+          JSON.stringify(contextManifest),
           action.correlation_id,
         ],
       );
@@ -3881,6 +3992,7 @@ export class AuthoritativeWorldRepository {
         intent: action.intent,
         state,
         generationContext,
+        context,
         userRoleName: world.userRole.name,
       };
     });
@@ -4002,6 +4114,7 @@ export class AuthoritativeWorldRepository {
         participation: prepared.generationContext.participation,
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
+        ...(prepared.context ? { context: prepared.context } : {}),
       });
       const expectedResponseSource: ActionResponseSource = prepared.generationContext.character
         ? { type: "CHARACTER", characterId: prepared.generationContext.character.id }
@@ -4169,6 +4282,7 @@ export class AuthoritativeWorldRepository {
       operation_type: ActionOperationType;
       status: ActionStatus;
       intent: string;
+      operation_payload: { targetCharacterId?: string };
       participation_expectation: ParticipationContract;
       acknowledged_at: Date;
       terminal_at: Date | null;
@@ -4186,7 +4300,7 @@ export class AuthoritativeWorldRepository {
       committed_at: Date | null;
     }>(
       `select a.id, a.continuity_id, a.branch_id, a.correlation_id, a.expected_head_commit_id, a.operation_type, a.status, a.intent,
-              a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason,
+              a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason, a.operation_payload,
               p.id as proposal_id, p.proposal_digest, p.expected_head_commit_id as proposal_head,
               p.expires_at as proposal_expires,
                p.candidate_transition->>'narrative' as proposal_narrative,
@@ -4212,6 +4326,9 @@ export class AuthoritativeWorldRepository {
       operationType: row.operation_type,
       status: row.status,
       intent: row.intent,
+      ...(row.operation_payload.targetCharacterId
+        ? { targetCharacterId: row.operation_payload.targetCharacterId }
+        : {}),
       participationExpectation: row.participation_expectation,
       acknowledgedAt: row.acknowledged_at.toISOString(),
       terminalAt: row.terminal_at?.toISOString() ?? null,

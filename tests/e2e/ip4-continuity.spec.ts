@@ -25,6 +25,7 @@ type RouteOptions = {
   orientation?: Record<string, unknown>;
   explanation?: Record<string, unknown>;
   onCorrection?: (route: Route) => Promise<void>;
+  onAction?: (route: Route) => Promise<void>;
 };
 
 function worldResponse(statement = "The western signal is dim."): Record<string, unknown> {
@@ -277,7 +278,9 @@ async function installRoutes(page: Page, options: RouteOptions = {}): Promise<vo
     json(route, options.state ?? worldResponse()),
   );
   await page.route(`**/v1/branches/${branchId}/actions**`, (route) =>
-    json(route, { branchId, actions: history }),
+    route.request().method() === "POST" && options.onAction
+      ? options.onAction(route)
+      : json(route, { branchId, actions: history }),
   );
   await page.route(`**/v1/branches/${branchId}/commits**`, (route) => json(route, traceResponse()));
   await page.route(`**/v1/continuities/${continuityId}/orientation`, (route) =>
@@ -348,6 +351,32 @@ async function installCountingEventSource(page: Page): Promise<void> {
     (window as unknown as { EventSource: unknown }).EventSource = CountingEventSource;
   });
 }
+
+test("explicit Character selection is submitted with the Action and lost-ACK retries keep its identity", async ({
+  page,
+}) => {
+  const bodies: Array<Record<string, unknown>> = [];
+  await installRoutes(page, {
+    onAction: async (route) => {
+      bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+      await json(route, { code: "TEMPORARY", message: "Acknowledgement unavailable" }, 503);
+    },
+  });
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Address a character").selectOption("character.iora");
+  await page.getByLabel("Your Action", { exact: true }).fill("Inspect the signal with Iora.");
+  await page.getByRole("button", { name: "Send Action", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("acknowledgement could not be confirmed");
+  await page.getByRole("button", { name: "Send Action", exact: true }).click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[0]?.targetCharacterId).toBe("character.iora");
+  expect(bodies[1]).toEqual(bodies[0]);
+  await page.getByLabel("Address a character").selectOption("");
+  await page.getByRole("button", { name: "Send Action", exact: true }).click();
+  await expect.poll(() => bodies.length).toBe(3);
+  expect(bodies[2]?.idempotencyKey).not.toBe(bodies[0]?.idempotencyKey);
+  expect(bodies[2]?.targetCharacterId).toBeUndefined();
+});
 
 test("World, Continuity and Return fallback use current shared facts, not earlier threads", async ({
   page,

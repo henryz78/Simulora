@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 AUTHORIZED, IN PROGRESS / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 IMPLEMENTED, REVIEW PENDING / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -12,7 +12,9 @@
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
 Same-SHA CI `34990847673` succeeded. The independent local PG run was 113/114,
 not wholly green; its upgrade-test observation is preserved in the original result.
-RE-2 is subsequently authorized, not independently approved or complete.
+RE-2 is subsequently authorized and implemented with local checks complete;
+[candidate evidence](RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md) is not independent
+approval or exact-candidate CI success.
 
 **Final product direction:** [User goal and direction guardrails](PRODUCT_DIRECTION_GUARDRAILS.md).
 Simulora must remain a long-lived playable AI World: world-director shaping and
@@ -50,7 +52,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next execution:                    RE-2 authorized context / explicit Character selection
+Next step:                         independent RE-2 Review / exact-candidate CI
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -59,7 +61,7 @@ is retained in the review document linked above.
 
 The approved snapshot above is distinct from the later isolated Spike and RE-1
 display repair. RE-1 changes production projection/rendering, not authority, and
-now has focused independent approval at `7d668daa`. RE-2 remains in progress.
+now has focused independent approval at `7d668daa`. RE-2 is implemented, review pending.
 Git determines live HEAD/worktree state;
 the hashes and clean-state evidence above describe the approved snapshot.
 
@@ -426,4 +428,33 @@ World/current-state/history context through the existing worker seam. Preserve
 ordinary Action lifecycle, closed L3 validation, exact confirmation, privacy,
 Participation independence and Recovery invariants. No new live calls, arbitrary
 effects, L2 adoption, unattended mutation or production provider entrypoint.
-RE-3/RE-4 and IP-7 are not authorized. RE-2 validation/review remain pending.
+RE-3/RE-4 and IP-7 are not authorized. Subsequent RE-2 local validation is below;
+independent approval remains pending.
+
+## 16. RE-2 implementation closure — independent review pending
+
+Candidate implementation is the commit containing migration `0029` and
+[RE-2 Implementation Report](RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md).
+Resolve its exact SHA from Git; neither it nor later documentation changes replace
+the scoped independently approved baselines above without a new review decision.
+
+Optional Character target is bound to durable Action request/digest/idempotency,
+immutable payload and source-head evidence. A shared SQL compiler supplies fixed-
+head World/contract, authorized current facts, selected Character/location/
+relationships and a bounded filtered committed-history tail. Context hash is
+recomputed for sealed proposal evidence. Privacy/budget failure remains durable
+and recoverable; no model call or truth mutation occurs. Legacy automatic sealed
+proposals remain compatible through migration. No new effect types or provider
+entrypoint: first-shared-fact L3 exact confirmation is still a known ceiling, not
+the final AI World goal.
+
+Local checks: format/lint/typecheck/architecture/29 migrations PASS; default suite
+55 PASS / 116 PostgreSQL-dependent skips, including 3/3 PGlite checks; separate
+**real PostgreSQL 117/117 PASS, 0 skip**; full production build and worker runtime
+PASS; full desktop/390×844 pointer browser **54/54 PASS**; diff check PASS. No fresh
+local Docker smoke or exact-candidate GitHub CI success is claimed at handoff.
+The report retains intermediate failures, coverage and context/retrieval ceilings.
+
+Next: independent RE-2 Review, exact-SHA CI/build/PostgreSQL/container/browser
+evidence. RE-3/RE-4, IP-7, deployment and production live integration remain not
+started/not authorized. No additional live calls were made in RE-2.
