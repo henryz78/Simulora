@@ -43,6 +43,8 @@ export type ActionResult = {
   error: string | null;
 };
 
+type RequestedEffect = "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+
 export type CorrectionResult = {
   action: ActionResponse | null;
   status: number;
@@ -62,7 +64,11 @@ export type ContinuityContextValue = {
   setSelectedActionId: (actionId: string | null) => void;
   refresh: () => Promise<void>;
   readAction: (actionId: string) => Promise<ActionResponse | null>;
-  submitAction: (intent: string, targetCharacterId?: string) => Promise<ActionResult>;
+  submitAction: (
+    intent: string,
+    targetCharacterId?: string,
+    requestedEffect?: RequestedEffect,
+  ) => Promise<ActionResult>;
   submitCorrection: (request: CorrectionRequest) => Promise<CorrectionResult>;
   confirmAction: (action: ActionResponse) => Promise<ActionResult>;
   cancelAction: (action: ActionResponse) => Promise<ActionResult>;
@@ -415,7 +421,11 @@ export function ContinuityProvider({
   }, [pendingSubscriptionKey, refresh, upsertAction]);
 
   const submitAction = useCallback(
-    async (rawIntent: string, targetCharacterId?: string): Promise<ActionResult> => {
+    async (
+      rawIntent: string,
+      targetCharacterId?: string,
+      requestedEffect: RequestedEffect = "FACT_REWRITE",
+    ): Promise<ActionResult> => {
       const normalizedIntent = rawIntent.trim();
       if (!normalizedIntent || loadState.status !== "ready") {
         return { action: null, error: "Describe an Action in the current world first." };
@@ -427,6 +437,7 @@ export function ContinuityProvider({
         expectedHeadCommitId,
         normalizedIntent,
         targetCharacterId ?? null,
+        requestedEffect,
       ]);
       const existingAttempt = pendingSubmission.current.get(submissionKey);
       const submission = existingAttempt ?? {
@@ -446,6 +457,7 @@ export function ContinuityProvider({
             participationExpectation: loadState.data.state.participation,
             intent: normalizedIntent,
             ...(targetCharacterId ? { targetCharacterId } : {}),
+            ...(requestedEffect !== "FACT_REWRITE" ? { requestedEffect } : {}),
           }),
         });
         if (!response.ok) {
@@ -821,7 +833,7 @@ export function ActionStatusCard({
   const copy: Record<ActionResponse["status"], string> = {
     ACKNOWLEDGED: "Received and durably recorded. The world has not changed yet.",
     GENERATING: action.recoverableWait
-      ? "Still working. You can leave and return with this Action ID; current truth is unchanged."
+      ? "This response needs another bounded generation attempt. You can leave and return with this Action ID; current truth is unchanged."
       : "The world is preparing a provisional response. Nothing has been recorded yet.",
     VALIDATING: "Checking the proposed consequence against current World truth and authority.",
     AWAITING_CONFIRMATION:
@@ -1098,6 +1110,7 @@ export function ActionComposer(): ReactElement {
   const { historyState, loadState, pendingActionRefs, submitAction } = useContinuity();
   const [intent, setIntent] = useState("");
   const [targetCharacterId, setTargetCharacterId] = useState("");
+  const [requestedEffect, setRequestedEffect] = useState<RequestedEffect>("FACT_REWRITE");
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const hasUnresolvedAction = pendingActionRefs.length > 0;
@@ -1108,7 +1121,7 @@ export function ActionComposer(): ReactElement {
     if (working || !intent.trim() || hasUnresolvedAction || historyState !== "ready") return;
     setWorking(true);
     setError(null);
-    const result = await submitAction(intent, targetCharacterId || undefined);
+    const result = await submitAction(intent, targetCharacterId || undefined, requestedEffect);
     setWorking(false);
     if (result.error) {
       setError(result.error);
@@ -1132,7 +1145,13 @@ export function ActionComposer(): ReactElement {
         <select
           id="action-character"
           value={targetCharacterId}
-          onChange={(event) => setTargetCharacterId(event.target.value)}
+          onChange={(event) => {
+            const nextCharacterId = event.target.value;
+            setTargetCharacterId(nextCharacterId);
+            if (!nextCharacterId && requestedEffect === "ROUTINE_EFFECT") {
+              setRequestedEffect("FACT_REWRITE");
+            }
+          }}
           disabled={
             working ||
             hasUnresolvedAction ||
@@ -1161,6 +1180,25 @@ export function ActionComposer(): ReactElement {
                 ))
             : null}
         </select>
+        <label htmlFor="action-effect">Desired outcome</label>
+        <select
+          id="action-effect"
+          value={requestedEffect}
+          onChange={(event) => setRequestedEffect(event.target.value as RequestedEffect)}
+          disabled={
+            working ||
+            hasUnresolvedAction ||
+            historyState !== "ready" ||
+            loadState.status !== "ready"
+          }
+        >
+          <option value="FACT_REWRITE">Change a current world fact</option>
+          <option value="ROUTINE_EFFECT">Have this character move</option>
+          <option value="NO_WORLD_EFFECT">Ask for a response only</option>
+        </select>
+        <p className="field-help">
+          The requested outcome stays provisional until you review and confirm it.
+        </p>
         <label htmlFor="world-action">Your Action</label>
         <textarea
           id="world-action"

@@ -370,12 +370,69 @@ test("explicit Character selection is submitted with the Action and lost-ACK ret
   await page.getByRole("button", { name: "Send Action", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(2);
   expect(bodies[0]?.targetCharacterId).toBe("character.iora");
+  expect(bodies[0]?.requestedEffect).toBeUndefined();
   expect(bodies[1]).toEqual(bodies[0]);
   await page.getByLabel("Address a character").selectOption("");
   await page.getByRole("button", { name: "Send Action", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(3);
   expect(bodies[2]?.idempotencyKey).not.toBe(bodies[0]?.idempotencyKey);
   expect(bodies[2]?.targetCharacterId).toBeUndefined();
+});
+
+test("explicit requested outcomes reach the Action contract", async ({ page }) => {
+  const bodies: Array<Record<string, unknown>> = [];
+  await installRoutes(page, {
+    onAction: async (route) => {
+      bodies.push(route.request().postDataJSON() as Record<string, unknown>);
+      await json(route, { code: "TEMPORARY", message: "Acknowledgement unavailable" }, 503);
+    },
+  });
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Address a character").selectOption("character.iora");
+  await page.getByLabel("Desired outcome").selectOption("ROUTINE_EFFECT");
+  await page.getByLabel("Your Action", { exact: true }).fill("Have Iora move to the quay.");
+  await page.getByRole("button", { name: "Send Action", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("acknowledgement could not be confirmed");
+  expect(bodies[0]).toMatchObject({
+    targetCharacterId: "character.iora",
+    requestedEffect: "ROUTINE_EFFECT",
+  });
+
+  await page.getByLabel("Desired outcome").selectOption("NO_WORLD_EFFECT");
+  await page.getByLabel("Your Action", { exact: true }).fill("Ask Iora what she sees.");
+  await page.getByRole("button", { name: "Send Action", exact: true }).click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1]).toMatchObject({ requestedEffect: "NO_WORLD_EFFECT" });
+  expect(bodies[1]?.idempotencyKey).not.toBe(bodies[0]?.idempotencyKey);
+});
+
+test("recoverable generation status explains the bounded retry", async ({ page }) => {
+  const action = pendingAction(
+    "40000000-0000-4000-8000-000000000071",
+    "PARTICIPATE",
+    "Inspect the signal while generation retries.",
+    "ACKNOWLEDGED",
+  );
+  action.status = "GENERATING";
+  action.recoverableWait = true;
+  await installRoutes(page, {
+    actions: new Map([[action.id, action]]),
+    history: [
+      {
+        id: action.id,
+        status: action.status,
+        intent: action.intent,
+        acknowledgedAt: now,
+        committedAt: null,
+        narrative: null,
+      },
+    ],
+  });
+  await page.goto(`/continuities/${continuityId}/actions/${action.id}`);
+  await expect(page.getByRole("heading", { name: "Generating" })).toBeVisible();
+  await expect(
+    page.getByText("another bounded generation attempt", { exact: false }),
+  ).toBeVisible();
 });
 
 test("World, Continuity and Return fallback use current shared facts, not earlier threads", async ({

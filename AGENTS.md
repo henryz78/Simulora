@@ -78,6 +78,13 @@ desktop/390×844 共 3 次真实输出，2 项 UI exact-confirmed L3 Commit、1 
 失败只显示 Still working 的 comprehension gap 和 growing fact review 阅读负担。
 这些是下一 bounded bridge 的建议，不自动批准修复、full RE-4 或 IP-7。
 
+用户随后授权最小 RE-3 participation bridge 修复，记录于
+`docs/implementation-planning/RE-3-PARTICIPATION-BRIDGE-REPAIR.md`：正式
+Action Composer 现在传递现有 `requestedEffect` 合约（事实变更、选定角色移动、
+仅响应），客户端提交身份包含 effect，且 recoverable retry 文案明确说明有界重试。
+这是前端 comprehension/contract bridge；数据库、worker、model、authority 语义未改，
+IP-7 仍未开始，production live enablement 仍禁止。
+
 ## Long-Term Product Direction
 
 用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：

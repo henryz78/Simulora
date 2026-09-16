@@ -1,12 +1,15 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 APPROVED / RE-3 INDEPENDENT REVIEW PASS / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 APPROVED / RE-3 INDEPENDENT REVIEW PASS / RE-3 BRIDGE REPAIR IN PROGRESS / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
 **Snapshot date:** `2026-09-15`.
 
 **Current independent decision:** [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
+The latest bounded browser-play follow-up is documented in
+[RE-3 Participation Bridge Repair](RE-3-PARTICIPATION-BRIDGE-REPAIR.md); it is a
+frontend comprehension/contract bridge only and is not an IP-7 authorization.
 
 **Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
@@ -53,7 +56,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next decision:                     agency false-positive repair / select exact RE-3 contract
+Next decision:                     focused review of RE-3 participation bridge, then bounded reality decision
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -705,3 +708,21 @@ committed scene presentation remain usability observations. Recommend bounded
 runtime/participation bridge + public failure feedback, then natural human play,
 not silently starting IP-7 or declaring full AI World readiness. No human research,
 durable L0 memory, new repair or full RE-4 automatically authorized.
+
+## 28. RE-3 participation bridge repair
+
+The bounded browser play exposed a production UI gap: the Action Composer did
+not send the already-approved `requestedEffect` envelope, narrowing normal
+participation to the deterministic fact-rewrite path. It also described a
+recoverable generation retry only as “Still working”. The minimal repair is
+recorded in [RE-3 Participation Bridge Repair](RE-3-PARTICIPATION-BRIDGE-REPAIR.md).
+
+The web composer now offers plain-language choices for fact change, selected
+Character movement, and response-only requests; the selected effect is part of
+the client submission identity, while the legacy fact-rewrite wire shape stays
+compatible. Recoverable generation explicitly explains bounded retry and
+durable Action recovery. No database, worker, model, migration, confirmation,
+or authority semantics changed. Local web typecheck/build and the full
+desktop/390×844 Playwright invocation pass 60/60, including the new bridge
+coverage. This is a pending focused review/CI closure, not a replacement of the
+approved behavior SHA and not IP-7 or production live enablement.
