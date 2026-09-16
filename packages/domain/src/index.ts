@@ -685,6 +685,29 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
       new RegExp(`(,[\\s'"]*${escapeAuthorityRegex(narrator)}\\s+)(?:says|said)(\\s*,)`, "g"),
       "$1narrates$2",
     );
+    // ponytail: only bare "can decide" at a clause end defers a choice.
+    // Retain its subject and all surrounding claims; canonical fields stay strict.
+    const optionSubjects = [
+      "you",
+      "the user",
+      "the player",
+      "the participant",
+      "user",
+      "player",
+      "participant",
+      normalizedRole,
+      rawRole,
+      roleNames.at(-1),
+    ].filter((subject): subject is string =>
+      Boolean(subject && /^[a-z][a-z0-9_]*(?: [a-z][a-z0-9_]*)*$/.test(subject)),
+    );
+    normalizedNarrative = normalizedNarrative.replace(
+      new RegExp(
+        `(\\b(?:${optionSubjects.join("|")})\\b\\s+can\\s+)decide(?=\\s*(?:[;.!?'"\\n]|$))`,
+        "g",
+      ),
+      "$1deliberate",
+    );
   }
   const escapedRoles = [normalizedRole, rawRole, roleNames.at(-1)]
     .filter((role): role is string => Boolean(role))

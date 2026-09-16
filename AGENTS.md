@@ -57,7 +57,11 @@ bounded RE-3 comparison 已完成四次真实输出，结果见
 一条 Tavi MOVE exact-confirmed；两条 L0 advice 和一条 guard 拒绝的 L3 draft
 明确 cancelled；head/Return/facts/participation 一致。
 发现真实 nonbinding-option `keeper can decide` agency guard 误拦截，
-已记录最小复现、未放宽 guard/自动修复。尚未进行 human/browser live play；
+原失败样本和最小复现保留。用户随后授权最小 nonbinding-option 修复，见
+`docs/implementation-planning/RE-3-NONBINDING-OPTION-REPAIR.md`：
+仅 bound NPC narrative 中 bare clause-ending `can decide`；canonical/provenance
+仍严格，应用与 successor 0033 SQL 对照通过，real PG 125/125。
+当前待同一 Reviewer focused 复审，不把自测当独立批准。尚未进行 human/browser live play；
 无新 production provider、durable L0 dialogue、full RE-4 或 IP-7。
 
 ## Long-Term Product Direction

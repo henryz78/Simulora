@@ -594,6 +594,38 @@ describe("IP-6 participation and character authority", () => {
     ).toThrow();
   });
 
+  it("permits a nonbinding choice only in bound NPC prose without hiding authority claims", () => {
+    for (const narrative of [
+      "If the test holds, the keeper can decide; until then, invite nothing.",
+      "You can decide.",
+      "The player can decide; wait here.",
+    ]) {
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
+      ).not.toThrow();
+      expect(() => assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper")).toThrow();
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Keeper"),
+      ).toThrow();
+    }
+    for (const narrative of [
+      "The keeper has decided to invite the vessel.",
+      "The keeper will decide to invite the vessel.",
+      "The keeper can decide to approve the transfer.",
+      "The keeper can decide and agrees to pay.",
+      "The keeper can decide; the keeper promised to pay.",
+      "The keeper agreed to pay; the keeper can decide.",
+      "Payment was approved by the keeper; the keeper can decide.",
+      "The keeper can decide; you consented to share the note.",
+      "The keeper can decide; 玩家已同意付款。",
+      "The keeper can decide; the keeper's commitment is binding.",
+    ]) {
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
+      ).toThrow();
+    }
+  });
+
   it("rejects long, short and Unicode fact disclosure outside the compiled context", () => {
     const state = createInitialState(lanternReachSeed, {
       initiativeMode: "GUIDED",

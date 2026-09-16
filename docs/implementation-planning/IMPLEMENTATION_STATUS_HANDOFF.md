@@ -662,3 +662,16 @@ with app/SQL parity; durable advice memory is a separate product decision.
 The approved production behavior remains `f435d5b...`; this extension changes
 only an isolated runner, tests and documentation. Human/browser play, full RE-4
 and IP-7 are not completed or automatically started.
+
+## 26. Authorized narrow nonbinding-option repair
+
+User authorized the [nonbinding-option repair](RE-3-NONBINDING-OPTION-REPAIR.md).
+Bound NPC narrative alone recognizes bare clause-ending `can decide`; all other
+claims and strict canonical/provenance guards remain checked. Successor 0033
+mirrors the domain rule; earlier migrations/experiment outcomes untouched.
+Exact captured Iora prose reaches sealed pending proposal in offline replay;
+cancellation leaves head unchanged. Domain 22/22 and fresh real PG17 full
+targeted regression 125/125 PASS, no skips. Full engineering check/build/runtime
+and diff check PASS; independent same-Reviewer focused review pending.
+No new live request, provider enablement,
+durable L0 conversation, frontend redesign, full RE-4 or IP-7.

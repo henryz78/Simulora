@@ -258,6 +258,70 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     }
   });
 
+  it("replays Iora's nonbinding live option with SQL parity and strict canonical guards", async () => {
+    const narrative =
+      "Iora keeps her hand off the outer shutter lever and looks toward the western shoals, where the dim signal barely stains the fog. 'No,' she says. 'An invitation with the western signal dim is a guess dressed as a welcome. The waiting vessel can't read a lit path I can't honestly show. Test the prism first — the instrument can be checked without opening the outer shutter — and confirm the western lamp reads true before any marker is treated as open. If the test holds, the keeper can decide; until then, invite nothing.'";
+    const draft = await repository.createWorld(account, lanternReachSeed);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const action = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      targetCharacterId: "character.iora",
+      intent: "Assess the signal without inviting the vessel.",
+    });
+    const gateway = new DeterministicModelGateway();
+    const proposed = await repository.processAction(action.id, async (request) => {
+      const generated = await gateway.generateWorldTurn(request);
+      generated.narrative = narrative;
+      generated.candidate = { ...actionCandidateSchema.parse(generated.candidate), narrative };
+      return generated;
+    });
+    expect(proposed?.status).toBe("AWAITING_CONFIRMATION");
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      continuity.headCommitId,
+    );
+    const evidence = await pool.query<{ valid: boolean }>(
+      "select simulora.action_generation_evidence_is_valid(proposal) as valid from simulora.action_proposals proposal where action_id = $1",
+      [action.id],
+    );
+    expect(evidence.rows[0]?.valid).toBe(true);
+    // This is a prose replay, not confirmation of the provider's world assertions.
+    await repository.cancelAction(account, action.id);
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      continuity.headCommitId,
+    );
+    for (const [text, blocked] of [
+      ["If the test holds, the keeper can decide; until then, invite nothing.", false],
+      ["You can decide.", false],
+      ["The player can decide; wait here.", false],
+      ["The keeper has decided to invite the vessel.", true],
+      ["The keeper will decide to invite the vessel.", true],
+      ["The keeper can decide to approve the transfer.", true],
+      ["The keeper can decide and agrees to pay.", true],
+      ["The keeper can decide; the keeper promised to pay.", true],
+      ["The keeper agreed to pay; the keeper can decide.", true],
+      ["Payment was approved by the keeper; the keeper can decide.", true],
+      ["The keeper can decide; you consented to share the note.", true],
+      ["The keeper can decide; 玩家已同意付款。", true],
+      ["The keeper can decide; the keeper's commitment is binding.", true],
+    ] as const) {
+      const result = await pool.query<{ blocked: boolean; strict: boolean; collision: boolean }>(
+        "select simulora.generated_narrative_authors_user($1::text, 'Keeper', 'Iora') as blocked, simulora.generated_narrative_authors_user($1::text, 'Keeper') as strict, simulora.generated_narrative_authors_user($1::text, 'Keeper', 'Keeper') as collision",
+        [text],
+      );
+      expect(result.rows[0], text).toEqual({ blocked, strict: true, collision: true });
+      const check = () => assertGeneratedNarrativeDoesNotAuthorUser(text, "Keeper", "Iora");
+      if (blocked) expect(check).toThrow();
+      else expect(check).not.toThrow();
+    }
+  });
+
   it("does not resurrect pre-correction dialogue as current generation knowledge", async () => {
     const draft = await repository.createWorld(account, lanternReachSeed);
     const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);

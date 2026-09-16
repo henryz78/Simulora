@@ -205,6 +205,9 @@ preserve frozen and historical source records.
 
 ## Supporting Material
 
+Latest authorized narrow repair: [RE-3 nonbinding-option provenance and checks](implementation-planning/RE-3-NONBINDING-OPTION-REPAIR.md).
+Original live failure is preserved; independent focused re-review pending.
+
 - [Final main-Agent handoff](coordination/FINAL_MAIN_AGENT_HANDOFF.md)
 - [Cross-Agent evidence inventory](coordination/CROSS_AGENT_EVIDENCE_INVENTORY.md)
 - [Cross-Agent package intake template](coordination/CROSS_AGENT_PACKAGE_INTAKE_TEMPLATE.md)
