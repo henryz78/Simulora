@@ -1021,7 +1021,7 @@ export class AuthoritativeWorldRepository {
       expectedHeadCommitId: input.expectedHeadCommitId,
       participationExpectation: input.participationExpectation,
       intent,
-      requestedEffect,
+      ...(requestedEffect !== "FACT_REWRITE" ? { requestedEffect } : {}),
       ...(targetCharacterId ? { targetCharacterId } : {}),
     });
     return transaction(this.pool, async (client) => {
