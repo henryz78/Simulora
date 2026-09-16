@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import {
   assertExperimentDatabase,
+  currentPrompt,
   parseProfile,
   predecessorStyleRequest,
   redact,
@@ -23,6 +24,41 @@ it("keeps the isolated provider profile secret and forbids non-Spike database ta
   ]) {
     expect(() => assertExperimentDatabase(url)).toThrow();
   }
+});
+
+it("uses closed movement/no-effect prompts and refuses route-less dispatch preparation", () => {
+  const request = {
+    actionId: "synthetic-action",
+    expectedHeadCommitId: "synthetic-head",
+    intent: "Ask Iora to inspect the lookout.",
+    participation: { initiativeMode: "GUIDED" as const, structureMode: "OPEN_ENDED" as const },
+    character: {
+      id: "character.iora",
+      name: "Iora",
+      role: "Signal keeper",
+      motives: ["Keep ships safe."],
+      stance: "Cautious.",
+      currentState: "Present at tower.",
+      locationId: "location.tower",
+      knownFacts: [],
+      relationships: [],
+    },
+    targetFact: { id: "fact.signal", statement: "The signal is dim.", scope: "SHARED" as const },
+    routineRoutes: [
+      { fromLocationId: "location.tower", toLocationId: "location.lookout", label: "shore path" },
+    ],
+  };
+  const move = currentPrompt({ ...request, requestedEffect: "ROUTINE_EFFECT" });
+  expect(move).toContain('"type":"MOVE_CHARACTER"');
+  expect(move).toContain('"afterLocationId":"location.lookout"');
+  expect(move).not.toContain('"type":"UPDATE_CANONICAL_FACT"');
+  expect(() =>
+    currentPrompt({ ...request, requestedEffect: "ROUTINE_EFFECT", routineRoutes: [] }),
+  ).toThrow(/authorized route/);
+  const noEffect = currentPrompt({ ...request, requestedEffect: "NO_WORLD_EFFECT" });
+  expect(noEffect).toContain('"type":"NO_WORLD_EFFECT"');
+  expect(noEffect).not.toContain('"type":"UPDATE_CANONICAL_FACT"');
+  expect(noEffect).toContain("uncommitted generated output");
 });
 
 it("makes a read-only predecessor-style contrast without changing the selected actor or truth inputs", () => {

@@ -15,14 +15,15 @@ import { actionCandidateSchema, lanternReachSeed } from "../packages/domain/src/
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const re2 = process.argv[2] === "--re2";
+const re3 = process.argv[2] === "--re3";
 const directory = path.join(
   root,
   ".local-data",
-  re2 ? "re2-context-reality" : "product-reality-spike",
+  re3 ? "re3-routine-reality" : re2 ? "re2-context-reality" : "product-reality-spike",
 );
 const sessionPath = path.join(directory, "session.json");
 const journalPath = path.join(directory, "evidence.jsonl");
-const requestCap = 16; // Historical Spike cap only; RE-2 has no user-imposed dispatch cap.
+const requestCap = 16; // Historical Spike cap only; RE-2/RE-3 have no user-imposed dispatch cap.
 const privateSentinel = "SYNTHETIC_PRIVATE_COPPER_7319";
 type Request = Parameters<ActionGenerator>[0];
 type Profile = { key: string; endpoint: string; model: string };
@@ -86,7 +87,40 @@ Unknown history stays unknown; do not invent prior actions. No hidden reasoning 
 Describe causal, bounded consequences, not generic commentary or a success announcement.
 If a meaningful effect cannot fit the supplied envelope, do not conceal that limitation.`;
 
-function currentPrompt(request: Request): string {
+export function currentPrompt(request: Request): string {
+  const effect = request.requestedEffect ?? "FACT_REWRITE";
+  const route = request.routineRoutes?.find(
+    (item) => item.fromLocationId === request.character?.locationId,
+  );
+  const operation =
+    effect === "NO_WORLD_EFFECT"
+      ? {
+          type: "NO_WORLD_EFFECT",
+          reason: "Explain briefly why this response has no world-state effect.",
+          causalFactIds: [request.targetFact.id],
+        }
+      : effect === "ROUTINE_EFFECT"
+        ? {
+            type: "MOVE_CHARACTER",
+            characterId: request.character?.id,
+            beforeLocationId: request.character?.locationId,
+            afterLocationId: route?.toLocationId,
+            causalFactIds: [request.targetFact.id],
+          }
+        : {
+            type: "UPDATE_CANONICAL_FACT",
+            targetFactId: request.targetFact.id,
+            beforeStatement: request.targetFact.statement,
+            afterStatement:
+              "The complete resulting statement of this same fact, not a user commitment.",
+            scope: request.targetFact.scope,
+            provenance: `Confirmed Action ${request.actionId}`,
+          };
+  if (effect === "ROUTINE_EFFECT")
+    assert(
+      request.character && route,
+      "No explicitly authorized route at this Character location; do not dispatch",
+    );
   return `${rules}
 Return ONE JSON candidate object, no markdown. Only these keys/values are permitted:
 ${JSON.stringify({
@@ -97,17 +131,14 @@ ${JSON.stringify({
   responseSource: request.character
     ? { type: "CHARACTER", characterId: request.character.id }
     : { type: "WORLD" },
-  operation: {
-    type: "UPDATE_CANONICAL_FACT",
-    targetFactId: request.targetFact.id,
-    beforeStatement: request.targetFact.statement,
-    afterStatement: "The complete resulting statement of this same fact, not a user commitment.",
-    scope: request.targetFact.scope,
-    provenance: `Confirmed Action ${request.actionId}`,
-  },
+  operation,
 })}
-Copy all identity/before/scope/provenance fields EXACTLY; fill only narrative and
-afterStatement. The repository, not you, decides validity and exact L3 confirmation.
+Copy all identity/before/scope/provenance/location fields EXACTLY; fill only narrative
+and the supplied afterStatement or no-effect reason. Do not add fields or effects.
+Use supplied causal IDs; never infer private facts or location permissions.
+The repository decides validity. L2 movement still needs exact confirmation.
+L0 is uncommitted generated output: no fact rewrite, Commit, remembered dialogue
+or clock advance. A refusal/advice narrative should answer the actual intent.
 This is the actual compiled generation request:
 ${JSON.stringify(request)}`;
 }
@@ -131,7 +162,10 @@ async function call(profile: Profile, prompt: string, label: string): Promise<un
     !events.some((event) => event.type === "hard_stop"),
     "Prior Spike hard stop requires review",
   );
-  assert(re2 || dispatches < requestCap, "Spike request cap reached; stop and review coverage");
+  assert(
+    re2 || re3 || dispatches < requestCap,
+    "Spike request cap reached; stop and review coverage",
+  );
   assert(
     prompt.length <= 48_000 && !prompt.includes(profile.key) && !prompt.includes(privateSentinel),
     "Unsafe/oversized model context",
@@ -141,7 +175,7 @@ async function call(profile: Profile, prompt: string, label: string): Promise<un
     type: "dispatch",
     label,
     model: profile.model,
-    promptVersion: 1,
+    promptVersion: re3 ? 3 : 1,
     profileVersion: 2,
     enableThinking: false,
     prompt,
@@ -207,7 +241,7 @@ async function init() {
   assertExperimentDatabase(databaseUrl);
   const admin = createDatabasePool("postgresql://postgres@127.0.0.1:55432/postgres");
   try {
-    await admin.query(`create database ${name}`);
+    await admin.query(`create database ${name} template template0 encoding 'UTF8'`);
   } finally {
     await admin.end();
   }
@@ -221,12 +255,15 @@ async function init() {
       id: "character.tavi",
       locationId: "location.tidal-observatory",
       name: "Tavi",
-      role: "Pilot aboard the waiting survey vessel.",
+      role: re3
+        ? "Harbor pilot ashore, inspecting the approach for the waiting vessel."
+        : "Pilot aboard the waiting survey vessel.",
       motives: ["Reach shelter before the tide turns."],
       stance: "Tavi distrusts an invitation without a safe approach route.",
-      knowledgeFactIds: re2
-        ? ["fact.western-signal-dim", "fact.waiting-vessel", "fact.tavi-route"]
-        : ["fact.waiting-vessel"],
+      knowledgeFactIds:
+        re2 || re3
+          ? ["fact.western-signal-dim", "fact.waiting-vessel", "fact.tavi-route"]
+          : ["fact.waiting-vessel"],
     });
     world.facts.push({
       id: "fact.waiting-vessel",
@@ -235,7 +272,7 @@ async function init() {
       provenance: "Original synthetic Spike fixture",
       lifecycle: "ACTIVE",
     });
-    if (re2) {
+    if (re2 || re3) {
       world.characters[0]!.knowledgeFactIds.push("fact.iora-test");
       world.facts.push(
         {
@@ -261,8 +298,41 @@ async function init() {
       provenance: "Synthetic excluded-context probe",
       lifecycle: "ACTIVE",
     });
+    if (re3) {
+      world.locations.push({
+        id: "location.east-lookout",
+        name: "Sheltered East Lookout",
+        description:
+          "A public shore lookout reached by a safe footpath; no ship or player movement.",
+      });
+      world.routineRoutes = [
+        {
+          fromLocationId: "location.tidal-observatory",
+          toLocationId: "location.east-lookout",
+          label: "the safe shore path to the sheltered east lookout",
+        },
+        {
+          fromLocationId: "location.east-lookout",
+          toLocationId: "location.tidal-observatory",
+          label: "the same safe shore path back to the observatory",
+        },
+      ];
+    }
     const draft = await repository.createWorld(account, world);
     const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    if (re3)
+      await pool.query(
+        "insert into simulora.re3_routine_policies (world_revision_id,document) values ($1,$2::jsonb)",
+        [
+          revision.revisionId,
+          JSON.stringify({
+            version: "re3-routine-v1",
+            npcIds: ["character.iora", "character.tavi"],
+            publicLocationIds: world.locations.map((location) => location.id),
+            routes: world.routineRoutes,
+          }),
+        ],
+      );
     const continuity = await repository.startContinuity(account, revision.revisionId, {
       initiativeMode: "GUIDED",
       structureMode: "OPEN_ENDED",
@@ -277,9 +347,11 @@ async function init() {
     });
     await journal({
       type: "init",
-      behaviorBaseline: re2
-        ? "3d14dc6792e406ce4c054ee01f4b424b00c27053"
-        : "eb55734f258fc9be6f4837df888700e34eaa67e2",
+      behaviorBaseline: re3
+        ? "f435d5b35dcf53c4493a78e84ea0b611872e832b"
+        : re2
+          ? "3d14dc6792e406ce4c054ee01f4b424b00c27053"
+          : "eb55734f258fc9be6f4837df888700e34eaa67e2",
       databaseName: name,
       world,
     });
@@ -290,7 +362,7 @@ async function init() {
 }
 
 async function main() {
-  const [command, ...args] = process.argv.slice(re2 ? 3 : 2);
+  const [command, ...args] = process.argv.slice(re2 || re3 ? 3 : 2);
   if (command === "init") return init();
   const profile = parseProfile(await readFile(path.join(root, ".secret.txt"), "utf8"));
   const session = JSON.parse(await readFile(sessionPath, "utf8")) as Session;
@@ -316,16 +388,28 @@ async function main() {
         head: current.headCommitId,
         revision: current.worldRevisionId,
         participation: current.state.participation,
+        characters: current.state.characters.map(({ id, name, locationId, currentState }) => ({
+          id,
+          name,
+          locationId,
+          currentState,
+        })),
         facts: current.state.facts.filter((fact) => fact.scope === "SHARED"),
         orientation,
         actions: await repository.listBranchActions(account, current.branchId),
       });
     } else if (command === "turn") {
-      const targetCharacterId = re2 ? args.shift() : undefined;
-      if (re2)
+      const targetCharacterId = re2 || re3 ? args.shift() : undefined;
+      const requestedEffect = re3 ? args.shift() : undefined;
+      if (re3)
+        assert(
+          ["ROUTINE_EFFECT", "NO_WORLD_EFFECT", "FACT_REWRITE"].includes(requestedEffect ?? ""),
+          "RE-3 turn requires a closed requested effect",
+        );
+      if (re2 || re3)
         assert(
           ["character.iora", "character.tavi"].includes(targetCharacterId ?? ""),
-          "RE-2 turn requires an explicit fixture Character",
+          "RE-2/RE-3 turn requires an explicit fixture Character",
         );
       const intent = args.join(" ");
       assert(intent, "Provide a synthetic Action intent");
@@ -336,6 +420,12 @@ async function main() {
         participationExpectation: current.state.participation,
         intent,
         ...(targetCharacterId ? { targetCharacterId } : {}),
+        ...(requestedEffect
+          ? {
+              requestedEffect: requestedEffect as
+                "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "FACT_REWRITE",
+            }
+          : {}),
       });
       await journal({ type: "ack", action });
       output({ durableAck: action.id, status: action.status });
@@ -364,7 +454,7 @@ async function main() {
           };
           await writeFile(
             path.join(directory, "snapshot.json"),
-            JSON.stringify(re2 ? { request } : { request, richer }, null, 2),
+            JSON.stringify(re2 || re3 ? { request } : { request, richer }, null, 2),
           );
           const candidate = await call(profile, currentPrompt(request), `A:${action.id}`);
           const parsed = actionCandidateSchema.parse(candidate);
@@ -383,7 +473,7 @@ async function main() {
         await save(session);
       }
       await journal({ type: "proposal_result", action: result, headUnchanged: true });
-      if (!result?.proposal) process.exitCode = 1;
+      if (!result?.proposal && result?.statusReason !== "NO_WORLD_EFFECT") process.exitCode = 1;
       output(result);
     } else if (command === "confirm") {
       const id = args[0];
@@ -521,7 +611,9 @@ async function main() {
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as { type: string; prompt?: string; content?: string });
-      assert(re2 || events.filter((event) => event.type === "dispatch").length <= requestCap);
+      assert(
+        re2 || re3 || events.filter((event) => event.type === "dispatch").length <= requestCap,
+      );
       assert(
         !events.some(
           (event) =>
@@ -563,7 +655,7 @@ async function main() {
       });
       output({ notApplied: true, result });
     } else if (command === "shadow") {
-      assert(!re2, "RE-2 does not authorize broader-envelope shadow experiments");
+      assert(!re2 && !re3, "RE-2/RE-3 do not authorize broader-envelope shadow experiments");
       assert(["B1", "B2", "B3"].includes(args[0] ?? ""), "Select B1/B2/B3");
       const snapshot = JSON.parse(
         await readFile(path.join(directory, "snapshot.json"), "utf8"),

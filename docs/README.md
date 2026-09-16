@@ -51,6 +51,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [RE-2 Dialogue Attribution Repair — CLOSED / Independent Review + CI PASS](implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
 - [RE-3 Routine Effect / No-Change Contract — approved bounded effect](implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md)
 - [RE-3 Independent Review — PASS / exact-SHA CI](implementation-planning/RE-3-INDEPENDENT-REVIEW.md)
+- [RE-3 Isolated Routine Reality Comparison](implementation-planning/RE-3-ROUTINE-REALITY-CHECK.md)
 - [RE-3 Integration Repair / Independent FAIL evidence](implementation-planning/RE-3-INTEGRATION-REPAIR-REPORT.md)
 - [RE-3 Bounded Administrative Policy ADR](implementation-planning/RE-3-ROUTINE-POLICY-ADR.md)
 - [Bounded Runtime Enablement — Proposed Follow-up](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)

@@ -632,3 +632,33 @@ small isolated RE-3 real-model comparison, not production live enablement,
 general WorldOS-style simulation, full RE-4 or IP-7. Existing deterministic
 behavior stays approved; only an experiment runner/fixture may be extended.
 Actual model outcomes and future human play must be recorded separately.
+
+## 24. RE-3 isolated reality comparison prepared
+
+User authorized continuation after independent closure. The existing runner now
+has an isolated `--re3` fixture/session, explicit pinned NPC/public-route policy,
+closed MOVE/NO_WORLD_EFFECT prompts and no automatic retry. Production composition,
+seed and approved behavior unchanged. Prompt/route preflight test and tools
+typecheck PASS; actual calls/results are tracked in
+[RE-3 Reality Check](RE-3-ROUTINE-REALITY-CHECK.md).
+This is not full RE-4 human play or IP-7 authorization.
+
+## 25. RE-3 four-sample live comparison complete
+
+[Actual results / minimal reproduction](RE-3-ROUTINE-REALITY-CHECK.md):
+four real outputs, same supplied DeepSeek-V4.1-Flash model, no 429/retry.
+One L2 Tavi movement exact-confirmed; two L0 advice Actions and one rejected
+L3 comparison explicitly cancelled. Final head/Return consistent, facts/
+participation unchanged, no unresolved Actions. Model latency 3.8–5.5 s;
+reported tokens 8,272. Distinct Character knowledge and next-scene continuation
+are positive samples, not proof of autonomous/long-lived worlds or human enjoyment.
+
+New observed guard false positive: `the keeper can decide` is a nonbinding option,
+but subject/authority-verb matching rejects it as an actual user decision.
+The L3 draft itself preserved the beacon fact rather than fabricating a rewrite.
+No output sanitization, relaxed guard or production repair was performed.
+Future hardening/repair should narrowly distinguish options from actual claims
+with app/SQL parity; durable advice memory is a separate product decision.
+The approved production behavior remains `f435d5b...`; this extension changes
+only an isolated runner, tests and documentation. Human/browser play, full RE-4
+and IP-7 are not completed or automatically started.

@@ -52,6 +52,13 @@ RE-3 具体契约见 `docs/implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.
 原结果见 `docs/implementation-planning/RE-3-INDEPENDENT-REVIEW.md`。
 用户随后授权继续文档收尾和 bounded RE-3 isolated live comparison；
 不授权 production live enablement、full RE-4 或 IP-7。IP-7 未开始。
+bounded RE-3 comparison 已完成四次真实输出，结果见
+`docs/implementation-planning/RE-3-ROUTINE-REALITY-CHECK.md`：
+一条 Tavi MOVE exact-confirmed；两条 L0 advice 和一条 guard 拒绝的 L3 draft
+明确 cancelled；head/Return/facts/participation 一致。
+发现真实 nonbinding-option `keeper can decide` agency guard 误拦截，
+已记录最小复现、未放宽 guard/自动修复。尚未进行 human/browser live play；
+无新 production provider、durable L0 dialogue、full RE-4 或 IP-7。
 
 ## Long-Term Product Direction
 
