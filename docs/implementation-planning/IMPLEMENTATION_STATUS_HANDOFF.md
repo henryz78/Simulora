@@ -682,3 +682,26 @@ preserved; this is CLOSED, not a new live/human validation. Documentation-only
 closure does not replace the behavior SHA or change the original live failure.
 No new live request, provider enablement,
 durable L0 conversation, frontend redesign, full RE-4 or IP-7.
+
+## 27. Authorized bounded real-browser play complete
+
+[Actual report](RE-3-BROWSER-LIVE-PLAY-REPORT.md): Agent-operated desktop/390×844
+on existing production UI/API, new isolated UTF8 PG17 fixture, manually dispatched
+repository generator seam; no production live composition/automatic Action worker.
+Three real outputs from the supplied model (6,919 tokens), two UI exact-confirmed
+L3 Commits and one schema-rejected/cancelled Action, no retries. Final head
+`adf1a8d4-df10-4f90-a597-12e305983149`, zero pending, pinned Revision/participation/
+Character locations unchanged, Return FRESH at same head.
+
+Only experiment runner extended (`--re3-browser`, process existing ACK Action).
+Production behavior approval remains `7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`.
+Tools typecheck/runner tests 3/3/scoped lint and real session assertions PASS;
+no new full CI/Gate approval claimed. Historical failed model output preserved.
+
+Reality verdict PARTIAL: frontend does not transmit requestedEffect, so natural
+Tavi movement hit the FACT_REWRITE ceiling; invalid output remained generic
+Still working until explicit cancellation. Growing fact before/after review and
+committed scene presentation remain usability observations. Recommend bounded
+runtime/participation bridge + public failure feedback, then natural human play,
+not silently starting IP-7 or declaring full AI World readiness. No human research,
+durable L0 memory, new repair or full RE-4 automatically authorized.

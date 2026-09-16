@@ -210,6 +210,12 @@ Original live failure is preserved; [same-Reviewer focused re-review](implementa
 PASS, 0/0/0, behavior `7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`, exact-SHA CI
 `35043785122` PASS. Documentation closure does not authorize full RE-4 or IP-7.
 
+Subsequent [real browser play](implementation-planning/RE-3-BROWSER-LIVE-PLAY-REPORT.md)
+completed: 3 real outputs / 2 exact-confirmed Commits / 1 cancelled schema failure.
+Existing UI + isolated PG, Agent-operated (not human enjoyment validation).
+Reality PARTIAL: default single-fact UI path still misses the approved L2/L0 bridge;
+no production live adapter or IP-7 started.
+
 - [Final main-Agent handoff](coordination/FINAL_MAIN_AGENT_HANDOFF.md)
 - [Cross-Agent evidence inventory](coordination/CROSS_AGENT_EVIDENCE_INVENTORY.md)
 - [Cross-Agent package intake template](coordination/CROSS_AGENT_PACKAGE_INTAKE_TEMPLATE.md)

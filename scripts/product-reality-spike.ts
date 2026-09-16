@@ -15,11 +15,18 @@ import { actionCandidateSchema, lanternReachSeed } from "../packages/domain/src/
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const re2 = process.argv[2] === "--re2";
-const re3 = process.argv[2] === "--re3";
+const browserPlay = process.argv[2] === "--re3-browser";
+const re3 = process.argv[2] === "--re3" || browserPlay;
 const directory = path.join(
   root,
   ".local-data",
-  re3 ? "re3-routine-reality" : re2 ? "re2-context-reality" : "product-reality-spike",
+  browserPlay
+    ? "re3-browser-play"
+    : re3
+      ? "re3-routine-reality"
+      : re2
+        ? "re2-context-reality"
+        : "product-reality-spike",
 );
 const sessionPath = path.join(directory, "session.json");
 const journalPath = path.join(directory, "evidence.jsonl");
@@ -249,7 +256,10 @@ async function init() {
   const pool = createDatabasePool(databaseUrl);
   try {
     const repository = new AuthoritativeWorldRepository(pool);
-    const account = { accountId: randomUUID(), eligibility: "adult" as const };
+    const account = {
+      accountId: browserPlay ? "00000000-0000-4000-8000-000000000001" : randomUUID(),
+      eligibility: "adult" as const,
+    };
     const world = structuredClone(lanternReachSeed);
     world.characters.push({
       id: "character.tavi",
@@ -347,11 +357,13 @@ async function init() {
     });
     await journal({
       type: "init",
-      behaviorBaseline: re3
-        ? "f435d5b35dcf53c4493a78e84ea0b611872e832b"
-        : re2
-          ? "3d14dc6792e406ce4c054ee01f4b424b00c27053"
-          : "eb55734f258fc9be6f4837df888700e34eaa67e2",
+      behaviorBaseline: browserPlay
+        ? "7cae8d88ae6f20f2f1d9fe6633d0297fdefed352"
+        : re3
+          ? "f435d5b35dcf53c4493a78e84ea0b611872e832b"
+          : re2
+            ? "3d14dc6792e406ce4c054ee01f4b424b00c27053"
+            : "eb55734f258fc9be6f4837df888700e34eaa67e2",
       databaseName: name,
       world,
     });
@@ -398,35 +410,45 @@ async function main() {
         orientation,
         actions: await repository.listBranchActions(account, current.branchId),
       });
-    } else if (command === "turn") {
+    } else if (command === "turn" || (browserPlay && command === "process")) {
+      const existingId = command === "process" ? args.shift() : undefined;
       const targetCharacterId = re2 || re3 ? args.shift() : undefined;
       const requestedEffect = re3 ? args.shift() : undefined;
-      if (re3)
+      if (re3 && command === "turn")
         assert(
           ["ROUTINE_EFFECT", "NO_WORLD_EFFECT", "FACT_REWRITE"].includes(requestedEffect ?? ""),
           "RE-3 turn requires a closed requested effect",
         );
-      if (re2 || re3)
+      if ((re2 || re3) && command === "turn")
         assert(
           ["character.iora", "character.tavi"].includes(targetCharacterId ?? ""),
           "RE-2/RE-3 turn requires an explicit fixture Character",
         );
       const intent = args.join(" ");
-      assert(intent, "Provide a synthetic Action intent");
-      const action = await repository.submitAction(account, current.branchId, {
-        schemaVersion: 1,
-        idempotencyKey: randomUUID(),
-        expectedHeadCommitId: current.headCommitId,
-        participationExpectation: current.state.participation,
-        intent,
-        ...(targetCharacterId ? { targetCharacterId } : {}),
-        ...(requestedEffect
-          ? {
-              requestedEffect: requestedEffect as
-                "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "FACT_REWRITE",
-            }
-          : {}),
-      });
+      assert(existingId || intent, "Provide an existing Action ID or synthetic intent");
+      const action = existingId
+        ? await repository.readAction(account, existingId)
+        : await repository.submitAction(account, current.branchId, {
+            schemaVersion: 1,
+            idempotencyKey: randomUUID(),
+            expectedHeadCommitId: current.headCommitId,
+            participationExpectation: current.state.participation,
+            intent,
+            ...(targetCharacterId ? { targetCharacterId } : {}),
+            ...(requestedEffect
+              ? {
+                  requestedEffect: requestedEffect as
+                    "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "FACT_REWRITE",
+                }
+              : {}),
+          });
+      assert.equal(
+        action.branchId,
+        current.branchId,
+        "Action is outside the active experiment path",
+      );
+      assert.equal(action.expectedHeadCommitId, current.headCommitId, "Action review is stale");
+      assert.equal(action.status, "ACKNOWLEDGED", "Only a fresh acknowledged Action may dispatch");
       await journal({ type: "ack", action });
       output({ durableAck: action.id, status: action.status });
       const result = await repository.processAction(

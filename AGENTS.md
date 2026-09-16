@@ -68,6 +68,16 @@ domain 22/22、A_B role parity 与 exact-SHA CI `35043785122` PASS。
 后续 documentation-only closure 不替换行为基线。尚未进行 human/browser live play；
 无新 production provider、durable L0 dialogue、full RE-4 或 IP-7。
 
+用户随后授权小范围真实浏览器试玩，现已完成，见
+`docs/implementation-planning/RE-3-BROWSER-LIVE-PLAY-REPORT.md`。
+现有正式 UI + 真 PG + 手动隔离真实 generator（非 production live worker），
+desktop/390×844 共 3 次真实输出，2 项 UI exact-confirmed L3 Commit、1 schema
+拒绝后 UI cancelled，零 pending、head/Return 一致。Agent 操作，不是 human enjoyment
+验证。新增 `--re3-browser` 独立 fixture 与 `process <ACK Action ID>`，不更改生产代码。
+发现真实 UI 没传 requestedEffect、默认单事实路径不能自然接上已批准 L2/L0；
+失败只显示 Still working 的 comprehension gap 和 growing fact review 阅读负担。
+这些是下一 bounded bridge 的建议，不自动批准修复、full RE-4 或 IP-7。
+
 ## Long-Term Product Direction
 
 用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：
