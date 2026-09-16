@@ -7,7 +7,9 @@ const initialHead = "30000000-0000-4000-8000-000000000003";
 const participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const;
 let observedIdempotencyKeys: string[] = [];
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  const routine = testInfo.title.startsWith("RE-3 routine movement");
+  let characterLocation = "location.tidal-observatory";
   observedIdempotencyKeys = [];
   let head = initialHead;
   let fact = "The western signal is dim.";
@@ -78,8 +80,11 @@ test.beforeEach(async ({ page }) => {
           id: "character.iora",
           name: "Iora",
           role: "Harbor signaler",
-          locationId: "location.tidal-observatory",
-          currentState: "Present at the observatory.",
+          locationId: characterLocation,
+          currentState:
+            characterLocation === "location.harbor"
+              ? "Present at Harbor."
+              : "Present at the observatory.",
         },
       ],
       facts: [{ id: "fact.signal", statement: fact }],
@@ -144,14 +149,14 @@ test.beforeEach(async ({ page }) => {
         id: proposalId,
         digest: proposalDigest,
         expectedHeadCommitId: input.expectedHeadCommitId,
-        impact: "L3",
+        impact: routine ? "L2" : "L3",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         narrative: `Iora studies the consequence of: ${input.intent}`,
         responseSource: { type: "CHARACTER", characterId: "character.iora" },
         displayEffect: {
-          target: "fact.signal",
-          before: fact,
-          after: `Recorded consequence ${actionNumber}.`,
+          target: routine ? "character.iora" : "fact.signal",
+          before: routine ? characterLocation : fact,
+          after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
           scope: "SHARED",
         },
       },
@@ -193,7 +198,8 @@ test.beforeEach(async ({ page }) => {
       const committedHead = `32000000-0000-4000-8000-${String(actionNumber).padStart(12, "0")}`;
       head = committedHead;
       const proposal = action.proposal as { displayEffect: { after: string }; narrative: string };
-      fact = proposal.displayEffect.after;
+      if (routine) characterLocation = proposal.displayEffect.after;
+      else fact = proposal.displayEffect.after;
       const committed = {
         ...action,
         status: "COMMITTED",
@@ -230,6 +236,24 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(action),
     });
   });
+});
+
+// Transport fixture only; real sealed proposal and Commit are covered by the PG suite.
+test("RE-3 routine movement is provisional, refreshable and does not rewrite facts", async ({
+  page,
+}) => {
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  await expect(page.getByText("location.harbor", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  const context = page.getByLabel("Current world context");
+  await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
+  await expect(context.getByText("The western signal is dim.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Your Action")).toBeEnabled();
 });
 
 test("Action Truth completes twice without confusing proposal and current truth", async ({

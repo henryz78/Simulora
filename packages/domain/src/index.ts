@@ -120,6 +120,20 @@ export const worldDocumentSchema = z
       context.addIssue({ code: "custom", message: "World stable IDs must be unique" });
     }
 
+    world.routineRoutes?.forEach((route, index) => {
+      if (
+        !locationIds.has(route.fromLocationId) ||
+        !locationIds.has(route.toLocationId) ||
+        route.fromLocationId === route.toLocationId
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Routine route must connect two distinct World locations",
+          path: ["routineRoutes", index],
+        });
+      }
+    });
+
     world.characters.forEach((character, index) => {
       if (!locationIds.has(character.locationId)) {
         context.addIssue({
@@ -239,6 +253,26 @@ export type CharacterGenerationContext = {
   knownFacts: StateFact[];
   relationships: StateRevisionDocument["relationships"];
 };
+
+// Bounded administrative fixture policy, not creator-authored permission.
+export const routinePolicySchema = z
+  .object({
+    version: z.literal("re3-routine-v1"),
+    npcIds: z.array(stableIdSchema).min(1),
+    publicLocationIds: z.array(stableIdSchema).min(2),
+    routes: z
+      .array(
+        z
+          .object({
+            fromLocationId: stableIdSchema,
+            toLocationId: stableIdSchema,
+            label: nonEmptyTextSchema,
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict();
 
 export function applyParticipationContractChange(
   stateInput: StateRevisionDocument,
@@ -472,6 +506,7 @@ export function validateActionCandidate(
     userRoleName?: string;
     requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
     authorizedRoutineRoutes?: ReadonlySet<string> | readonly string[];
+    authorizedRoutineNpcIds?: ReadonlySet<string> | readonly string[];
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -510,13 +545,27 @@ export function validateActionCandidate(
     throw new Error("Candidate effect does not match the requested closed effect envelope");
   }
   const allowedContext = new Set(expected.authorizedContextFactIds);
+  const eligibleCausalFact = (id: string) =>
+    allowedContext.has(id) &&
+    expected.state.facts.some(
+      (fact) => fact.id === id && fact.lifecycle === "ACTIVE" && fact.scope !== "ACCOUNT_PRIVATE",
+    );
+  assertGeneratedTextDoesNotLeakExcludedFacts(
+    [candidate.narrative, operation.type === "NO_WORLD_EFFECT" ? operation.reason : ""],
+    expected.state,
+    expected.authorizedContextFactIds,
+  );
   if (operation.type === "NO_WORLD_EFFECT") {
-    if (operation.causalFactIds.some((id) => !allowedContext.has(id))) {
+    assertGeneratedNarrativeDoesNotAuthorUser(operation.reason, expected.userRoleName);
+    if (operation.causalFactIds.some((id) => !eligibleCausalFact(id))) {
       throw new Error("No-world-effect source is outside the authorized context");
     }
     return { candidate, impact: "L0", requiresExactConfirmation: false };
   }
   if (operation.type === "MOVE_CHARACTER") {
+    if (!new Set(expected.authorizedRoutineNpcIds).has(operation.characterId)) {
+      throw new Error("Routine effect Character is not an explicitly authorized NPC");
+    }
     if (
       candidate.responseSource.type !== "CHARACTER" ||
       candidate.responseSource.characterId !== operation.characterId
@@ -540,7 +589,7 @@ export function validateActionCandidate(
     if (!routes.includes(`${operation.beforeLocationId}->${operation.afterLocationId}`)) {
       throw new Error("Routine effect route is outside the authorized closed policy");
     }
-    if (operation.causalFactIds.some((id) => !allowedContext.has(id))) {
+    if (operation.causalFactIds.some((id) => !eligibleCausalFact(id))) {
       throw new Error("Routine effect source is outside the authorized context");
     }
     return {

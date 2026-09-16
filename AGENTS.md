@@ -44,7 +44,10 @@ focused Review PASS，0/0/0，独立 domain 19/19、PG 38/38，exact-SHA CI `350
 已批准修复行为 SHA 为 `d6d6ea9a8278a8510e83ffa70d54baa0503463d8`，原 `3d14dc6...`
 RE-2 批准及失败实验证据保留；小修复 CLOSED，没有新模型调用，不宣称完整 AI World。
 RE-3 具体契约见 `docs/implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md`：
-受限 NPC movement + L0 no-world-effect 已按用户批准实现，当前等待独立复审；IP-7 未开始。
+受限 NPC movement + L0 no-world-effect 初版独立 Review FAIL（3B/3I/1M）；
+当前 post-FAIL 修复见 `docs/implementation-planning/RE-3-INTEGRATION-REPAIR-REPORT.md`，
+以 successor 0032 修复 worker/SQL/事件及显式 revision-bound NPC/public-route policy；
+等待同一 Reviewer focused 复审与 exact-SHA CI，不宣称批准。IP-7 未开始。
 
 ## Long-Term Product Direction
 

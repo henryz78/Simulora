@@ -15,6 +15,74 @@ const connectionString = process.env.SIMULORA_DATABASE_URL;
 const suite = connectionString ? describe.sequential : describe.skip;
 
 suite("populated prior-schema upgrade against real PostgreSQL", () => {
+  it("preserves a sealed L3 proposal across 0031 to 0032 and confirms it on the original ledger", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const databaseName = `simulora_re3_upgrade_${randomUUID().replaceAll("-", "")}`;
+    const admin = createDatabasePool(connectionString);
+    const directory = await mkdtemp(path.join(tmpdir(), "simulora-re3-prior-"));
+    const url = new URL(connectionString);
+    url.pathname = `/${databaseName}`;
+    let pool: ReturnType<typeof createDatabasePool> | undefined;
+    try {
+      await admin.query(`create database ${databaseName} template template0 encoding 'UTF8'`);
+      const migrations = path.resolve("db/migrations");
+      const files = (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort();
+      for (const file of files.slice(0, 31))
+        await copyFile(path.join(migrations, file), path.join(directory, file));
+      await runMigrations(url.toString(), directory);
+      pool = createDatabasePool(url.toString());
+      const repository = new AuthoritativeWorldRepository(pool);
+      const account = { accountId: randomUUID(), eligibility: "adult" as const };
+      const world = await repository.createWorld(account, lanternReachSeed);
+      const revision = await repository.createRevision(account, world.worldId, world.rowVersion);
+      const continuity = await repository.startContinuity(account, revision.revisionId, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+      const action = await repository.submitAction(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: "Inspect the signal.",
+        targetCharacterId: "character.iora",
+      });
+      const proposed = await repository.processAction(
+        action.id,
+        (request) => new DeterministicModelGateway().generateWorldTurn(request),
+        "prior31",
+      );
+      expect(proposed?.status).toBe("AWAITING_CONFIRMATION");
+      if (!proposed?.proposal) throw new Error("Expected legacy proposal");
+      const before = await pool.query(
+        "select to_jsonb(p) as document from simulora.action_proposals p where id=$1",
+        [proposed.proposal.id],
+      );
+      await runMigrations(url.toString(), migrations);
+      expect(
+        (
+          await pool.query(
+            "select to_jsonb(p) as document from simulora.action_proposals p where id=$1",
+            [proposed.proposal.id],
+          )
+        ).rows,
+      ).toEqual(before.rows);
+      const committed = await repository.confirmAction(account, action.id, {
+        proposalId: proposed.proposal.id,
+        proposalDigest: proposed.proposal.digest,
+        expectedHeadCommitId: proposed.proposal.expectedHeadCommitId,
+      });
+      expect(committed.status).toBe("COMMITTED");
+      expect(
+        (await repository.readCurrentState(account, continuity.continuityId)).state.participation,
+      ).toEqual(continuity.state.participation);
+    } finally {
+      await pool?.end();
+      await admin.query(`drop database if exists ${databaseName} with (force)`);
+      await admin.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it("retires a duplicate pending proposal without deleting its generation evidence", async () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const databaseName = `simulora_upgrade_${randomUUID().replaceAll("-", "")}`;
@@ -24,7 +92,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
     url.pathname = `/${databaseName}`;
     let pool: ReturnType<typeof createDatabasePool> | undefined;
     try {
-      await admin.query(`create database ${databaseName}`);
+      await admin.query(`create database ${databaseName} template template0 encoding 'UTF8'`);
       const migrations = path.resolve("db/migrations");
       const files = (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort();
       for (const file of files.slice(0, 25)) {

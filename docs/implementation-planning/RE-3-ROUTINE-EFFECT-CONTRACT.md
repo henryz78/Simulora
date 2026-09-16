@@ -1,6 +1,8 @@
 # RE-3 Routine Effect / No-Change Comparison — Implemented Contract
 
-**IMPLEMENTED (bounded deterministic adapter) / independent review pending**.
+**IMPLEMENTED (bounded deterministic adapter) / post-FAIL repair re-review pending**.
+Current repair/policy: [repair report](RE-3-INTEGRATION-REPAIR-REPORT.md) /
+[successor ADR](RE-3-ROUTINE-POLICY-ADR.md).
 This translates frozen Domain §5.5 and Runtime §6–§8 into a small comparison.
 It does not replace the roadmap, authorize IP-7 or enable production live execution.
 Input evidence: [RE-2 actual results](RE-2-CONTEXT-REALITY-CHECK.md) and

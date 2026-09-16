@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 INDEPENDENT REVIEW PASS / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 INDEPENDENT REVIEW PASS / RE-3 REPAIR RE-REVIEW PENDING / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -596,5 +596,24 @@ explicit non-mutating `NO_WORLD_EFFECT` outcome. L2 still uses exact confirmatio
 and the existing atomic Commit path; no participation axis, recovery semantics,
 live provider, or IP-7 scope changed. See [RE-3 implementation report](RE-3-IMPLEMENTATION-REPORT.md).
 
-Current status: local validation pass, independent review pending. No live calls
-or production model switch have occurred.
+Initial independent review at `9cbb6513114672901fe13488f4decbfd9f47925b`
+returned FAIL / 3 BLOCKER / 3 IMPORTANT / 1 MINOR. That decision is preserved,
+not replaced by the earlier local validation claims.
+
+## 22. RE-3 integration repair / focused re-review pending
+
+See [repair evidence](RE-3-INTEGRATION-REPAIR-REPORT.md) and
+[bounded administrative policy ADR](RE-3-ROUTINE-POLICY-ADR.md).
+Worker dispatch, request target guard, complete L2 proposal/evidence validation,
+SQL movement materialization, typed causal Event and stored impact projection
+are repaired using successor migration 0032; 0031 remains immutable.
+Explicit NPC/public-route policy is revision-bound and administratively provisioned,
+not granted by authored world prose or a guessed avatar identity.
+
+Self-tests: whole workspace with real PG17 **182/182, zero skip** (authoritative
+subset 124 tests); desktop/390×844 **56/56** with mock API, not live play.
+Populated 0025 and 0031 upgrades, 32 migrations, format/lint/typecheck/architecture,
+production build/runtime and diff check PASS. Behavior SHA follows in the Git
+commit handoff and independent result. This is self-test evidence only.
+RE-3 awaits the same Reviewer's closure
+and exact-SHA CI; no new live calls, production live enablement or IP-7.

@@ -258,7 +258,7 @@ describe("RE-3 bounded routine effects", () => {
         causalFactIds: ["fact.western-signal-dim"],
       },
     } as const;
-    const validated = validateActionCandidate(candidate, {
+    const options = {
       actionId,
       expectedHeadCommitId: candidate.expectedHeadCommitId,
       state,
@@ -266,9 +266,35 @@ describe("RE-3 bounded routine effects", () => {
       authorizedContextFactIds: ["fact.western-signal-dim"],
       responseSource: candidate.responseSource,
       userRoleName: world.userRole.name,
-      requestedEffect: "ROUTINE_EFFECT",
+      requestedEffect: "ROUTINE_EFFECT" as const,
+      authorizedRoutineNpcIds: ["character.iora"],
       authorizedRoutineRoutes: ["location.tidal-observatory->location.harbor"],
-    });
+    };
+    const validated = validateActionCandidate(candidate, options);
+    expect(() =>
+      validateActionCandidate(candidate, { ...options, authorizedRoutineNpcIds: [] }),
+    ).toThrow(/authorized NPC/);
+    expect(() =>
+      validateActionCandidate(candidate, { ...options, authorizedRoutineRoutes: [] }),
+    ).toThrow(/closed policy/);
+    expect(() =>
+      validateActionCandidate(
+        { ...candidate, operation: { ...candidate.operation, causalFactIds: ["fact.unknown"] } },
+        options,
+      ),
+    ).toThrow(/authorized context/);
+    expect(() =>
+      validateActionCandidate(
+        { ...candidate, narrative: "You promise to abandon the harbor." },
+        options,
+      ),
+    ).toThrow();
+    expect(() =>
+      validateActionCandidate(
+        { ...candidate, operation: { ...candidate.operation, extraFactRewrite: "unsafe" } },
+        options,
+      ),
+    ).toThrow();
     expect(validated.impact).toBe("L2");
     const next = applyValidatedActionCandidate(state, validated);
     expect(next.characters[0]?.locationId).toBe("location.harbor");

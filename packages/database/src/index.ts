@@ -11,11 +11,13 @@ import {
   createInitialState,
   participationContractSchema,
   restorableStateSections,
+  routinePolicySchema,
   stateRevisionDocumentSchema,
   validateDirectCorrectionCandidate,
   validateActionCandidate,
   worldDocumentSchema,
   type ActionStatus,
+  type ValidatedActionCandidate,
   type ActionResponseSource,
   type CharacterAssetDefinition,
   type CharacterGenerationContext,
@@ -390,6 +392,7 @@ export type ActionGenerator = (request: {
   expectedHeadCommitId: string;
   intent: string;
   requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+  routineRoutes?: Array<{ fromLocationId: string; toLocationId: string; label: string }>;
   participation: ActionGenerationContext["participation"];
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
@@ -593,7 +596,7 @@ function decodeTraceCursor(value: string | undefined): TraceCursor | undefined {
   }
 }
 
-function eventSummary(eventType: string): string {
+function eventSummary(eventType: string, payload?: Record<string, unknown>): string {
   switch (eventType) {
     case "BRANCH_FORKED":
       return "A separate path was created without changing its source path.";
@@ -605,6 +608,8 @@ function eventSummary(eventType: string): string {
       return "A canonical continuity fact was removed by the participant.";
     case "ACTION_RECORDED":
       return "A participant action was recorded on this path.";
+    case "CHARACTER_MOVED":
+      return `${typeof payload?.characterId === "string" ? payload.characterId : "Character"} moved from ${typeof payload?.beforeLocationId === "string" ? payload.beforeLocationId : "the earlier location"} to ${typeof payload?.afterLocationId === "string" ? payload.afterLocationId : "the new location"}; source: ${Array.isArray(payload?.causalFactIds) ? payload.causalFactIds.join(", ") : "recorded Action"}.`;
     case "PARTICIPATION_CONTRACT_CHANGED":
       return "The participant directly changed this path's initiative or structure contract.";
     case "CONTINUITY_INITIALIZED":
@@ -1814,6 +1819,10 @@ export class AuthoritativeWorldRepository {
       let nextState: StateRevisionDocument;
       let displayEffect: ActionProposalRecord["displayEffect"];
       let candidateNarrative: string;
+      let movement: Extract<
+        ValidatedActionCandidate["candidate"]["operation"],
+        { type: "MOVE_CHARACTER" }
+      > | null = null;
       let responseSource: ActionResponseSource | null = null;
       if (action.operation_type === "CHANGE_PARTICIPATION_CONTRACT") {
         throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
@@ -1830,6 +1839,20 @@ export class AuthoritativeWorldRepository {
         const expectedResponseSource: ActionResponseSource = generationContext.character
           ? { type: "CHARACTER", characterId: generationContext.character.id }
           : { type: "WORLD" };
+        const policyAvailable = await client.query<{ available: boolean }>(
+          "select to_regclass('simulora.re3_routine_policies') is not null as available",
+        );
+        const policyResult = policyAvailable.rows[0]?.available
+          ? await client.query<{ document: unknown }>(
+              `select policy.document from simulora.re3_routine_policies policy
+           join simulora.continuities continuity on continuity.world_revision_id = policy.world_revision_id
+           join simulora.branches branch on branch.continuity_id = continuity.id where branch.id = $1`,
+              [action.branch_id],
+            )
+          : { rows: [] };
+        const routinePolicy = policyResult.rows[0]
+          ? routinePolicySchema.parse(policyResult.rows[0].document)
+          : null;
         const validated = validateActionCandidate(proposal.candidate_transition, {
           actionId,
           expectedHeadCommitId: request.expectedHeadCommitId,
@@ -1843,7 +1866,8 @@ export class AuthoritativeWorldRepository {
           userRoleName: world.userRole.name,
           requestedEffect: (action.operation_payload.requestedEffect ?? "FACT_REWRITE") as
             "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT",
-          authorizedRoutineRoutes: (world.routineRoutes ?? []).map(
+          authorizedRoutineNpcIds: routinePolicy?.npcIds ?? [],
+          authorizedRoutineRoutes: (routinePolicy?.routes ?? []).map(
             (route) => `${route.fromLocationId}->${route.toLocationId}`,
           ),
         });
@@ -1852,6 +1876,8 @@ export class AuthoritativeWorldRepository {
           throw new Error("Committed Action is missing an effect display");
         displayEffect = validated.displayEffect;
         candidateNarrative = validated.candidate.narrative;
+        if (validated.candidate.operation.type === "MOVE_CHARACTER")
+          movement = validated.candidate.operation;
         responseSource = validated.candidate.responseSource;
       } else {
         const validated = validateDirectCorrectionCandidate(proposal.candidate_transition, {
@@ -1923,13 +1949,23 @@ export class AuthoritativeWorldRepository {
           action.branch_id,
           commitId,
           action.operation_type === "PARTICIPATE"
-            ? "ACTION_RECORDED"
+            ? movement
+              ? "CHARACTER_MOVED"
+              : "ACTION_RECORDED"
             : action.operation_type === "CORRECT_CONTINUITY"
               ? "CONTINUITY_ITEM_CORRECTED"
               : "CONTINUITY_ITEM_REMOVED",
           JSON.stringify(
             action.operation_type === "PARTICIPATE"
-              ? { actionId, target: displayEffect.target }
+              ? movement
+                ? {
+                    actionId,
+                    characterId: movement.characterId,
+                    beforeLocationId: movement.beforeLocationId,
+                    afterLocationId: movement.afterLocationId,
+                    causalFactIds: movement.causalFactIds,
+                  }
+                : { actionId, target: displayEffect.target }
               : {
                   actionId,
                   targetFactId: displayEffect.target,
@@ -3789,7 +3825,7 @@ export class AuthoritativeWorldRepository {
         commit.events.push({
           id: row.event_id,
           type: row.event_type,
-          summary: eventSummary(row.event_type),
+          summary: eventSummary(row.event_type, payload),
           ...(targetId ? { targetId } : {}),
           scope: safeVisibilityScope(row.event_scope),
         });
@@ -3820,13 +3856,15 @@ export class AuthoritativeWorldRepository {
         world_document: unknown;
         operation_payload: { targetCharacterId?: string; requestedEffect?: string };
         supports_re2_context: boolean;
+        supports_re3_policy: boolean;
       }>(
         `select a.actor_account_id, a.correlation_id, a.branch_id as action_branch_id,
                 a.expected_head_commit_id, a.intent, a.status,
                 branch.head_commit_id as branch_head_commit_id, branch.status as branch_status,
                 continuity.active_branch_id, continuity.status as continuity_status,
                 s.document as state_document, wr.document as world_document, a.operation_payload,
-                to_regprocedure('simulora.re2_generation_context(uuid)') is not null as supports_re2_context
+                to_regprocedure('simulora.re2_generation_context(uuid)') is not null as supports_re2_context,
+                to_regclass('simulora.re3_routine_policies') is not null as supports_re3_policy
          from simulora.actions a
          join simulora.world_commits c on c.id = a.expected_head_commit_id
          join simulora.state_revisions s on s.id = c.state_revision_id
@@ -3891,6 +3929,17 @@ export class AuthoritativeWorldRepository {
       }
       const state = stateRevisionDocumentSchema.parse(action.state_document);
       const world = worldDocumentSchema.parse(action.world_document);
+      const policyResult = action.supports_re3_policy
+        ? await client.query<{ document: unknown; digest: string }>(
+            `select policy.document, policy.digest from simulora.re3_routine_policies policy
+         join simulora.continuities continuity on continuity.world_revision_id = policy.world_revision_id
+         join simulora.actions action on action.continuity_id = continuity.id where action.id = $1`,
+            [actionId],
+          )
+        : { rows: [] };
+      const routinePolicy = policyResult.rows[0]
+        ? routinePolicySchema.parse(policyResult.rows[0].document)
+        : null;
       const generationContext = compileActionGenerationContext(
         world,
         state,
@@ -3985,6 +4034,11 @@ export class AuthoritativeWorldRepository {
             sourceContextDigest: contentHash(context),
           }
         : manifest;
+      if (action.operation_payload.requestedEffect === "ROUTINE_EFFECT") {
+        Object.assign(contextManifest, {
+          routinePolicyDigest: policyResult.rows[0]?.digest ?? null,
+        });
+      }
       await client.query(
         `insert into simulora.generation_attempts
          (id, action_id, attempt_number, adapter, status, context_manifest, correlation_id)
@@ -4011,6 +4065,7 @@ export class AuthoritativeWorldRepository {
         intent: action.intent,
         operationPayload: action.operation_payload,
         world,
+        routinePolicy,
         state,
         generationContext,
         context,
@@ -4135,6 +4190,7 @@ export class AuthoritativeWorldRepository {
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         intent: prepared.intent,
         requestedEffect,
+        routineRoutes: prepared.routinePolicy?.routes ?? [],
         participation: prepared.generationContext.participation,
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
@@ -4165,7 +4221,8 @@ export class AuthoritativeWorldRepository {
         responseSource: expectedResponseSource,
         userRoleName: prepared.userRoleName,
         requestedEffect,
-        authorizedRoutineRoutes: (prepared.world.routineRoutes ?? []).map(
+        authorizedRoutineNpcIds: prepared.routinePolicy?.npcIds ?? [],
+        authorizedRoutineRoutes: (prepared.routinePolicy?.routes ?? []).map(
           (route) => `${route.fromLocationId}->${route.toLocationId}`,
         ),
       });
@@ -4339,13 +4396,14 @@ export class AuthoritativeWorldRepository {
       operation_type: ActionOperationType;
       status: ActionStatus;
       intent: string;
-      operation_payload: { targetCharacterId?: string };
+      operation_payload: { targetCharacterId?: string; requestedEffect?: string };
       participation_expectation: ParticipationContract;
       acknowledged_at: Date;
       terminal_at: Date | null;
       status_reason: string | null;
       proposal_id: string | null;
       proposal_digest: string | null;
+      proposal_impact: "L0" | "L2" | "L3" | null;
       proposal_head: string | null;
       proposal_expires: Date | null;
       proposal_narrative: string | null;
@@ -4358,7 +4416,7 @@ export class AuthoritativeWorldRepository {
     }>(
       `select a.id, a.continuity_id, a.branch_id, a.correlation_id, a.expected_head_commit_id, a.operation_type, a.status, a.intent,
               a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason, a.operation_payload,
-              p.id as proposal_id, p.proposal_digest, p.expected_head_commit_id as proposal_head,
+              p.id as proposal_id, p.proposal_digest, p.impact_level as proposal_impact, p.expected_head_commit_id as proposal_head,
               p.expires_at as proposal_expires,
                p.candidate_transition->>'narrative' as proposal_narrative,
                p.candidate_transition->'responseSource' as proposal_response_source,
@@ -4404,10 +4462,10 @@ export class AuthoritativeWorldRepository {
         row.proposal_narrative &&
         row.display_effect
           ? {
+              impact: (row.proposal_impact as "L0" | "L2" | "L3") ?? "L3",
               id: row.proposal_id,
               digest: row.proposal_digest,
               expectedHeadCommitId: row.proposal_head,
-              impact: "L3",
               expiresAt: row.proposal_expires.toISOString(),
               narrative: row.proposal_narrative,
               responseSource: row.proposal_response_source,

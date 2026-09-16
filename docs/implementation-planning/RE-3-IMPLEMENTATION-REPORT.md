@@ -1,5 +1,10 @@
 # RE-3 Bounded Routine Effects — Implementation Report
 
+**Latest:** initial implementation failed independent review (3B/3I/1M).
+See [integration repair](RE-3-INTEGRATION-REPAIR-REPORT.md) and
+[bounded policy ADR](RE-3-ROUTINE-POLICY-ADR.md). The original claims below are
+historical local evidence, not current independent approval.
+
 Status: implemented locally; independent Gate review pending. This is a bounded
 follow-up on the frozen IP-6 authority spine, not IP-7 or a live-model switch.
 

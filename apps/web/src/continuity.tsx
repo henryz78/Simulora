@@ -829,7 +829,9 @@ export function ActionStatusCard({
     COMMITTING: "Confirmed. Recording one authoritative change…",
     COMMITTED: "Recorded. The Branch head and committed history now include this Action.",
     FAILED_RECOVERABLE:
-      "The Action did not complete. Current truth is unchanged and it can be retried.",
+      action.statusReason === "NO_WORLD_EFFECT"
+        ? "No world change recorded; response not committed. Close this Action to continue."
+        : "The Action did not complete. Current truth is unchanged and it can be retried.",
     CONFLICT:
       "The world changed before this proposal could be recorded. Nothing was applied; this stale proposal remains until you close it.",
     CANCELLED: "Cancelled. Current World truth is unchanged.",
