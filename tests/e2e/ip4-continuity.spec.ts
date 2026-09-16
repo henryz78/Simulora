@@ -388,7 +388,20 @@ test("explicit requested outcomes reach the Action contract", async ({ page }) =
     },
   });
   await page.goto(`/continuities/${continuityId}`);
+  const routineOption = page.locator('#action-effect option[value="ROUTINE_EFFECT"]');
+  await expect(routineOption).toBeDisabled();
+  await page.getByLabel("Your Action", { exact: true }).fill("Move without a selected character.");
+  await page.locator("#action-effect").evaluate((select) => {
+    const element = select as HTMLSelectElement;
+    element.value = "ROUTINE_EFFECT";
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.getByRole("button", { name: "Send Action", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Choose a character");
+  expect(bodies).toHaveLength(0);
+
   await page.getByLabel("Address a character").selectOption("character.iora");
+  await expect(routineOption).toBeEnabled();
   await page.getByLabel("Desired outcome").selectOption("ROUTINE_EFFECT");
   await page.getByLabel("Your Action", { exact: true }).fill("Have Iora move to the quay.");
   await page.getByRole("button", { name: "Send Action", exact: true }).click();

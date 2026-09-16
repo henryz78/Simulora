@@ -1119,6 +1119,10 @@ export function ActionComposer(): ReactElement {
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (working || !intent.trim() || hasUnresolvedAction || historyState !== "ready") return;
+    if (requestedEffect === "ROUTINE_EFFECT" && !targetCharacterId) {
+      setError("Choose a character before asking them to move.");
+      return;
+    }
     setWorking(true);
     setError(null);
     const result = await submitAction(intent, targetCharacterId || undefined, requestedEffect);
@@ -1193,7 +1197,9 @@ export function ActionComposer(): ReactElement {
           }
         >
           <option value="FACT_REWRITE">Change a current world fact</option>
-          <option value="ROUTINE_EFFECT">Have this character move</option>
+          <option value="ROUTINE_EFFECT" disabled={!targetCharacterId}>
+            Have this character move
+          </option>
           <option value="NO_WORLD_EFFECT">Ask for a response only</option>
         </select>
         <p className="field-help">

@@ -56,3 +56,10 @@ prove model quality, human enjoyment, durable no-effect dialogue memory, a
 multi-character world, autonomous World-active simulation, or the final
 WorldOS-like product direction. Those remain bounded future validation work;
 IP-7 and production live enablement remain separately authorized decisions.
+
+The first [independent focused review](RE-3-PARTICIPATION-BRIDGE-INDEPENDENT-REVIEW.md)
+returned `PASS WITH ISSUES` (`0/1/0`): movement could still be selected while
+the Character field started empty. The verified repair disables that option
+until a Character is selected and retains a submit-time guard; focused E2E
+forces the invalid state and proves no POST occurs. Successor independent
+re-review remains the closure authority.

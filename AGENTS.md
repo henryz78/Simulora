@@ -84,6 +84,11 @@ Action Composer 现在传递现有 `requestedEffect` 合约（事实变更、选
 仅响应），客户端提交身份包含 effect，且 recoverable retry 文案明确说明有界重试。
 这是前端 comprehension/contract bridge；数据库、worker、model、authority 语义未改，
 IP-7 仍未开始，production live enablement 仍禁止。
+首次 focused 独立 Review 对 `ee98f1c...` 返回 `PASS WITH ISSUES`（0B/1I/0M）：
+角色起始为空时仍可选择 movement。当前 successor 修复已禁用该选项并增加 submit guard，
+E2E 强制无效状态确认零 POST；原结论见
+`docs/implementation-planning/RE-3-PARTICIPATION-BRIDGE-INDEPENDENT-REVIEW.md`。
+同一 Reviewer re-review 与 successor exact-SHA CI 仍是 closure 条件。
 
 ## Long-Term Product Direction
 

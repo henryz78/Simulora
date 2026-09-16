@@ -732,3 +732,11 @@ was marked failed by a PostgreSQL `57P01` emitted during forced temporary-databa
 teardown. The test cleanup now waits for pooled disconnect and retries only the
 normal `55006` still-in-use response; no application behavior changed. Successor
 exact-SHA CI and focused review remain the closure evidence still required.
+
+The first [focused independent review](RE-3-PARTICIPATION-BRIDGE-INDEPENDENT-REVIEW.md)
+verified exact-SHA CI `35062799874` success but returned `PASS WITH ISSUES`
+(`0/1/0`): movement remained selectable when the Character field started empty.
+PostgreSQL rejected it without mutation, but the frontend bridge was incomplete.
+The successor repair disables that option without a Character, adds an independent
+submit guard, and proves no POST occurs in focused desktop/mobile E2E. Same-Reviewer
+re-review and successor exact-SHA CI remain pending; IP-7 remains not started.
