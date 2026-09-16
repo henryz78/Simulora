@@ -63,3 +63,9 @@ the Character field started empty. The verified repair disables that option
 until a Character is selected and retains a submit-time guard; focused E2E
 forces the invalid state and proves no POST occurs. Successor independent
 re-review remains the closure authority.
+
+Closure: the same Reviewer re-reviewed behavior SHA
+`861ba73c2e0e7504b14c22a70ae82d7afaa7c346` and returned **PASS / 0/0/0**.
+Exact-SHA CI `35064306833` succeeded with real PostgreSQL 125/125 and
+desktop/390×844 E2E 60/60. The bridge repair is closed; its remaining product-
+reality limits above are unchanged.

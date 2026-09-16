@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 APPROVED / RE-3 INDEPENDENT REVIEW PASS / RE-3 BRIDGE REPAIR IN PROGRESS / IP-7 NOT STARTED`
+**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 APPROVED / RE-3 APPROVED / RE-3 BRIDGE REVIEW PASS / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -56,7 +56,7 @@ IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
-Next decision:                     focused review of RE-3 participation bridge, then bounded reality decision
+Next decision:                     bounded post-bridge reality check or explicit next-stage authorization
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -724,14 +724,14 @@ compatible. Recoverable generation explicitly explains bounded retry and
 durable Action recovery. No database, worker, model, migration, confirmation,
 or authority semantics changed. Local web typecheck/build and the full
 desktop/390×844 Playwright invocation pass 60/60, including the new bridge
-coverage. This is a pending focused review/CI closure, not a replacement of the
-approved behavior SHA and not IP-7 or production live enablement.
+coverage. At that candidate point focused review/CI closure was pending; it was
+not IP-7 or production live enablement.
 
 The first exact-SHA bridge CI (`35057880397`) ran all 185 tests successfully but
 was marked failed by a PostgreSQL `57P01` emitted during forced temporary-database
 teardown. The test cleanup now waits for pooled disconnect and retries only the
 normal `55006` still-in-use response; no application behavior changed. Successor
-exact-SHA CI and focused review remain the closure evidence still required.
+exact-SHA CI and focused review were still required at that point.
 
 The first [focused independent review](RE-3-PARTICIPATION-BRIDGE-INDEPENDENT-REVIEW.md)
 verified exact-SHA CI `35062799874` success but returned `PASS WITH ISSUES`
@@ -739,4 +739,11 @@ verified exact-SHA CI `35062799874` success but returned `PASS WITH ISSUES`
 PostgreSQL rejected it without mutation, but the frontend bridge was incomplete.
 The successor repair disables that option without a Character, adds an independent
 submit guard, and proves no POST occurs in focused desktop/mobile E2E. Same-Reviewer
-re-review and successor exact-SHA CI remain pending; IP-7 remains not started.
+re-review and successor exact-SHA CI were still pending at that point.
+
+Closure: the same Reviewer re-reviewed behavior SHA
+`861ba73c2e0e7504b14c22a70ae82d7afaa7c346` and returned **PASS / 0/0/0**.
+Exact-SHA CI `35064306833` succeeded: real PostgreSQL 125/125, desktop plus
+390×844 E2E 60/60, and quality/build/runtime/container checks all passed. The
+bridge repair is closed and ready for a separately authorized bounded reality
+check. IP-7 and production live-model enablement remain not started.

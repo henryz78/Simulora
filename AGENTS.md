@@ -88,7 +88,10 @@ IP-7 仍未开始，production live enablement 仍禁止。
 角色起始为空时仍可选择 movement。当前 successor 修复已禁用该选项并增加 submit guard，
 E2E 强制无效状态确认零 POST；原结论见
 `docs/implementation-planning/RE-3-PARTICIPATION-BRIDGE-INDEPENDENT-REVIEW.md`。
-同一 Reviewer re-review 与 successor exact-SHA CI 仍是 closure 条件。
+同一 Reviewer 随后对行为 SHA `861ba73c2e0e7504b14c22a70ae82d7afaa7c346`
+复审 PASS（0/0/0），exact-SHA CI `35064306833` 成功：real PG 125/125、
+desktop/390×844 60/60，quality/build/runtime/container 全部通过。Bridge repair
+CLOSED；IP-7、production live enablement、full RE-4 仍未开始或授权。
 
 ## Long-Term Product Direction
 

@@ -28,3 +28,29 @@ normal selected-Character movement path remains covered on desktop and 390×844.
 
 This section records implementation evidence only. The same Reviewer must issue
 the final closure below after reviewing the successor exact SHA and CI.
+
+## Focused re-review closure
+
+**Reviewed baseline:** `861ba73c2e0e7504b14c22a70ae82d7afaa7c346`
+
+**Exact-SHA CI:** `35064306833` — success
+
+**Decision:** `PASS`
+**BLOCKER / IMPORTANT / MINOR:** `0 / 0 / 0`
+
+The same Reviewer confirmed the previous IMPORTANT is closed: movement is
+disabled without a Character, the submit-time guard independently prevents an
+invalid POST, and normal selected-Character movement still submits the correct
+effect. Effect-aware idempotency, default fact-rewrite compatibility, bounded-
+retry comprehension, Action/Recovery/authority regressions, and scope discipline
+all passed. Exact-SHA CI reported real PostgreSQL **125/125**, desktop plus
+390×844 E2E **60/60**, and successful quality/build/runtime/container checks.
+
+```text
+FOCUSED RE-3 BRIDGE REVIEW: PASS
+BLOCKERS / IMPORTANT / MINOR: 0 / 0 / 0
+READY FOR NEXT BOUNDED REALITY CHECK: YES
+```
+
+This approval covers the participation bridge only. It does not authorize IP-7,
+production live-model enablement, durable no-effect dialogue, or full RE-4.
