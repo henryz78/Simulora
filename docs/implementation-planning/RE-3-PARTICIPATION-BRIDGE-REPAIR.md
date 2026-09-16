@@ -42,6 +42,12 @@ semantics changed.
 - New E2E checks verify explicit `ROUTINE_EFFECT` and `NO_WORLD_EFFECT` reach
   the existing API contract, use distinct submission identity, and that the
   default legacy body remains unchanged.
+- Exact-SHA CI run `35057880397` completed all 185 tests successfully but failed
+  because the upgrade-test teardown force-dropped a temporary database while a
+  pooled connection was still closing, producing PostgreSQL `57P01` as an
+  unhandled Vitest error. The teardown now waits for normal disconnect and
+  retries only PostgreSQL `55006` (database still in use), rather than forcibly
+  terminating test clients. This changes test cleanup only, not product behavior.
 
 ## Remaining limits
 

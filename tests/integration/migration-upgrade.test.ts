@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { copyFile, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { setTimeout } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 import {
   AuthoritativeWorldRepository,
@@ -13,6 +14,21 @@ import { DeterministicModelGateway } from "../../packages/model-gateway/src/inde
 
 const connectionString = process.env.SIMULORA_DATABASE_URL;
 const suite = connectionString ? describe.sequential : describe.skip;
+
+async function dropDatabaseAfterDisconnect(
+  admin: ReturnType<typeof createDatabasePool>,
+  databaseName: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await admin.query(`drop database if exists ${databaseName}`);
+      return;
+    } catch (error) {
+      if ((error as { code?: string }).code !== "55006" || attempt === 19) throw error;
+      await setTimeout(50);
+    }
+  }
+}
 
 suite("populated prior-schema upgrade against real PostgreSQL", () => {
   it("preserves a sealed L3 proposal across 0031 to 0032 and confirms it on the original ledger", async () => {
@@ -78,7 +94,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       ).toEqual(continuity.state.participation);
     } finally {
       await pool?.end();
-      await admin.query(`drop database if exists ${databaseName} with (force)`);
+      await dropDatabaseAfterDisconnect(admin, databaseName);
       await admin.end();
       await rm(directory, { recursive: true, force: true });
     }
@@ -207,7 +223,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       ).toBe(continuity.headCommitId);
     } finally {
       await pool?.end();
-      await admin.query(`drop database if exists ${databaseName} with (force)`);
+      await dropDatabaseAfterDisconnect(admin, databaseName);
       await admin.end();
       await rm(directory, { recursive: true, force: true });
     }

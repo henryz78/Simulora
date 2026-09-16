@@ -726,3 +726,9 @@ or authority semantics changed. Local web typecheck/build and the full
 desktop/390×844 Playwright invocation pass 60/60, including the new bridge
 coverage. This is a pending focused review/CI closure, not a replacement of the
 approved behavior SHA and not IP-7 or production live enablement.
+
+The first exact-SHA bridge CI (`35057880397`) ran all 185 tests successfully but
+was marked failed by a PostgreSQL `57P01` emitted during forced temporary-database
+teardown. The test cleanup now waits for pooled disconnect and retries only the
+normal `55006` still-in-use response; no application behavior changed. Successor
+exact-SHA CI and focused review remain the closure evidence still required.
