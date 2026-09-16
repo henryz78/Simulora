@@ -206,7 +206,9 @@ preserve frozen and historical source records.
 ## Supporting Material
 
 Latest authorized narrow repair: [RE-3 nonbinding-option provenance and checks](implementation-planning/RE-3-NONBINDING-OPTION-REPAIR.md).
-Original live failure is preserved; independent focused re-review pending.
+Original live failure is preserved; [same-Reviewer focused re-review](implementation-planning/RE-3-INDEPENDENT-REVIEW.md#subsequent-nonbinding-option-focused-re-review)
+PASS, 0/0/0, behavior `7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`, exact-SHA CI
+`35043785122` PASS. Documentation closure does not authorize full RE-4 or IP-7.
 
 - [Final main-Agent handoff](coordination/FINAL_MAIN_AGENT_HANDOFF.md)
 - [Cross-Agent evidence inventory](coordination/CROSS_AGENT_EVIDENCE_INVENTORY.md)

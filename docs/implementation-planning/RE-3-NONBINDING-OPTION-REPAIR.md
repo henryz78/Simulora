@@ -52,7 +52,12 @@ fail closed.
   check, non-DB tests, full production build and worker runtime startup/shutdown).
   Its default DB skips are covered separately by the 125 real PostgreSQL tests.
 - `git diff --check`: PASS.
-- Independent same-Reviewer focused re-review / exact-SHA CI: pending.
+- [Independent same-Reviewer focused re-review](RE-3-INDEPENDENT-REVIEW.md#subsequent-nonbinding-option-focused-re-review):
+  PASS, 0 BLOCKER / 0 IMPORTANT / 0 MINOR. Approved behavior
+  `7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`.
+  Independent fresh PG17 IP-6 39/39 and domain 22/22 PASS, including A_B role parity.
+- Reviewer checked [exact-SHA CI 35043785122](https://github.com/henryz78/Simulora/actions/runs/35043785122):
+  PASS, including real PostgreSQL, migration, container smoke and desktop/mobile.
 - No frontend/Prototype behavior or frozen contracts changed; no claim of human
   live-play validation, universal language safety or full AI World readiness.
 

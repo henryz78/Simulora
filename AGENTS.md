@@ -61,7 +61,11 @@ bounded RE-3 comparison 已完成四次真实输出，结果见
 `docs/implementation-planning/RE-3-NONBINDING-OPTION-REPAIR.md`：
 仅 bound NPC narrative 中 bare clause-ending `can decide`；canonical/provenance
 仍严格，应用与 successor 0033 SQL 对照通过，real PG 125/125。
-当前待同一 Reviewer focused 复审，不把自测当独立批准。尚未进行 human/browser live play；
+同一 Reviewer focused 复审已 PASS，0/0/0，approved behavior SHA
+`7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`；独立 fresh PG17 IP-6 39/39、
+domain 22/22、A_B role parity 与 exact-SHA CI `35043785122` PASS。
+结果追加在 `docs/implementation-planning/RE-3-INDEPENDENT-REVIEW.md`，修复 CLOSED；
+后续 documentation-only closure 不替换行为基线。尚未进行 human/browser live play；
 无新 production provider、durable L0 dialogue、full RE-4 或 IP-7。
 
 ## Long-Term Product Direction

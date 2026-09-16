@@ -672,6 +672,13 @@ mirrors the domain rule; earlier migrations/experiment outcomes untouched.
 Exact captured Iora prose reaches sealed pending proposal in offline replay;
 cancellation leaves head unchanged. Domain 22/22 and fresh real PG17 full
 targeted regression 125/125 PASS, no skips. Full engineering check/build/runtime
-and diff check PASS; independent same-Reviewer focused review pending.
+and diff check PASS. Same Reviewer focused re-review now PASS, 0/0/0;
+approved repair behavior `7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`.
+Independent fresh PG17 IP-6 39/39, domain 22/22 and A_B role parity PASS;
+Reviewer verified exact-SHA CI `35043785122` PASS (real PG, migration,
+API/worker container smoke, desktop/390×844).
+[Original independent result](RE-3-INDEPENDENT-REVIEW.md#subsequent-nonbinding-option-focused-re-review)
+preserved; this is CLOSED, not a new live/human validation. Documentation-only
+closure does not replace the behavior SHA or change the original live failure.
 No new live request, provider enablement,
 durable L0 conversation, frontend redesign, full RE-4 or IP-7.
