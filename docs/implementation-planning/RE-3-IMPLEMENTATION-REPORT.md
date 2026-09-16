@@ -1,6 +1,8 @@
 # RE-3 Bounded Routine Effects — Implementation Report
 
 **Latest:** initial implementation failed independent review (3B/3I/1M).
+The [same Reviewer subsequently passed the repair](RE-3-INDEPENDENT-REVIEW.md)
+at `f435d5b35dcf53c4493a78e84ea0b611872e832b`, 0/0/0, exact-SHA CI PASS.
 See [integration repair](RE-3-INTEGRATION-REPAIR-REPORT.md) and
 [bounded policy ADR](RE-3-ROUTINE-POLICY-ADR.md). The original claims below are
 historical local evidence, not current independent approval.

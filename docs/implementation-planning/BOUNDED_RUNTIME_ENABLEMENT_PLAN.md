@@ -2,6 +2,12 @@
 
 **State:** `RE-1 APPROVED / RE-2 INDEPENDENT REVIEW PASS / RE-3–RE-4 PROPOSED, NOT AUTHORIZED`.
 
+**Latest superseding status:** RE-3 was subsequently authorized, implemented,
+repaired after independent FAIL, and [independently approved](RE-3-INDEPENDENT-REVIEW.md)
+at `f435d5b`. The user now authorizes a bounded isolated RE-3 reality comparison.
+Full RE-4, production live enablement and IP-7 remain unauthorized. The proposed
+sequencing below is historical; it does not override these later scoped decisions.
+
 This is a bounded follow-up to the [actual Product Reality Spike](PRODUCT_REALITY_SPIKE_REPORT.md),
 not IP-7, a replacement roadmap, or a waiver of frozen Product/System/Experience.
 The user's subsequent instruction to continue is applied to the confirmed Return

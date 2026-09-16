@@ -47,7 +47,11 @@ RE-3 具体契约见 `docs/implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.
 受限 NPC movement + L0 no-world-effect 初版独立 Review FAIL（3B/3I/1M）；
 当前 post-FAIL 修复见 `docs/implementation-planning/RE-3-INTEGRATION-REPAIR-REPORT.md`，
 以 successor 0032 修复 worker/SQL/事件及显式 revision-bound NPC/public-route policy；
-等待同一 Reviewer focused 复审与 exact-SHA CI，不宣称批准。IP-7 未开始。
+同一 Reviewer focused 复审已 PASS，0/0/0，行为 SHA
+`f435d5b35dcf53c4493a78e84ea0b611872e832b`、exact-SHA CI `35041266321` PASS；
+原结果见 `docs/implementation-planning/RE-3-INDEPENDENT-REVIEW.md`。
+用户随后授权继续文档收尾和 bounded RE-3 isolated live comparison；
+不授权 production live enablement、full RE-4 或 IP-7。IP-7 未开始。
 
 ## Long-Term Product Direction
 

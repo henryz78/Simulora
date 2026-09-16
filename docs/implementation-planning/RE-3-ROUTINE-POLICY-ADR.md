@@ -1,7 +1,8 @@
 # ADR-RE3 — Bounded administrative routine policy
 
-Status: implemented under the user-approved RE-3 contract; independent repair
-review pending. This supplements ADR-008/010/012 without changing their authority.
+Status: implemented under the user-approved RE-3 contract;
+[independent repair review PASS](RE-3-INDEPENDENT-REVIEW.md).
+This supplements ADR-008/010/012 without changing their authority.
 
 The frozen World/Character schema does not identify user avatars or declare
 location safety. Therefore neither "not named like the player" nor an authored

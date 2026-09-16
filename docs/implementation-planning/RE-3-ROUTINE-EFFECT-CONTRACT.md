@@ -1,6 +1,7 @@
 # RE-3 Routine Effect / No-Change Comparison — Implemented Contract
 
-**IMPLEMENTED (bounded deterministic adapter) / post-FAIL repair re-review pending**.
+**IMPLEMENTED / independent repair review PASS** at
+`f435d5b35dcf53c4493a78e84ea0b611872e832b`. See [original result](RE-3-INDEPENDENT-REVIEW.md).
 Current repair/policy: [repair report](RE-3-INTEGRATION-REPAIR-REPORT.md) /
 [successor ADR](RE-3-ROUTINE-POLICY-ADR.md).
 This translates frozen Domain §5.5 and Runtime §6–§8 into a small comparison.
@@ -113,5 +114,5 @@ Two Characters plus one movement are still not a complete magic-world simulation
 or long-term qualification. Expand only when observed play demonstrates a missing
 causal capability, not by reopening every frozen contract.
 
-RE-3 is implemented for deterministic validation and awaits focused review/live comparison;
+RE-3 is independently approved for the bounded effect; isolated live comparison follows.
 full RE-4 and IP-7 have not started.

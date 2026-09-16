@@ -1,7 +1,9 @@
 # RE-3 Integration Repair
 
-Status: main-Agent repair/self-test complete; same independent Reviewer re-review
-pending. Not an approval, live reality validation or IP-7 authorization.
+Status: repair CLOSED after [same independent Reviewer PASS](RE-3-INDEPENDENT-REVIEW.md).
+Behavior `f435d5b35dcf53c4493a78e84ea0b611872e832b`; 0/0/0 and exact-SHA CI
+`35041266321` PASS. Below preserves the preceding repair/self-test evidence,
+not a claim of live reality validation or IP-7 authorization.
 
 ## Failure evidence and root causes
 

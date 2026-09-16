@@ -49,7 +49,8 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [RE-2 Independent Review / Next Reality-Check Proposal](implementation-planning/RE-2-INDEPENDENT-REVIEW.md)
 - [RE-2 Context Reality Check — Actual Outputs / Limits / Guard False Positive](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md)
 - [RE-2 Dialogue Attribution Repair — CLOSED / Independent Review + CI PASS](implementation-planning/RE-2-DIALOGUE-ATTRIBUTION-REPAIR.md)
-- [RE-3 Routine Effect / No-Change Contract — repair review pending](implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md)
+- [RE-3 Routine Effect / No-Change Contract — approved bounded effect](implementation-planning/RE-3-ROUTINE-EFFECT-CONTRACT.md)
+- [RE-3 Independent Review — PASS / exact-SHA CI](implementation-planning/RE-3-INDEPENDENT-REVIEW.md)
 - [RE-3 Integration Repair / Independent FAIL evidence](implementation-planning/RE-3-INTEGRATION-REPAIR-REPORT.md)
 - [RE-3 Bounded Administrative Policy ADR](implementation-planning/RE-3-ROUTINE-POLICY-ADR.md)
 - [Bounded Runtime Enablement — Proposed Follow-up](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md)
@@ -191,7 +192,9 @@ RE-1 passed [independent review](implementation-planning/RE-1-INDEPENDENT-REVIEW
 RE-2 is [implemented and locally verified](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md),
 [independent review and exact-SHA CI PASS](implementation-planning/RE-2-INDEPENDENT-REVIEW.md).
 RE-3 bounded implementation was subsequently authorized; its initial independent
-review failed and successor repairs await focused re-review. Full RE-4 and IP-7
+review failed and successor repairs passed focused re-review at `f435d5b`.
+The user's subsequent continue authorizes isolated RE-3 reality comparison.
+Full RE-4 and IP-7
 are not authorized. The narrower RE-2 live comparison
 was subsequently authorized and [completed after credential update](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md).
 No automatic roadmap change is authorized. G1–G6 approval
