@@ -4,7 +4,7 @@
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
-**Snapshot date:** `2026-09-15`.
+**Snapshot date:** `2026-09-18`.
 
 **Current independent decision:** [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
 The latest bounded browser-play follow-up is documented in
@@ -20,6 +20,11 @@ The latest bounded continuous browser corpus is documented in
 It proves post-movement context compilation and another exact-confirmed L3
 Commit, but records a real response-only guard false positive; the Product
 Reality Gate therefore remains unreached.
+The successor bounded-dialogue implementation is documented in
+[RE-3 Bounded Dialogue Implementation Report](RE-3-BOUNDED-DIALOGUE-IMPLEMENTATION-REPORT.md)
+and [ADR-019](../system-design/ADR-019-BOUNDED-NONMUTATING-DIALOGUE.md). It is
+currently a candidate awaiting focused independent review; it must not be
+treated as an approved behavior baseline until that review and exact-SHA CI pass.
 
 **Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
@@ -42,8 +47,8 @@ contract, reviewed behavior baseline or next-phase authorization.
 
 ```text
 Repository branch:                 main
-Approved production baseline:     eb55734f258fc9be6f4837df888700e34eaa67e2
-Evidence verified against:         eb55734f258fc9be6f4837df888700e34eaa67e2
+Approved production baseline:     7cae8d88ae6f20f2f1d9fe6633d0297fdefed352
+Evidence verified against:         7cae8d88ae6f20f2f1d9fe6633d0297fdefed352
 Worktree at evidence check:        clean
 Exact-baseline CI:                 34981973475 / success
 
@@ -67,7 +72,7 @@ Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
 Next decision:                     bounded post-bridge reality check or explicit next-stage authorization
-Product Reality Gate:              not reached; movement context is proven, response-only guard compatibility remains open
+Product Reality Gate:              not reached; bounded-dialogue candidate awaits independent review and finite live corpus
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -758,3 +763,29 @@ Exact-SHA CI `35064306833` succeeded: real PostgreSQL 125/125, desktop plus
 390×844 E2E 60/60, and quality/build/runtime/container checks all passed. The
 bridge repair is closed and ready for a separately authorized bounded reality
 check. IP-7 and production live-model enablement remain not started.
+
+## 29. Bounded successful response-only terminal — focused review pending
+
+The user authorized closing the remaining Product Reality gap without expanding
+the effect set. The implementation in [RE-3 Bounded Dialogue Implementation
+Report](RE-3-BOUNDED-DIALOGUE-IMPLEMENTATION-REPORT.md) adds migration `0034`
+and ADR-019. A valid `NO_WORLD_EFFECT` response now reaches the terminal
+`COMPLETED_NO_EFFECT` with Action-bound, continuity-private dialogue evidence.
+It does not create a Commit, State Revision, Domain Event, clock advance,
+canonical fact, Character knowledge, relationship/resource/permission change or
+second truth ledger. Authorized same-account/same-Branch later context can use
+the bounded dialogue tail and stops at Restore/correction/removal boundaries.
+
+The Character agency repair is intentionally narrow: only explicit bound-
+Character deference at a clause boundary is normalized; protected speech,
+consent, payment, invitation and other user decisions remain rejected. Domain
+and PostgreSQL guard behavior is covered by positive/negative parity tests.
+
+Local candidate evidence is **fresh PostgreSQL 126/126**, full desktop/mobile
+Playwright **62/62**, unit 63 pass, build/runtime, architecture, migration and
+lint/typecheck checks. These are implementation evidence only. The behavior is
+not approved until the new independent Reviewer completes exact-SHA focused
+review and CI. The finite browser live corpus (Tavi response-only after movement,
+Iora advice/refusal, L3 exact confirmation and final zero-pending consistency)
+is deliberately deferred until that review passes. IP-7, production live-model
+enablement, broad dialogue/memory, scheduler and new effects remain out of scope.

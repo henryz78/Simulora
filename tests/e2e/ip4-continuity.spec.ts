@@ -448,6 +448,50 @@ test("recoverable generation status explains the bounded retry", async ({ page }
   ).toBeVisible();
 });
 
+test("completed response-only dialogue is visible without confirmation controls", async ({
+  page,
+}) => {
+  const action = pendingAction(
+    "40000000-0000-4000-8000-000000000072",
+    "PARTICIPATE",
+    "Ask Iora what she sees.",
+    "ACKNOWLEDGED",
+  );
+  action.status = "COMPLETED_NO_EFFECT";
+  action.terminalAt = later;
+  const dialogueNarrative = "Iora keeps the unsafe signal dark and leaves the choice with you.";
+  action.dialogue = {
+    id: action.id,
+    narrative: dialogueNarrative,
+    responseSource: { type: "CHARACTER", characterId: "character.iora" },
+    sourceHeadCommitId: initialHead,
+    sourceStateRevisionId: stateRevisionId,
+    provenance: `Generated Action ${action.id}`,
+    visibilityScope: "CONTINUITY_PRIVATE",
+    recordedAt: later,
+  };
+  await installRoutes(page, {
+    actions: new Map([[action.id, action]]),
+    history: [
+      {
+        id: action.id,
+        status: action.status,
+        intent: action.intent,
+        acknowledgedAt: now,
+        committedAt: null,
+        narrative: dialogueNarrative,
+      },
+    ],
+  });
+  await page.goto(`/continuities/${continuityId}/actions/${action.id}`);
+  await expect(page.getByRole("heading", { name: "Completed no effect" })).toBeVisible();
+  await expect(
+    page.getByText("Recorded response · no World change", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("leaves the choice with you", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Confirm|Cancel|Retry/ })).toHaveCount(0);
+});
+
 test("World, Continuity and Return fallback use current shared facts, not earlier threads", async ({
   page,
 }) => {

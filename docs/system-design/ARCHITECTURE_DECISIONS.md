@@ -159,3 +159,10 @@ A new broker, cache tier, vector database, service split or autonomous scheduler
 5. an accepted superseding ADR.
 
 “Future scale,” competitor architecture or library availability alone is not a sufficient trigger.
+
+### ADR-019 — Bounded Non-Mutating Dialogue
+
+See [ADR-019-BOUNDED-NONMUTATING-DIALOGUE.md](./ADR-019-BOUNDED-NONMUTATING-DIALOGUE.md).
+`NO_WORLD_EFFECT` is a successful Action terminal with immutable, continuity-private,
+Action-bound response evidence and no World mutation. It is not durable long-term memory
+or a second truth ledger.

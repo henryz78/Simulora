@@ -40,6 +40,20 @@ type ChangeParticipationContractRequest = {
   before: ParticipationContract;
   after: ParticipationContract;
 };
+type ActionDialogueRecord = {
+  id: string;
+  narrative: string;
+  responseSource: ActionResponseSource;
+  sourceHeadCommitId: string;
+  sourceStateRevisionId: string;
+  provenance: string;
+  visibilityScope: "CONTINUITY_PRIVATE";
+  recordedAt: string;
+};
+
+function parseActionDialogue(value: unknown): ActionDialogueRecord | null {
+  return value && typeof value === "object" ? (value as ActionDialogueRecord) : null;
+}
 type CreateCharacterAssetRequest = { document: CharacterAssetDefinition };
 type CorrectionRequest = {
   schemaVersion: 1;
@@ -279,6 +293,7 @@ export type ActionRecord = {
   eventsUrl: string;
   proposal: ActionProposalRecord | null;
   commit: ActionCommitRecord | null;
+  dialogue: ActionDialogueRecord | null;
   /** Internal lineage field; transport schemas intentionally omit it. */
   correlationId?: string | null;
 };
@@ -397,6 +412,7 @@ export type ActionGenerator = (request: {
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
   context?: Readonly<Record<string, unknown>>;
+  priorDialogue?: ReadonlyArray<ActionDialogueRecord>;
 }) => Promise<{ narrative: string; responseSource: ActionResponseSource; candidate: unknown }>;
 
 export class AccessDeniedError extends Error {}
@@ -1750,6 +1766,9 @@ export class AuthoritativeWorldRepository {
         }
         return this.readActionWithClient(client, account, actionId);
       }
+      if (action.status === "COMPLETED_NO_EFFECT") {
+        return this.readActionWithClient(client, account, actionId);
+      }
       if (action.status === "CANCELLED") throw new ConflictError("ACTION_CANCELLED");
       if (action.status !== "AWAITING_CONFIRMATION") {
         throw new ConflictError("ACTION_NOT_AWAITING_CONFIRMATION");
@@ -2165,7 +2184,9 @@ export class AuthoritativeWorldRepository {
       actionId,
       frames,
       nextCursor: frames.at(-1)?.sequence ?? afterSequence,
-      terminal: ["COMMITTED", "CANCELLED", "SUPERSEDED"].includes(action.status),
+      terminal: ["COMMITTED", "COMPLETED_NO_EFFECT", "CANCELLED", "SUPERSEDED"].includes(
+        action.status,
+      ),
     };
   }
 
@@ -2183,7 +2204,10 @@ export class AuthoritativeWorldRepository {
       narrative: string | null;
     }>(
       `select a.id, a.status, a.intent, a.acknowledged_at, c.created_at as committed_at,
-              (select (p.candidate_transition->>'narrative') from simulora.action_proposals p where p.action_id = a.id) as narrative
+              coalesce(
+                (select p.candidate_transition->>'narrative' from simulora.action_proposals p where p.action_id = a.id),
+                a.dialogue_record->>'narrative'
+              ) as narrative
        from simulora.actions a
        left join simulora.world_commits c on c.action_id = a.id
        join simulora.branches b on b.id = a.branch_id and b.id = $2
@@ -2583,7 +2607,7 @@ export class AuthoritativeWorldRepository {
       if (!target.rows[0]) throw new NotFoundError("Branch not found");
       const pending = await client.query<{ count: number }>(
         `select count(*)::int as count from simulora.actions
-         where branch_id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')`,
+         where branch_id = $1 and status not in ('COMMITTED', 'COMPLETED_NO_EFFECT', 'CANCELLED', 'SUPERSEDED')`,
         [current.active_branch_id],
       );
       if ((pending.rows[0]?.count ?? 0) > 0) {
@@ -3028,7 +3052,7 @@ export class AuthoritativeWorldRepository {
       }>(
         `select id, operation_type, status, expected_head_commit_id, updated_at
          from simulora.actions
-         where branch_id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')
+         where branch_id = $1 and status not in ('COMMITTED', 'COMPLETED_NO_EFFECT', 'CANCELLED', 'SUPERSEDED')
          order by created_at`,
         [row.branch_id],
       );
@@ -3152,7 +3176,7 @@ export class AuthoritativeWorldRepository {
       }>(
         `select id, operation_type, status, expected_head_commit_id, updated_at
          from simulora.actions
-         where branch_id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')
+         where branch_id = $1 and status not in ('COMMITTED', 'COMPLETED_NO_EFFECT', 'CANCELLED', 'SUPERSEDED')
          order by created_at`,
         [branchId],
       );
@@ -3852,6 +3876,7 @@ export class AuthoritativeWorldRepository {
         branch_status: string;
         active_branch_id: string;
         continuity_status: string;
+        source_state_revision_id: string;
         state_document: unknown;
         world_document: unknown;
         operation_payload: { targetCharacterId?: string; requestedEffect?: string };
@@ -3862,6 +3887,7 @@ export class AuthoritativeWorldRepository {
                 a.expected_head_commit_id, a.intent, a.status,
                 branch.head_commit_id as branch_head_commit_id, branch.status as branch_status,
                 continuity.active_branch_id, continuity.status as continuity_status,
+                c.state_revision_id as source_state_revision_id,
                 s.document as state_document, wr.document as world_document, a.operation_payload,
                 to_regprocedure('simulora.re2_generation_context(uuid)') is not null as supports_re2_context,
                 to_regclass('simulora.re3_routine_policies') is not null as supports_re3_policy
@@ -3969,6 +3995,18 @@ export class AuthoritativeWorldRepository {
         )
           context = undefined;
       }
+      const dialogueFunction = await client.query<{ available: boolean }>(
+        `select to_regprocedure('simulora.authorized_action_dialogue(uuid)') is not null as available`,
+      );
+      const dialogueResult = dialogueFunction.rows[0]?.available
+        ? await client.query<{ prior_dialogue: unknown }>(
+            `select simulora.authorized_action_dialogue($1::uuid) as prior_dialogue`,
+            [actionId],
+          )
+        : { rows: [{ prior_dialogue: [] }] };
+      const priorDialogue = Array.isArray(dialogueResult.rows[0]?.prior_dialogue)
+        ? (dialogueResult.rows[0].prior_dialogue as ActionDialogueRecord[])
+        : [];
       if (!generationContext || (action.supports_re2_context && !context)) {
         const reason = generationContext
           ? "AUTHORIZED_CONTEXT_UNAVAILABLE"
@@ -4039,6 +4077,12 @@ export class AuthoritativeWorldRepository {
           routinePolicyDigest: policyResult.rows[0]?.digest ?? null,
         });
       }
+      if (action.operation_payload.requestedEffect === "NO_WORLD_EFFECT") {
+        Object.assign(contextManifest, {
+          priorDialogueIds: priorDialogue.map((entry) => entry.id),
+          priorDialogueDigest: contentHash(priorDialogue),
+        });
+      }
       await client.query(
         `insert into simulora.generation_attempts
          (id, action_id, attempt_number, adapter, status, context_manifest, correlation_id)
@@ -4062,6 +4106,7 @@ export class AuthoritativeWorldRepository {
         actorAccountId: action.actor_account_id,
         correlationId: action.correlation_id,
         expectedHeadCommitId: action.expected_head_commit_id,
+        sourceStateRevisionId: action.source_state_revision_id,
         intent: action.intent,
         operationPayload: action.operation_payload,
         world,
@@ -4069,6 +4114,7 @@ export class AuthoritativeWorldRepository {
         state,
         generationContext,
         context,
+        priorDialogue,
         userRoleName: world.userRole.name,
       };
     });
@@ -4195,6 +4241,7 @@ export class AuthoritativeWorldRepository {
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
         ...(prepared.context ? { context: prepared.context } : {}),
+        ...(prepared.priorDialogue.length ? { priorDialogue: prepared.priorDialogue } : {}),
       });
       const expectedResponseSource: ActionResponseSource = prepared.generationContext.character
         ? { type: "CHARACTER", characterId: prepared.generationContext.character.id }
@@ -4254,25 +4301,43 @@ export class AuthoritativeWorldRepository {
           [actionId],
         );
         if (candidate.impact === "L0") {
-          await client.query(
-            `update simulora.actions set status = 'FAILED_RECOVERABLE', status_reason = 'NO_WORLD_EFFECT', updated_at = now(), row_version = row_version + 1 where id = $1`,
-            [actionId],
-          );
-          await client.query(
-            `update simulora.durable_jobs set status = 'DEAD', lease_owner = null, lease_until = null, last_error = 'NO_WORLD_EFFECT', updated_at = now() where action_id = $1`,
-            [actionId],
-          );
-          await this.appendProgressWithClient(client, actionId, "generation.draft", {
-            status: "NO_WORLD_EFFECT",
+          const dialogue: ActionDialogueRecord = {
+            id: actionId,
             narrative: generated.narrative,
             responseSource: generated.responseSource,
-            provisional: true,
-            message: "The response was generated without a canonical World change.",
+            sourceHeadCommitId: prepared.expectedHeadCommitId,
+            sourceStateRevisionId: prepared.sourceStateRevisionId,
+            provenance: `Generated Action ${actionId}`,
+            visibilityScope: "CONTINUITY_PRIVATE",
+            recordedAt: new Date().toISOString(),
+          };
+          await client.query(
+            `update simulora.actions
+                set dialogue_record = $2::jsonb, status = 'COMPLETED_NO_EFFECT',
+                    status_reason = 'NO_WORLD_EFFECT', terminal_at = now(),
+                    updated_at = now(), row_version = row_version + 1
+              where id = $1`,
+            [actionId, JSON.stringify(dialogue)],
+          );
+          await this.appendProgressWithClient(client, actionId, "generation.draft", {
+            status: "COMPLETED_NO_EFFECT",
+            narrative: generated.narrative,
+            responseSource: generated.responseSource,
+            provisional: false,
+            noWorldMutation: true,
+            message: "Response recorded as dialogue; current World truth is unchanged.",
           });
-          await this.appendProgressWithClient(client, actionId, "action.failed", {
-            status: "FAILED_RECOVERABLE",
-            reason: "NO_WORLD_EFFECT",
+          await this.appendProgressWithClient(client, actionId, "action.status", {
+            status: "COMPLETED_NO_EFFECT",
+            message: "Response completed without changing authoritative World truth.",
           });
+          await client.query(
+            `update simulora.durable_jobs
+                set status = 'SUCCEEDED', lease_owner = null, lease_until = null,
+                    last_error = null, updated_at = now()
+              where action_id = $1`,
+            [actionId],
+          );
           return this.readActionWithClient(client, account, actionId);
         }
         await client.query(
@@ -4413,6 +4478,7 @@ export class AuthoritativeWorldRepository {
       commit_head: string | null;
       commit_state: string | null;
       committed_at: Date | null;
+      dialogue_record: ActionDialogueRecord | null;
     }>(
       `select a.id, a.continuity_id, a.branch_id, a.correlation_id, a.expected_head_commit_id, a.operation_type, a.status, a.intent,
               a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason, a.operation_payload,
@@ -4421,7 +4487,8 @@ export class AuthoritativeWorldRepository {
                p.candidate_transition->>'narrative' as proposal_narrative,
                p.candidate_transition->'responseSource' as proposal_response_source,
                p.display_effect,
-              c.id as commit_id, c.id as commit_head, sr.id as commit_state, c.created_at as committed_at
+              c.id as commit_id, c.id as commit_head, sr.id as commit_state, c.created_at as committed_at,
+              to_jsonb(a)->'dialogue_record' as dialogue_record
        from simulora.actions a
        left join simulora.action_proposals p on p.action_id = a.id
          and p.status in ('ACTIVE', 'CONFIRMED')
@@ -4481,6 +4548,7 @@ export class AuthoritativeWorldRepository {
               committedAt: row.committed_at.toISOString(),
             }
           : null,
+      dialogue: parseActionDialogue(row.dialogue_record),
     };
   }
 
@@ -4516,7 +4584,7 @@ export class AuthoritativeWorldRepository {
     reason: string,
   ): Promise<void> {
     await client.query(
-      `update simulora.actions set status = 'CONFLICT', terminal_at = null, status_reason = $2, updated_at = now(), row_version = row_version + 1 where id = $1 and status not in ('COMMITTED', 'CANCELLED', 'SUPERSEDED')`,
+      `update simulora.actions set status = 'CONFLICT', terminal_at = null, status_reason = $2, updated_at = now(), row_version = row_version + 1 where id = $1 and status not in ('COMMITTED', 'COMPLETED_NO_EFFECT', 'CANCELLED', 'SUPERSEDED')`,
       [actionId, reason],
     );
     await client.query(

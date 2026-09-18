@@ -41,6 +41,42 @@ describe("foundation contracts", () => {
     expect(response.operationType).toBe("PARTICIPATE");
   });
 
+  it("represents a completed response without implying a World Commit", () => {
+    const response = actionResponseSchema.parse({
+      id: "10000000-0000-4000-8000-000000000010",
+      continuityId: "10000000-0000-4000-8000-000000000011",
+      branchId: "10000000-0000-4000-8000-000000000012",
+      expectedHeadCommitId: "10000000-0000-4000-8000-000000000013",
+      status: "COMPLETED_NO_EFFECT",
+      intent: "Ask Iora for advice.",
+      participationExpectation: { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" },
+      acknowledgedAt: new Date().toISOString(),
+      terminalAt: new Date().toISOString(),
+      recoverableWait: false,
+      statusReason: "NO_WORLD_EFFECT",
+      progressUrl: "/v1/actions/10/progress",
+      eventsUrl: "/v1/actions/10/events",
+      proposal: null,
+      commit: null,
+      dialogue: {
+        id: "10000000-0000-4000-8000-000000000010",
+        narrative: "Iora leaves the unsafe signal dark.",
+        responseSource: { type: "CHARACTER", characterId: "character.iora" },
+        sourceHeadCommitId: "10000000-0000-4000-8000-000000000013",
+        sourceStateRevisionId: "10000000-0000-4000-8000-000000000014",
+        provenance: "Generated Action 10000000-0000-4000-8000-000000000010",
+        visibilityScope: "CONTINUITY_PRIVATE",
+        recordedAt: new Date().toISOString(),
+      },
+    });
+    expect(response.status).toBe("COMPLETED_NO_EFFECT");
+    expect(response.commit).toBeNull();
+    expect(response.dialogue?.visibilityScope).toBe("CONTINUITY_PRIVATE");
+    expect(() => actionResponseSchema.parse({ ...response, dialogue: undefined })).toThrow(
+      "Completed response-only Actions require dialogue evidence",
+    );
+  });
+
   it("keeps correction scope bound to before and rejects client-supplied after scope", () => {
     const request = {
       schemaVersion: 1,

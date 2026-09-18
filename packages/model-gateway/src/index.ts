@@ -10,6 +10,16 @@ export type WorldTurnRequest = {
   requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
   routineRoutes?: Array<{ fromLocationId: string; toLocationId: string; label: string }>;
   context?: Readonly<Record<string, unknown>>;
+  priorDialogue?: ReadonlyArray<{
+    id: string;
+    narrative: string;
+    responseSource: { type: "WORLD" } | { type: "CHARACTER"; characterId: string };
+    sourceHeadCommitId: string;
+    sourceStateRevisionId: string;
+    provenance: string;
+    visibilityScope: "CONTINUITY_PRIVATE";
+    recordedAt: string;
+  }>;
   participation: {
     initiativeMode: "DIRECT" | "GUIDED" | "WORLD_ACTIVE";
     structureMode: "OPEN_ENDED" | "GOAL_FRAMED";

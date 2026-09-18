@@ -151,6 +151,7 @@ export const actionStatusSchema = z.enum([
   "AWAITING_CONFIRMATION",
   "COMMITTING",
   "COMMITTED",
+  "COMPLETED_NO_EFFECT",
   "FAILED_RECOVERABLE",
   "CONFLICT",
   "CANCELLED",
@@ -269,27 +270,54 @@ export const actionCommitSchema = z.object({
   committedAt: z.string().datetime(),
 });
 
-export const actionResponseSchema = z.object({
-  id: stableIdSchema,
-  continuityId: stableIdSchema,
-  branchId: stableIdSchema,
-  expectedHeadCommitId: stableIdSchema,
-  status: actionStatusSchema,
-  // Defaults keep previously persisted IP-3 Action records readable while
-  // exposing the direct correction/removal operation to new clients.
-  operationType: actionOperationTypeSchema.default("PARTICIPATE"),
-  intent: nonEmptyTextSchema,
-  targetCharacterId: z.string().min(1).max(120).optional(),
-  participationExpectation: participationSchema,
-  acknowledgedAt: z.string().datetime(),
-  terminalAt: z.string().datetime().nullable(),
-  recoverableWait: z.boolean(),
-  statusReason: z.string().nullable(),
-  progressUrl: z.string().min(1),
-  eventsUrl: z.string().min(1),
-  proposal: actionProposalSchema.nullable(),
-  commit: actionCommitSchema.nullable(),
-});
+export const actionDialogueSchema = z
+  .object({
+    id: stableIdSchema,
+    narrative: nonEmptyTextSchema,
+    responseSource: z.discriminatedUnion("type", [
+      z.object({ type: z.literal("WORLD") }).strict(),
+      z.object({ type: z.literal("CHARACTER"), characterId: z.string().min(1).max(120) }).strict(),
+    ]),
+    sourceHeadCommitId: stableIdSchema,
+    sourceStateRevisionId: stableIdSchema,
+    provenance: nonEmptyTextSchema,
+    visibilityScope: z.literal("CONTINUITY_PRIVATE"),
+    recordedAt: z.string().datetime(),
+  })
+  .strict();
+
+export const actionResponseSchema = z
+  .object({
+    id: stableIdSchema,
+    continuityId: stableIdSchema,
+    branchId: stableIdSchema,
+    expectedHeadCommitId: stableIdSchema,
+    status: actionStatusSchema,
+    // Defaults keep previously persisted IP-3 Action records readable while
+    // exposing the direct correction/removal operation to new clients.
+    operationType: actionOperationTypeSchema.default("PARTICIPATE"),
+    intent: nonEmptyTextSchema,
+    targetCharacterId: z.string().min(1).max(120).optional(),
+    participationExpectation: participationSchema,
+    acknowledgedAt: z.string().datetime(),
+    terminalAt: z.string().datetime().nullable(),
+    recoverableWait: z.boolean(),
+    statusReason: z.string().nullable(),
+    progressUrl: z.string().min(1),
+    eventsUrl: z.string().min(1),
+    proposal: actionProposalSchema.nullable(),
+    commit: actionCommitSchema.nullable(),
+    dialogue: actionDialogueSchema.nullable().optional(),
+  })
+  .superRefine((action, context) => {
+    if (action.status === "COMPLETED_NO_EFFECT" && !action.dialogue) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["dialogue"],
+        message: "Completed response-only Actions require dialogue evidence",
+      });
+    }
+  });
 
 export const confirmActionRequestSchema = z.object({
   proposalId: stableIdSchema,

@@ -376,6 +376,7 @@ export const actionStatusSchema = z.enum([
   "AWAITING_CONFIRMATION",
   "COMMITTING",
   "COMMITTED",
+  "COMPLETED_NO_EFFECT",
   "FAILED_RECOVERABLE",
   "CONFLICT",
   "CANCELLED",
@@ -708,6 +709,50 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
       ),
       "$1deliberate",
     );
+    // Only explicit NPC deference is normalized for this guard. Clause-end
+    // fencing prevents a longer protected commitment from hiding behind it.
+    const deferSubjects = [
+      "you",
+      "the user",
+      "the player",
+      "the participant",
+      "user",
+      "player",
+      "participant",
+      normalizedRole,
+      rawRole,
+      roleNames.at(-1),
+    ]
+      .filter((subject): subject is string =>
+        Boolean(subject && /^[a-z][a-z0-9_]*(?: [a-z][a-z0-9_]*)*$/.test(subject)),
+      )
+      .map(escapeAuthorityRegex)
+      .join("|");
+    if (deferSubjects) {
+      normalizedNarrative = normalizedNarrative.replace(
+        new RegExp(
+          `\\b(?:i|we)\\s+(?:won['’]t|will not|can't|cannot|shouldn't|should not|mustn't|must not)\\s+(?:choose|decide)\\s+for\\s+(?:${deferSubjects})\\b(?=\\s*(?:[;.!?'"\\n]|$))`,
+          "gi",
+        ),
+        "I defer to your judgment",
+      );
+      if (normalizedRole) {
+        normalizedNarrative = normalizedNarrative.replace(
+          new RegExp(
+            `\\buntil\\s+(?:the\\s+)?${escapeAuthorityRegex(normalizedRole)}\\s+decides?\\b(?=\\s*(?:[;.!?'"\\n]|$))`,
+            "gi",
+          ),
+          `until ${normalizedRole} deliberates`,
+        );
+      }
+      normalizedNarrative = normalizedNarrative.replace(
+        new RegExp(
+          `由(?:你|${escapeAuthorityRegex(normalizedRole ?? "")})决定(?=\\s*(?:[；。！？\\n]|$))`,
+          "g",
+        ),
+        "由你斟酌",
+      );
+    }
   }
   const escapedRoles = [normalizedRole, rawRole, roleNames.at(-1)]
     .filter((role): role is string => Boolean(role))

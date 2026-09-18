@@ -224,14 +224,70 @@ suite("RE-3 bounded routine effects against real PostgreSQL", () => {
     expect(rejected.status).toBe("GENERATING");
     await repository.cancelAction(account, rejected.id);
     const output = await propose(continuity, "NO_WORLD_EFFECT");
-    expect(output.status).toBe("FAILED_RECOVERABLE");
+    expect(output.status).toBe("COMPLETED_NO_EFFECT");
     expect(output.statusReason).toBe("NO_WORLD_EFFECT");
     expect(output.proposal).toBeNull();
     expect(output.commit).toBeNull();
+    expect(output.dialogue?.responseSource).toEqual({ type: "CHARACTER", characterId: npc });
+    expect(output.dialogue?.provenance).toBe(`Generated Action ${output.id}`);
+    expect(output.dialogue?.sourceHeadCommitId).toBe(continuity.headCommitId);
+    expect(
+      (
+        await pool.query(
+          "select count(*)::int as count from simulora.world_commits where action_id=$1",
+          [output.id],
+        )
+      ).rows[0]?.count,
+    ).toBe(0);
+    expect(
+      (
+        await pool.query(
+          "select count(*)::int as count from simulora.actions where status='COMPLETED_NO_EFFECT' and id=$1",
+          [output.id],
+        )
+      ).rows[0]?.count,
+    ).toBe(1);
     expect((await repository.readCurrentState(account, continuity.continuityId)).state).toEqual(
       continuity.state,
     );
-    await repository.cancelAction(account, output.id);
+    expect(
+      (
+        await repository.confirmAction(account, output.id, {
+          proposalId: randomUUID(),
+          proposalDigest: "0".repeat(64),
+          expectedHeadCommitId: continuity.headCommitId,
+        })
+      ).status,
+    ).toBe("COMPLETED_NO_EFFECT");
+    expect((await repository.cancelAction(account, output.id)).status).toBe("COMPLETED_NO_EFFECT");
+  });
+  it("passes only same-path completed dialogue into the next authorized generation", async () => {
+    const continuity = await fixture(false);
+    const first = await propose(continuity, "NO_WORLD_EFFECT");
+    let seen: readonly unknown[] | undefined;
+    const next = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask Iora what she sees beyond the harbor.",
+      targetCharacterId: npc,
+      requestedEffect: "NO_WORLD_EFFECT",
+    });
+    const completed = await repository.processAction(
+      next.id,
+      async (request) => {
+        seen = request.priorDialogue;
+        return gateway.generateWorldTurn(request);
+      },
+      "dialogue-context-test",
+    );
+    expect(completed?.status).toBe("COMPLETED_NO_EFFECT");
+    expect(seen?.some((entry) => (entry as { id?: string }).id === first.id)).toBe(true);
+    expect(completed?.dialogue?.sourceHeadCommitId).toBe(continuity.headCommitId);
+    expect((await repository.readCurrentState(account, continuity.continuityId)).headCommitId).toBe(
+      continuity.headCommitId,
+    );
   });
   it("rejects invalid policy identities and keeps administrative policy immutable", async () => {
     const continuity = await fixture(false);

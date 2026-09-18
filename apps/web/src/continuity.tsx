@@ -77,6 +77,7 @@ export type ContinuityContextValue = {
 
 const TERMINAL_ACTION_STATUSES = new Set<ActionResponse["status"]>([
   "COMMITTED",
+  "COMPLETED_NO_EFFECT",
   "CANCELLED",
   "SUPERSEDED",
 ]);
@@ -140,6 +141,7 @@ const ACTION_PROGRESS_RANK: Record<ActionResponse["status"], number> = {
   AWAITING_CONFIRMATION: 4,
   COMMITTING: 5,
   COMMITTED: 6,
+  COMPLETED_NO_EFFECT: 6,
   FAILED_RECOVERABLE: 5,
   CONFLICT: 6,
   CANCELLED: 6,
@@ -219,8 +221,8 @@ function ambiguousActionOutcome(
   operation: "confirmation" | "cancellation" | "retry",
   current: ActionResponse | null,
 ): string {
-  if (current?.status === "COMMITTED") {
-    return `The ${operation} response was lost, but this Action is durably committed. Read current state before taking another Action.`;
+  if (current?.status === "COMMITTED" || current?.status === "COMPLETED_NO_EFFECT") {
+    return `The ${operation} response was lost, but this Action is durably complete. Read current state before taking another Action.`;
   }
   if (current && ["CONFLICT", "CANCELLED", "SUPERSEDED"].includes(current.status)) {
     return `The ${operation} response was lost; the durable Action status is ${labelMode(current.status)}. Re-read current state before continuing.`;
@@ -840,6 +842,8 @@ export function ActionStatusCard({
       "Provisional proposal — review the exact effect before it can be recorded.",
     COMMITTING: "Confirmed. Recording one authoritative change…",
     COMMITTED: "Recorded. The Branch head and committed history now include this Action.",
+    COMPLETED_NO_EFFECT:
+      "Response recorded as dialogue. Current World truth, Branch head and clock are unchanged.",
     FAILED_RECOVERABLE:
       action.statusReason === "NO_WORLD_EFFECT"
         ? "No world change recorded; response not committed. Close this Action to continue."
@@ -898,6 +902,18 @@ export function ActionStatusCard({
               <dd>{labelMode(action.proposal.displayEffect.scope)}</dd>
             </div>
           </dl>
+        </div>
+      ) : null}
+      {action.dialogue && action.status === "COMPLETED_NO_EFFECT" ? (
+        <div className="proposal-review">
+          <p className="proposal-label">Recorded response · no World change</p>
+          <p className="card-label">
+            {action.dialogue.responseSource.type === "CHARACTER"
+              ? `Character response · ${labelMode(action.dialogue.responseSource.characterId.split(".").at(-1) ?? "Character")}`
+              : "World response"}
+          </p>
+          <p>{action.dialogue.narrative}</p>
+          <p className="muted-copy">Source: {action.dialogue.provenance}</p>
         </div>
       ) : null}
       {error ? (

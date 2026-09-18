@@ -626,6 +626,30 @@ describe("IP-6 participation and character authority", () => {
     }
   });
 
+  it("permits explicit Character deference but keeps continued commitments blocked", () => {
+    for (const narrative of [
+      "I won't choose for you.",
+      "I will not decide for the player; the signal remains dark.",
+      "Until the keeper decides; I will hold the lantern.",
+      "由你决定。",
+    ]) {
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
+      ).not.toThrow();
+    }
+    for (const narrative of [
+      "I won't choose for you to approve the transfer.",
+      "The keeper has decided to invite the vessel.",
+      "I won't decide for the player to pay the keeper.",
+    ]) {
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
+      ).toThrow();
+    }
+    // First-person Character voice remains allowed without a bound source; the
+    // binding is what makes the additional deference normalization safe.
+  });
+
   it("rejects long, short and Unicode fact disclosure outside the compiled context", () => {
     const state = createInitialState(lanternReachSeed, {
       initiativeMode: "GUIDED",
