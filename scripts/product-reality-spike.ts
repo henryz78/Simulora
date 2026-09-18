@@ -147,7 +147,13 @@ The repository decides validity. L2 movement still needs exact confirmation.
 L0 is uncommitted generated output: no fact rewrite, Commit, remembered dialogue
 or clock advance. A refusal/advice narrative should answer the actual intent.
 This is the actual compiled generation request:
-${JSON.stringify(request)}`;
+${JSON.stringify(request)}
+Final format check: return exactly one JSON object matching the skeleton above.
+The requested effect is ${effect}; operation.type must be ${operation.type}.
+Do not substitute another effect or add fields. If the selected effect permits
+advice or refusal, put it in the narrative/reason while retaining the required
+operation envelope; otherwise describe only the requested bounded effect. The
+server still decides whether the candidate is valid.`;
 }
 
 // Read-only contrast: same selected actor, facts, schema and model; only the new
@@ -182,7 +188,7 @@ async function call(profile: Profile, prompt: string, label: string): Promise<un
     type: "dispatch",
     label,
     model: profile.model,
-    promptVersion: re3 ? 3 : 1,
+    promptVersion: re3 ? 4 : 1,
     profileVersion: 2,
     enableThinking: false,
     prompt,

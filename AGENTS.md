@@ -93,6 +93,19 @@ E2E 强制无效状态确认零 POST；原结论见
 desktop/390×844 60/60，quality/build/runtime/container 全部通过。Bridge repair
 CLOSED；IP-7、production live enablement、full RE-4 仍未开始或授权。
 
+用户随后授权继续 Product Reality 收敛。`RE-3-PRODUCT-REALITY-CONVERGENCE.md`
+记录了 browser/API/worker/isolated-runner 路径对照：`requestedEffect`、selected
+Character、expected-head、schema/parser/validator 和 confirmation 绑定一致；
+正式 browser movement follow-up 的一次 dispatch 因公益 provider HTTPS 路由不可达
+而没有模型输出，Action 已明确取消、没有 Commit。隔离 runner 的最小 prompt
+compatibility repair 只在 compiled request 之后追加 effect-specific operation
+type check，并将 promptVersion 从 3 提升到 4；不放宽 validator、不修改 authority
+或 production live adapter。当前 `NO_WORLD_EFFECT` 仍按冻结 Runtime 合同作为
+uncommitted L0 output → `FAILED_RECOVERABLE` → explicit cancel；成功但不改变
+世界的 terminal Action / durable dialogue 需要单独产品决策，不能在本轮偷偷新增。
+Product Reality Gate 尚未达到；IP-7、production live enablement、durable dialogue
+memory redesign 和广泛 effect 扩张仍未开始。
+
 ## Long-Term Product Direction
 
 用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：

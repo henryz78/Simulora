@@ -51,14 +51,24 @@ it("uses closed movement/no-effect prompts and refuses route-less dispatch prepa
   const move = currentPrompt({ ...request, requestedEffect: "ROUTINE_EFFECT" });
   expect(move).toContain('"type":"MOVE_CHARACTER"');
   expect(move).toContain('"afterLocationId":"location.lookout"');
+  expect(move).toContain(
+    "The requested effect is ROUTINE_EFFECT; operation.type must be MOVE_CHARACTER.",
+  );
   expect(move).not.toContain('"type":"UPDATE_CANONICAL_FACT"');
   expect(() =>
     currentPrompt({ ...request, requestedEffect: "ROUTINE_EFFECT", routineRoutes: [] }),
   ).toThrow(/authorized route/);
   const noEffect = currentPrompt({ ...request, requestedEffect: "NO_WORLD_EFFECT" });
   expect(noEffect).toContain('"type":"NO_WORLD_EFFECT"');
+  expect(noEffect).toContain(
+    "The requested effect is NO_WORLD_EFFECT; operation.type must be NO_WORLD_EFFECT.",
+  );
   expect(noEffect).not.toContain('"type":"UPDATE_CANONICAL_FACT"');
   expect(noEffect).toContain("uncommitted generated output");
+  const fact = currentPrompt({ ...request, requestedEffect: "FACT_REWRITE" });
+  expect(fact).toContain(
+    "The requested effect is FACT_REWRITE; operation.type must be UPDATE_CANONICAL_FACT.",
+  );
 });
 
 it("makes a read-only predecessor-style contrast without changing the selected actor or truth inputs", () => {

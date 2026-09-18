@@ -10,6 +10,11 @@
 The latest bounded browser-play follow-up is documented in
 [RE-3 Participation Bridge Repair](RE-3-PARTICIPATION-BRIDGE-REPAIR.md); it is a
 frontend comprehension/contract bridge only and is not an IP-7 authorization.
+The subsequent Product Reality convergence investigation is documented in
+[RE-3 Product Reality Convergence](RE-3-PRODUCT-REALITY-CONVERGENCE.md). It
+keeps production live-model enablement disabled, records the isolated prompt
+compatibility repair, and leaves the no-world-effect success-terminal question
+as an explicit product decision under the frozen Runtime lifecycle.
 
 **Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
@@ -57,6 +62,7 @@ Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
 Next decision:                     bounded post-bridge reality check or explicit next-stage authorization
+Product Reality Gate:              not reached; provider route unavailable during latest follow-up
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
