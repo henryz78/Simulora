@@ -289,6 +289,195 @@ suite("RE-3 bounded routine effects against real PostgreSQL", () => {
       continuity.headCommitId,
     );
   });
+  it("keeps dialogue created after a correction boundary while excluding pre-boundary dialogue", async () => {
+    const continuity = await fixture(false);
+    const before = await propose(continuity, "NO_WORLD_EFFECT");
+    const fact = continuity.state.facts[0]!;
+    const correction = await repository.submitCorrection(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: continuity.headCommitId,
+      target: { type: "fact", id: fact.id },
+      operation: "CORRECT_CONTINUITY",
+      before: { statement: fact.statement, scope: fact.scope },
+      after: { statement: "The western signal is bright." },
+      reason: "A later direct observation.",
+    });
+    await repository.confirmAction(account, correction.id, confirmation(correction));
+    const boundary = await repository.readCurrentState(account, continuity.continuityId);
+    const after = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: boundary.headCommitId,
+      participationExpectation: boundary.state.participation,
+      intent: "Ask Iora what she sees after the correction.",
+      targetCharacterId: npc,
+      requestedEffect: "NO_WORLD_EFFECT",
+    });
+    const postBoundary = await repository.processAction(
+      after.id,
+      (request) => gateway.generateWorldTurn(request),
+      "post-boundary",
+    );
+    expect(postBoundary?.status).toBe("COMPLETED_NO_EFFECT");
+    const next = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: boundary.headCommitId,
+      participationExpectation: boundary.state.participation,
+      intent: "Ask Iora one more question after the correction.",
+      targetCharacterId: npc,
+      requestedEffect: "NO_WORLD_EFFECT",
+    });
+    let seen: readonly { id: string }[] | undefined;
+    const completed = await repository.processAction(
+      next.id,
+      async (request) => {
+        seen = request.priorDialogue;
+        return gateway.generateWorldTurn(request);
+      },
+      "post-boundary-context",
+    );
+    expect(completed?.status).toBe("COMPLETED_NO_EFFECT");
+    expect(seen?.some((entry) => entry.id === before.id)).toBe(false);
+    expect(seen?.some((entry) => entry.id === postBoundary?.id)).toBe(true);
+  });
+  it("rejects forged no-effect source, manifest and causal evidence at the SQL boundary", async () => {
+    const continuity = await fixture(false);
+    const badCases = [
+      {
+        name: "null response source",
+        forge: (generated: Record<string, unknown>) => ({
+          ...generated,
+          responseSource: null,
+        }),
+      },
+      {
+        name: "forged included fact",
+        forgeManifest: (manifest: Record<string, unknown>) => ({
+          ...manifest,
+          includedFactIds: [...(manifest.includedFactIds as string[]), "fact.private"],
+        }),
+      },
+      {
+        name: "unknown causal fact",
+        forge: (generated: Record<string, unknown>) => {
+          const candidate = generated.candidate as Record<string, unknown>;
+          const operation = candidate.operation as Record<string, unknown>;
+          return {
+            ...generated,
+            candidate: {
+              ...candidate,
+              operation: { ...operation, causalFactIds: ["fact.unknown"] },
+            },
+          };
+        },
+      },
+    ];
+    for (const badCase of badCases) {
+      const action = await repository.submitAction(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: `Probe ${badCase.name}.`,
+        targetCharacterId: npc,
+        requestedEffect: "NO_WORLD_EFFECT",
+      });
+      let generated: Record<string, unknown> | undefined;
+      let release!: () => void;
+      const hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const processing = repository.processAction(
+        action.id,
+        async (request) => {
+          generated = await gateway.generateWorldTurn(request);
+          await hold;
+          return generated as never;
+        },
+        `evidence-probe-${badCase.name}`,
+      );
+      let attempt:
+        | { id: string; attempt_number: number; context_manifest: Record<string, unknown> }
+        | undefined;
+      for (let attemptNumber = 0; attemptNumber < 100 && !attempt; attemptNumber += 1) {
+        const row = await pool.query<{
+          id: string;
+          attempt_number: number;
+          context_manifest: Record<string, unknown>;
+        }>(
+          "select id, attempt_number, context_manifest from simulora.generation_attempts where action_id=$1 and status='RUNNING'",
+          [action.id],
+        );
+        attempt = row.rows[0];
+        if (!attempt) await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(attempt, badCase.name).toBeDefined();
+      for (let attemptNumber = 0; attemptNumber < 100 && !generated; attemptNumber += 1)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(generated, badCase.name).toBeDefined();
+      const actionRow = await pool.query<{ source_state_revision_id: string }>(
+        `select commit.state_revision_id as source_state_revision_id
+           from simulora.actions action
+           join simulora.world_commits commit on commit.id = action.expected_head_commit_id
+          where action.id=$1`,
+        [action.id],
+      );
+      const forgedOutput = badCase.forge ? badCase.forge(generated!) : generated!;
+      const forgedManifest = badCase.forgeManifest
+        ? badCase.forgeManifest(attempt!.context_manifest)
+        : attempt!.context_manifest;
+      const dialogue = {
+        id: action.id,
+        narrative: generated!.narrative,
+        responseSource: generated!.responseSource,
+        sourceHeadCommitId: continuity.headCommitId,
+        sourceStateRevisionId: actionRow.rows[0]!.source_state_revision_id,
+        provenance: `Generated Action ${action.id}`,
+        visibilityScope: "CONTINUITY_PRIVATE",
+        recordedAt: new Date().toISOString(),
+      };
+      let evidenceAttemptId = attempt!.id;
+      if (badCase.forgeManifest) {
+        evidenceAttemptId = randomUUID();
+        await pool.query(
+          `insert into simulora.generation_attempts
+             (id, action_id, attempt_number, adapter, status, context_manifest)
+           values ($1, $2, $3, 'deterministic', 'RUNNING', $4::jsonb)`,
+          [
+            evidenceAttemptId,
+            action.id,
+            attempt!.attempt_number + 1,
+            JSON.stringify(forgedManifest),
+          ],
+        );
+        await pool.query(
+          `update simulora.generation_attempts
+              set status='FAILED', error_class='PROBE', completed_at=now()
+            where id=$1`,
+          [attempt!.id],
+        );
+      }
+      await pool.query(
+        `update simulora.generation_attempts
+            set status='SUCCEEDED', output=$2::jsonb, completed_at=now()
+          where id=$1`,
+        [evidenceAttemptId, JSON.stringify(forgedOutput)],
+      );
+      await pool.query("update simulora.actions set status='VALIDATING' where id=$1", [action.id]);
+      await expect(
+        pool.query(
+          "update simulora.actions set dialogue_record=$2::jsonb, status='COMPLETED_NO_EFFECT' where id=$1",
+          [action.id, JSON.stringify(dialogue)],
+        ),
+        badCase.name,
+      ).rejects.toThrow();
+      release();
+      await processing;
+      await repository.cancelAction(account, action.id);
+    }
+  });
   it("rejects invalid policy identities and keeps administrative policy immutable", async () => {
     const continuity = await fixture(false);
     const policy = {

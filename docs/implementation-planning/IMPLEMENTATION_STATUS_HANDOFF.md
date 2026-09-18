@@ -789,3 +789,19 @@ review and CI. The finite browser live corpus (Tavi response-only after movement
 Iora advice/refusal, L3 exact confirmation and final zero-pending consistency)
 is deliberately deferred until that review passes. IP-7, production live-model
 enablement, broad dialogue/memory, scheduler and new effects remain out of scope.
+
+## 30. Bounded dialogue evidence hardening — re-review pending
+
+The first independent Luna max review found one SQL evidence blocker and one
+dialogue-boundary important issue. The successor migration
+`0035_re3_dialogue_evidence_hardening.sql` reconstructs the canonical RE-2
+context digest and exact manifest, derives the expected World/Character source,
+validates the closed candidate/causal-fact shape, and recomputes privacy and
+protected-speech checks. It also includes dialogue created at a correction,
+removal or Restore boundary head while excluding older pre-boundary history.
+
+The repair adds real PostgreSQL adversarial coverage and a populated prior-schema
+upgrade timeout allowance. Fresh local evidence is now **128/128 PostgreSQL**
+and **62/62 desktop/390x844 E2E**, with quality/build/runtime checks passing.
+The same Luna max Reviewer must re-review the pushed behavior candidate before
+the finite live corpus starts; no Product Reality approval is implied yet.

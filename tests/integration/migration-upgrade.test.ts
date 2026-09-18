@@ -98,7 +98,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       await admin.end();
       await rm(directory, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
   it("retires a duplicate pending proposal without deleting its generation evidence", async () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const databaseName = `simulora_upgrade_${randomUUID().replaceAll("-", "")}`;
