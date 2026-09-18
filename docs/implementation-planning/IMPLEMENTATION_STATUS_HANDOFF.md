@@ -805,3 +805,35 @@ upgrade timeout allowance. Fresh local evidence is now **128/128 PostgreSQL**
 and **62/62 desktop/390x844 E2E**, with quality/build/runtime checks passing.
 The same Luna max Reviewer must re-review the pushed behavior candidate before
 the finite live corpus starts; no Product Reality approval is implied yet.
+
+## 31. CI queue-order repair and independent closure
+
+Exact-SHA CI `35404447169` first exposed a test-only queue-order race: after the
+preceding PostgreSQL suite populated the shared projection queue, the missing-
+projection adversarial test's fixed 50 global polls did not reach its target.
+The minimal repair adds an optional Branch filter to the internal projection
+worker selector (the default production worker path remains unchanged) and
+uses that filter in the test. Behavior SHA `348106f3ad567f61bb81f914c86f47d211be2e36`
+is pushed to `origin/main`.
+
+Exact-SHA CI `35405211953` is green: migrations, PostgreSQL, quality, API/worker
+container smoke, desktop and 390x844 browser checks all passed. The same GPT-5.6
+Luna max Reviewer re-reviewed `348106f` and returned **GATE PASS / 0 BLOCKER /
+0 IMPORTANT / 0 MINOR**, ready for a finite live corpus. This closes the
+engineering review; it does not by itself prove real-provider dialogue.
+
+## 32. Final bounded live corpus stopped by provider rate limit
+
+The isolated corpus submitted the first formal-browser Tavi
+`NO_WORLD_EFFECT` request from the committed `Sheltered East Lookout` head.
+The configured provider returned HTTP **429** before producing model output;
+there was no proposal or Commit. The Action was explicitly cancelled, leaving
+zero pending Actions and an unchanged Branch head. Per the bounded experiment
+rule, no further live calls were attempted. Details are in [RE-3 Final Live
+Corpus Handoff](RE-3-FINAL-LIVE-CORPUS-HANDOFF.md).
+
+The Product Reality Gate remains **PARTIAL** only because a successful real
+provider `COMPLETED_NO_EFFECT` sample was not obtained. Deterministic/domain/
+PostgreSQL/browser evidence and the independent review remain green. IP-7,
+production live-model enablement, new effects and durable-memory redesign are
+not started.
