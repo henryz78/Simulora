@@ -3223,7 +3223,7 @@ export class AuthoritativeWorldRepository {
   }
 
   /** Process one stale orientation row for the independently running worker. */
-  async processNextProjection(): Promise<OrientationResponse | null> {
+  async processNextProjection(branchId?: string): Promise<OrientationResponse | null> {
     const row = await transaction(this.pool, async (client) => {
       const candidate = await client.query<{
         branch_id: string;
@@ -3236,10 +3236,12 @@ export class AuthoritativeWorldRepository {
          left join simulora.return_orientation_projections p on p.branch_id = b.id
          where b.status = 'ACTIVE'
            and c.active_branch_id = b.id
+           and ($1::uuid is null or b.id = $1)
            and (p.branch_id is null or p.status in ('STALE', 'REBUILDING'))
          order by coalesce(p.updated_at, b.created_at)
          limit 1
          for update of b skip locked`,
+        [branchId ?? null],
       );
       const next = candidate.rows[0];
       if (!next) return null;

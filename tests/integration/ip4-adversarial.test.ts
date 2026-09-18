@@ -680,7 +680,7 @@ suite("IP-4 adversarial PostgreSQL boundaries", () => {
 
     let rebuilt: Awaited<ReturnType<typeof repository.processNextProjection>> = null;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      const candidate = await repository.processNextProjection();
+      const candidate = await repository.processNextProjection(first.continuity.branchId);
       if (candidate?.continuity.id === first.continuity.continuityId) {
         rebuilt = candidate;
         break;
