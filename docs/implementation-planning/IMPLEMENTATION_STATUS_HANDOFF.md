@@ -15,6 +15,11 @@ The subsequent Product Reality convergence investigation is documented in
 keeps production live-model enablement disabled, records the isolated prompt
 compatibility repair, and leaves the no-world-effect success-terminal question
 as an explicit product decision under the frozen Runtime lifecycle.
+The latest bounded continuous browser corpus is documented in
+[RE-3 Continuous Live Corpus Handoff](RE-3-CONTINUOUS-LIVE-CORPUS-HANDOFF.md).
+It proves post-movement context compilation and another exact-confirmed L3
+Commit, but records a real response-only guard false positive; the Product
+Reality Gate therefore remains unreached.
 
 **Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
@@ -62,7 +67,7 @@ Live model provider:               not connected
 Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
 Formal deployment:                 not started
 Next decision:                     bounded post-bridge reality check or explicit next-stage authorization
-Product Reality Gate:              not reached; provider route unavailable during latest follow-up
+Product Reality Gate:              not reached; movement context is proven, response-only guard compatibility remains open
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
