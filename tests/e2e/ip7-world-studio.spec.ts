@@ -160,12 +160,18 @@ test("Studio keeps an existing Continuity pinned and is complete on mobile", asy
     documentHash: "a".repeat(64),
     createdAt: new Date().toISOString(),
   };
+  const newerRevision = {
+    ...revision,
+    revisionId: "71000000-0000-4000-8000-000000000004",
+    revisionNumber: 2,
+    sourceDraftRowVersion: 2,
+  };
   await page.route(`**/v1/worlds/${worldId}/studio`, (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        ...studioResponse(documentFor(), 1, [revision]),
+        ...studioResponse(documentFor(), 2, [newerRevision, revision]),
         continuities: [
           { continuityId, worldRevisionId: revisionId, revisionNumber: 1, status: "PINNED" },
         ],
@@ -176,13 +182,15 @@ test("Studio keeps an existing Continuity pinned and is complete on mobile", asy
   await expect(
     page.getByRole("heading", { name: "Draft and playable versions stay distinct" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Begin / resume play" }).click();
+  await expect(page.getByRole("button", { name: "Resume pinned Continuity" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Begin from Revision 2" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume pinned Continuity" }).click();
   await expect(page).toHaveURL(new RegExp(`/continuities/${continuityId}$`));
   await page.goBack();
   await expect(page.getByRole("link", { name: /Pinned Continuity/ })).toHaveAttribute(
     "href",
     `/continuities/${continuityId}`,
   );
-  await expect(page.getByRole("button", { name: "Begin / resume play" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume pinned Continuity" })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });

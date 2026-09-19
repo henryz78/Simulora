@@ -23,6 +23,7 @@ import {
   type WorldStudioResponse,
   type WorldValidationResponse,
 } from "@simulora/contracts";
+import { worldDocumentInputSchema } from "@simulora/contracts";
 import {
   ActionComposer,
   ActionList,
@@ -1877,6 +1878,39 @@ function shortId(value: string): string {
   return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
 
+function readStoredWorldDraft(key: string): { draft: WorldDocumentInput; savedAt: number } | null {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+    if (!parsed || typeof parsed !== "object") return null;
+    const envelope = parsed as { draft?: unknown; savedAt?: unknown };
+    const draft = worldDocumentInputSchema.safeParse(envelope.draft ?? parsed);
+    return draft.success
+      ? { draft: draft.data, savedAt: typeof envelope.savedAt === "number" ? envelope.savedAt : 0 }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function findStoredWorldDraft(
+  prefix: string,
+  legacyKey: string,
+): { key: string; draft: WorldDocumentInput } | null {
+  const keys = [legacyKey];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (key?.startsWith(prefix)) keys.push(key);
+  }
+  const stored = keys
+    .map((key) => ({ key, stored: readStoredWorldDraft(key) }))
+    .filter(
+      (entry): entry is { key: string; stored: { draft: WorldDocumentInput; savedAt: number } } =>
+        Boolean(entry.stored),
+    )
+    .sort((left, right) => right.stored.savedAt - left.stored.savedAt)[0];
+  return stored ? { key: stored.key, draft: stored.stored.draft } : null;
+}
+
 export function WorldStudioPage(): ReactElement {
   const { worldId } = useParams<{ worldId: string }>();
   const navigate = useNavigate();
@@ -1889,8 +1923,20 @@ export function WorldStudioPage(): ReactElement {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unsentAvailable, setUnsentAvailable] = useState(false);
+  const [unsentKey, setUnsentKey] = useState<string | null>(null);
+  const [restoredKey, setRestoredKey] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const storageKey = worldId ? `simulora:world-draft:${worldId}` : null;
+  const [tabId] = useState(() => {
+    const key = "simulora:world-studio-tab-id";
+    const existing = sessionStorage.getItem(key);
+    if (existing) return existing;
+    const created = crypto.randomUUID();
+    sessionStorage.setItem(key, created);
+    return created;
+  });
+  const storagePrefix = worldId ? `simulora:world-draft:${worldId}:` : null;
+  const storageKey = storagePrefix ? `${storagePrefix}${tabId}` : null;
+  const legacyStorageKey = worldId ? `simulora:world-draft:${worldId}` : null;
   const savedDraft = studio?.draft.document ?? null;
   const dirty = Boolean(savedDraft && JSON.stringify(savedDraft) !== JSON.stringify(draft));
 
@@ -1909,7 +1955,12 @@ export function WorldStudioPage(): ReactElement {
         ? result.data.validation
         : null,
     );
-    const local = storageKey ? localStorage.getItem(storageKey) : null;
+    const local =
+      storagePrefix && legacyStorageKey
+        ? findStoredWorldDraft(storagePrefix, legacyStorageKey)
+        : null;
+    setUnsentKey(local?.key ?? null);
+    setRestoredKey(null);
     setUnsentAvailable(Boolean(local));
     setDraft(result.data.draft.document);
     setMessage(null);
@@ -1926,7 +1977,7 @@ export function WorldStudioPage(): ReactElement {
 
   useEffect(() => {
     if (!storageKey || !studio || !dirty) return;
-    localStorage.setItem(storageKey, JSON.stringify(draft));
+    localStorage.setItem(storageKey, JSON.stringify({ draft, savedAt: Date.now() }));
   }, [draft, dirty, storageKey, studio]);
 
   const run = async (name: string, work: () => Promise<void>): Promise<void> => {
@@ -1949,7 +2000,11 @@ export function WorldStudioPage(): ReactElement {
       const result = await updateWorldDraft(worldId, studio.draft.rowVersion, draft);
       if (!result.data) {
         if (result.errorCode === "STALE_DRAFT") {
-          if (storageKey) localStorage.setItem(storageKey, JSON.stringify(draft));
+          if (storageKey) {
+            localStorage.setItem(storageKey, JSON.stringify({ draft, savedAt: Date.now() }));
+            setUnsentKey(storageKey);
+          }
+          setRestoredKey(null);
           setUnsentAvailable(true);
           await load();
           setMessage(
@@ -1964,6 +2019,9 @@ export function WorldStudioPage(): ReactElement {
       setStudio((current) => (current ? { ...current, draft: result.data! } : current));
       setValidation(null);
       if (storageKey) localStorage.removeItem(storageKey);
+      if (restoredKey && restoredKey !== storageKey) localStorage.removeItem(restoredKey);
+      setUnsentKey(null);
+      setRestoredKey(null);
       setUnsentAvailable(false);
       setMessage("Draft saved. Existing Continuities remain pinned to their earlier Revision.");
     });
@@ -2017,17 +2075,9 @@ export function WorldStudioPage(): ReactElement {
     });
   };
 
-  const beginPlay = async (): Promise<void> => {
-    if (!studio?.revisions[0]) return;
-    const pinned = studio.continuities.find(
-      (continuity) => continuity.worldRevisionId === studio.revisions[0]!.revisionId,
-    );
-    if (pinned) {
-      await navigate(`/continuities/${encodeURIComponent(pinned.continuityId)}`);
-      return;
-    }
+  const beginFromRevision = async (revisionId: string): Promise<void> => {
     await run("play", async () => {
-      const result = await startWorldContinuity(studio.revisions[0]!.revisionId, {
+      const result = await startWorldContinuity(revisionId, {
         initiativeMode: "GUIDED",
         structureMode: "OPEN_ENDED",
       });
@@ -2037,6 +2087,16 @@ export function WorldStudioPage(): ReactElement {
         setError("The playable Revision exists, but its Continuity could not be started.");
       }
     });
+  };
+
+  const beginPlay = async (): Promise<void> => {
+    if (!studio?.revisions[0]) return;
+    const pinned = studio.continuities[0];
+    if (pinned) {
+      await navigate(`/continuities/${encodeURIComponent(pinned.continuityId)}`);
+      return;
+    }
+    await beginFromRevision(studio.revisions[0].revisionId);
   };
 
   const create = async (event: FormEvent): Promise<void> => {
@@ -2082,7 +2142,11 @@ export function WorldStudioPage(): ReactElement {
             disabled={busy !== null}
             onClick={() => void beginPlay()}
           >
-            {busy === "play" ? "Opening…" : "Begin / resume play"}
+            {busy === "play"
+              ? "Opening…"
+              : studio.continuities.length
+                ? "Resume pinned Continuity"
+                : "Begin play"}
           </button>
         ) : null}
       </header>
@@ -2128,16 +2192,18 @@ export function WorldStudioPage(): ReactElement {
                 className="secondary-action"
                 type="button"
                 onClick={() => {
-                  const raw = storageKey ? localStorage.getItem(storageKey) : null;
-                  if (!raw) return;
+                  const local = unsentKey ? readStoredWorldDraft(unsentKey) : null;
+                  if (!local || !unsentKey) return;
                   try {
-                    setDraft(JSON.parse(raw) as WorldDocumentInput);
+                    setDraft(local.draft);
+                    setRestoredKey(unsentKey);
                     setUnsentAvailable(false);
                     setMessage(
                       "Unsent edits restored locally. Save them intentionally after reviewing the current Draft.",
                     );
                   } catch {
-                    if (storageKey) localStorage.removeItem(storageKey);
+                    localStorage.removeItem(unsentKey);
+                    setUnsentKey(null);
                     setUnsentAvailable(false);
                   }
                 }}
@@ -2257,6 +2323,20 @@ export function WorldStudioPage(): ReactElement {
                             Pinned Continuity · open current path
                           </Link>
                         ))}
+                      {!studio.continuities.some(
+                        (continuity) => continuity.worldRevisionId === revision.revisionId,
+                      ) ? (
+                        <button
+                          className="secondary-action"
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => void beginFromRevision(revision.revisionId)}
+                        >
+                          {busy === "play"
+                            ? "Opening…"
+                            : `Begin from Revision ${revision.revisionNumber}`}
+                        </button>
+                      ) : null}
                     </li>
                   ))
                 ) : (
