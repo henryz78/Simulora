@@ -221,6 +221,34 @@ export type WorldRevisionRecord = {
   documentHash: string;
 };
 
+export type WorldValidationFinding = {
+  path: string;
+  message: string;
+  severity: "ERROR" | "WARNING";
+  playEffect: string;
+};
+
+export type WorldValidationRecord = {
+  worldId: string;
+  draftRowVersion: number;
+  outcome: "VALID" | "INVALID";
+  findings: WorldValidationFinding[];
+  validatedAt: string;
+};
+
+export type WorldStudioRecord = {
+  worldId: string;
+  draft: WorldDraftRecord;
+  revisions: Array<WorldRevisionRecord & { createdAt: string }>;
+  continuities: Array<{
+    continuityId: string;
+    worldRevisionId: string;
+    revisionNumber: number;
+    status: "PINNED";
+  }>;
+  validation: WorldValidationRecord | null;
+};
+
 export type CharacterAssetRecord = {
   id: string;
   document: CharacterAssetDefinition;
@@ -592,6 +620,29 @@ function orientationPayload(
 
 type TraceCursor = { createdAt: string; id: string };
 
+function parseValidationFindings(value: unknown): WorldValidationFinding[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const finding = item as Record<string, unknown>;
+    if (
+      typeof finding.path !== "string" ||
+      typeof finding.message !== "string" ||
+      (finding.severity !== "ERROR" && finding.severity !== "WARNING") ||
+      typeof finding.playEffect !== "string"
+    )
+      return [];
+    return [
+      {
+        path: finding.path,
+        message: finding.message,
+        severity: finding.severity,
+        playEffect: finding.playEffect,
+      },
+    ];
+  });
+}
+
 function encodeTraceCursor(cursor: TraceCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
@@ -750,6 +801,167 @@ export class AuthoritativeWorldRepository {
     );
     if (!result.rows[0]) await this.throwWorldAccessOrConflict(account.accountId, worldId);
     return { worldId, rowVersion: result.rows[0]!.row_version, document, documentHash: hash };
+  }
+
+  async readWorldStudio(account: SyntheticAccount, worldId: string): Promise<WorldStudioRecord> {
+    this.assertEligible(account);
+    const world = await this.pool.query<{ id: string }>(
+      `select id from simulora.worlds
+       where id = $1 and owner_account_id = $2 and deleted_at is null`,
+      [worldId, account.accountId],
+    );
+    if (!world.rows[0]) throw new NotFoundError("World not found");
+
+    const draftResult = await this.pool.query<{
+      row_version: number;
+      document: unknown;
+      document_hash: string;
+    }>(
+      `select row_version, document, document_hash
+       from simulora.world_drafts where world_id = $1`,
+      [worldId],
+    );
+    const draft = draftResult.rows[0];
+    if (!draft) throw new NotFoundError("World Draft not found");
+
+    const revisions = await this.pool.query<{
+      id: string;
+      revision_number: number;
+      source_draft_row_version: number;
+      document: unknown;
+      document_hash: string;
+      created_at: Date;
+    }>(
+      `select id, revision_number, source_draft_row_version, document, document_hash, created_at
+       from simulora.world_revisions
+       where world_id = $1
+       order by revision_number desc`,
+      [worldId],
+    );
+    const continuities = await this.pool.query<{
+      continuity_id: string;
+      world_revision_id: string;
+      revision_number: number;
+    }>(
+      `select c.id as continuity_id, c.world_revision_id, r.revision_number
+       from simulora.continuities c
+       join simulora.world_revisions r on r.id = c.world_revision_id
+       where r.world_id = $1 and c.owner_account_id = $2
+       order by r.revision_number desc, c.created_at desc`,
+      [worldId, account.accountId],
+    );
+    const validation = await this.pool.query<{
+      draft_row_version: number;
+      outcome: "VALID" | "INVALID";
+      findings: unknown;
+      validated_at: Date;
+    }>(
+      `select draft_row_version, outcome, findings, validated_at
+       from simulora.authoring_validation_runs
+       where world_id = $1
+       order by validated_at desc
+       limit 1`,
+      [worldId],
+    );
+
+    return {
+      worldId,
+      draft: {
+        worldId,
+        rowVersion: draft.row_version,
+        document: worldDocumentSchema.parse(draft.document),
+        documentHash: draft.document_hash,
+      },
+      revisions: revisions.rows.map((revision) => ({
+        revisionId: revision.id,
+        worldId,
+        revisionNumber: revision.revision_number,
+        sourceDraftRowVersion: revision.source_draft_row_version,
+        document: worldDocumentSchema.parse(revision.document),
+        documentHash: revision.document_hash,
+        createdAt: revision.created_at.toISOString(),
+      })),
+      continuities: continuities.rows.map((continuity) => ({
+        continuityId: continuity.continuity_id,
+        worldRevisionId: continuity.world_revision_id,
+        revisionNumber: continuity.revision_number,
+        status: "PINNED" as const,
+      })),
+      validation: validation.rows[0]
+        ? {
+            worldId,
+            draftRowVersion: validation.rows[0].draft_row_version,
+            outcome: validation.rows[0].outcome,
+            findings: parseValidationFindings(validation.rows[0].findings),
+            validatedAt: validation.rows[0].validated_at.toISOString(),
+          }
+        : null,
+    };
+  }
+
+  async validateDraft(account: SyntheticAccount, worldId: string): Promise<WorldValidationRecord> {
+    this.assertEligible(account);
+    return transaction(this.pool, async (client) => {
+      const result = await client.query<{ row_version: number; document: unknown }>(
+        `select d.row_version, d.document
+         from simulora.world_drafts d
+         join simulora.worlds w on w.id = d.world_id
+         where d.world_id = $1 and w.owner_account_id = $2 and w.deleted_at is null
+         for update`,
+        [worldId, account.accountId],
+      );
+      const draft = result.rows[0];
+      if (!draft) throw new NotFoundError("World not found");
+      const parsed = worldDocumentSchema.safeParse(draft.document);
+      const findings: WorldValidationFinding[] = parsed.success
+        ? [
+            ...(parsed.data.locations.length > 1 && !parsed.data.routineRoutes?.length
+              ? [
+                  {
+                    path: "routineRoutes",
+                    message:
+                      "Add a route between locations if Characters should move between them.",
+                    severity: "WARNING" as const,
+                    playEffect:
+                      "Movement remains limited to the starting location until a route exists.",
+                  },
+                ]
+              : []),
+            ...(parsed.data.objectives.length === 0
+              ? [
+                  {
+                    path: "objectives",
+                    message: "No objective is defined; this world stays open-ended.",
+                    severity: "WARNING" as const,
+                    playEffect:
+                      "Players can continue without a fabricated goal or completion state.",
+                  },
+                ]
+              : []),
+          ]
+        : parsed.error.issues.map((issue) => ({
+            path: issue.path.join(".") || "document",
+            message: issue.message,
+            severity: "ERROR" as const,
+            playEffect: "This blocks creation of a playable World Revision.",
+          }));
+      const outcome = parsed.success ? "VALID" : "INVALID";
+      const validationRunId = randomUUID();
+      const inserted = await client.query<{ validated_at: Date }>(
+        `insert into simulora.authoring_validation_runs
+         (id, world_id, draft_row_version, outcome, findings)
+         values ($1, $2, $3, $4, $5::jsonb)
+         returning validated_at`,
+        [validationRunId, worldId, draft.row_version, outcome, JSON.stringify(findings)],
+      );
+      return {
+        worldId,
+        draftRowVersion: draft.row_version,
+        outcome,
+        findings,
+        validatedAt: inserted.rows[0]!.validated_at.toISOString(),
+      };
+    });
   }
 
   async createRevision(

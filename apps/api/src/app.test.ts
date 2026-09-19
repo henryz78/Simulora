@@ -8,7 +8,11 @@ import {
   type WorldContinuityPort,
   type ActionTruthPort,
 } from "@simulora/application";
-import { foundationResponseSchema } from "@simulora/contracts";
+import {
+  foundationResponseSchema,
+  type WorldStudioResponse,
+  type WorldValidationResponse,
+} from "@simulora/contracts";
 import { createApiApp } from "./app.js";
 
 let app: FastifyInstance | undefined;
@@ -49,12 +53,12 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("reports the IP-6 Agency phase without claiming later capabilities", async () => {
+  it("reports the IP-7 World Studio phase without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
     const foundation = foundationResponseSchema.parse(response.json());
-    expect(foundation.productImplementationPhase).toBe("IP-6");
+    expect(foundation.productImplementationPhase).toBe("IP-7");
     expect(foundation.productSemanticsStarted).toBe(true);
   });
 
@@ -90,6 +94,48 @@ describe("API composition root", () => {
       state: { participation },
       continuity: { worldRevisionNumber: 1 },
     });
+  });
+
+  it("exposes the durable World Studio Draft, validation and Revision boundary", async () => {
+    const worldId = "10000000-0000-4000-8000-000000000030";
+    const studio: WorldStudioResponse = {
+      worldId,
+      draft: { worldId, rowVersion: 2, document: lanternReachSeed, documentHash: "a".repeat(64) },
+      revisions: [],
+      continuities: [],
+      validation: null,
+    };
+    const validation: WorldValidationResponse = {
+      worldId,
+      draftRowVersion: 2,
+      outcome: "VALID",
+      findings: [],
+      validatedAt: new Date().toISOString(),
+    };
+    const port: WorldContinuityPort = {
+      createWorld: () => Promise.reject(new Error("unused")),
+      updateDraft: () => Promise.reject(new Error("unused")),
+      createRevision: () => Promise.reject(new Error("unused")),
+      readWorldStudio: () => Promise.resolve(studio),
+      validateDraft: () => Promise.resolve(validation),
+      startContinuity: () => Promise.reject(new Error("unused")),
+      readCurrentState: () => Promise.reject(new Error("unused")),
+    };
+    app = createApiApp({
+      logLevel: "error",
+      worldService: new WorldContinuityService(port),
+    });
+    const read = await app.inject({ method: "GET", url: `/v1/worlds/${worldId}/studio` });
+    expect(read.statusCode).toBe(200);
+    expect(read.json()).toMatchObject({ worldId, draft: { rowVersion: 2 }, revisions: [] });
+
+    const check = await app.inject({
+      method: "POST",
+      url: `/v1/worlds/${worldId}/validation`,
+      payload: {},
+    });
+    expect(check.statusCode).toBe(200);
+    expect(check.json()).toMatchObject({ worldId, draftRowVersion: 2, outcome: "VALID" });
   });
 
   it("exposes durable acknowledgement and resumable Action progress without claiming a Commit", async () => {

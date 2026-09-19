@@ -14,7 +14,7 @@ export const foundationCapabilitySchema = z.object({
 });
 
 export const foundationResponseSchema = z.object({
-  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4", "IP-5", "IP-6"]),
+  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4", "IP-5", "IP-6", "IP-7"]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
 });
@@ -107,6 +107,11 @@ export const worldDocumentInputSchema = z.object({
 });
 
 export const createWorldRequestSchema = z.object({ document: worldDocumentInputSchema });
+export const createWorldResponseSchema = z.object({
+  worldId: stableIdSchema,
+  rowVersion: z.number().int().positive(),
+  documentHash: z.string().regex(/^[0-9a-f]{64}$/),
+});
 export const updateWorldDraftRequestSchema = z.object({
   expectedVersion: z.number().int().positive(),
   document: worldDocumentInputSchema,
@@ -114,6 +119,51 @@ export const updateWorldDraftRequestSchema = z.object({
 export const createWorldRevisionRequestSchema = z.object({
   expectedDraftVersion: z.number().int().positive(),
 });
+const worldDraftResponseSchema = z.object({
+  worldId: stableIdSchema,
+  rowVersion: z.number().int().positive(),
+  document: worldDocumentInputSchema,
+  documentHash: z.string().regex(/^[0-9a-f]{64}$/),
+});
+const worldRevisionSummarySchema = z.object({
+  revisionId: stableIdSchema,
+  worldId: stableIdSchema,
+  revisionNumber: z.number().int().positive(),
+  sourceDraftRowVersion: z.number().int().positive(),
+  documentHash: z.string().regex(/^[0-9a-f]{64}$/),
+  createdAt: z.string().datetime(),
+});
+const worldValidationFindingSchema = z.object({
+  path: z.string().max(240),
+  message: z.string().min(1).max(500),
+  severity: z.enum(["ERROR", "WARNING"]),
+  playEffect: z.string().min(1).max(500),
+});
+export const worldValidationResponseSchema = z.object({
+  worldId: stableIdSchema,
+  draftRowVersion: z.number().int().positive(),
+  outcome: z.enum(["VALID", "INVALID"]),
+  findings: z.array(worldValidationFindingSchema),
+  validatedAt: z.string().datetime(),
+});
+export const worldStudioResponseSchema = z.object({
+  worldId: stableIdSchema,
+  draft: worldDraftResponseSchema,
+  revisions: z.array(worldRevisionSummarySchema),
+  continuities: z.array(
+    z.object({
+      continuityId: stableIdSchema,
+      worldRevisionId: stableIdSchema,
+      revisionNumber: z.number().int().positive(),
+      status: z.literal("PINNED"),
+    }),
+  ),
+  validation: worldValidationResponseSchema.nullable(),
+});
+export type WorldDraftResponse = z.infer<typeof worldDraftResponseSchema>;
+export type WorldRevisionSummary = z.infer<typeof worldRevisionSummarySchema>;
+export type WorldValidationResponse = z.infer<typeof worldValidationResponseSchema>;
+export type WorldStudioResponse = z.infer<typeof worldStudioResponseSchema>;
 export const startContinuityRequestSchema = z.object({ participation: participationSchema });
 
 export const authoritativeStateResponseSchema = z.object({

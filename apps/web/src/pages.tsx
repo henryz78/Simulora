@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type ReactElement,
+  type SetStateAction,
+} from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   type ActionResponse,
@@ -11,6 +19,9 @@ import {
   type ParticipationContract,
   type RecoveryResponse,
   type RestoreProposal,
+  type WorldDocumentInput,
+  type WorldStudioResponse,
+  type WorldValidationResponse,
 } from "@simulora/contracts";
 import {
   ActionComposer,
@@ -36,6 +47,14 @@ import {
   selectBranch,
 } from "./ip5-api.js";
 import { changeParticipationContract } from "./ip6-api.js";
+import {
+  createWorld,
+  createWorldRevision,
+  readWorldStudio,
+  startWorldContinuity,
+  updateWorldDraft,
+  validateWorldDraft,
+} from "./ip7-api.js";
 
 export { ContinuityLayout };
 
@@ -49,7 +68,7 @@ export function FoundationPage(): ReactElement {
           </span>
           <span>Simulora</span>
         </Link>
-        <span className="phase-badge">IP-6 · Agency</span>
+        <span className="phase-badge">IP-7 · World Studio</span>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
@@ -71,8 +90,19 @@ export function FoundationPage(): ReactElement {
             <li>Only a direct user command can change participation authority.</li>
           </ul>
         </section>
+        <section className="foundation-card" aria-labelledby="creator-entry-title">
+          <p className="eyebrow">Create a personal world</p>
+          <h2 id="creator-entry-title">Start with a playable core</h2>
+          <p>
+            Save a durable Draft, check what it changes in play, and create a new immutable Revision
+            when you are ready. Existing Continuities stay pinned.
+          </p>
+          <Link className="primary-action inline-action" to="/worlds/new">
+            Open World Studio
+          </Link>
+        </section>
       </main>
-      <footer className="site-footer">Product Implementation · IP-6 Agency</footer>
+      <footer className="site-footer">Product Implementation · IP-7 World Studio</footer>
     </div>
   );
 }
@@ -1845,6 +1875,730 @@ function freshnessLabel(freshness: ProjectionFreshness): string {
 
 function shortId(value: string): string {
   return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
+
+export function WorldStudioPage(): ReactElement {
+  const { worldId } = useParams<{ worldId: string }>();
+  const navigate = useNavigate();
+  const isNew = !worldId;
+  const [draft, setDraft] = useState<WorldDocumentInput>(() => starterWorld());
+  const [studio, setStudio] = useState<WorldStudioResponse | null>(null);
+  const [validation, setValidation] = useState<WorldValidationResponse | null>(null);
+  const [loading, setLoading] = useState(!isNew);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [unsentAvailable, setUnsentAvailable] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const storageKey = worldId ? `simulora:world-draft:${worldId}` : null;
+  const savedDraft = studio?.draft.document ?? null;
+  const dirty = Boolean(savedDraft && JSON.stringify(savedDraft) !== JSON.stringify(draft));
+
+  const load = async (): Promise<void> => {
+    if (!worldId) return;
+    setLoading(true);
+    const result = await readWorldStudio(worldId);
+    if (!result.data) {
+      setError("This World is unavailable to this account. No local draft was published.");
+      setLoading(false);
+      return;
+    }
+    setStudio(result.data);
+    setValidation(
+      result.data.validation?.draftRowVersion === result.data.draft.rowVersion
+        ? result.data.validation
+        : null,
+    );
+    const local = storageKey ? sessionStorage.getItem(storageKey) : null;
+    setUnsentAvailable(Boolean(local));
+    setDraft(result.data.draft.document);
+    setMessage(null);
+    setError(null);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (worldId) void load();
+    // The route id is the only load dependency; edits must not trigger a reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldId]);
+
+  useEffect(() => {
+    if (!storageKey || !studio || !dirty) return;
+    sessionStorage.setItem(storageKey, JSON.stringify(draft));
+  }, [draft, dirty, storageKey, studio]);
+
+  const run = async (name: string, work: () => Promise<void>): Promise<void> => {
+    if (busy) return;
+    setBusy(name);
+    setMessage(null);
+    setError(null);
+    try {
+      await work();
+    } catch {
+      setError("The Studio request could not be completed. The current Draft remains unchanged.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const save = async (): Promise<void> => {
+    if (!worldId || !studio) return;
+    await run("save", async () => {
+      const result = await updateWorldDraft(worldId, studio.draft.rowVersion, draft);
+      if (!result.data) {
+        if (result.errorCode === "STALE_DRAFT") {
+          if (storageKey) sessionStorage.setItem(storageKey, JSON.stringify(draft));
+          setUnsentAvailable(true);
+          await load();
+          setMessage(
+            "This Draft changed elsewhere. Your unsent edits are kept locally; review the server Draft before saving again.",
+          );
+          return;
+        }
+        setError("The Draft could not be saved. Nothing was published.");
+        return;
+      }
+      setStudio((current) => (current ? { ...current, draft: result.data! } : current));
+      setValidation(null);
+      if (storageKey) sessionStorage.removeItem(storageKey);
+      setUnsentAvailable(false);
+      setMessage("Draft saved. Existing Continuities remain pinned to their earlier Revision.");
+    });
+  };
+
+  const validate = async (): Promise<void> => {
+    if (!worldId || !studio) return;
+    if (dirty) {
+      setMessage("Save this Draft before checking playability.");
+      return;
+    }
+    await run("validate", async () => {
+      const result = await validateWorldDraft(worldId);
+      if (!result.data) {
+        setError("Playability findings are unavailable. The Draft was not changed.");
+        return;
+      }
+      setValidation(result.data);
+      setMessage(
+        result.data.outcome === "VALID"
+          ? "This Draft can become a playable World Revision. Review the optional warnings below."
+          : "The Draft needs the fixes below before a playable Revision can be created.",
+      );
+    });
+  };
+
+  const createRevision = async (): Promise<void> => {
+    if (!worldId || !studio) return;
+    if (
+      dirty ||
+      validation?.draftRowVersion !== studio.draft.rowVersion ||
+      validation.outcome !== "VALID"
+    ) {
+      setMessage("Save and check this Draft before creating a playable Revision.");
+      return;
+    }
+    await run("revision", async () => {
+      const result = await createWorldRevision(worldId, studio.draft.rowVersion);
+      if (!result.data) {
+        setError(
+          result.errorCode === "STALE_DRAFT"
+            ? "The Draft changed. Reload it and review the current version before creating a Revision."
+            : "The Revision was not created.",
+        );
+        return;
+      }
+      await load();
+      setMessage(
+        `Revision ${result.data.revisionNumber} created. It is not applied to existing Continuities.`,
+      );
+    });
+  };
+
+  const beginPlay = async (): Promise<void> => {
+    if (!studio?.revisions[0]) return;
+    await run("play", async () => {
+      const result = await startWorldContinuity(studio.revisions[0]!.revisionId, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+      if (result.data) {
+        await navigate(`/continuities/${encodeURIComponent(result.data.continuity.id)}`);
+      } else {
+        setError("The playable Revision exists, but its Continuity could not be started.");
+      }
+    });
+  };
+
+  const create = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    await run("create", async () => {
+      const result = await createWorld(draft);
+      if (result.data) {
+        await navigate(`/worlds/${encodeURIComponent(result.data.worldId)}/studio`);
+      } else {
+        setError(
+          "The starter Draft could not be created. Complete the playable core and try again.",
+        );
+      }
+    });
+  };
+
+  if (loading)
+    return (
+      <StatusPage
+        title="Opening World Studio…"
+        copy="Reading the durable Draft and its immutable Revisions."
+      />
+    );
+
+  return (
+    <main id="main-content" className="surface-page studio-page">
+      <header className="surface-header studio-header">
+        <div>
+          <Link className="back-link" to="/">
+            ← Back to Worlds
+          </Link>
+          <p className="eyebrow">World Studio</p>
+          <h1>{isNew ? "Start a playable world" : draft.title}</h1>
+          <p className="surface-copy">
+            Build the playable core first. Deeper structure is optional, and a new Revision never
+            silently changes an existing Continuity.
+          </p>
+        </div>
+        {!isNew && studio?.revisions[0] ? (
+          <button
+            className="primary-action"
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void beginPlay()}
+          >
+            {busy === "play" ? "Opening…" : "Begin / resume play"}
+          </button>
+        ) : null}
+      </header>
+
+      {error ? (
+        <p className="action-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p className="studio-message" role="status">
+          {message}
+        </p>
+      ) : null}
+
+      {isNew ? (
+        <form className="studio-grid" onSubmit={(event) => void create(event)}>
+          <StudioCoreFields draft={draft} setDraft={setDraft} />
+          <section className="surface-card studio-safety" aria-labelledby="new-world-safety">
+            <p className="card-label">Before you begin</p>
+            <h2 id="new-world-safety">This is a Draft, not a hidden prompt</h2>
+            <p>
+              These structured values become the source for a future immutable World Revision. No
+              model call or live provider is involved.
+            </p>
+            <button className="primary-action" type="submit" disabled={busy !== null}>
+              {busy === "create" ? "Creating Draft…" : "Create Draft"}
+            </button>
+          </section>
+        </form>
+      ) : studio ? (
+        <>
+          {unsentAvailable ? (
+            <section className="studio-unsent" aria-labelledby="unsent-title">
+              <div>
+                <strong id="unsent-title">Unsent edits are available on this device.</strong>
+                <span>
+                  They were kept after a conflict or interrupted save; the server Draft remains the
+                  safe source.
+                </span>
+              </div>
+              <button
+                className="secondary-action"
+                type="button"
+                onClick={() => {
+                  const raw = storageKey ? sessionStorage.getItem(storageKey) : null;
+                  if (!raw) return;
+                  try {
+                    setDraft(JSON.parse(raw) as WorldDocumentInput);
+                    setUnsentAvailable(false);
+                    setMessage(
+                      "Unsent edits restored locally. Save them intentionally after reviewing the current Draft.",
+                    );
+                  } catch {
+                    if (storageKey) sessionStorage.removeItem(storageKey);
+                    setUnsentAvailable(false);
+                  }
+                }}
+              >
+                Restore unsent edits
+              </button>
+            </section>
+          ) : null}
+          <div className="studio-grid">
+            <StudioCoreFields draft={draft} setDraft={setDraft} />
+            <section
+              className="surface-card studio-readiness"
+              aria-labelledby="studio-readiness-title"
+            >
+              <p className="card-label">Readiness</p>
+              <h2 id="studio-readiness-title">Make the play effect visible</h2>
+              <p>
+                Save the Draft, then run a server-side playability check. Findings explain what a
+                player will experience.
+              </p>
+              <div className="studio-actions">
+                <button
+                  className="secondary-action"
+                  type="button"
+                  disabled={busy !== null || !dirty}
+                  onClick={() => void save()}
+                >
+                  {busy === "save" ? "Saving…" : "Save Draft"}
+                </button>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  disabled={busy !== null || dirty}
+                  onClick={() => void validate()}
+                >
+                  {busy === "validate" ? "Checking…" : "Check playability"}
+                </button>
+                <button
+                  className="primary-action"
+                  type="button"
+                  disabled={
+                    busy !== null ||
+                    dirty ||
+                    validation?.draftRowVersion !== studio.draft.rowVersion ||
+                    validation.outcome !== "VALID"
+                  }
+                  onClick={() => void createRevision()}
+                >
+                  {busy === "revision" ? "Creating Revision…" : "Create playable Revision"}
+                </button>
+              </div>
+              {validation ? (
+                <ValidationFindings validation={validation} />
+              ) : (
+                <p className="empty-state">No check has been run for this Draft version yet.</p>
+              )}
+            </section>
+            <section
+              className="surface-card studio-optional"
+              aria-labelledby="studio-optional-title"
+            >
+              <p className="card-label">Optional depth</p>
+              <h2 id="studio-optional-title">Reveal more control only when it helps play</h2>
+              <details>
+                <summary>Preview the first scene</summary>
+                <p>
+                  This local preview is read-only. It does not create a Continuity or call a model.
+                </p>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={() => setPreviewOpen((open) => !open)}
+                >
+                  {previewOpen ? "Hide preview" : "Preview playable start"}
+                </button>
+                {previewOpen ? (
+                  <div className="studio-preview">
+                    <strong>{draft.title}</strong>
+                    <p>{draft.startingSituation}</p>
+                    <p>
+                      {draft.characters[0]?.name} · {draft.characters[0]?.role}
+                    </p>
+                    <p>{draft.facts[0]?.statement}</p>
+                  </div>
+                ) : null}
+              </details>
+              <p className="muted-copy">
+                Goals, sharing and professional engine controls are not part of this Studio path.
+              </p>
+            </section>
+            <section
+              className="surface-card studio-revisions"
+              aria-labelledby="studio-revisions-title"
+            >
+              <p className="card-label">Change safety</p>
+              <h2 id="studio-revisions-title">Draft and playable versions stay distinct</h2>
+              <p>
+                Existing Continuities remain pinned to their recorded Revision. Creating a newer
+                Revision is an explicit future starting point.
+              </p>
+              <ul className="revision-list">
+                {studio.revisions.length ? (
+                  studio.revisions.map((revision) => (
+                    <li key={revision.revisionId}>
+                      <strong>Revision {revision.revisionNumber}</strong>
+                      <span>
+                        Source Draft v{revision.sourceDraftRowVersion} · immutable playable
+                        definition
+                      </span>
+                      {studio.continuities
+                        .filter((continuity) => continuity.worldRevisionId === revision.revisionId)
+                        .map((continuity) => (
+                          <Link
+                            key={continuity.continuityId}
+                            to={`/continuities/${encodeURIComponent(continuity.continuityId)}`}
+                          >
+                            Pinned Continuity · open current path
+                          </Link>
+                        ))}
+                    </li>
+                  ))
+                ) : (
+                  <li>
+                    <span>No playable Revision yet. The current Draft is not applied.</span>
+                  </li>
+                )}
+              </ul>
+            </section>
+          </div>
+        </>
+      ) : null}
+    </main>
+  );
+}
+
+function StudioCoreFields({
+  draft,
+  setDraft,
+}: {
+  draft: WorldDocumentInput;
+  setDraft: Dispatch<SetStateAction<WorldDocumentInput>>;
+}): ReactElement {
+  const location = draft.locations[0]!;
+  const character = draft.characters[0]!;
+  const fact = draft.facts[0]!;
+  const lines = (value: string): string[] =>
+    value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  return (
+    <section className="surface-card studio-core" aria-labelledby="studio-core-title">
+      <p className="card-label">Playable core</p>
+      <h2 id="studio-core-title">Edit only what matters for the first scene</h2>
+      <label className="field-label" htmlFor="studio-title">
+        World title
+        <input
+          id="studio-title"
+          value={draft.title}
+          onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+        />
+      </label>
+      <label className="field-label" htmlFor="studio-premise">
+        Premise
+        <textarea
+          id="studio-premise"
+          rows={3}
+          value={draft.premise}
+          onChange={(event) => setDraft((current) => ({ ...current, premise: event.target.value }))}
+        />
+      </label>
+      <label className="field-label" htmlFor="studio-situation">
+        Starting situation
+        <textarea
+          id="studio-situation"
+          rows={3}
+          value={draft.startingSituation}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, startingSituation: event.target.value }))
+          }
+        />
+      </label>
+      <div className="studio-field-grid">
+        <label className="field-label" htmlFor="studio-role">
+          Your role
+          <input
+            id="studio-role"
+            value={draft.userRole.name}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                userRole: { ...current.userRole, name: event.target.value },
+              }))
+            }
+          />
+        </label>
+        <label className="field-label" htmlFor="studio-boundary">
+          Authority boundary
+          <input
+            id="studio-boundary"
+            value={draft.userRole.authorityBoundary}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                userRole: { ...current.userRole, authorityBoundary: event.target.value },
+              }))
+            }
+          />
+        </label>
+      </div>
+      <details className="studio-details" open>
+        <summary>Essential place and Character</summary>
+        <div className="studio-field-grid">
+          <label className="field-label" htmlFor="studio-location-name">
+            Starting location
+            <input
+              id="studio-location-name"
+              value={location.name}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  locations: [
+                    { ...current.locations[0]!, name: event.target.value },
+                    ...current.locations.slice(1),
+                  ],
+                }))
+              }
+            />
+          </label>
+          <label className="field-label" htmlFor="studio-location-description">
+            Place description
+            <input
+              id="studio-location-description"
+              value={location.description}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  locations: [
+                    { ...current.locations[0]!, description: event.target.value },
+                    ...current.locations.slice(1),
+                  ],
+                }))
+              }
+            />
+          </label>
+        </div>
+        <div className="studio-field-grid">
+          <label className="field-label" htmlFor="studio-character-name">
+            Character name
+            <input
+              id="studio-character-name"
+              value={character.name}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  characters: [
+                    { ...current.characters[0]!, name: event.target.value },
+                    ...current.characters.slice(1),
+                  ],
+                }))
+              }
+            />
+          </label>
+          <label className="field-label" htmlFor="studio-character-role">
+            Character role
+            <input
+              id="studio-character-role"
+              value={character.role}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  characters: [
+                    { ...current.characters[0]!, role: event.target.value },
+                    ...current.characters.slice(1),
+                  ],
+                }))
+              }
+            />
+          </label>
+        </div>
+        <label className="field-label" htmlFor="studio-character-location">
+          Character starts at
+          <select
+            id="studio-character-location"
+            value={character.locationId}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                characters: [
+                  { ...current.characters[0]!, locationId: event.target.value },
+                  ...current.characters.slice(1),
+                ],
+              }))
+            }
+          >
+            {draft.locations.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field-label" htmlFor="studio-character-stance">
+          Character stance
+          <textarea
+            id="studio-character-stance"
+            rows={2}
+            value={character.stance}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                characters: [
+                  { ...current.characters[0]!, stance: event.target.value },
+                  ...current.characters.slice(1),
+                ],
+              }))
+            }
+          />
+        </label>
+      </details>
+      <details className="studio-details">
+        <summary>Stable facts and interaction boundaries</summary>
+        <label className="field-label" htmlFor="studio-fact">
+          Opening fact
+          <textarea
+            id="studio-fact"
+            rows={2}
+            value={fact.statement}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                facts: [
+                  { ...current.facts[0]!, statement: event.target.value },
+                  ...current.facts.slice(1),
+                ],
+              }))
+            }
+          />
+        </label>
+        <label className="field-label" htmlFor="studio-provenance">
+          Fact provenance
+          <input
+            id="studio-provenance"
+            value={fact.provenance}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                facts: [
+                  { ...current.facts[0]!, provenance: event.target.value },
+                  ...current.facts.slice(1),
+                ],
+              }))
+            }
+          />
+        </label>
+        <label className="field-label" htmlFor="studio-paths">
+          Interaction paths
+          <textarea
+            id="studio-paths"
+            rows={3}
+            value={draft.interactionPaths.join("\n")}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, interactionPaths: lines(event.target.value) }))
+            }
+          />
+        </label>
+        <label className="field-label" htmlFor="studio-boundaries">
+          Interaction boundaries
+          <textarea
+            id="studio-boundaries"
+            rows={3}
+            value={draft.interactionBoundaries.join("\n")}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                interactionBoundaries: lines(event.target.value),
+              }))
+            }
+          />
+        </label>
+        <label className="field-label" htmlFor="studio-objectives">
+          Optional objectives
+          <textarea
+            id="studio-objectives"
+            rows={2}
+            value={draft.objectives.join("\n")}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, objectives: lines(event.target.value) }))
+            }
+          />
+        </label>
+      </details>
+    </section>
+  );
+}
+
+function ValidationFindings({ validation }: { validation: WorldValidationResponse }): ReactElement {
+  return (
+    <div className={`validation-findings validation-${validation.outcome.toLowerCase()}`}>
+      <strong>
+        {validation.outcome === "VALID"
+          ? "Playable shape accepted"
+          : "Playable shape needs attention"}
+      </strong>
+      {validation.findings.length ? (
+        <ul>
+          {validation.findings.map((finding, index) => (
+            <li key={`${finding.path}:${index}`}>
+              <strong>
+                {finding.severity === "ERROR" ? "Blocks Revision" : "Optional warning"} ·{" "}
+                {finding.path}
+              </strong>
+              <span>{finding.message}</span>
+              <small>Play effect: {finding.playEffect}</small>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No findings for this Draft version.</p>
+      )}
+    </div>
+  );
+}
+
+function starterWorld(): WorldDocumentInput {
+  const locationId = `location-${crypto.randomUUID()}`;
+  const characterId = `character-${crypto.randomUUID()}`;
+  const factId = `fact-${crypto.randomUUID()}`;
+  return {
+    schemaVersion: 1,
+    title: "A new world",
+    premise: "A place with room for a continuing story.",
+    startingSituation: "Something has changed, and the first choice is yours.",
+    userRole: {
+      name: "Witness",
+      authorityBoundary: "The world never authors my speech or commitments.",
+    },
+    locations: [
+      {
+        id: locationId,
+        name: "The starting place",
+        description: "A place where the first scene can begin.",
+      },
+    ],
+    characters: [
+      {
+        id: characterId,
+        name: "A local guide",
+        role: "A person who knows this place",
+        locationId,
+        motives: ["Act consistently with this role."],
+        stance: "May disagree or refuse when their motives require it.",
+        knowledgeFactIds: [factId],
+      },
+    ],
+    facts: [
+      {
+        id: factId,
+        statement: "The first scene is ready to unfold.",
+        scope: "SHARED",
+        provenance: "World creator Draft",
+        lifecycle: "ACTIVE",
+      },
+    ],
+    relationships: [],
+    interactionPaths: ["Look around and choose what to follow."],
+    interactionBoundaries: ["The world never authors the user's speech, consent or commitments."],
+    objectives: [],
+  };
 }
 
 export function NotFoundPage(): ReactElement {

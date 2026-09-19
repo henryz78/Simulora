@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 NOT STARTED`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 IMPLEMENTATION CANDIDATE / G7 REVIEW PENDING`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -75,12 +75,12 @@ Integrated G1–G6:                  approved / 0 blocker, 0 important, 0 minor
 
 IP-5 Recovery:                     implementation complete
 IP-6 Participation / characters:   implementation complete / approved
-IP-7 World Studio:                 not started
+IP-7 World Studio:                 implementation candidate / G7 review pending
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected (production remains disabled)
 Live Model / Product Reality Spike: bounded RE-1–RE-3 convergence complete
 Formal deployment:                 not started
-Next decision:                     optional human play validation, then separately authorized roadmap work
+Next decision:                     independent G7 review, then Gate decision
 Product Reality Gate:              BOUNDED RE CONVERGENCE COMPLETE; human play remains a product-risk item
 ```
 
@@ -255,6 +255,25 @@ All G1–G6 current decisions are independently reaffirmed on `eb55734`. The old
 implementation hashes and CI runs above are provenance, not the final baseline.
 
 The complete G4 failure-to-pass history is retained in [IP-4 G4 Evidence](IP-4-G4-EVIDENCE.md). Earlier report headers that say `READY FOR REVIEW` or `IN PROGRESS` are contemporaneous evidence snapshots; this handoff and the final G4 section record the current decision rather than erasing those historical states.
+
+### Current IP-7 implementation candidate
+
+The user has now authorized the frozen IP-7 scope. The candidate implements the
+roadmap's progressive World Studio only: generic World Draft editing, row-version
+save/conflict handling with local unsent recovery, playability findings tied to
+play effects, durable Draft acknowledgement, immutable playable Revision creation,
+explicit current Continuity pinning/not-applied state, and an isolated local
+preview. It does not add a live provider, scheduler, long-term memory system,
+effect DSL, marketplace/team features, or a new truth model. Prototype assets and
+fixtures remain evidence only.
+
+Local evidence so far: format, typecheck, architecture and migration checks pass;
+the repository test suite passes with PostgreSQL suites skipped because
+`SIMULORA_DATABASE_URL` is not configured; desktop and 390x844 World Studio E2E
+pass; escalated Windows build and worker runtime smoke pass. The PostgreSQL IP-7
+integration remains pending a real database run. G7 is not closed until an
+independent Reviewer checks the exact implementation and the Gate decision is
+recorded.
 
 ### G4 independent review chain
 
@@ -989,3 +1008,13 @@ risks. IP-7 is still NOT STARTED and requires separate authorization.
 
 See [RE-1–RE-3 Product Reality Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 for the final evidence matrix and new-session reading order.
+
+## 38. IP-7 current phase handoff
+
+The preceding RE closure section records the state before the user's explicit
+IP-7 authorization. The current decision is now the candidate described above:
+the original roadmap scope and G7 Gate remain unchanged, implementation is in
+the working tree, and independent review is required before calling IP-7 passed.
+Human long-session play, production live-model enablement, autonomous scheduling,
+full long-term memory and broad autonomous simulation remain unqualified and out
+of scope for this phase.

@@ -19,6 +19,8 @@ import type {
   CreateCharacterAssetRequest,
   ForkBranchRequest,
   SubmitActionRequest,
+  WorldStudioResponse,
+  WorldValidationResponse,
 } from "@simulora/contracts";
 import type { ParticipationContract, StateRevisionDocument, WorldDocument } from "@simulora/domain";
 
@@ -37,7 +39,7 @@ export type DependencyHealth = {
 
 export function describeFoundation(dependencies: readonly DependencyHealth[]): FoundationResponse {
   return {
-    productImplementationPhase: "IP-6",
+    productImplementationPhase: "IP-7",
     productSemanticsStarted: true,
     capabilities: dependencies.map((dependency) => ({
       name: dependency.name,
@@ -184,6 +186,8 @@ export interface WorldContinuityPort {
     revisionNumber: number;
     documentHash: string;
   }>;
+  readWorldStudio?(account: EligibleAccount, worldId: string): Promise<WorldStudioResponse>;
+  validateDraft?(account: EligibleAccount, worldId: string): Promise<WorldValidationResponse>;
   startContinuity(
     account: EligibleAccount,
     worldRevisionId: string,
@@ -257,6 +261,16 @@ export class WorldContinuityService {
 
   createRevision(account: EligibleAccount, worldId: string, expectedDraftVersion: number) {
     return this.port.createRevision(account, worldId, expectedDraftVersion);
+  }
+
+  readWorldStudio(account: EligibleAccount, worldId: string) {
+    if (!this.port.readWorldStudio) throw new Error("World Studio is not configured");
+    return this.port.readWorldStudio(account, worldId);
+  }
+
+  validateDraft(account: EligibleAccount, worldId: string) {
+    if (!this.port.validateDraft) throw new Error("World validation is not configured");
+    return this.port.validateDraft(account, worldId);
   }
 
   startContinuity(

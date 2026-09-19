@@ -13,12 +13,15 @@ import {
   ReturnPage,
   RecoveryPage,
   WorldPage,
+  WorldStudioPage,
 } from "./pages.js";
 import { ContinuityLayout } from "./continuity.js";
 import "./styles.css";
 
 const router = createBrowserRouter([
   { path: "/", element: <FoundationPage /> },
+  { path: "/worlds/new", element: <WorldStudioPage /> },
+  { path: "/worlds/:worldId/studio", element: <WorldStudioPage /> },
   {
     path: "/continuities/:continuityId",
     element: <ContinuityLayout />,

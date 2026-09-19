@@ -1209,6 +1209,153 @@ h1 {
   margin-top: 0;
 }
 
+.studio-page {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+.studio-header {
+  width: 100%;
+  margin-bottom: 26px;
+}
+
+.studio-header .primary-action {
+  margin-top: 0;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.studio-core {
+  grid-row: span 3;
+}
+
+.studio-readiness,
+.studio-optional,
+.studio-revisions,
+.studio-safety {
+  display: grid;
+  gap: 10px;
+}
+
+.studio-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.studio-details {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 16px;
+}
+
+.studio-details summary {
+  cursor: pointer;
+  color: #f0c988;
+  font-weight: 700;
+}
+
+.studio-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.studio-actions button {
+  margin-top: 0;
+}
+
+.studio-message,
+.studio-unsent {
+  border: 1px solid #658b84;
+  border-radius: 14px;
+  padding: 14px 18px;
+  background: #102224;
+  color: #edf4f2;
+}
+
+.studio-unsent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.studio-unsent span,
+.studio-unsent strong {
+  display: block;
+}
+
+.studio-unsent span {
+  margin-top: 4px;
+  color: #b9d0cb;
+}
+
+.validation-findings {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.validation-findings > strong {
+  color: #f0c988;
+}
+
+.validation-findings ul,
+.revision-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.validation-findings li,
+.revision-list li {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid #27433e;
+  padding-top: 10px;
+}
+
+.validation-findings li span,
+.validation-findings li small,
+.revision-list li span {
+  color: #aebfbb;
+  line-height: 1.45;
+}
+
+.validation-invalid > strong,
+.validation-findings li strong {
+  color: #f0b49a;
+}
+
+.revision-list a {
+  color: #f0c988;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.studio-preview {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  border-left: 3px solid #f0c988;
+  padding: 10px 14px;
+  background: rgba(240, 201, 136, 0.07);
+}
+
+.studio-preview p {
+  margin: 0;
+}
+
 @media (max-width: 760px) {
   .site-header,
   .site-footer,
@@ -1330,6 +1477,25 @@ h1 {
   .participation-contract,
   .contract-review dl {
     grid-template-columns: 1fr;
+  }
+
+  .studio-page {
+    width: min(100% - 28px, 680px);
+    padding-top: 36px;
+  }
+
+  .studio-grid,
+  .studio-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .studio-core {
+    grid-row: auto;
+  }
+
+  .studio-unsent {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .restore-card,

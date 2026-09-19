@@ -8,6 +8,7 @@ import { DevelopmentAuthAdapter, type AuthPort } from "@simulora/auth";
 import {
   authoritativeStateResponseSchema,
   createWorldRequestSchema,
+  createWorldResponseSchema,
   createWorldRevisionRequestSchema,
   foundationResponseSchema,
   healthStatusSchema,
@@ -35,6 +36,8 @@ import {
   restoreCommitSchema,
   restoreProposalSchema,
   selectBranchRequestSchema,
+  worldStudioResponseSchema,
+  worldValidationResponseSchema,
 } from "@simulora/contracts";
 import {
   AccessDeniedError,
@@ -179,7 +182,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const account = await authenticatedAccount(request, auth);
       const body = createWorldRequestSchema.parse(request.body);
       const created = await service.createWorld(account, body.document);
-      return reply.status(201).send(created);
+      return reply.status(201).send(createWorldResponseSchema.parse(created));
     });
 
     app.put("/v1/worlds/:worldId/draft", async (request) => {
@@ -195,6 +198,18 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const body = createWorldRevisionRequestSchema.parse(request.body);
       const revision = await service.createRevision(account, worldId, body.expectedDraftVersion);
       return reply.status(201).send(revision);
+    });
+
+    app.get("/v1/worlds/:worldId/studio", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { worldId } = request.params as { worldId: string };
+      return worldStudioResponseSchema.parse(await service.readWorldStudio(account, worldId));
+    });
+
+    app.post("/v1/worlds/:worldId/validation", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { worldId } = request.params as { worldId: string };
+      return worldValidationResponseSchema.parse(await service.validateDraft(account, worldId));
     });
 
     app.post("/v1/world-revisions/:worldRevisionId/continuities", async (request, reply) => {
