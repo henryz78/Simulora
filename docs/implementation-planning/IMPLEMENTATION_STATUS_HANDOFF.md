@@ -903,3 +903,25 @@ that positive `your choice` / `your decision` vectors were documented but not
 explicitly present in the committed domain/SQL parity tests. Those vectors are
 now added as a test-only follow-up; the successor still awaits current-SHA CI
 and the same Reviewer’s final disposition.
+
+## 35. Post-guard bounded live corpus — provider unavailable
+
+The direct possessive guard successor is now independently **PASS** with
+0/0/0, and exact-SHA CI `35415958261` is green across real PostgreSQL,
+migration/recovery, containers, build, desktop and 390x844 browser checks.
+
+One finite post-repair response-only dispatch was attempted from the existing
+isolated session after Tavi’s already-confirmed move to the East Lookout. The
+Action durably reached `ACKNOWLEDGED`, but the configured provider returned
+transport `fetch failed` before model output. The Action was explicitly
+cancelled; no proposal, dialogue, Commit, head change or pending Action
+remained. A single transport diagnostic also failed, so live dispatch stopped
+without retry or model substitution. Full details are in
+[RE-3 Post-Guard Live Corpus Handoff](RE-3-POST-GUARD-LIVE-CORPUS-HANDOFF.md).
+
+The Product Reality Gate remains **PARTIAL**: movement, prior no-world terminal
+semantics, authority parity and engineering invariants are evidenced, but the
+post-repair Tavi continuation, Iora response-only sample and new L3 sample
+could not be re-run while the provider was unreachable. IP-7, production
+live-model enablement, broad dialogue/memory and new effects remain out of
+scope.
