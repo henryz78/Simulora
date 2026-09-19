@@ -34,6 +34,20 @@ was not treated as a successful response-only result. The isolated database
 ended with one prior movement Commit, one cancelled Action, zero pending
 Actions, and unchanged Branch head `1f37ae63-e64d-44d3-bc34-15a03c9b605f`.
 
+The user later supplied a replacement OpenAI-compatible profile with the same
+model and concurrency 1. One additional bounded request was made through the
+same formal path. The provider returned HTTP `404` for the normalized
+`/v1/chat/completions` route before producing output; there was again no
+proposal or Commit. That Action was explicitly cancelled as `USER_CANCELLED`.
+No alternate endpoint probing or automatic retry was attempted.
+
+After the user clarified the provider's exact model identifier as
+`deepseek-V4.1-flash`, one final bounded dispatch was made. The endpoint did
+return a response, but its declared model identity differed from the requested
+identity. The runner therefore issued a `MODEL_ROUTE_CHANGED` hard stop before
+parsing the body. There was no proposal or Commit; the Action was explicitly
+cancelled. The route-identity guard was not relaxed.
+
 ## What this proves
 
 - The live seam reaches the formal browser submission path and records the
@@ -47,11 +61,11 @@ Actions, and unchanged Branch head `1f37ae63-e64d-44d3-bc34-15a03c9b605f`.
 
 ## What remains unproven
 
-This corpus did not obtain a real provider response, so it does not prove a
+This corpus did not obtain a usable, identity-stable real provider response, so it does not prove a
 successful real-model `COMPLETED_NO_EFFECT` dialogue, a post-dialogue live
 context continuation, or a second Character's live attribution. The Product
 Reality Gate therefore remains **PARTIAL**, blocked by provider availability /
-quota rather than a newly observed authority or persistence defect.
+routing rather than a newly observed authority or persistence defect.
 
 When the provider is available again, the shortest bounded follow-up is one
 Tavi `NO_WORLD_EFFECT` request from the committed lookout state, followed by

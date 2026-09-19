@@ -822,18 +822,35 @@ Luna max Reviewer re-reviewed `348106f` and returned **GATE PASS / 0 BLOCKER /
 0 IMPORTANT / 0 MINOR**, ready for a finite live corpus. This closes the
 engineering review; it does not by itself prove real-provider dialogue.
 
-## 32. Final bounded live corpus stopped by provider rate limit
+## 32. Final bounded live corpus stopped by provider availability/routing
 
 The isolated corpus submitted the first formal-browser Tavi
 `NO_WORLD_EFFECT` request from the committed `Sheltered East Lookout` head.
-The configured provider returned HTTP **429** before producing model output;
-there was no proposal or Commit. The Action was explicitly cancelled, leaving
-zero pending Actions and an unchanged Branch head. Per the bounded experiment
-rule, no further live calls were attempted. Details are in [RE-3 Final Live
-Corpus Handoff](RE-3-FINAL-LIVE-CORPUS-HANDOFF.md).
+The configured provider first returned HTTP **429**, and the replacement
+profile later returned HTTP **404** for the normalized chat-completions route,
+both before model output. There was no proposal or Commit. Both Actions were
+explicitly cancelled, leaving zero pending Actions and an unchanged Branch
+head. Per the bounded experiment rule, no further live calls were attempted.
+Details are in [RE-3 Final Live Corpus Handoff](RE-3-FINAL-LIVE-CORPUS-HANDOFF.md).
 
 The Product Reality Gate remains **PARTIAL** only because a successful real
 provider `COMPLETED_NO_EFFECT` sample was not obtained. Deterministic/domain/
 PostgreSQL/browser evidence and the independent review remain green. IP-7,
 production live-model enablement, new effects and durable-memory redesign are
 not started.
+
+The user subsequently supplied a replacement compatible profile with
+concurrency 1. One additional bounded formal-browser dispatch returned provider
+HTTP **404** on the normalized `/v1/chat/completions` route before output;
+there was no proposal or Commit, the Action was explicitly cancelled, and the
+isolated Branch head remained unchanged. No alternate route probing or retry
+was performed. The provider/routing blocker remains external to the product
+implementation.
+
+After the model identifier was clarified as `deepseek-V4.1-flash`, one final
+bounded request reached the endpoint but reported a different response-model
+identity. The isolated runner correctly hard-stopped with `MODEL_ROUTE_CHANGED`
+before parsing; no proposal or Commit was created, the Action was cancelled,
+and the Branch head stayed unchanged. The route-identity guard was not
+relaxed, and live dispatch is now stopped pending a provider profile whose
+reported model exactly matches the requested one.
