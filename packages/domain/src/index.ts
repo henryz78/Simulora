@@ -702,6 +702,19 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
     ].filter((subject): subject is string =>
       Boolean(subject && /^[a-z][a-z0-9_]*(?: [a-z][a-z0-9_]*)*$/.test(subject)),
     );
+    // Only soften conditional/deferential references to a future user choice.
+    // A direct claim such as "you choose" remains protected, and any later
+    // protected verb in the same clause is still inspected normally.
+    const optionSubjectPattern = optionSubjects.map(escapeAuthorityRegex).join("|");
+    if (optionSubjectPattern) {
+      normalizedNarrative = normalizedNarrative.replace(
+        new RegExp(
+          `(\\b(?:whichever|whatever|if)\\s+(?:${optionSubjectPattern})\\s+)(?:choose|chooses|decide|decides)\\b`,
+          "gi",
+        ),
+        "$1deliberate",
+      );
+    }
     normalizedNarrative = normalizedNarrative.replace(
       new RegExp(
         `(\\b(?:${optionSubjects.join("|")})\\b\\s+can\\s+)decide(?=\\s*(?:[;.!?'"\\n]|$))`,

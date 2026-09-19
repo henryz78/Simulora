@@ -632,6 +632,8 @@ describe("IP-6 participation and character authority", () => {
       "I will not decide for the player; the signal remains dark.",
       "Until the keeper decides; I will hold the lantern.",
       "由你决定。",
+      "Whichever you choose, Iora will wait for your direction.",
+      "Whatever the player decides, the lantern remains unlit.",
     ]) {
       expect(() =>
         assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
@@ -641,6 +643,7 @@ describe("IP-6 participation and character authority", () => {
       "I won't choose for you to approve the transfer.",
       "The keeper has decided to invite the vessel.",
       "I won't decide for the player to pay the keeper.",
+      "Whichever you choose, you consented to share the note.",
     ]) {
       expect(() =>
         assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),

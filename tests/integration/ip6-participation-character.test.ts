@@ -324,7 +324,10 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       ["I won't choose for you.", false],
       ["Until the keeper decides; Iora waits.", false],
       ["由你决定。", false],
+      ["Whichever you choose, Iora will wait for your direction.", false],
+      ["Whatever the player decides, the lantern remains unlit.", false],
       ["I won't choose for you to approve the transfer.", true],
+      ["Whichever you choose, you consented to share the note.", true],
       ["The keeper has decided to invite the vessel.", true],
     ] as const) {
       const result = await pool.query<{ blocked: boolean }>(

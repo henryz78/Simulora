@@ -853,4 +853,27 @@ identity. The isolated runner correctly hard-stopped with `MODEL_ROUTE_CHANGED`
 before parsing; no proposal or Commit was created, the Action was cancelled,
 and the Branch head stayed unchanged. The route-identity guard was not
 relaxed, and live dispatch is now stopped pending a provider profile whose
-reported model exactly matches the requested one.
+ reported model exactly matches the requested one.
+
+## 33. ModelScope route clarification and nonbinding-option follow-up
+
+The supplied ModelScope profile is now understood to require the catalog model
+ID `deepseek-ai/DeepSeek-V4.1-Flash`; the unqualified ID returns HTTP 400
+`Invalid model id`, while the namespaced ID returns the expected
+`choices[0].message.content` envelope. The local profile remains ignored and
+is not a production provider switch.
+
+A fresh isolated RE-3 session produced one real `COMPLETED_NO_EFFECT` dialogue
+for Tavi with no proposal, Commit, head/clock/fact mutation or pending Action.
+The same session produced one legal Tavi movement proposal and exact-confirmed
+Commit from `Tidal Observatory` to `Sheltered East Lookout`.
+
+The post-movement response-only sample exposed a real narrow guard gap:
+deferential `whichever you choose` was rejected as a protected user claim. The
+minimal app/SQL parity repair is documented in
+[RE-3 Nonbinding Option Follow-up Repair](RE-3-NONBINDING-OPTION-FOLLOWUP-REPAIR.md)
+and adds migration `0036`. Direct user claims remain blocked. Domain tests,
+lint, typecheck, architecture and migration checks pass locally; fresh
+PostgreSQL parity, exact-SHA CI and independent focused review remain required
+before closing the repair. No IP-7 or production live-model enablement has
+started.
