@@ -557,7 +557,11 @@ export function validateActionCandidate(
     expected.authorizedContextFactIds,
   );
   if (operation.type === "NO_WORLD_EFFECT") {
-    assertGeneratedNarrativeDoesNotAuthorUser(operation.reason, expected.userRoleName);
+    assertGeneratedNarrativeDoesNotAuthorUser(
+      operation.reason,
+      expected.userRoleName,
+      expected.state.characters.find((character) => character.id === responseCharacterId)?.name,
+    );
     if (operation.causalFactIds.some((id) => !eligibleCausalFact(id))) {
       throw new Error("No-world-effect source is outside the authorized context");
     }

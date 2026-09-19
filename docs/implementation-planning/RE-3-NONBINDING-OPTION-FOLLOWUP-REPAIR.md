@@ -29,10 +29,14 @@ phrases such as `whichever you choose` or `whatever the player decides`.
 
 ## Repair
 
-- Added a TypeScript-only normalization for the bounded conditional forms
+- Added a TypeScript normalization for the bounded conditional forms
   `whichever|whatever|if <bound user subject> choose/chooses/decide/decides`.
 - Added migration `0036_re3_nonbinding_option_followup.sql` with the same
-  successor normalization at the PostgreSQL guard boundary.
+  successor normalization at the PostgreSQL guard boundary, followed by
+  `0037_re3_nonbinding_option_capture_fix.sql` to preserve the conditional
+  subject prefix while normalizing the verb.
+- The no-world-effect reason now uses the same bound-Character context in the
+  application and SQL paths.
 - Direct claims such as `you choose`, `you consented`, `you pay`, and a
   conditional phrase followed by a protected claim remain rejected.
 - Added application and PostgreSQL-parity positive/negative examples.
@@ -64,8 +68,12 @@ Passed locally:
 - repository lint;
 - workspace typecheck;
 - architecture check;
-- migration ordering check: 36 migrations;
+- migration ordering check before the successor: 36 migrations;
 - diff whitespace check.
+
+The migration catalog now contains 37 files; a PGlite fresh-migration probe
+also confirms the positive conditional forms and the protected continuation
+cases have matching SQL results. Real PostgreSQL CI remains authoritative.
 
 The local PostgreSQL process disappeared before the focused integration suite
 could run, so the SQL migration and app/SQL parity still require the exact-SHA

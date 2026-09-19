@@ -872,8 +872,9 @@ The post-movement response-only sample exposed a real narrow guard gap:
 deferential `whichever you choose` was rejected as a protected user claim. The
 minimal app/SQL parity repair is documented in
 [RE-3 Nonbinding Option Follow-up Repair](RE-3-NONBINDING-OPTION-FOLLOWUP-REPAIR.md)
-and adds migration `0036`. Direct user claims remain blocked. Domain tests,
-lint, typecheck, architecture and migration checks pass locally; fresh
-PostgreSQL parity, exact-SHA CI and independent focused review remain required
-before closing the repair. No IP-7 or production live-model enablement has
-started.
+and adds successor migrations `0036` and `0037`. Direct user claims remain
+blocked, including protected continuations after a conditional phrase. Domain
+tests, PGlite SQL parity, lint, typecheck, architecture and migration checks
+pass locally; fresh PostgreSQL parity, exact-SHA CI and independent focused
+review remain required before closing the repair. No IP-7 or production
+live-model enablement has started.

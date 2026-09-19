@@ -319,15 +319,44 @@ describe("RE-3 bounded routine effects", () => {
         causalFactIds: ["fact.western-signal-dim"],
       },
     } as const;
-    const validated = validateActionCandidate(candidate, {
+    const options = {
       actionId: candidate.actionId,
       expectedHeadCommitId: candidate.expectedHeadCommitId,
       state,
       authorizedContextFactIds: ["fact.western-signal-dim"],
       requestedEffect: "NO_WORLD_EFFECT",
-    });
+    } as const;
+    const validated = validateActionCandidate(candidate, options);
     expect(validated.impact).toBe("L0");
     expect(() => applyValidatedActionCandidate(state, validated)).toThrow(/cannot mutate/);
+
+    const characterCandidate = {
+      ...candidate,
+      responseSource: { type: "CHARACTER", characterId: "character.iora" },
+      narrative: "Iora leaves the choice with you.",
+      operation: {
+        ...candidate.operation,
+        reason: "Whichever you choose, Iora will wait for your direction.",
+      },
+    } as const;
+    expect(() =>
+      validateActionCandidate(characterCandidate, {
+        ...options,
+        responseSource: characterCandidate.responseSource,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateActionCandidate(
+        {
+          ...characterCandidate,
+          operation: {
+            ...characterCandidate.operation,
+            reason: "Whichever you choose, you consented to share the note.",
+          },
+        },
+        { ...options, responseSource: characterCandidate.responseSource },
+      ),
+    ).toThrow();
   });
 });
 
@@ -644,6 +673,10 @@ describe("IP-6 participation and character authority", () => {
       "The keeper has decided to invite the vessel.",
       "I won't decide for the player to pay the keeper.",
       "Whichever you choose, you consented to share the note.",
+      "Whichever you choose, you paid the fee.",
+      "Whichever you choose, you committed to the plan.",
+      "Whichever you choose, you said yes.",
+      "Whichever you choose, your consent is recorded.",
     ]) {
       expect(() =>
         assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
