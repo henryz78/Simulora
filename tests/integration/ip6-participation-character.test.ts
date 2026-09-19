@@ -346,6 +346,19 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       if (blocked) expect(check).toThrow();
       else expect(check).not.toThrow();
     }
+    for (const [text, blocked, strict] of [
+      ["Your choice remains yours.", false, false],
+      ["Your decision stays with you.", false, false],
+      ["Whichever you choose, Iora will wait.", false, true],
+    ] as const) {
+      const result = await pool.query<{ blocked: boolean; strict: boolean }>(
+        "select simulora.generated_narrative_authors_user($1::text, 'Keeper', 'Iora') as blocked, simulora.generated_narrative_authors_user($1::text, 'Keeper') as strict",
+        [text],
+      );
+      expect(result.rows[0], text).toEqual({ blocked, strict });
+      const check = () => assertGeneratedNarrativeDoesNotAuthorUser(text, "Keeper", "Iora");
+      expect(check).not.toThrow();
+    }
   });
 
   it("does not resurrect pre-correction dialogue as current generation knowledge", async () => {

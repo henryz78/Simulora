@@ -105,6 +105,13 @@ check, whitespace check, and production build pass. The prior exact-SHA CI for
 steps. The new successor still requires its own exact-SHA CI and independent
 focused review before closure.
 
+The focused review also identified a test-evidence gap: the committed vectors
+did not explicitly exercise the positive direct-deference forms `your choice`
+and `your decision`. Those domain and PostgreSQL parity vectors are now added;
+the Character-bound path accepts them while the strict two-argument path keeps
+the existing conditional-authority behavior. No production guard logic changed
+for this test-only follow-up.
+
 ## Remaining gate
 
 Before treating this repair as closed, run fresh PostgreSQL migration/parity

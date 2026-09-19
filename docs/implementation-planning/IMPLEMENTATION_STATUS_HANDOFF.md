@@ -897,3 +897,9 @@ service is present, and the PGlite full-migration probe is **6/6**. The prior
 desktop/390x844. This successor is not closed until its own CI and the same
 independent Reviewer pass. IP-7, production live-model enablement and broad
 dialogue/memory work remain out of scope.
+
+The focused Reviewer found no new production semantic defect. It did identify
+that positive `your choice` / `your decision` vectors were documented but not
+explicitly present in the committed domain/SQL parity tests. Those vectors are
+now added as a test-only follow-up; the successor still awaits current-SHA CI
+and the same Reviewer’s final disposition.

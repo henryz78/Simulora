@@ -678,6 +678,8 @@ describe("IP-6 participation and character authority", () => {
       "由你决定。",
       "Whichever you choose, Iora will wait for your direction.",
       "Whatever the player decides, the lantern remains unlit.",
+      "Your choice remains yours.",
+      "Your decision stays with you.",
     ]) {
       expect(() =>
         assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),
