@@ -106,6 +106,13 @@ uncommitted L0 output → `FAILED_RECOVERABLE` → explicit cancel；成功但�
 Product Reality Gate 尚未达到；IP-7、production live enablement、durable dialogue
 memory redesign 和广泛 effect 扩张仍未开始。
 
+随后用户提供了可达的兼容 ModelScope profile；有限重跑已在同一隔离 session
+完成 Tavi/Iora 两次 `COMPLETED_NO_EFFECT` 和一次 L3 exact-confirmed Commit，
+结果见 `docs/implementation-planning/RE-3-POST-GUARD-LIVE-CORPUS-HANDOFF.md`。
+这只证明 isolated formal Action path 的 response-only terminal 和 L3 boundary，
+不启用 production live provider，也不替代 browser/human enjoyment validation；
+IP-7 仍未开始。
+
 ## Long-Term Product Direction
 
 用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：

@@ -4,7 +4,7 @@
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
-**Snapshot date:** `2026-09-18`.
+**Snapshot date:** `2026-09-19`.
 
 **Current independent decision:** [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
 The latest bounded browser-play follow-up is documented in
@@ -25,6 +25,13 @@ The successor bounded-dialogue implementation is documented in
 and [ADR-019](../system-design/ADR-019-BOUNDED-NONMUTATING-DIALOGUE.md). It is
 currently a candidate awaiting focused independent review; it must not be
 treated as an approved behavior baseline until that review and exact-SHA CI pass.
+
+The latest post-guard bounded live corpus is recorded in
+[RE-3 Post-Guard Live Corpus Handoff](RE-3-POST-GUARD-LIVE-CORPUS-HANDOFF.md).
+Using the user-supplied compatible profile, it completed Tavi and Iora
+`COMPLETED_NO_EFFECT` responses and one exact-confirmed L3 Commit in the
+isolated formal Action path. Production live-model enablement remains disabled;
+the retry does not claim browser or human-enjoyment validation.
 
 **Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
@@ -68,11 +75,11 @@ IP-5 Recovery:                     implementation complete
 IP-6 Participation / characters:   implementation complete / approved
 IP-7 World Studio:                 not started
 IP-8 Trust / lifecycle:            not started
-Live model provider:               not connected
-Live Model / Product Reality Spike: 12 isolated live calls complete / results ready
+Live model provider:               not connected (production remains disabled)
+Live Model / Product Reality Spike: bounded corpus complete; latest 4 calls recorded
 Formal deployment:                 not started
-Next decision:                     bounded post-bridge reality check or explicit next-stage authorization
-Product Reality Gate:              not reached; bounded-dialogue candidate awaits independent review and finite live corpus
+Next decision:                     short browser/human reality check; do not start IP-7 automatically
+Product Reality Gate:              PARTIAL; response-only terminal proven, browser/human enjoyment unproven
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -853,7 +860,7 @@ identity. The isolated runner correctly hard-stopped with `MODEL_ROUTE_CHANGED`
 before parsing; no proposal or Commit was created, the Action was cancelled,
 and the Branch head stayed unchanged. The route-identity guard was not
 relaxed, and live dispatch is now stopped pending a provider profile whose
- reported model exactly matches the requested one.
+reported model exactly matches the requested one.
 
 ## 33. ModelScope route clarification and nonbinding-option follow-up
 
@@ -925,3 +932,32 @@ post-repair Tavi continuation, Iora response-only sample and new L3 sample
 could not be re-run while the provider was unreachable. IP-7, production
 live-model enablement, broad dialogue/memory and new effects remain out of
 scope.
+
+## 36. Post-guard bounded live corpus completed
+
+The user supplied a reachable compatible ModelScope profile for the existing
+isolated session. Four bounded model outputs were used with the exact model
+identity `deepseek-ai/DeepSeek-V4.1-Flash`: Tavi response-only, Iora
+response-only, one L3 refusal that was explicitly cancelled, and one L3
+proposal that was exactly confirmed. No output was edited and no silent retry
+was used.
+
+The Tavi Action `23909816-eb1f-4b28-b774-1c81b2cf1bde` and Iora Action
+`a3056fcd-8576-4ab3-a157-bbaf226a4cb3` both reached
+`COMPLETED_NO_EFFECT`, retained Character attribution/provenance, and left the
+head, State Revision, clock and canonical facts unchanged. Tavi's reply
+explicitly used her committed `Sheltered East Lookout` location. The first L3
+request refused to record an unperformed test and was cancelled without a
+Commit. The second produced a proposal from `The western signal is dim.` to
+`The western signal is bright.`; exact confirmation created Commit
+`03e6ad2d-0814-4d3b-a426-ebb543bcbdce` and State Revision
+`4eeb1f41-130c-454b-a846-bd9d47a1a382`.
+
+Final Return rebuild is `FRESH`, head distance 0, zero pending Actions, Tavi
+remains at the East Lookout, and the bright signal is the current shared fact.
+The response-only terminal and L3 boundary are now proven on the isolated
+formal Action path. No malformed candidate arose naturally; existing
+deterministic/adversarial fail-closed evidence remains the source for that
+case. A temporary browser UI was not claimed because its development identity
+did not own this isolated account. Human enjoyment validation, production live
+provider enablement and IP-7 remain unstarted.
