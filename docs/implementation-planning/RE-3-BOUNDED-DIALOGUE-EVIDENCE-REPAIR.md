@@ -1,6 +1,8 @@
 # RE-3 Bounded Dialogue Evidence Repair
 
-Status: implementation candidate repaired; independent Luna max re-review pending.
+Status: historical implementation checkpoint; successor independently approved
+at `ae02de4fe8de261a4164ee6f67c534f8349e1fd5` (PASS, 0/0/0; exact-SHA CI
+`35415958261`). The original finding and repair evidence below remain unchanged.
 
 ## Finding
 

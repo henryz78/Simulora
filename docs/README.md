@@ -38,6 +38,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Implementation Planning Consistency Audit](implementation-planning/IMPLEMENTATION_PLANNING_CONSISTENCY_AUDIT.md)
 - [Implementation Planning Handoff](implementation-planning/IMPLEMENTATION_PLANNING_HANDOFF.md)
 - [Current Implementation Status Handoff](implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md)
+- [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)
 - [G1–G6 Consolidated Repair Report](implementation-planning/G1-G6-CONSOLIDATED-REPAIR-REPORT.md)
@@ -164,7 +165,8 @@ The approved plan/roadmap and historical planning handoff are not live Gate ledg
 ## Product Implementation
 
 IP-1–IP-6 are implemented. Final independent verification and Integrated G1–G6
-Review approved behavior baseline `eb55734f258fc9be6f4837df888700e34eaa67e2`
+Review remain PASS; the latest approved behavior baseline after RE-1–RE-3
+successors is `ae02de4fe8de261a4164ee6f67c534f8349e1fd5`
 with `0 BLOCKER / 0 IMPORTANT / 0 MINOR`. The production pnpm workspace remains
 separate from the frozen Prototype and uses one PostgreSQL authoritative spine.
 
@@ -177,31 +179,19 @@ Original IP-1–IP-6 reports remain dated evidence; their earlier failed/pending
 statuses are historical, not current Gate decisions. The approved behavior SHA
 is distinct from later documentation-only commit hashes.
 
-`G1–G6: PASS`; `INTEGRATED G1–G6: APPROVED`; `IP-7: NOT STARTED`;
-`LIVE MODEL / PRODUCT REALITY SPIKE: EXECUTED / AWAITING RESULT REVIEW`;
+`G1–G6: PASS`; `INTEGRATED G1–G6: APPROVED`; `RE-1–RE-3: PASS / BOUNDED CLOSURE COMPLETE`;
+`IP-7: NOT STARTED`; `LIVE MODEL / PRODUCT REALITY: BOUNDED EVIDENCE COMPLETE`;
 `PRODUCTION DEPLOYMENT / RELEASE: NOT STARTED`.
 
-IP-7 remains unauthorized/not started. The user has authorized bounded Spike
-execution with a local compatible API profile; stop at provider quota. See the
-[Spike Plan](implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md) and
-[Actual Results](implementation-planning/PRODUCT_REALITY_SPIKE_REPORT.md). The
-experiment recommends a bounded runtime-enablement follow-up. The user's next
-instruction to continue is applied to the confirmed
-[RE-1 display repair](implementation-planning/RETURN_CURRENT_SITUATION_REPAIR_REPORT.md)
-and a [bounded follow-up plan](implementation-planning/BOUNDED_RUNTIME_ENABLEMENT_PLAN.md).
-RE-1 passed [independent review](implementation-planning/RE-1-INDEPENDENT-REVIEW.md);
-RE-2 is [implemented and locally verified](implementation-planning/RE-2-AUTHORIZED-CONTEXT-IMPLEMENTATION-REPORT.md),
-[independent review and exact-SHA CI PASS](implementation-planning/RE-2-INDEPENDENT-REVIEW.md).
-RE-3 bounded implementation was subsequently authorized; its initial independent
-review failed and successor repairs passed focused re-review at `f435d5b`.
-The user's subsequent continue authorizes isolated RE-3 reality comparison.
-Full RE-4 and IP-7
-are not authorized. The narrower RE-2 live comparison
-was subsequently authorized and [completed after credential update](implementation-planning/RE-2-CONTEXT-REALITY-CHECK.md).
-No automatic roadmap change is authorized. G1–G6 approval
-does not claim real-model quality, universal semantic-language safety or release readiness. Update the
-living handoff and affected navigation at phase/repair/review/CI milestones;
-preserve frozen and historical source records.
+IP-7 remains not started and requires separate authorization. The bounded
+Product Reality evidence is closed in the [RE-1–RE-3 Product Reality Closure
+Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md):
+real-model movement, post-movement context, Character attribution, bounded
+response-only success and L3 exact confirmation are evidenced on the approved
+experimental seam. Production live composition is still disabled. Human
+browser enjoyment, long-session play, autonomous multi-Character behavior,
+broad effects and long-term memory remain future product-risk validation items,
+not retroactive RE engineering blockers.
 
 ## Supporting Material
 
@@ -211,10 +201,10 @@ PASS, 0/0/0, behavior `7cae8d88ae6f20f2f1d9fe6633d0297fdefed352`, exact-SHA CI
 `35043785122` PASS. Documentation closure does not authorize full RE-4 or IP-7.
 
 Subsequent [real browser play](implementation-planning/RE-3-BROWSER-LIVE-PLAY-REPORT.md)
-completed: 3 real outputs / 2 exact-confirmed Commits / 1 cancelled schema failure.
-Existing UI + isolated PG, Agent-operated (not human enjoyment validation).
-Reality PARTIAL: default single-fact UI path still misses the approved L2/L0 bridge;
-no production live adapter or IP-7 started.
+and the final [post-guard isolated corpus](implementation-planning/RE-3-POST-GUARD-LIVE-CORPUS-HANDOFF.md)
+remain separate evidence samples. The final bounded closure establishes the
+approved effect and authority boundaries without claiming human enjoyment or
+production live-model enablement.
 
 - [Final main-Agent handoff](coordination/FINAL_MAIN_AGENT_HANDOFF.md)
 - [Cross-Agent evidence inventory](coordination/CROSS_AGENT_EVIDENCE_INVENTORY.md)

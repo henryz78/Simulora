@@ -1,5 +1,10 @@
 # RE-3 Continuous Live Corpus Handoff
 
+> **Historical corpus checkpoint:** This report preserves the original browser
+> continuation/guard observations. Later bounded-dialogue closure supersedes
+> its intermediate partial disposition; use the [final RE-1–RE-3 closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
+> for current status.
+
 ## Verdict and scope
 
 This is a bounded, agent-operated Product Reality corpus on the existing

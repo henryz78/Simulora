@@ -1,5 +1,10 @@
 # RE-3 Bounded Routine Effects — Implementation Report
 
+> **Historical implementation checkpoint:** The pending language below is
+> retained with the original implementation evidence. The successor repair was
+> independently approved, and the final RE-1–RE-3 disposition is in the
+> [closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
+
 **Latest:** initial implementation failed independent review (3B/3I/1M).
 The [same Reviewer subsequently passed the repair](RE-3-INDEPENDENT-REVIEW.md)
 at `f435d5b35dcf53c4493a78e84ea0b611872e832b`, 0/0/0, exact-SHA CI PASS.

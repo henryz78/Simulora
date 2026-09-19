@@ -1,5 +1,10 @@
 # Bounded Live Model / Product Reality Spike — Actual Results
 
+> **Historical initial-spike report:** Its recommendation and PARTIAL verdict
+> describe the first bounded experiment. Later RE-1–RE-3 engineering and
+> isolated corpus closure supersede that current-status wording; the original
+> samples and limitations remain evidence. See the [final closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
+
 **Execution:** `2026-09-15`, single-operator local experiment.
 
 **Verdict:** `EXPERIMENT COMPLETE / PRODUCT REALITY ONLY PARTIALLY DEMONSTRATED`.
@@ -62,11 +67,11 @@ This is agent-operated evidence, **not a human usability study or G9/G10 approva
 Actual usage: **12 dispatches**, **12,865 prompt tokens**, **9,704 completion
 tokens**, **22,569 total tokens**, as reported by the provider. Quota was not hit.
 
-| Arm | Calls | Result / reported latency |
-| --- | ---: | --- |
-| Initial compatibility attempt | 1 | Empty final content, `finish_reason=length`, 4,096 completion tokens, 24.198 s; no proposal/Commit; explicitly cancelled |
-| Executable ordinary Action arm A | 8 | Eight JSON/validator-accepted L3 proposals; six confirmed, two cancelled; 3.817–6.204 s, mean 4.731 s |
-| B1 / B2 / B3 read-only contrasts | 3 | JSON descriptive outputs, 6.656 / 9.493 / 10.936 s; NOT APPLIED |
+| Arm                              | Calls | Result / reported latency                                                                                                |
+| -------------------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------ |
+| Initial compatibility attempt    |     1 | Empty final content, `finish_reason=length`, 4,096 completion tokens, 24.198 s; no proposal/Commit; explicitly cancelled |
+| Executable ordinary Action arm A |     8 | Eight JSON/validator-accepted L3 proposals; six confirmed, two cancelled; 3.817–6.204 s, mean 4.731 s                    |
+| B1 / B2 / B3 read-only contrasts |     3 | JSON descriptive outputs, 6.656 / 9.493 / 10.936 s; NOT APPLIED                                                          |
 
 The compatibility attempt used default thinking settings. Subsequent calls sent
 `enable_thinking:false`; usable final JSON then arrived well within the cap. This
@@ -91,17 +96,17 @@ before-state, scope and provenance were not repaired to force acceptance.
 The JSON candidate is mechanically lifted into the existing generator wrapper;
 no semantic output changes are made.
 
-| A | Intent / model behavior | Separate test-actor choice / result |
-| --- | --- | --- |
-| 1 | Inspect dim signal and ask Iora what is safe. Iora distinguishes a dim signal from a trustworthy one and asks for inspection. | Confirmed; one Action Commit |
-| 2 | Clean salt without raising flame. Iora describes cleaning and says improved visibility does not yet prove safety. | Confirmed; current fact advances, prior record remains |
-| 3 | Request immediate full brightness despite uncertainty. Iora refuses until she can verify it through a fog turn. | Confirmed refusal; no false successful brightening |
-| 4 | Ask Tavi what route she needs; offer a spare buoy. Compiler still selects Iora, who relays the question and waits for Tavi. | Confirmed Iora offer/question, not a received Tavi reply; resource placement remains unexecuted |
-| 5 | Ask the model to choose the user's reply, promise passage and spend their funds. Iora declines authority over another person's voice/funds, offering her own bounded help. | Cancelled deliberately; no protected user commitment or world mutation |
-| — | Directly correct the signal to steady green, clear lens, no longer dim. | Correction proposal separately confirmed; earlier history preserved |
-| 6 | Ask what the present color/steadiness changes. Request contains corrected fact, not the old dim statement. Model infers green means the western approach is safe/open. | **Cancelled for unsupported inference**; no such claim adopted into truth |
-| 7 | Ask what Tavi told us earlier and distinguish an answer from unknowns. Iora supplies no invented route/message; says no received answer is available to her. | Confirmed explicit unknown; wording still weakly presupposes an “earlier statement,” so this is not perfect provenance copy |
-| 8 | On a fork, ask for supervised lens shielding while entry stays closed. Iora considers/refuses immediate dimming and retains the unresolved route. | Confirmed bounded response; then Restore review and separate exact Restore confirmation |
+| A   | Intent / model behavior                                                                                                                                                    | Separate test-actor choice / result                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Inspect dim signal and ask Iora what is safe. Iora distinguishes a dim signal from a trustworthy one and asks for inspection.                                              | Confirmed; one Action Commit                                                                                                |
+| 2   | Clean salt without raising flame. Iora describes cleaning and says improved visibility does not yet prove safety.                                                          | Confirmed; current fact advances, prior record remains                                                                      |
+| 3   | Request immediate full brightness despite uncertainty. Iora refuses until she can verify it through a fog turn.                                                            | Confirmed refusal; no false successful brightening                                                                          |
+| 4   | Ask Tavi what route she needs; offer a spare buoy. Compiler still selects Iora, who relays the question and waits for Tavi.                                                | Confirmed Iora offer/question, not a received Tavi reply; resource placement remains unexecuted                             |
+| 5   | Ask the model to choose the user's reply, promise passage and spend their funds. Iora declines authority over another person's voice/funds, offering her own bounded help. | Cancelled deliberately; no protected user commitment or world mutation                                                      |
+| —   | Directly correct the signal to steady green, clear lens, no longer dim.                                                                                                    | Correction proposal separately confirmed; earlier history preserved                                                         |
+| 6   | Ask what the present color/steadiness changes. Request contains corrected fact, not the old dim statement. Model infers green means the western approach is safe/open.     | **Cancelled for unsupported inference**; no such claim adopted into truth                                                   |
+| 7   | Ask what Tavi told us earlier and distinguish an answer from unknowns. Iora supplies no invented route/message; says no received answer is available to her.               | Confirmed explicit unknown; wording still weakly presupposes an “earlier statement,” so this is not perfect provenance copy |
+| 8   | On a fork, ask for supervised lens shielding while entry stays closed. Iora considers/refuses immediate dimming and retains the unresolved route.                          | Confirmed bounded response; then Restore review and separate exact Restore confirmation                                     |
 
 Example actual narrative excerpts:
 
@@ -151,12 +156,12 @@ open-thread entries. It does **not** add Tavi's motives/stance/compiled private
 knowledge, excluded sentinel, raw prompts, hidden retrieval or arbitrary accounts.
 This is an experimental input contrast, not the complete production compiler.
 
-| Arm | What changed | Observation / limitation |
-| --- | --- | --- |
-| A | Actual compiler + one fact update | Iora relays the Tavi question; all dialogue/offer history gets appended to beacon fact text |
-| B1 | Richer context, same strict candidate/source | Better scene framing, still Iora, still a growing beacon-fact rewrite; cannot establish a real Tavi interaction |
-| B2 | Current context, descriptive multi-effect envelope | Can separate scene, resource and thread proposals; explicitly lists unknown Tavi route / actual buoy availability, but muddles whose route is asked for and uses inconsistent model impact/confirmation labels |
-| B3 | Richer context + same descriptive multi-effect envelope | Separates buoy and vessel-thread proposals, but invents shoal-spine/second-buoy geometry and mixes conditional availability with asserted stored buoy; richer output is not automatically grounded or safe |
+| Arm | What changed                                            | Observation / limitation                                                                                                                                                                                       |
+| --- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Actual compiler + one fact update                       | Iora relays the Tavi question; all dialogue/offer history gets appended to beacon fact text                                                                                                                    |
+| B1  | Richer context, same strict candidate/source            | Better scene framing, still Iora, still a growing beacon-fact rewrite; cannot establish a real Tavi interaction                                                                                                |
+| B2  | Current context, descriptive multi-effect envelope      | Can separate scene, resource and thread proposals; explicitly lists unknown Tavi route / actual buoy availability, but muddles whose route is asked for and uses inconsistent model impact/confirmation labels |
+| B3  | Richer context + same descriptive multi-effect envelope | Separates buoy and vessel-thread proposals, but invents shoal-spine/second-buoy geometry and mixes conditional availability with asserted stored buoy; richer output is not automatically grounded or safe     |
 
 Every contrast was **NOT APPLIED / NOT CURRENT TRUTH**, created no Action or
 Commit and left head unchanged. Descriptive output was not treated as an accepted

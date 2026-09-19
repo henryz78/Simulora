@@ -1,5 +1,11 @@
 # RE-3 Product Reality Convergence Follow-up
 
+> **Historical convergence checkpoint:** The pending/partial disposition in
+> this report predates the approved bounded-dialogue successor and final
+> RE-1–RE-3 closure. Keep the path comparison and failure evidence, but use
+> [the closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md) for the
+> current status.
+
 ## Scope
 
 This follow-up investigates the difference between the earlier isolated

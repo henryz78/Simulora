@@ -1,5 +1,10 @@
 # RE-3 Post-Guard Live Corpus Handoff
 
+> **Status note:** The initial failed dispatch and the intermediate PARTIAL
+> section below are retained as evidence. The later bounded retry in this same
+> report, and the final [RE-1–RE-3 closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md),
+> are the current disposition.
+
 ## Scope and disposition
 
 This was the finite live-model follow-up authorized after the independent

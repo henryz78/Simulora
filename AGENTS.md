@@ -7,9 +7,16 @@
 ## Current Implementation Navigation
 
 当前生产实现状态以 `docs/implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md`
-为入口；最新独立结论见 `docs/implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md`。
-已批准行为基线为 `eb55734f258fc9be6f4837df888700e34eaa67e2`：IP-1～IP-6
-已完成，G1～G6 Final / Integrated Review 已通过。IP-7 尚未开始、未获新授权。
+为入口；RE-1–RE-3 当前收尾见
+`docs/implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md`，
+G1–G6 的工程依据仍见 `docs/implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md`。
+当前批准行为基线为 `ae02de4fe8de261a4164ee6f67c534f8349e1fd5`：IP-1～IP-6、
+G1–G6、RE-1、RE-2 和 RE-3 bounded Product Reality closure 均已通过；生产 live
+model 未启用，human browser enjoyment 未执行，IP-7 尚未开始。
+下面的阶段性段落保留历史证据；其中旧的 pending / PARTIAL / NOT STARTED
+描述不应覆盖上述当前状态。
+历史 G1–G6 behavior snapshot 为 `eb55734f258fc9be6f4837df888700e34eaa67e2`，
+不再是当前批准行为基线。
 用户已授权 bounded Live Model / Product Reality Spike 及所提供公益 API 的真实调用，范围见
 `docs/implementation-planning/PRODUCT_REALITY_SPIKE_PLAN.md`；使用本地受忽略的
 `.secret.txt` profile，达到供应商限额即停下联系用户。不能擅自放开 production 入口或冻结契约。
@@ -94,23 +101,26 @@ desktop/390×844 60/60，quality/build/runtime/container 全部通过。Bridge r
 CLOSED；IP-7、production live enablement、full RE-4 仍未开始或授权。
 
 用户随后授权继续 Product Reality 收敛。`RE-3-PRODUCT-REALITY-CONVERGENCE.md`
-记录了 browser/API/worker/isolated-runner 路径对照：`requestedEffect`、selected
+是早期收敛调查的历史记录；后续 bounded dialogue closure 已取代其中的
+pending 状态。它记录了 browser/API/worker/isolated-runner 路径对照：`requestedEffect`、selected
 Character、expected-head、schema/parser/validator 和 confirmation 绑定一致；
 正式 browser movement follow-up 的一次 dispatch 因公益 provider HTTPS 路由不可达
 而没有模型输出，Action 已明确取消、没有 Commit。隔离 runner 的最小 prompt
 compatibility repair 只在 compiled request 之后追加 effect-specific operation
 type check，并将 promptVersion 从 3 提升到 4；不放宽 validator、不修改 authority
-或 production live adapter。当前 `NO_WORLD_EFFECT` 仍按冻结 Runtime 合同作为
-uncommitted L0 output → `FAILED_RECOVERABLE` → explicit cancel；成功但不改变
-世界的 terminal Action / durable dialogue 需要单独产品决策，不能在本轮偷偷新增。
-Product Reality Gate 尚未达到；IP-7、production live enablement、durable dialogue
-memory redesign 和广泛 effect 扩张仍未开始。
+或 production live adapter。该历史段落当时记录的 `NO_WORLD_EFFECT` 生命周期
+已由后续批准的 `COMPLETED_NO_EFFECT` successor 取代；当前 bounded response-only
+结果已在 isolated formal Action path 证明，且不产生 World mutation 或第二
+truth ledger。Product Reality bounded convergence 已完成；production live
+enablement、durable long-term memory redesign 和广泛 effect 扩张仍未开始，
+IP-7 仍未开始。
 
 随后用户提供了可达的兼容 ModelScope profile；有限重跑已在同一隔离 session
 完成 Tavi/Iora 两次 `COMPLETED_NO_EFFECT` 和一次 L3 exact-confirmed Commit，
 结果见 `docs/implementation-planning/RE-3-POST-GUARD-LIVE-CORPUS-HANDOFF.md`。
 这只证明 isolated formal Action path 的 response-only terminal 和 L3 boundary，
-不启用 production live provider，也不替代 browser/human enjoyment validation；
+不启用 production live provider，也不替代 browser/human enjoyment validation。
+最终状态与新会话阅读顺序见 `docs/implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md`；
 IP-7 仍未开始。
 
 ## Long-Term Product Direction

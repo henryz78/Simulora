@@ -1,37 +1,39 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `IP-1–IP-6 APPROVED / RE-1 APPROVED / RE-2 APPROVED / RE-3 APPROVED / RE-3 BRIDGE REVIEW PASS / IP-7 NOT STARTED`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 NOT STARTED`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
 **Snapshot date:** `2026-09-19`.
 
-**Current independent decision:** [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
+**Current independent decision:** [RE-1–RE-3 Product Reality Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
+The underlying engineering authority remains the [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
 The latest bounded browser-play follow-up is documented in
 [RE-3 Participation Bridge Repair](RE-3-PARTICIPATION-BRIDGE-REPAIR.md); it is a
 frontend comprehension/contract bridge only and is not an IP-7 authorization.
 The subsequent Product Reality convergence investigation is documented in
-[RE-3 Product Reality Convergence](RE-3-PRODUCT-REALITY-CONVERGENCE.md). It
-keeps production live-model enablement disabled, records the isolated prompt
-compatibility repair, and leaves the no-world-effect success-terminal question
-as an explicit product decision under the frozen Runtime lifecycle.
+[RE-3 Product Reality Convergence](RE-3-PRODUCT-REALITY-CONVERGENCE.md) and is
+historical evidence for the later bounded-dialogue closure.
 The latest bounded continuous browser corpus is documented in
 [RE-3 Continuous Live Corpus Handoff](RE-3-CONTINUOUS-LIVE-CORPUS-HANDOFF.md).
 It proves post-movement context compilation and another exact-confirmed L3
-Commit, but records a real response-only guard false positive; the Product
-Reality Gate therefore remains unreached.
+Commit, while preserving the original response-only guard false-positive
+evidence as history.
 The successor bounded-dialogue implementation is documented in
 [RE-3 Bounded Dialogue Implementation Report](RE-3-BOUNDED-DIALOGUE-IMPLEMENTATION-REPORT.md)
-and [ADR-019](../system-design/ADR-019-BOUNDED-NONMUTATING-DIALOGUE.md). It is
-currently a candidate awaiting focused independent review; it must not be
-treated as an approved behavior baseline until that review and exact-SHA CI pass.
+and [ADR-019](../system-design/ADR-019-BOUNDED-NONMUTATING-DIALOGUE.md). The
+former pending-review language in that implementation report is historical;
+the successor behavior is approved at `ae02de4` with focused PASS and exact-SHA
+CI `35415958261`.
 
 The latest post-guard bounded live corpus is recorded in
 [RE-3 Post-Guard Live Corpus Handoff](RE-3-POST-GUARD-LIVE-CORPUS-HANDOFF.md).
 Using the user-supplied compatible profile, it completed Tavi and Iora
 `COMPLETED_NO_EFFECT` responses and one exact-confirmed L3 Commit in the
 isolated formal Action path. Production live-model enablement remains disabled;
-the retry does not claim browser or human-enjoyment validation.
+the retry does not claim browser or human-enjoyment validation. The final
+status and remaining risks are summarized in the [RE-1–RE-3 Product Reality
+Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
 
 **Latest focused approval:** [RE-1 Independent Review](RE-1-INDEPENDENT-REVIEW.md),
 behavior SHA `7d668daa64f1b579eec0196c16f2500f255169ab`, PASS / 0–0–0, user accepted.
@@ -54,10 +56,10 @@ contract, reviewed behavior baseline or next-phase authorization.
 
 ```text
 Repository branch:                 main
-Approved production baseline:     7cae8d88ae6f20f2f1d9fe6633d0297fdefed352
-Evidence verified against:         7cae8d88ae6f20f2f1d9fe6633d0297fdefed352
-Worktree at evidence check:        clean
-Exact-baseline CI:                 34981973475 / success
+Approved production baseline:     ae02de4fe8de261a4164ee6f67c534f8349e1fd5
+Evidence verified against:         ae02de4fe8de261a4164ee6f67c534f8349e1fd5
+Documentation closure base:        7cef33c6be782da1d16511b356f6ba196547108a
+Exact-baseline CI:                 35415958261 / success
 
 Frozen Experience baseline:        877f4d532024009ba44d99580e12ce088136304a
 Experience Freeze commit:          d9ae20c8dead3b94a4b2afb095943c79badc7752
@@ -76,10 +78,10 @@ IP-6 Participation / characters:   implementation complete / approved
 IP-7 World Studio:                 not started
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected (production remains disabled)
-Live Model / Product Reality Spike: bounded corpus complete; latest 4 calls recorded
+Live Model / Product Reality Spike: bounded RE-1–RE-3 convergence complete
 Formal deployment:                 not started
-Next decision:                     short browser/human reality check; do not start IP-7 automatically
-Product Reality Gate:              PARTIAL; response-only terminal proven, browser/human enjoyment unproven
+Next decision:                     optional human play validation, then separately authorized roadmap work
+Product Reality Gate:              BOUNDED RE CONVERGENCE COMPLETE; human play remains a product-risk item
 ```
 
 Approval comes from the independent fixed-baseline final / integrated review,
@@ -961,3 +963,29 @@ deterministic/adversarial fail-closed evidence remains the source for that
 case. A temporary browser UI was not claimed because its development identity
 did not own this isolated account. Human enjoyment validation, production live
 provider enablement and IP-7 remain unstarted.
+
+## 37. Final RE-1–RE-3 Product Reality closure
+
+The bounded RE convergence is now formally closed. The latest approved
+behavior is `ae02de4fe8de261a4164ee6f67c534f8349e1fd5`, independently reviewed
+PASS with 0/0/0 and verified by exact-SHA CI `35415958261`. G1–G6, RE-1, RE-2,
+RE-3 engineering, the participation bridge, prompt compatibility and the
+authority-guard successors all remain PASS.
+
+The evidence set now establishes real-model NPC movement, post-movement context
+continuation, sampled Character attribution and distinct authorized knowledge,
+successful `COMPLETED_NO_EFFECT` response-only Actions on the isolated formal
+Action path, and the L3 exact-confirmation boundary. Authority, truth,
+Recovery, stale-head, privacy and fail-closed engineering invariants remain
+green. The final live corpus deliberately used the experimental seam only;
+production live model composition remains disabled.
+
+The user chose not to incur another isolated browser/account/database/service
+setup for personal play. This is recorded as **human browser enjoyment /
+long-session play not performed**, not as a PASS and not as an engineering
+blocker. Long-term autonomous multi-Character behavior, broad effects,
+long-term memory and subjective enjoyment remain future product validation
+risks. IP-7 is still NOT STARTED and requires separate authorization.
+
+See [RE-1–RE-3 Product Reality Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
+for the final evidence matrix and new-session reading order.

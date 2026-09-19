@@ -1,5 +1,10 @@
 # RE-3 Bounded Browser Live Play
 
+> **Historical browser batch:** This report preserves the original UI-path
+> observations and partial disposition. Later participation-bridge and
+> bounded-dialogue evidence supersede its current-status wording; see the
+> [final RE-1–RE-3 closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
+
 ## Verdict / scope
 
 **Authority chain: sampled PASS. Product reality: PARTIAL, runtime/UI bridge still missing.**
@@ -46,11 +51,11 @@ repository assertions below verified the actual browser session instead.
 
 ## Three real journeys
 
-| Sample / Action | Actual user intent and result | Decision / truth |
-| --- | --- | --- |
-| B1 `f91331a6-79dc-477e-aad2-1f1b3c696d2a` | Iora tests the prism with the shutter closed. Provider describes a steady red core and smeared gray ring; proposes atmospheric dimness rather than lamp failure. | Recovery visited with ACK preserved. Back in World, old fact remains current until explicit exact confirmation. COMMITTED. |
+| Sample / Action                           | Actual user intent and result                                                                                                                                                                                                                                                   | Decision / truth                                                                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| B1 `f91331a6-79dc-477e-aad2-1f1b3c696d2a` | Iora tests the prism with the shutter closed. Provider describes a steady red core and smeared gray ring; proposes atmospheric dimness rather than lamp failure.                                                                                                                | Recovery visited with ACK preserved. Back in World, old fact remains current until explicit exact confirmation. COMMITTED.                                                     |
 | B2 `8a56a868-6038-4fc3-8086-c79bb062f722` | Ask Tavi to walk the explicit safe shore path using Iora's recorded reading. Provider refuses/requests another explicit instruction, keeps Tavi at the observatory, and returns unsupported `NO_EFFECT` plus extra top-level fields instead of the supplied FACT_REWRITE shape. | Raw output recorded, schema rejected, no proposal/Commit/head change. UI stays in recoverable GENERATING with generic “Still working.” Explicitly CANCELLED; no repair/resend. |
-| B3 `20cf4887-0a7d-465d-965f-05cf9ed509f4` | On 390×844, ask Iora to mark the western approach unsuitable using the recorded prism reading, with no invitation. Prose and proposed fact refer to that prior result. | Pending preserved through mobile Recovery. Long before/after review scrolls to controls; explicit exact confirmation COMMITTED. World ready for another Action. |
+| B3 `20cf4887-0a7d-465d-965f-05cf9ed509f4` | On 390×844, ask Iora to mark the western approach unsuitable using the recorded prism reading, with no invitation. Prose and proposed fact refer to that prior result.                                                                                                          | Pending preserved through mobile Recovery. Long before/after review scrolls to controls; explicit exact confirmation COMMITTED. World ready for another Action.                |
 
 Representative B2 output: “He keeps his boots planted on the observatory stone.”
 and “If you want me to actually walk the shore path and look, say so plainly”.
@@ -68,10 +73,10 @@ Supplied model requested and reported for all three:
 `deepseek-ai/DeepSeek-V4.1-Flash`. Same supplied endpoint/profile, no substitution.
 
 | Sample | Provider duration | Prompt tokens | Completion tokens |
-| --- | ---: | ---: | ---: |
-| B1 | 5,222 ms | 1,627 | 312 |
-| B2 | 7,191 ms | 2,006 | 419 |
-| B3 | 5,166 ms | 2,202 | 353 |
+| ------ | ----------------: | ------------: | ----------------: |
+| B1     |          5,222 ms |         1,627 |               312 |
+| B2     |          7,191 ms |         2,006 |               419 |
+| B3     |          5,166 ms |         2,202 |               353 |
 
 Total 3 dispatches / 3 outputs, 6,919 reported tokens, no quota/429 or automatic
 retry. Durations exclude manual dispatch/navigation/review time; they are not

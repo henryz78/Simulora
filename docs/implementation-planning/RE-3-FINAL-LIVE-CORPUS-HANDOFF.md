@@ -1,5 +1,10 @@
 # RE-3 Final Live Corpus Handoff
 
+> **Historical provider-failure checkpoint:** This report records the earlier
+> 429/404/route-identity failures and intentionally remains unchanged as
+> provenance. The later compatible-profile corpus and final bounded closure
+> supersede its partial current-status wording; see the [closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
+
 ## Scope
 
 This was a bounded Product Reality corpus against the already approved browser

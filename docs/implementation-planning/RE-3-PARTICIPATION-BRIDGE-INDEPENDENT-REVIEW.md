@@ -1,5 +1,9 @@
 # RE-3 Participation Bridge Independent Review
 
+> **Historical review record:** The first focused review below is preserved for
+> provenance. Its successor closure is the PASS re-review recorded later in
+> this file and summarized by the [final RE-1–RE-3 closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
+
 ## First focused review
 
 **Reviewed baseline:** `ee98f1c13b30aeb9a0e7c0ac9073b754fe448858`  

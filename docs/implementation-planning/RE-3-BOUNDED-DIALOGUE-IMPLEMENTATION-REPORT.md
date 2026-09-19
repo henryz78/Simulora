@@ -1,5 +1,11 @@
 # RE-3 Bounded Dialogue Implementation Report
 
+> **Historical status note:** The pending-review language later in this report
+> reflects its authoring checkpoint. The successor behavior was independently
+> approved at `ae02de4fe8de261a4164ee6f67c534f8349e1fd5` (PASS, 0/0/0;
+> exact-SHA CI `35415958261`). See the [final RE-1–RE-3 closure handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
+> for the current disposition.
+
 ## Scope
 
 This repair closes the remaining Product Reality gap for the already-approved
