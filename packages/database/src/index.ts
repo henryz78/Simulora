@@ -219,6 +219,7 @@ export type WorldRevisionRecord = {
   sourceDraftRowVersion: number;
   document: WorldDocument;
   documentHash: string;
+  createdAt: string;
 };
 
 export type WorldValidationFinding = {
@@ -643,6 +644,49 @@ function parseValidationFindings(value: unknown): WorldValidationFinding[] {
   });
 }
 
+function assessWorldDocument(value: unknown): {
+  document: WorldDocument | null;
+  findings: WorldValidationFinding[];
+} {
+  const parsed = worldDocumentSchema.safeParse(value);
+  if (!parsed.success) {
+    return {
+      document: null,
+      findings: parsed.error.issues.map((issue) => ({
+        path: issue.path.join(".") || "document",
+        message: issue.message,
+        severity: "ERROR" as const,
+        playEffect: "This blocks creation of a playable World Revision.",
+      })),
+    };
+  }
+  return {
+    document: parsed.data,
+    findings: [
+      ...(parsed.data.locations.length > 1 && !parsed.data.routineRoutes?.length
+        ? [
+            {
+              path: "routineRoutes",
+              message: "Add a route between locations if Characters should move between them.",
+              severity: "WARNING" as const,
+              playEffect: "Movement remains limited to the starting location until a route exists.",
+            },
+          ]
+        : []),
+      ...(parsed.data.objectives.length === 0
+        ? [
+            {
+              path: "objectives",
+              message: "No objective is defined; this world stays open-ended.",
+              severity: "WARNING" as const,
+              playEffect: "Players can continue without a fabricated goal or completion state.",
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 function encodeTraceCursor(cursor: TraceCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
@@ -912,53 +956,21 @@ export class AuthoritativeWorldRepository {
       );
       const draft = result.rows[0];
       if (!draft) throw new NotFoundError("World not found");
-      const parsed = worldDocumentSchema.safeParse(draft.document);
-      const findings: WorldValidationFinding[] = parsed.success
-        ? [
-            ...(parsed.data.locations.length > 1 && !parsed.data.routineRoutes?.length
-              ? [
-                  {
-                    path: "routineRoutes",
-                    message:
-                      "Add a route between locations if Characters should move between them.",
-                    severity: "WARNING" as const,
-                    playEffect:
-                      "Movement remains limited to the starting location until a route exists.",
-                  },
-                ]
-              : []),
-            ...(parsed.data.objectives.length === 0
-              ? [
-                  {
-                    path: "objectives",
-                    message: "No objective is defined; this world stays open-ended.",
-                    severity: "WARNING" as const,
-                    playEffect:
-                      "Players can continue without a fabricated goal or completion state.",
-                  },
-                ]
-              : []),
-          ]
-        : parsed.error.issues.map((issue) => ({
-            path: issue.path.join(".") || "document",
-            message: issue.message,
-            severity: "ERROR" as const,
-            playEffect: "This blocks creation of a playable World Revision.",
-          }));
-      const outcome = parsed.success ? "VALID" : "INVALID";
+      const assessed = assessWorldDocument(draft.document);
+      const outcome = assessed.document ? "VALID" : "INVALID";
       const validationRunId = randomUUID();
       const inserted = await client.query<{ validated_at: Date }>(
         `insert into simulora.authoring_validation_runs
          (id, world_id, draft_row_version, outcome, findings)
          values ($1, $2, $3, $4, $5::jsonb)
          returning validated_at`,
-        [validationRunId, worldId, draft.row_version, outcome, JSON.stringify(findings)],
+        [validationRunId, worldId, draft.row_version, outcome, JSON.stringify(assessed.findings)],
       );
       return {
         worldId,
         draftRowVersion: draft.row_version,
         outcome,
-        findings,
+        findings: assessed.findings,
         validatedAt: inserted.rows[0]!.validated_at.toISOString(),
       };
     });
@@ -989,7 +1001,7 @@ export class AuthoritativeWorldRepository {
       }
 
       const validationRunId = randomUUID();
-      const parsed = worldDocumentSchema.safeParse(draft.document);
+      const assessed = assessWorldDocument(draft.document);
       await client.query(
         `insert into simulora.authoring_validation_runs
          (id, world_id, draft_row_version, outcome, findings)
@@ -998,13 +1010,13 @@ export class AuthoritativeWorldRepository {
           validationRunId,
           worldId,
           draft.row_version,
-          parsed.success ? "VALID" : "INVALID",
-          JSON.stringify(parsed.success ? [] : parsed.error.issues),
+          assessed.document ? "VALID" : "INVALID",
+          JSON.stringify(assessed.findings),
         ],
       );
-      if (!parsed.success) throw new ValidationError("World Draft is not playable");
+      if (!assessed.document) throw new ValidationError("World Draft is not playable");
 
-      const sourceAssetIds = parsed.data.characters.flatMap((character) =>
+      const sourceAssetIds = assessed.document.characters.flatMap((character) =>
         character.sourceAssetId ? [character.sourceAssetId] : [],
       );
       const assetResult = sourceAssetIds.length
@@ -1017,7 +1029,7 @@ export class AuthoritativeWorldRepository {
           )
         : { rows: [] };
       const assets = new Map(assetResult.rows.map((asset) => [asset.id, asset]));
-      for (const character of parsed.data.characters) {
+      for (const character of assessed.document.characters) {
         if (!character.sourceAssetId) continue;
         const asset = assets.get(character.sourceAssetId);
         if (!asset) throw new AccessDeniedError("Character Asset is unavailable");
@@ -1041,17 +1053,18 @@ export class AuthoritativeWorldRepository {
       );
       const revisionNumber = revisionNumberResult.rows[0]!.next_revision;
       const revisionId = randomUUID();
-      const hash = contentHash(parsed.data);
-      await client.query(
+      const hash = contentHash(assessed.document);
+      const inserted = await client.query<{ created_at: Date }>(
         `insert into simulora.world_revisions
          (id, world_id, revision_number, source_draft_row_version, document, document_hash, validation_run_id)
-         values ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
+         values ($1, $2, $3, $4, $5::jsonb, $6, $7)
+         returning created_at`,
         [
           revisionId,
           worldId,
           revisionNumber,
           draft.row_version,
-          JSON.stringify(parsed.data),
+          JSON.stringify(assessed.document),
           hash,
           validationRunId,
         ],
@@ -1061,8 +1074,9 @@ export class AuthoritativeWorldRepository {
         worldId,
         revisionNumber,
         sourceDraftRowVersion: draft.row_version,
-        document: parsed.data,
+        document: assessed.document,
         documentHash: hash,
+        createdAt: inserted.rows[0]!.created_at.toISOString(),
       };
     });
   }

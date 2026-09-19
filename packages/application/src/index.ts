@@ -19,6 +19,8 @@ import type {
   CreateCharacterAssetRequest,
   ForkBranchRequest,
   SubmitActionRequest,
+  WorldDraftResponse,
+  WorldRevisionSummary,
   WorldStudioResponse,
   WorldValidationResponse,
 } from "@simulora/contracts";
@@ -171,21 +173,12 @@ export interface WorldContinuityPort {
     worldId: string,
     expectedVersion: number,
     document: WorldDocument,
-  ): Promise<{
-    worldId: string;
-    rowVersion: number;
-    documentHash: string;
-  }>;
+  ): Promise<WorldDraftResponse>;
   createRevision(
     account: EligibleAccount,
     worldId: string,
     expectedDraftVersion: number,
-  ): Promise<{
-    revisionId: string;
-    worldId: string;
-    revisionNumber: number;
-    documentHash: string;
-  }>;
+  ): Promise<WorldRevisionSummary>;
   readWorldStudio?(account: EligibleAccount, worldId: string): Promise<WorldStudioResponse>;
   validateDraft?(account: EligibleAccount, worldId: string): Promise<WorldValidationResponse>;
   startContinuity(

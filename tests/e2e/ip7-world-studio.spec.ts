@@ -16,6 +16,7 @@ function documentFor(title = "A user world") {
     startingSituation: "A first choice is waiting.",
     userRole: { name: "Witness", authorityBoundary: "The world never authors my speech." },
     locations: [{ id: locationId, name: "The starting place", description: "A quiet beginning." }],
+    routineRoutes: [],
     characters: [
       {
         id: characterId,
@@ -128,9 +129,20 @@ test("creator can make a Draft, inspect play effect, and keep revision boundarie
   await page.getByLabel("World title").fill("A world made here");
   await page.getByRole("button", { name: "Create Draft" }).click();
   await expect(page).toHaveURL(new RegExp(`/worlds/${worldId}/studio$`));
+  await page.getByRole("button", { name: "Add place" }).click();
+  await page.getByRole("button", { name: "Add Character" }).click();
+  await page.getByText("Facts, routes, relationships and boundaries").click();
+  await page.getByRole("button", { name: "Add fact" }).click();
+  await page.getByRole("button", { name: "Add route" }).click();
+  await page.getByRole("button", { name: "Add relationship" }).click();
   await page.getByLabel("Premise").fill("A user-authored premise with a durable future.");
   await page.getByRole("button", { name: "Save Draft" }).click();
   await expect(page.getByRole("status")).toContainText("Draft saved");
+  expect(draft.locations).toHaveLength(2);
+  expect(draft.characters).toHaveLength(2);
+  expect(draft.facts).toHaveLength(2);
+  expect(draft.routineRoutes).toHaveLength(1);
+  expect(draft.relationships).toHaveLength(1);
   await page.getByRole("button", { name: "Check playability" }).click();
   await expect(page.getByText("Playable shape accepted")).toBeVisible();
   await page.getByRole("button", { name: "Create playable Revision" }).click();
@@ -164,6 +176,9 @@ test("Studio keeps an existing Continuity pinned and is complete on mobile", asy
   await expect(
     page.getByRole("heading", { name: "Draft and playable versions stay distinct" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Begin / resume play" }).click();
+  await expect(page).toHaveURL(new RegExp(`/continuities/${continuityId}$`));
+  await page.goBack();
   await expect(page.getByRole("link", { name: /Pinned Continuity/ })).toHaveAttribute(
     "href",
     `/continuities/${continuityId}`,

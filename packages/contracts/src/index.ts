@@ -119,13 +119,13 @@ export const updateWorldDraftRequestSchema = z.object({
 export const createWorldRevisionRequestSchema = z.object({
   expectedDraftVersion: z.number().int().positive(),
 });
-const worldDraftResponseSchema = z.object({
+export const worldDraftResponseSchema = z.object({
   worldId: stableIdSchema,
   rowVersion: z.number().int().positive(),
   document: worldDocumentInputSchema,
   documentHash: z.string().regex(/^[0-9a-f]{64}$/),
 });
-const worldRevisionSummarySchema = z.object({
+export const worldRevisionSummarySchema = z.object({
   revisionId: stableIdSchema,
   worldId: stableIdSchema,
   revisionNumber: z.number().int().positive(),

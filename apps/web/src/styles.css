@@ -1261,6 +1261,36 @@ h1 {
   font-weight: 700;
 }
 
+.studio-repeatable {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+  border: 1px solid #27433e;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.studio-repeatable legend,
+.studio-checks legend {
+  padding: 0 6px;
+  color: #c8dbd6;
+  font-weight: 700;
+}
+
+.studio-checks {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #27433e;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.studio-checks label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .studio-actions {
   display: grid;
   gap: 10px;

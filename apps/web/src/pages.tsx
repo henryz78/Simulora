@@ -1909,7 +1909,7 @@ export function WorldStudioPage(): ReactElement {
         ? result.data.validation
         : null,
     );
-    const local = storageKey ? sessionStorage.getItem(storageKey) : null;
+    const local = storageKey ? localStorage.getItem(storageKey) : null;
     setUnsentAvailable(Boolean(local));
     setDraft(result.data.draft.document);
     setMessage(null);
@@ -1926,7 +1926,7 @@ export function WorldStudioPage(): ReactElement {
 
   useEffect(() => {
     if (!storageKey || !studio || !dirty) return;
-    sessionStorage.setItem(storageKey, JSON.stringify(draft));
+    localStorage.setItem(storageKey, JSON.stringify(draft));
   }, [draft, dirty, storageKey, studio]);
 
   const run = async (name: string, work: () => Promise<void>): Promise<void> => {
@@ -1949,7 +1949,7 @@ export function WorldStudioPage(): ReactElement {
       const result = await updateWorldDraft(worldId, studio.draft.rowVersion, draft);
       if (!result.data) {
         if (result.errorCode === "STALE_DRAFT") {
-          if (storageKey) sessionStorage.setItem(storageKey, JSON.stringify(draft));
+          if (storageKey) localStorage.setItem(storageKey, JSON.stringify(draft));
           setUnsentAvailable(true);
           await load();
           setMessage(
@@ -1960,9 +1960,10 @@ export function WorldStudioPage(): ReactElement {
         setError("The Draft could not be saved. Nothing was published.");
         return;
       }
+      setDraft(result.data.document);
       setStudio((current) => (current ? { ...current, draft: result.data! } : current));
       setValidation(null);
-      if (storageKey) sessionStorage.removeItem(storageKey);
+      if (storageKey) localStorage.removeItem(storageKey);
       setUnsentAvailable(false);
       setMessage("Draft saved. Existing Continuities remain pinned to their earlier Revision.");
     });
@@ -2018,6 +2019,13 @@ export function WorldStudioPage(): ReactElement {
 
   const beginPlay = async (): Promise<void> => {
     if (!studio?.revisions[0]) return;
+    const pinned = studio.continuities.find(
+      (continuity) => continuity.worldRevisionId === studio.revisions[0]!.revisionId,
+    );
+    if (pinned) {
+      await navigate(`/continuities/${encodeURIComponent(pinned.continuityId)}`);
+      return;
+    }
     await run("play", async () => {
       const result = await startWorldContinuity(studio.revisions[0]!.revisionId, {
         initiativeMode: "GUIDED",
@@ -2120,7 +2128,7 @@ export function WorldStudioPage(): ReactElement {
                 className="secondary-action"
                 type="button"
                 onClick={() => {
-                  const raw = storageKey ? sessionStorage.getItem(storageKey) : null;
+                  const raw = storageKey ? localStorage.getItem(storageKey) : null;
                   if (!raw) return;
                   try {
                     setDraft(JSON.parse(raw) as WorldDocumentInput);
@@ -2129,7 +2137,7 @@ export function WorldStudioPage(): ReactElement {
                       "Unsent edits restored locally. Save them intentionally after reviewing the current Draft.",
                     );
                   } catch {
-                    if (storageKey) sessionStorage.removeItem(storageKey);
+                    if (storageKey) localStorage.removeItem(storageKey);
                     setUnsentAvailable(false);
                   }
                 }}
@@ -2272,14 +2280,141 @@ function StudioCoreFields({
   draft: WorldDocumentInput;
   setDraft: Dispatch<SetStateAction<WorldDocumentInput>>;
 }): ReactElement {
-  const location = draft.locations[0]!;
-  const character = draft.characters[0]!;
-  const fact = draft.facts[0]!;
   const lines = (value: string): string[] =>
     value
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
+  const updateLocation = (id: string, patch: Partial<WorldDocumentInput["locations"][number]>) =>
+    setDraft((current) => ({
+      ...current,
+      locations: current.locations.map((location) =>
+        location.id === id ? { ...location, ...patch } : location,
+      ),
+    }));
+  const updateCharacter = (id: string, patch: Partial<WorldDocumentInput["characters"][number]>) =>
+    setDraft((current) => ({
+      ...current,
+      characters: current.characters.map((character) =>
+        character.id === id ? { ...character, ...patch } : character,
+      ),
+    }));
+  const updateFact = (id: string, patch: Partial<WorldDocumentInput["facts"][number]>) =>
+    setDraft((current) => ({
+      ...current,
+      facts: current.facts.map((fact) => (fact.id === id ? { ...fact, ...patch } : fact)),
+    }));
+  const addLocation = () =>
+    setDraft((current) => ({
+      ...current,
+      locations: [
+        ...current.locations,
+        {
+          id: `location-${crypto.randomUUID()}`,
+          name: `Place ${current.locations.length + 1}`,
+          description: "Describe what makes this place matter to play.",
+        },
+      ],
+    }));
+  const removeLocation = (id: string) =>
+    setDraft((current) => {
+      if (current.locations.length === 1) return current;
+      const locations = current.locations.filter((location) => location.id !== id);
+      const fallback = locations[0]!.id;
+      return {
+        ...current,
+        locations,
+        characters: current.characters.map((character) =>
+          character.locationId === id ? { ...character, locationId: fallback } : character,
+        ),
+        routineRoutes: current.routineRoutes?.filter(
+          (route) => route.fromLocationId !== id && route.toLocationId !== id,
+        ),
+      };
+    });
+  const addCharacter = () =>
+    setDraft((current) => ({
+      ...current,
+      characters: [
+        ...current.characters,
+        {
+          id: `character-${crypto.randomUUID()}`,
+          name: `Character ${current.characters.length + 1}`,
+          role: "A person with a reason to be here",
+          locationId: current.locations[0]!.id,
+          motives: ["Act consistently with this role."],
+          stance: "May disagree or refuse when their motives require it.",
+          knowledgeFactIds: [],
+        },
+      ],
+    }));
+  const removeCharacter = (id: string) =>
+    setDraft((current) => {
+      if (current.characters.length === 1) return current;
+      return {
+        ...current,
+        characters: current.characters.filter((character) => character.id !== id),
+        relationships: current.relationships.filter(
+          (relationship) =>
+            relationship.fromCharacterId !== id && relationship.toCharacterId !== id,
+        ),
+      };
+    });
+  const addFact = () =>
+    setDraft((current) => ({
+      ...current,
+      facts: [
+        ...current.facts,
+        {
+          id: `fact-${crypto.randomUUID()}`,
+          statement: "A stable fact that should remain true at the start.",
+          scope: "SHARED",
+          provenance: "World creator Draft",
+          lifecycle: "ACTIVE",
+        },
+      ],
+    }));
+  const removeFact = (id: string) =>
+    setDraft((current) => {
+      if (current.facts.length === 1) return current;
+      return {
+        ...current,
+        facts: current.facts.filter((fact) => fact.id !== id),
+        characters: current.characters.map((character) => ({
+          ...character,
+          knowledgeFactIds: character.knowledgeFactIds.filter((factId) => factId !== id),
+        })),
+      };
+    });
+  const addRoute = () =>
+    setDraft((current) => {
+      const [from, to] = current.locations;
+      if (!from || !to) return current;
+      return {
+        ...current,
+        routineRoutes: [
+          ...(current.routineRoutes ?? []),
+          { fromLocationId: from.id, toLocationId: to.id, label: "A route between these places." },
+        ],
+      };
+    });
+  const addRelationship = () =>
+    setDraft((current) => {
+      const [from, to] = current.characters;
+      if (!from || !to) return current;
+      return {
+        ...current,
+        relationships: [
+          ...(current.relationships ?? []),
+          {
+            id: `relationship-${crypto.randomUUID()}`,
+            fromCharacterId: from.id,
+            toCharacterId: to.id,
+            description: "Describe what connects these Characters.",
+          },
+        ],
+      };
+    });
   return (
     <section className="surface-card studio-core" aria-labelledby="studio-core-title">
       <p className="card-label">Playable core</p>
@@ -2341,150 +2476,368 @@ function StudioCoreFields({
         </label>
       </div>
       <details className="studio-details" open>
-        <summary>Essential place and Character</summary>
-        <div className="studio-field-grid">
-          <label className="field-label" htmlFor="studio-location-name">
-            Starting location
-            <input
-              id="studio-location-name"
-              value={location.name}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  locations: [
-                    { ...current.locations[0]!, name: event.target.value },
-                    ...current.locations.slice(1),
-                  ],
-                }))
-              }
-            />
-          </label>
-          <label className="field-label" htmlFor="studio-location-description">
-            Place description
-            <input
-              id="studio-location-description"
-              value={location.description}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  locations: [
-                    { ...current.locations[0]!, description: event.target.value },
-                    ...current.locations.slice(1),
-                  ],
-                }))
-              }
-            />
-          </label>
-        </div>
-        <div className="studio-field-grid">
-          <label className="field-label" htmlFor="studio-character-name">
-            Character name
-            <input
-              id="studio-character-name"
-              value={character.name}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  characters: [
-                    { ...current.characters[0]!, name: event.target.value },
-                    ...current.characters.slice(1),
-                  ],
-                }))
-              }
-            />
-          </label>
-          <label className="field-label" htmlFor="studio-character-role">
-            Character role
-            <input
-              id="studio-character-role"
-              value={character.role}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  characters: [
-                    { ...current.characters[0]!, role: event.target.value },
-                    ...current.characters.slice(1),
-                  ],
-                }))
-              }
-            />
-          </label>
-        </div>
-        <label className="field-label" htmlFor="studio-character-location">
-          Character starts at
-          <select
-            id="studio-character-location"
-            value={character.locationId}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                characters: [
-                  { ...current.characters[0]!, locationId: event.target.value },
-                  ...current.characters.slice(1),
-                ],
-              }))
-            }
-          >
-            {draft.locations.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field-label" htmlFor="studio-character-stance">
-          Character stance
-          <textarea
-            id="studio-character-stance"
-            rows={2}
-            value={character.stance}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                characters: [
-                  { ...current.characters[0]!, stance: event.target.value },
-                  ...current.characters.slice(1),
-                ],
-              }))
-            }
-          />
-        </label>
+        <summary>Places and Characters</summary>
+        <p className="muted-copy">
+          Add only the structure that changes how the first scene can play.
+        </p>
+        {draft.locations.map((location, index) => (
+          <fieldset className="studio-repeatable" key={location.id}>
+            <legend>Place {index + 1}</legend>
+            <div className="studio-field-grid">
+              <label className="field-label" htmlFor={`studio-location-name-${location.id}`}>
+                Name
+                <input
+                  id={`studio-location-name-${location.id}`}
+                  value={location.name}
+                  onChange={(event) => updateLocation(location.id, { name: event.target.value })}
+                />
+              </label>
+              <label className="field-label" htmlFor={`studio-location-description-${location.id}`}>
+                Description
+                <input
+                  id={`studio-location-description-${location.id}`}
+                  value={location.description}
+                  onChange={(event) =>
+                    updateLocation(location.id, { description: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <button
+              className="text-action"
+              type="button"
+              disabled={draft.locations.length === 1}
+              onClick={() => removeLocation(location.id)}
+            >
+              Remove place
+            </button>
+          </fieldset>
+        ))}
+        <button className="secondary-action" type="button" onClick={addLocation}>
+          Add place
+        </button>
+        {draft.characters.map((character, index) => (
+          <fieldset className="studio-repeatable" key={character.id}>
+            <legend>Character {index + 1}</legend>
+            <div className="studio-field-grid">
+              <label className="field-label" htmlFor={`studio-character-name-${character.id}`}>
+                Name
+                <input
+                  id={`studio-character-name-${character.id}`}
+                  value={character.name}
+                  onChange={(event) => updateCharacter(character.id, { name: event.target.value })}
+                />
+              </label>
+              <label className="field-label" htmlFor={`studio-character-role-${character.id}`}>
+                Role
+                <input
+                  id={`studio-character-role-${character.id}`}
+                  value={character.role}
+                  onChange={(event) => updateCharacter(character.id, { role: event.target.value })}
+                />
+              </label>
+            </div>
+            <label className="field-label" htmlFor={`studio-character-location-${character.id}`}>
+              Starts at
+              <select
+                id={`studio-character-location-${character.id}`}
+                value={character.locationId}
+                onChange={(event) =>
+                  updateCharacter(character.id, { locationId: event.target.value })
+                }
+              >
+                {draft.locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field-label" htmlFor={`studio-character-motives-${character.id}`}>
+              Motives (one per line)
+              <textarea
+                id={`studio-character-motives-${character.id}`}
+                rows={2}
+                value={character.motives.join("\n")}
+                onChange={(event) =>
+                  updateCharacter(character.id, { motives: lines(event.target.value) })
+                }
+              />
+            </label>
+            <label className="field-label" htmlFor={`studio-character-stance-${character.id}`}>
+              Stance
+              <textarea
+                id={`studio-character-stance-${character.id}`}
+                rows={2}
+                value={character.stance}
+                onChange={(event) => updateCharacter(character.id, { stance: event.target.value })}
+              />
+            </label>
+            <fieldset className="studio-checks">
+              <legend>Knowledge</legend>
+              {draft.facts.map((fact) => (
+                <label key={fact.id}>
+                  <input
+                    type="checkbox"
+                    checked={character.knowledgeFactIds.includes(fact.id)}
+                    onChange={(event) =>
+                      updateCharacter(character.id, {
+                        knowledgeFactIds: event.target.checked
+                          ? [...character.knowledgeFactIds, fact.id]
+                          : character.knowledgeFactIds.filter((factId) => factId !== fact.id),
+                      })
+                    }
+                  />
+                  {fact.statement}
+                </label>
+              ))}
+            </fieldset>
+            <button
+              className="text-action"
+              type="button"
+              disabled={draft.characters.length === 1}
+              onClick={() => removeCharacter(character.id)}
+            >
+              Remove Character
+            </button>
+          </fieldset>
+        ))}
+        <button className="secondary-action" type="button" onClick={addCharacter}>
+          Add Character
+        </button>
       </details>
       <details className="studio-details">
-        <summary>Stable facts and interaction boundaries</summary>
-        <label className="field-label" htmlFor="studio-fact">
-          Opening fact
-          <textarea
-            id="studio-fact"
-            rows={2}
-            value={fact.statement}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                facts: [
-                  { ...current.facts[0]!, statement: event.target.value },
-                  ...current.facts.slice(1),
-                ],
-              }))
-            }
-          />
-        </label>
-        <label className="field-label" htmlFor="studio-provenance">
-          Fact provenance
-          <input
-            id="studio-provenance"
-            value={fact.provenance}
-            onChange={(event) =>
-              setDraft((current) => ({
-                ...current,
-                facts: [
-                  { ...current.facts[0]!, provenance: event.target.value },
-                  ...current.facts.slice(1),
-                ],
-              }))
-            }
-          />
-        </label>
+        <summary>Facts, routes, relationships and boundaries</summary>
+        {draft.facts.map((fact, index) => (
+          <fieldset className="studio-repeatable" key={fact.id}>
+            <legend>Fact {index + 1}</legend>
+            <label className="field-label" htmlFor={`studio-fact-${fact.id}`}>
+              Statement
+              <textarea
+                id={`studio-fact-${fact.id}`}
+                rows={2}
+                value={fact.statement}
+                onChange={(event) => updateFact(fact.id, { statement: event.target.value })}
+              />
+            </label>
+            <div className="studio-field-grid">
+              <label className="field-label" htmlFor={`studio-provenance-${fact.id}`}>
+                Provenance
+                <input
+                  id={`studio-provenance-${fact.id}`}
+                  value={fact.provenance}
+                  onChange={(event) => updateFact(fact.id, { provenance: event.target.value })}
+                />
+              </label>
+              <label className="field-label" htmlFor={`studio-scope-${fact.id}`}>
+                Scope
+                <select
+                  id={`studio-scope-${fact.id}`}
+                  value={fact.scope}
+                  onChange={(event) =>
+                    updateFact(fact.id, {
+                      scope: event.target.value as typeof fact.scope,
+                    })
+                  }
+                >
+                  <option value="SHARED">Shared</option>
+                  <option value="CONTINUITY_PRIVATE">Continuity private</option>
+                  <option value="ACCOUNT_PRIVATE">Account private</option>
+                </select>
+              </label>
+            </div>
+            <button
+              className="text-action"
+              type="button"
+              disabled={draft.facts.length === 1}
+              onClick={() => removeFact(fact.id)}
+            >
+              Remove fact
+            </button>
+          </fieldset>
+        ))}
+        <button className="secondary-action" type="button" onClick={addFact}>
+          Add fact
+        </button>
+        <h3>Routine routes</h3>
+        {(draft.routineRoutes ?? []).map((route, index) => (
+          <fieldset
+            className="studio-repeatable"
+            key={`${route.fromLocationId}-${route.toLocationId}-${index}`}
+          >
+            <legend>Route {index + 1}</legend>
+            <div className="studio-field-grid">
+              <label className="field-label">
+                From
+                <select
+                  value={route.fromLocationId}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      routineRoutes: current.routineRoutes?.map((item, routeIndex) =>
+                        routeIndex === index
+                          ? { ...item, fromLocationId: event.target.value }
+                          : item,
+                      ),
+                    }))
+                  }
+                >
+                  {draft.locations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                To
+                <select
+                  value={route.toLocationId}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      routineRoutes: current.routineRoutes?.map((item, routeIndex) =>
+                        routeIndex === index ? { ...item, toLocationId: event.target.value } : item,
+                      ),
+                    }))
+                  }
+                >
+                  {draft.locations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="field-label">
+              What changes along this route?
+              <input
+                value={route.label}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    routineRoutes: current.routineRoutes?.map((item, routeIndex) =>
+                      routeIndex === index ? { ...item, label: event.target.value } : item,
+                    ),
+                  }))
+                }
+              />
+            </label>
+            <button
+              className="text-action"
+              type="button"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  routineRoutes: current.routineRoutes?.filter(
+                    (_, routeIndex) => routeIndex !== index,
+                  ),
+                }))
+              }
+            >
+              Remove route
+            </button>
+          </fieldset>
+        ))}
+        <button
+          className="secondary-action"
+          type="button"
+          disabled={draft.locations.length < 2}
+          onClick={addRoute}
+        >
+          Add route
+        </button>
+        <h3>Character relationships</h3>
+        {(draft.relationships ?? []).map((relationship, index) => (
+          <fieldset className="studio-repeatable" key={relationship.id}>
+            <legend>Relationship {index + 1}</legend>
+            <div className="studio-field-grid">
+              <label className="field-label">
+                From
+                <select
+                  value={relationship.fromCharacterId}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      relationships: current.relationships.map((item, relationshipIndex) =>
+                        relationshipIndex === index
+                          ? { ...item, fromCharacterId: event.target.value }
+                          : item,
+                      ),
+                    }))
+                  }
+                >
+                  {draft.characters.map((character) => (
+                    <option key={character.id} value={character.id}>
+                      {character.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                To
+                <select
+                  value={relationship.toCharacterId}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      relationships: current.relationships.map((item, relationshipIndex) =>
+                        relationshipIndex === index
+                          ? { ...item, toCharacterId: event.target.value }
+                          : item,
+                      ),
+                    }))
+                  }
+                >
+                  {draft.characters.map((character) => (
+                    <option key={character.id} value={character.id}>
+                      {character.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="field-label">
+              Description
+              <input
+                value={relationship.description}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    relationships: current.relationships.map((item, relationshipIndex) =>
+                      relationshipIndex === index
+                        ? { ...item, description: event.target.value }
+                        : item,
+                    ),
+                  }))
+                }
+              />
+            </label>
+            <button
+              className="text-action"
+              type="button"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  relationships: current.relationships.filter(
+                    (_, relationshipIndex) => relationshipIndex !== index,
+                  ),
+                }))
+              }
+            >
+              Remove relationship
+            </button>
+          </fieldset>
+        ))}
+        <button
+          className="secondary-action"
+          type="button"
+          disabled={draft.characters.length < 2}
+          onClick={addRelationship}
+        >
+          Add relationship
+        </button>
         <label className="field-label" htmlFor="studio-paths">
           Interaction paths
           <textarea

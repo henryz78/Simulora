@@ -14,6 +14,8 @@ import {
   healthStatusSchema,
   startContinuityRequestSchema,
   updateWorldDraftRequestSchema,
+  worldDraftResponseSchema,
+  worldRevisionSummarySchema,
   actionResponseSchema,
   submitActionRequestSchema,
   confirmActionRequestSchema,
@@ -189,7 +191,9 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const account = await authenticatedAccount(request, auth);
       const { worldId } = request.params as { worldId: string };
       const body = updateWorldDraftRequestSchema.parse(request.body);
-      return service.updateDraft(account, worldId, body.expectedVersion, body.document);
+      return worldDraftResponseSchema.parse(
+        await service.updateDraft(account, worldId, body.expectedVersion, body.document),
+      );
     });
 
     app.post("/v1/worlds/:worldId/revisions", async (request, reply) => {
@@ -197,7 +201,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const { worldId } = request.params as { worldId: string };
       const body = createWorldRevisionRequestSchema.parse(request.body);
       const revision = await service.createRevision(account, worldId, body.expectedDraftVersion);
-      return reply.status(201).send(revision);
+      return reply.status(201).send(worldRevisionSummarySchema.parse(revision));
     });
 
     app.get("/v1/worlds/:worldId/studio", async (request) => {

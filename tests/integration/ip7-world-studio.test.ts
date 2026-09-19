@@ -25,14 +25,17 @@ suite("IP-7 World Studio against PostgreSQL", () => {
       const validation = await repository.validateDraft(account, draft.worldId);
       expect(validation.outcome).toBe("VALID");
       expect(validation.draftRowVersion).toBe(1);
+      expect(validation.findings.some((finding) => finding.path === "objectives")).toBe(true);
 
       const revision = await repository.createRevision(account, draft.worldId, 1);
+      expect(revision.createdAt).toBeTruthy();
       const continuity = await repository.startContinuity(account, revision.revisionId, {
         initiativeMode: "GUIDED",
         structureMode: "OPEN_ENDED",
       });
       const published = await repository.readWorldStudio(account, draft.worldId);
       expect(published.revisions[0]?.revisionId).toBe(revision.revisionId);
+      expect(published.validation?.findings).toEqual(validation.findings);
       expect(published.continuities).toEqual([
         {
           continuityId: continuity.continuityId,
