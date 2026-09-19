@@ -357,6 +357,21 @@ describe("RE-3 bounded routine effects", () => {
         { ...options, responseSource: characterCandidate.responseSource },
       ),
     ).toThrow();
+    for (const reason of [
+      "Your consent is recorded.",
+      "Your commitment is binding.",
+      "Your speech was clear.",
+    ]) {
+      expect(() =>
+        validateActionCandidate(
+          {
+            ...characterCandidate,
+            operation: { ...characterCandidate.operation, reason },
+          },
+          { ...options, responseSource: characterCandidate.responseSource },
+        ),
+      ).toThrow();
+    }
   });
 });
 
@@ -677,6 +692,9 @@ describe("IP-6 participation and character authority", () => {
       "Whichever you choose, you committed to the plan.",
       "Whichever you choose, you said yes.",
       "Whichever you choose, your consent is recorded.",
+      "Your consent is recorded.",
+      "Your commitment is binding.",
+      "Your speech was clear.",
     ]) {
       expect(() =>
         assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Keeper", "Iora"),

@@ -797,6 +797,11 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
     /\b(?:said|agreed|decided|chosen|committed|promised|consented|accepted|approved|permitted|granted|waived|authorized|paid|spent|transferred|shared|published|deleted|surrendered|signed|bought|sold|refused|declined|rejected)\b/i;
   const authorityNoun =
     /\b(?:speech|words|agreement|approval|decision|choice|commitment|promise|consent|acceptance|permission|grant|waiver|authorization|payment|spending|transfer|sharing|publication|deletion|surrender|signature|purchase|sale)\b/i;
+  // A direct possessive claim can author a protected user act without using
+  // the ordinary "you" subject. Keep choice/decision out: those remain
+  // valid deference language ("your choice", "your decision").
+  const directPossessiveClaim =
+    /\byour\s+(?:speech|words|agreement|approval|commitment|promise|consent|acceptance|permission|grant|waiver|authorization|payment|spending|transfer|sharing|publication|deletion|surrender|signature|purchase|sale)\b\s+(?:is|are|was|were|has been|have been|had been|will be|can be|cannot be|must be|shall be)\b/i;
   const activeClaim = new RegExp(`${userSubject}[\\s\\S]*?${protectedAuthority.source}`, "i");
   const passiveClaim = new RegExp(
     `${passiveAuthority.source}[\\s\\S]*?\\bby\\s+(?:the\\s+)?${userSubject}`,
@@ -825,7 +830,8 @@ export function assertGeneratedNarrativeDoesNotAuthorUser(
         (sentence) =>
           activeClaim.test(sentence) ||
           passiveClaim.test(sentence) ||
-          possessiveClaim.test(sentence),
+          possessiveClaim.test(sentence) ||
+          directPossessiveClaim.test(sentence),
       ) || localizedClaim;
   if (authorsUser) {
     throw new Error("Generated narrative cannot author user speech or protected commitments");

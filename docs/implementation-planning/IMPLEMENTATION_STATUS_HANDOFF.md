@@ -878,3 +878,22 @@ tests, PGlite SQL parity, lint, typecheck, architecture and migration checks
 pass locally; fresh PostgreSQL parity, exact-SHA CI and independent focused
 review remain required before closing the repair. No IP-7 or production
 live-model enablement has started.
+
+## 34. Direct possessive authority guard successor — focused re-review pending
+
+The independent review of `09a04ca` found one additional real parity gap:
+direct protected claims beginning with `Your` (for example, “Your consent is
+recorded”, “Your commitment is binding”, and “Your speech was clear”) were not
+blocked by either the application or PostgreSQL guard when no ordinary `you`
+subject appeared. The minimal successor `0038_re3_direct_possessive_authority.sql`
+adds a shared narrow predicate to the strict and Character-bound SQL overloads;
+the TypeScript guard uses the same predicate. `your choice` and `your decision`
+remain available as deference language.
+
+Domain and migration-contract tests pass, the full local unit suite remains
+green with PostgreSQL-dependent suites skipped because no local PostgreSQL
+service is present, and the PGlite full-migration probe is **6/6**. The prior
+`09a04ca` exact-SHA CI was green across quality, PostgreSQL, containers and
+desktop/390x844. This successor is not closed until its own CI and the same
+independent Reviewer pass. IP-7, production live-model enablement and broad
+dialogue/memory work remain out of scope.

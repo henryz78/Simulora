@@ -80,6 +80,31 @@ could run, so the SQL migration and app/SQL parity still require the exact-SHA
 CI PostgreSQL run and an independent focused review. No production database was
 touched.
 
+## Successor repair after independent review
+
+The first focused review of `09a04ca` found one remaining authority gap:
+English direct possessive claims such as “Your consent is recorded”, “Your
+commitment is binding”, and “Your speech was clear” were not classified as
+protected when the prose did not also contain a `you` subject. This was a real
+application/SQL parity defect, not a provider-only observation.
+
+Successor migration `0038_re3_direct_possessive_authority.sql` adds the same
+narrow direct-possessive predicate to both the strict two-argument guard and the
+Character-bound three-argument guard. It intentionally excludes `choice` and
+`decision`, so ordinary deference such as “your choice remains yours” is not
+turned into a false positive. The TypeScript guard uses the same predicate and
+the no-world reason path remains bound to the selected Character.
+
+Added positive/negative parity coverage for the three direct protected claims
+and for deferential `your choice` / `your decision` language. Fresh PGlite
+full-migration probing reports **6/6** expected outcomes; domain tests are
+**23/23**, migration-contract tests **3/3**, full local unit suite **63 pass /
+127 PostgreSQL-dependent skipped**, lint, typecheck, architecture, migration
+check, whitespace check, and production build pass. The prior exact-SHA CI for
+`09a04ca` also passed all quality, PostgreSQL, container, desktop and 390x844
+steps. The new successor still requires its own exact-SHA CI and independent
+focused review before closure.
+
 ## Remaining gate
 
 Before treating this repair as closed, run fresh PostgreSQL migration/parity

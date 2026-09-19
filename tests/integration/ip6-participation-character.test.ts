@@ -310,6 +310,9 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       ["The keeper can decide; you consented to share the note.", true],
       ["The keeper can decide; 玩家已同意付款。", true],
       ["The keeper can decide; the keeper's commitment is binding.", true],
+      ["Your consent is recorded.", true],
+      ["Your commitment is binding.", true],
+      ["Your speech was clear.", true],
     ] as const) {
       const result = await pool.query<{ blocked: boolean; strict: boolean; collision: boolean }>(
         "select simulora.generated_narrative_authors_user($1::text, 'Keeper', 'Iora') as blocked, simulora.generated_narrative_authors_user($1::text, 'Keeper') as strict, simulora.generated_narrative_authors_user($1::text, 'Keeper', 'Keeper') as collision",
