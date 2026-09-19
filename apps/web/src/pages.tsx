@@ -2310,7 +2310,7 @@ function StudioCoreFields({
       locations: [
         ...current.locations,
         {
-          id: `location-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           name: `Place ${current.locations.length + 1}`,
           description: "Describe what makes this place matter to play.",
         },
@@ -2338,7 +2338,7 @@ function StudioCoreFields({
       characters: [
         ...current.characters,
         {
-          id: `character-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           name: `Character ${current.characters.length + 1}`,
           role: "A person with a reason to be here",
           locationId: current.locations[0]!.id,
@@ -2366,7 +2366,7 @@ function StudioCoreFields({
       facts: [
         ...current.facts,
         {
-          id: `fact-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           statement: "A stable fact that should remain true at the start.",
           scope: "SHARED",
           provenance: "World creator Draft",
@@ -2407,7 +2407,7 @@ function StudioCoreFields({
         relationships: [
           ...(current.relationships ?? []),
           {
-            id: `relationship-${crypto.randomUUID()}`,
+            id: crypto.randomUUID(),
             fromCharacterId: from.id,
             toCharacterId: to.id,
             description: "Describe what connects these Characters.",
@@ -2908,9 +2908,9 @@ function ValidationFindings({ validation }: { validation: WorldValidationRespons
 }
 
 function starterWorld(): WorldDocumentInput {
-  const locationId = `location-${crypto.randomUUID()}`;
-  const characterId = `character-${crypto.randomUUID()}`;
-  const factId = `fact-${crypto.randomUUID()}`;
+  const locationId = crypto.randomUUID();
+  const characterId = crypto.randomUUID();
+  const factId = crypto.randomUUID();
   return {
     schemaVersion: 1,
     title: "A new world",
