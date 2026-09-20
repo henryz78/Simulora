@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   AuthoritativeWorldRepository,
@@ -330,11 +329,12 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     const repository = new AuthoritativeWorldRepository(pool);
     const gateway = new DeterministicModelGateway();
     const owner = { accountId: randomUUID(), eligibility: "adult" as const };
-    const holder = new Client({ connectionString });
-    const probe = new Client({ connectionString });
+    // `pg` is not a root dependency, so the dedicated connections come from a
+    // second pool rather than a direct client import.
+    const side = createDatabasePool(connectionString);
+    const holder = await side.connect();
+    const probe = await side.connect();
     try {
-      await holder.connect();
-      await probe.connect();
       const world = await repository.createWorld(owner, lanternReachSeed);
       await repository.validateDraft(owner, world.worldId);
       const revision = await repository.createRevision(owner, world.worldId, 1);
@@ -458,8 +458,9 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       }
       await holder.query("rollback");
     } finally {
-      await holder.end().catch(() => undefined);
-      await probe.end().catch(() => undefined);
+      holder.release();
+      probe.release();
+      await side.end();
       await pool.end();
     }
   });
