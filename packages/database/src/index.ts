@@ -875,6 +875,15 @@ function eventSummary(eventType: string, payload?: Record<string, unknown>): str
   }
 }
 
+let transactionRetryLogger: ((detail: { code: unknown; message: string }) => void) | undefined;
+
+/** Observe deadlock and serialization aborts, which are otherwise flattened to 409. */
+export function onTransactionRetryConflict(
+  observer: ((detail: { code: unknown; message: string }) => void) | undefined,
+): void {
+  transactionRetryLogger = observer;
+}
+
 async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
@@ -889,6 +898,9 @@ async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<
     // the caller can retry rather than letting it surface as a 500.
     const code = (error as { code?: unknown }).code;
     if (code === "40001" || code === "40P01") {
+      // Translating loses the SQLSTATE, and a rising rate of either code is a real
+      // signal about a hot path, so record it before the client sees only a 409.
+      transactionRetryLogger?.({ code, message: String((error as { message?: string }).message) });
       throw new ConflictError("CONCURRENT_UPDATE_RETRY");
     }
     throw error;
@@ -3280,6 +3292,16 @@ export class AuthoritativeWorldRepository {
         }
         if (proposal.status !== "ACTIVE") return "NOT_ACTIVE";
 
+        // This runs before the Continuity peek below, not after it. The guard takes
+        // the World lock first, so the peek's own `for update` re-locks a row this
+        // transaction already holds instead of inverting the order against
+        // confirmDeletion. It also names a deleted World as such, rather than
+        // sending the reviewer to re-read a proposal whose World is gone.
+        await this.assertMutableContinuityWithClient(
+          client,
+          account.accountId,
+          proposal.continuity_id,
+        );
         const continuity = await client.query<{
           active_branch_id: string | null;
           status: "ACTIVE" | "INITIALIZING" | "TOMBSTONED";
@@ -3289,13 +3311,6 @@ export class AuthoritativeWorldRepository {
           [proposal.continuity_id, account.accountId],
         );
         if (!continuity.rows[0]) throw new NotFoundError("Continuity not found");
-        // A deleted World is not a stale proposal. Say which one it is, so the
-        // reviewer is not sent to re-read a proposal whose World is gone.
-        await this.assertMutableContinuityWithClient(
-          client,
-          account.accountId,
-          proposal.continuity_id,
-        );
         const branch = await client.query<{
           continuity_id: string;
           status: "ACTIVE" | "INITIALIZING" | "TOMBSTONED";

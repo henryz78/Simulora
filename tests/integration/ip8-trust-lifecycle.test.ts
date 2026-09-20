@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 import {
   AuthoritativeWorldRepository,
@@ -6,6 +7,7 @@ import {
   createDatabasePool,
 } from "../../packages/database/src/index.js";
 import { lanternReachSeed } from "../../packages/domain/src/index.js";
+import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
 
 const connectionString = process.env.SIMULORA_DATABASE_URL;
 const suite = connectionString ? describe.sequential : describe.skip;
@@ -322,12 +324,17 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     }
   });
 
-  it("keeps deletion confirmation and guarded mutation free of lock-order deadlocks", async () => {
+  it("makes every guarded path take the World lock before the Continuity lock", async () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const pool = createDatabasePool(connectionString);
     const repository = new AuthoritativeWorldRepository(pool);
+    const gateway = new DeterministicModelGateway();
     const owner = { accountId: randomUUID(), eligibility: "adult" as const };
+    const holder = new Client({ connectionString });
+    const probe = new Client({ connectionString });
     try {
+      await holder.connect();
+      await probe.connect();
       const world = await repository.createWorld(owner, lanternReachSeed);
       await repository.validateDraft(owner, world.worldId);
       const revision = await repository.createRevision(owner, world.worldId, 1);
@@ -335,58 +342,124 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         initiativeMode: "GUIDED",
         structureMode: "OPEN_ENDED",
       });
-      const proposal = await repository.proposeDeletion(owner, {
-        schemaVersion: 1,
-        targetType: "WORLD",
-        targetId: world.worldId,
+      const point = await repository.createRecoveryPoint(owner, continuity.branchId, {
+        idempotencyKey: `lock-point-${randomUUID()}`,
+        label: "Before the lock ordering test",
       });
+      const action = await repository.submitAction(owner, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: `lock-action-${randomUUID()}`,
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: "Change the signal before testing lock ordering.",
+      });
+      const proposed = await repository.processAction(
+        action.id,
+        (request) => gateway.generateWorldTurn(request),
+        `ip8-lock-${randomUUID()}`,
+      );
+      if (!proposed?.proposal) throw new Error("Expected Action proposal");
+      const committed = await repository.confirmAction(owner, action.id, {
+        proposalId: proposed.proposal.id,
+        proposalDigest: proposed.proposal.digest,
+        expectedHeadCommitId: proposed.proposal.expectedHeadCommitId,
+      });
+      const restore = await repository.prepareRestore(owner, continuity.branchId, point.commitId);
 
-      // confirmDeletion locks the World then its Continuities; the tombstone guard
-      // must take the same two locks in the same order, or PostgreSQL aborts one
-      // side with a deadlock that would surface as a generic failure.
-      let timeout: ReturnType<typeof setTimeout> | undefined;
-      const outcomes = await Promise.race([
-        Promise.allSettled([
-          repository.confirmDeletion(owner, {
-            schemaVersion: 1,
-            proposalId: proposal.proposalId,
-            digest: proposal.digest,
-            idempotencyKey: randomUUID(),
-          }),
-          repository.createRecoveryPoint(owner, continuity.branchId, {
-            idempotencyKey: `deadlock-${randomUUID()}`,
-            label: "Racing a confirmed deletion",
-          }),
-          repository.forkBranch(owner, continuity.continuityId, {
-            idempotencyKey: `deadlock-fork-${randomUUID()}`,
-            name: "Racing a confirmed deletion",
-            sourceCommitId: continuity.headCommitId,
-            expectedHeadCommitId: continuity.headCommitId,
-          }),
-        ]),
-        new Promise<never>((_resolve, reject) => {
-          timeout = setTimeout(() => reject(new Error("Deletion lock ordering timed out")), 10_000);
-        }),
-      ]).finally(() => clearTimeout(timeout));
+      // confirmDeletion's first lock on this pair is the World row. Holding it here
+      // reproduces that half deterministically, instead of hoping two operations
+      // happen to overlap.
+      await holder.query("begin");
+      await holder.query("select id from simulora.worlds where id = $1 for update", [
+        world.worldId,
+      ]);
 
-      expect(
-        outcomes.some(
-          (outcome) =>
-            outcome.status === "rejected" &&
-            String(outcome.reason).toLowerCase().includes("deadlock detected"),
-        ),
-      ).toBe(false);
-      // The deletion is authoritative either way; a losing mutation must name a
-      // stable conflict rather than fail as an internal error.
-      for (const outcome of outcomes) {
-        if (outcome.status === "rejected") {
-          expect(String(outcome.reason)).toMatch(
-            /WORLD_TOMBSTONED|CONCURRENT_UPDATE_RETRY|IDEMPOTENCY/,
+      const guarded: Array<[string, () => Promise<unknown>]> = [
+        [
+          "createRecoveryPoint",
+          () =>
+            repository.createRecoveryPoint(owner, continuity.branchId, {
+              idempotencyKey: `lock-blocked-${randomUUID()}`,
+              label: "Blocked behind the World lock",
+            }),
+        ],
+        [
+          "forkBranch",
+          () =>
+            repository.forkBranch(owner, continuity.continuityId, {
+              idempotencyKey: `lock-fork-${randomUUID()}`,
+              name: "Blocked behind the World lock",
+              sourceCommitId: committed.commit?.resultingHeadCommitId ?? point.commitId,
+              expectedHeadCommitId: committed.commit?.resultingHeadCommitId ?? point.commitId,
+            }),
+        ],
+        [
+          // The path the third review found still inverted: it must block on the
+          // World too, not slip past on a Continuity lock it took first.
+          "confirmRestore",
+          () =>
+            repository.confirmRestore(owner, continuity.branchId, {
+              proposalId: restore.id,
+              digest: restore.digest,
+              expectedHeadCommitId: restore.expectedHeadCommitId,
+            }),
+        ],
+      ];
+
+      for (const [name, run] of guarded) {
+        let settled = false;
+        const pending = run().then(
+          (value) => {
+            settled = true;
+            return value;
+          },
+          (error: unknown) => {
+            settled = true;
+            return error;
+          },
+        );
+        await new Promise((resolve) => setTimeout(resolve, 750));
+
+        // Waiting proves the World lock is wanted. It does not yet prove the World
+        // lock is wanted FIRST: an inverted path would also end up waiting here,
+        // holding the Continuity all the while.
+        expect([name, settled]).toEqual([name, false]);
+
+        // So probe the Continuity from a third connection. A granted row lock lives
+        // in the tuple header and never appears in pg_locks, so `nowait` is the
+        // detector: it raises 55P03 only if the blocked path already holds the
+        // Continuity, which is exactly the inversion. This probe fails on the
+        // pre-repair ordering and passes on the repaired one.
+        await probe.query("begin");
+        let continuityHeldByBlockedPath = false;
+        try {
+          await probe.query(
+            "select id from simulora.continuities where id = $1 for update nowait",
+            [continuity.continuityId],
           );
+        } catch (error) {
+          if ((error as { code?: string }).code !== "55P03") throw error;
+          continuityHeldByBlockedPath = true;
         }
+        await probe.query("rollback");
+        expect([name, continuityHeldByBlockedPath]).toEqual([name, false]);
+
+        await holder.query("commit");
+        const outcome = await pending;
+        // The World is not deleted, so releasing the lock lets the work finish.
+        expect([name, outcome instanceof Error ? String(outcome) : "completed"]).toEqual([
+          name,
+          "completed",
+        ]);
+        await holder.query("begin");
+        await holder.query("select id from simulora.worlds where id = $1 for update", [
+          world.worldId,
+        ]);
       }
-      expect((await repository.readDeletion(owner, proposal.proposalId)).status).toBe("COMPLETED");
+      await holder.query("rollback");
     } finally {
+      await holder.end().catch(() => undefined);
+      await probe.end().catch(() => undefined);
       await pool.end();
     }
   });
