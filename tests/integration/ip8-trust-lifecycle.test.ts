@@ -321,4 +321,37 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       await pool.end();
     }
   });
+
+  it("lets the newest consent decision govern when several versions coexist", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const owner = { accountId: randomUUID(), eligibility: "adult" as const };
+    try {
+      await repository.ensureAccount(owner);
+      const terms = { consentType: "TERMS" as const, scope: "ACCOUNT" as const };
+      await repository.setConsent(owner, { ...terms, version: "IP-8-V1", decision: "GRANTED" });
+      await repository.setConsent(owner, { ...terms, version: "IP-8-V1", decision: "WITHDRAWN" });
+      await expect(repository.createWorld(owner, lanternReachSeed)).rejects.toThrow(
+        /consent is withdrawn/i,
+      );
+
+      // A grant at a newer version supersedes the older withdrawal.
+      await repository.setConsent(owner, { ...terms, version: "IP-8-V2", decision: "GRANTED" });
+      const world = await repository.createWorld(owner, lanternReachSeed);
+      expect(world.worldId).toMatch(/^[0-9a-f-]{36}$/);
+
+      // Repeating the older withdrawal is idempotent and must not re-block.
+      await repository.setConsent(owner, { ...terms, version: "IP-8-V1", decision: "WITHDRAWN" });
+      await repository.createWorld(owner, lanternReachSeed);
+
+      // The newest decision governs, so withdrawing the current version blocks.
+      await repository.setConsent(owner, { ...terms, version: "IP-8-V2", decision: "WITHDRAWN" });
+      await expect(repository.createWorld(owner, lanternReachSeed)).rejects.toThrow(
+        /consent is withdrawn/i,
+      );
+    } finally {
+      await pool.end();
+    }
+  });
 });

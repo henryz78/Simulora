@@ -3275,16 +3275,23 @@ export class AuthoritativeWorldRepository {
 
         const continuity = await client.query<{
           active_branch_id: string | null;
-          status: "ACTIVE" | "INITIALIZING";
+          status: "ACTIVE" | "INITIALIZING" | "TOMBSTONED";
         }>(
           `select active_branch_id, status from simulora.continuities
             where id = $1 and owner_account_id = $2 for update`,
           [proposal.continuity_id, account.accountId],
         );
         if (!continuity.rows[0]) throw new NotFoundError("Continuity not found");
+        // A deleted World is not a stale proposal. Say which one it is, so the
+        // reviewer is not sent to re-read a proposal whose World is gone.
+        await this.assertMutableContinuityWithClient(
+          client,
+          account.accountId,
+          proposal.continuity_id,
+        );
         const branch = await client.query<{
           continuity_id: string;
-          status: "ACTIVE" | "INITIALIZING";
+          status: "ACTIVE" | "INITIALIZING" | "TOMBSTONED";
           head_commit_id: string | null;
           head_state_revision_id: string | null;
         }>(
@@ -6296,8 +6303,12 @@ export class AuthoritativeWorldRepository {
     return this.#consentTablePresent;
   }
 
-  // Only the newest decision per consent type and scope authorizes a mutation, so a
-  // re-grant - at the same version or a newer one - restores authoring immediately.
+  // The rule is recency, not version order: for each consent type and scope the
+  // most recently recorded decision governs, so a re-grant restores authoring at
+  // once. `version` is free text with no ordering contract - "V10" sorts below
+  // "V2" - so it must not decide precedence; `id` only breaks exact ties.
+  // A withdrawal therefore blocks even when an older version is still granted,
+  // which is the conservative reading of the user's last stated decision.
   private async assertConsentActive(account: SyntheticAccount): Promise<void> {
     if (!(await this.hasConsentRecords())) return;
     const result = await this.pool.query<{ withdrawn: boolean }>(
@@ -6306,7 +6317,7 @@ export class AuthoritativeWorldRepository {
            select distinct on (consent_type, scope) decision
            from simulora.account_consents
            where account_id = $1
-           order by consent_type, scope, updated_at desc, version desc
+           order by consent_type, scope, updated_at desc, id desc
          ) latest
          where latest.decision = 'WITHDRAWN'
        ) as withdrawn`,

@@ -88,8 +88,9 @@ async function authenticatedAccount(request: FastifyRequest, auth: AuthPort) {
 }
 
 // The frozen API contract carries idempotency in the `Idempotency-Key` header. The
-// body field stays accepted for compatibility, but the two must agree.
-function bodyWithIdempotencyHeader(request: FastifyRequest): unknown {
+// body field stays accepted for compatibility, but the two must agree. A usage
+// reservation dedupes on `actionKey`, so that is the field the header fills there.
+function bodyWithIdempotencyHeader(request: FastifyRequest, field = "idempotencyKey"): unknown {
   const header = request.headers["idempotency-key"];
   if (header === undefined) return request.body;
   if (Array.isArray(header)) {
@@ -99,11 +100,11 @@ function bodyWithIdempotencyHeader(request: FastifyRequest): unknown {
   if (!key) throw new ValidationError("Idempotency-Key must not be empty");
   if (typeof request.body !== "object" || request.body === null) return request.body;
   const body = request.body as Record<string, unknown>;
-  const existing = body.idempotencyKey;
+  const existing = body[field];
   if (existing !== undefined && existing !== key) {
-    throw new ValidationError("Idempotency-Key header and body idempotencyKey disagree");
+    throw new ValidationError(`Idempotency-Key header and body ${field} disagree`);
   }
-  return { ...body, idempotencyKey: key };
+  return { ...body, [field]: key };
 }
 
 function stateResponse(result: Awaited<ReturnType<WorldContinuityService["readCurrentState"]>>) {
@@ -271,7 +272,9 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     app.post("/v1/usage/quotes/:quoteId/reservations", async (request, reply) => {
       const account = await authenticatedAccount(request, auth);
       const { quoteId } = request.params as { quoteId: string };
-      const body = usageReservationRequestSchema.parse(request.body);
+      const body = usageReservationRequestSchema.parse(
+        bodyWithIdempotencyHeader(request, "actionKey"),
+      );
       return reply
         .status(201)
         .send(

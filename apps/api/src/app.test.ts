@@ -372,4 +372,52 @@ describe("API composition root", () => {
     expect(disagreeing.statusCode).toBe(422);
     expect(seen).toHaveLength(3);
   });
+
+  it("fills a usage reservation's action key from the Idempotency-Key header", async () => {
+    const seen: string[] = [];
+    const quoteId = "20000000-0000-4000-8000-000000000002";
+    const governancePort = {
+      reserveUsage: (_account: unknown, _quoteId: string, request: { actionKey: string }) => {
+        seen.push(request.actionKey);
+        return Promise.resolve({
+          reservationId: "20000000-0000-4000-8000-000000000003",
+          quoteId,
+          actionKey: request.actionKey,
+          status: "RESERVED" as const,
+          units: 0 as const,
+          createdAt: new Date().toISOString(),
+        });
+      },
+    } as unknown as GovernancePort;
+    app = createApiApp({
+      logLevel: "error",
+      governanceService: new GovernanceService(governancePort),
+    });
+    const url = `/v1/usage/quotes/${quoteId}/reservations`;
+
+    const headerOnly = await app.inject({
+      method: "POST",
+      url,
+      headers: { "idempotency-key": "export:header-key" },
+      payload: { schemaVersion: 1 },
+    });
+    expect(headerOnly.statusCode).toBe(201);
+
+    const bodyOnly = await app.inject({
+      method: "POST",
+      url,
+      payload: { schemaVersion: 1, actionKey: "export:body-key" },
+    });
+    expect(bodyOnly.statusCode).toBe(201);
+    expect(seen).toEqual(["export:header-key", "export:body-key"]);
+
+    const disagreeing = await app.inject({
+      method: "POST",
+      url,
+      headers: { "idempotency-key": "export:header-key" },
+      payload: { schemaVersion: 1, actionKey: "export:body-key" },
+    });
+    expect(disagreeing.statusCode).toBe(422);
+    expect(seen).toHaveLength(2);
+  });
 });
