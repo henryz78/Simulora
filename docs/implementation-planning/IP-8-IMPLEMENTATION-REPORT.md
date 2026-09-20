@@ -219,3 +219,59 @@ produce because each write is its own transaction.
 Local verification after this pass: format, typecheck, architecture, migrations
 (42), runtime, ESLint 0/0, `pnpm build`, Vitest 66 passed with 131 PostgreSQL
 tests skipped, and Playwright 68/68 to a normal exit.
+
+## Second re-review pass
+
+The same review agent was asked to re-check its three findings, and was told
+explicitly that its NEW-1 reproduction looked wrong and that it should re-derive
+that itself rather than accept the correction. Verdict `PASS WITH ISSUES`,
+`0B / 1I / 2M`.
+
+It withdrew NEW-1: re-running through the real `setConsent` and `createWorld`
+methods rather than raw SQL, repeating an older withdrawal leaves the account
+unblocked, so its original harness had manufactured a state the application
+cannot reach. It reclassified the remaining, genuinely reachable case
+(withdrawing an older still-granted version blocks) as Minor and accepted the
+recency rule with corrected documentation, noting it fails closed. It confirmed
+M-1 resolved, accepted the NEW-2 coverage judgement, and confirmed the diff
+leaves B-1 and I-1 through I-6 undisturbed.
+
+Pressing on the lock-ordering question it was asked surfaced a **real regression
+introduced by the first repair pass**, which neither reviewer had examined:
+
+`confirmDeletion` locks `simulora.worlds` first and only later write-locks the
+affected Continuities. The tombstone guard added in `2c22446` started from the
+Continuity and took `for update of c, w`, locking the Continuity before the
+World. That is a lock-order inversion on the same two tables across six callers.
+PostgreSQL resolves it by aborting one side with `40P01`, and nothing mapped
+that code, so it would have surfaced as a generic `INTERNAL_ERROR` 500 — exactly
+the failure class I-1 exists to prevent. The reviewer could not execute the race
+(PGlite is single-connection) and reported it as structurally founded but
+unverified.
+
+Two repairs, and the verification the reviewer asked for:
+
+- `assertMutableContinuityWithClient` now locks the World first and the
+  Continuity second, matching `confirmDeletion`. `assertMutableBranchWithClient`
+  resolves the owning Continuity with an unlocked lookup and then delegates, so
+  all six callers take the two locks in one order.
+- `transaction` translates `40P01` and `40001` into a stable
+  `CONCURRENT_UPDATE_RETRY` conflict, which the API maps to 409. This also
+  covers the `REPEATABLE READ` serialization failures `createExport` can raise —
+  another unmapped 500 that the first pass left behind.
+- A new PostgreSQL test races `confirmDeletion` against `createRecoveryPoint`
+  and `forkBranch` on the same World, asserts no deadlock is detected, asserts
+  every losing mutation names a stable conflict rather than an internal error,
+  and asserts the deletion is still authoritative. This is the real-concurrency
+  test the reviewer recommended, and it runs on CI where PostgreSQL is real.
+
+The reviewer's remaining Minor — five pre-existing pre-IP-8 routes still carry
+idempotency only in the body — is recorded and **not** fixed here. Those routes
+were accepted under G3 to G6, are untouched by this work, and changing them is
+outside the frozen IP-8 envelope. The frozen `Idempotency-Key` header contract
+is therefore honoured for the four IP-8 routes and still not honoured API-wide.
+
+Local verification after this pass: format, typecheck, architecture, migrations
+(42), runtime, ESLint 0/0, build, Vitest 66 passed with 132 PostgreSQL tests
+skipped, Playwright 68/68 to a normal exit, and a PGlite check that the split
+guard statements plan correctly and that `for update of w` is honoured.
