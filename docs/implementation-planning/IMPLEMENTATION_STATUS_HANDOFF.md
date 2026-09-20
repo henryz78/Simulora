@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 IMPLEMENTATION CANDIDATE / G7 REVIEW PENDING`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 IMPLEMENTATION CANDIDATE / G7 REVIEW PASS / REAL POSTGRESQL PENDING`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -44,6 +44,14 @@ RE-2 subsequently [passed independent review](RE-2-INDEPENDENT-REVIEW.md) at
 success. Independent PostgreSQL 117/117, focused desktop/mobile 18/18 PASS. The
 main Agent's earlier 54/54 full browser run is separate self-test evidence.
 
+The IP-7 successor implementation received the same independent Reviewer's exact
+SHA `cd2e61e72305cd500c848975a29e86abca9140d2` **PASS / 0–0–0**. The review
+confirmed the frozen World Studio scope, pinned Continuity behavior, API and
+authority boundaries, and the cross-tab unsent-Draft cleanup repair. Its
+desktop/mobile E2E assertions, build, and worker checks passed, but the local
+environment had no `SIMULORA_DATABASE_URL`; IP-7 PostgreSQL integration therefore
+remains the final open Gate evidence.
+
 **Final product direction:** [User goal and direction guardrails](PRODUCT_DIRECTION_GUARDRAILS.md).
 Simulora must remain a long-lived playable AI World: world-director shaping and
 in-world role participation with user agency, independent Characters and causal
@@ -75,12 +83,12 @@ Integrated G1–G6:                  approved / 0 blocker, 0 important, 0 minor
 
 IP-5 Recovery:                     implementation complete
 IP-6 Participation / characters:   implementation complete / approved
-IP-7 World Studio:                 implementation candidate / G7 review pending
+IP-7 World Studio:                 implementation candidate / independent review passed / PostgreSQL pending
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected (production remains disabled)
 Live Model / Product Reality Spike: bounded RE-1–RE-3 convergence complete
 Formal deployment:                 not started
-Next decision:                     independent G7 review, then Gate decision
+Next decision:                     real PostgreSQL integration, then final G7 Gate decision
 Product Reality Gate:              BOUNDED RE CONVERGENCE COMPLETE; human play remains a product-risk item
 ```
 
@@ -270,10 +278,10 @@ fixtures remain evidence only.
 Local evidence so far: format, typecheck, architecture and migration checks pass;
 the repository test suite passes with PostgreSQL suites skipped because
 `SIMULORA_DATABASE_URL` is not configured; desktop and 390x844 World Studio E2E
-pass; escalated Windows build and worker runtime smoke pass. The PostgreSQL IP-7
-integration remains pending a real database run. G7 is not closed until an
-independent Reviewer checks the exact implementation and the Gate decision is
-recorded.
+assertions pass; escalated Windows build and worker runtime smoke pass. The same
+independent Reviewer checked exact SHA `cd2e61e72305cd500c848975a29e86abca9140d2`
+and returned **PASS / 0 BLOCKER / 0 IMPORTANT / 0 MINOR**. The PostgreSQL IP-7
+integration remains pending a real database run, so G7 is not yet closed.
 
 ### G4 independent review chain
 
@@ -1013,8 +1021,10 @@ for the final evidence matrix and new-session reading order.
 
 The preceding RE closure section records the state before the user's explicit
 IP-7 authorization. The current decision is now the candidate described above:
-the original roadmap scope and G7 Gate remain unchanged, implementation is in
-the working tree, and independent review is required before calling IP-7 passed.
+the original roadmap scope and G7 Gate remain unchanged, implementation is at
+`cd2e61e72305cd500c848975a29e86abca9140d2`, and the same independent Reviewer
+has returned PASS / 0–0–0. A real PostgreSQL integration run is still required
+before calling the IP-7 Gate fully passed.
 Human long-session play, production live-model enablement, autonomous scheduling,
 full long-term memory and broad autonomous simulation remain unqualified and out
 of scope for this phase.
