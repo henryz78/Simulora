@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 IMPLEMENTATION CANDIDATE / G7 REVIEW PASS / REAL POSTGRESQL PENDING`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -47,10 +47,11 @@ main Agent's earlier 54/54 full browser run is separate self-test evidence.
 The IP-7 successor implementation received the same independent Reviewer's exact
 SHA `cd2e61e72305cd500c848975a29e86abca9140d2` **PASS / 0–0–0**. The review
 confirmed the frozen World Studio scope, pinned Continuity behavior, API and
-authority boundaries, and the cross-tab unsent-Draft cleanup repair. Its
-desktop/mobile E2E assertions, build, and worker checks passed, but the local
-environment had no `SIMULORA_DATABASE_URL`; IP-7 PostgreSQL integration therefore
-remains the final open Gate evidence.
+authority boundaries, and the cross-tab unsent-Draft cleanup repair. CI run
+[35479994387](https://github.com/henryz78/Simulora/actions/runs/35479994387)
+then verified real PostgreSQL 17 migration and integration behavior: 10 files,
+128/128 PostgreSQL tests, 25 files and 192/192 full quality tests, and 66/66
+desktop/mobile browser checks all passed with no PostgreSQL skips. G7 is closed.
 
 **Final product direction:** [User goal and direction guardrails](PRODUCT_DIRECTION_GUARDRAILS.md).
 Simulora must remain a long-lived playable AI World: world-director shaping and
@@ -83,12 +84,12 @@ Integrated G1–G6:                  approved / 0 blocker, 0 important, 0 minor
 
 IP-5 Recovery:                     implementation complete
 IP-6 Participation / characters:   implementation complete / approved
-IP-7 World Studio:                 implementation candidate / independent review passed / PostgreSQL pending
+IP-7 World Studio:                 implementation complete / G7 passed
 IP-8 Trust / lifecycle:            not started
 Live model provider:               not connected (production remains disabled)
 Live Model / Product Reality Spike: bounded RE-1–RE-3 convergence complete
 Formal deployment:                 not started
-Next decision:                     real PostgreSQL integration, then final G7 Gate decision
+Next decision:                     IP-8 requires separate authorization
 Product Reality Gate:              BOUNDED RE CONVERGENCE COMPLETE; human play remains a product-risk item
 ```
 
@@ -264,7 +265,7 @@ implementation hashes and CI runs above are provenance, not the final baseline.
 
 The complete G4 failure-to-pass history is retained in [IP-4 G4 Evidence](IP-4-G4-EVIDENCE.md). Earlier report headers that say `READY FOR REVIEW` or `IN PROGRESS` are contemporaneous evidence snapshots; this handoff and the final G4 section record the current decision rather than erasing those historical states.
 
-### Current IP-7 implementation candidate
+### IP-7 implementation and G7 evidence
 
 The user has now authorized the frozen IP-7 scope. The candidate implements the
 roadmap's progressive World Studio only: generic World Draft editing, row-version
@@ -275,13 +276,14 @@ preview. It does not add a live provider, scheduler, long-term memory system,
 effect DSL, marketplace/team features, or a new truth model. Prototype assets and
 fixtures remain evidence only.
 
-Local evidence so far: format, typecheck, architecture and migration checks pass;
-the repository test suite passes with PostgreSQL suites skipped because
-`SIMULORA_DATABASE_URL` is not configured; desktop and 390x844 World Studio E2E
-assertions pass; escalated Windows build and worker runtime smoke pass. The same
-independent Reviewer checked exact SHA `cd2e61e72305cd500c848975a29e86abca9140d2`
-and returned **PASS / 0 BLOCKER / 0 IMPORTANT / 0 MINOR**. The PostgreSQL IP-7
-integration remains pending a real database run, so G7 is not yet closed.
+Local checks pass, and the same independent Reviewer checked exact SHA
+`cd2e61e72305cd500c848975a29e86abca9140d2` with **PASS / 0 BLOCKER / 0 IMPORTANT /
+0 MINOR**. The pushed CI run [35479994387](https://github.com/henryz78/Simulora/actions/runs/35479994387)
+used a real PostgreSQL 17 service and ran `pnpm test:postgres`: 10 files,
+128/128 tests, 0 skips; the full quality suite was 25 files, 192/192 tests, and
+desktop/mobile browser checks were 66/66. This closes G7. Production live-model
+enablement, autonomous scheduling, full long-term memory, broad autonomous
+simulation, and human long-session play remain outside IP-7 and unqualified.
 
 ### G4 independent review chain
 
@@ -1020,11 +1022,10 @@ for the final evidence matrix and new-session reading order.
 ## 38. IP-7 current phase handoff
 
 The preceding RE closure section records the state before the user's explicit
-IP-7 authorization. The current decision is now the candidate described above:
-the original roadmap scope and G7 Gate remain unchanged, implementation is at
-`cd2e61e72305cd500c848975a29e86abca9140d2`, and the same independent Reviewer
-has returned PASS / 0–0–0. A real PostgreSQL integration run is still required
-before calling the IP-7 Gate fully passed.
+IP-7 authorization. The current decision is now the implementation described
+above: the original roadmap scope and G7 Gate remain unchanged, implementation is
+at `cd2e61e72305cd500c848975a29e86abca9140d2`, the same independent Reviewer
+returned PASS / 0–0–0, and CI run `35479994387` closed the real PostgreSQL Gate.
 Human long-session play, production live-model enablement, autonomous scheduling,
 full long-term memory and broad autonomous simulation remain unqualified and out
 of scope for this phase.
