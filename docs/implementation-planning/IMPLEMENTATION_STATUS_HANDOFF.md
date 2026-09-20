@@ -12,6 +12,9 @@ bounded sharing remain visibly deferred under the original roadmap. Independent
 review and real-PostgreSQL Gate evidence are still required. No production live
 provider, autonomous scheduler, new truth model or complete long-term memory was
 added.
+The exact candidate behavior commit is `686b93c4a2964aa95eaef41966347bad74f2988e`;
+the documentation-only descendant may record review closure but does not replace
+that behavior baseline.
 
 **Current independent decision:** [RE-1–RE-3 Product Reality Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
 The underlying engineering authority remains the [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
@@ -1046,7 +1049,8 @@ separate deletion/tombstone behavior, effective-once zero-cost usage handling,
 non-leaking eligibility/consent/appeal recovery states, and visible deferral of
 unselected SHOULD items.
 
-The candidate implements IP-8.1–IP-8.6 and IP-8.9. It provides account policy
+The candidate behavior commit `686b93c4a2964aa95eaef41966347bad74f2988e`
+implements IP-8.1–IP-8.6 and IP-8.9. It provides account policy
 outcomes, grants/visibility explanations, consent and material-change records,
 zero-unit quote/reservation/ledger transitions, selected-scope ZIP export with
 manifest/checksums, digest-bound deletion preview/confirmation, tombstones and

@@ -2,6 +2,8 @@
 
 **State:** `IMPLEMENTATION CANDIDATE / G8 PENDING`
 
+**Candidate behavior commit:** `686b93c4a2964aa95eaef41966347bad74f2988e`
+
 **Scope:** the frozen IP-8 roadmap envelope only. This candidate implements
 IP-8.1–IP-8.6 and IP-8.9: eligibility/policy outcomes, ownership/grants/
 visibility explanations, consent and material-change notices, zero-cost usage
