@@ -1,6 +1,6 @@
 # IP-8 Trust / Lifecycle Implementation Report
 
-**State:** `IMPLEMENTATION CANDIDATE / G8 PENDING`
+**State:** `REPAIRED IMPLEMENTATION CANDIDATE / G8 PENDING`
 
 **Candidate behavior commit:** `686b93c4a2964aa95eaef41966347bad74f2988e`
 
@@ -63,3 +63,55 @@ This evidence proves the bounded lifecycle envelope and local integration
 contracts, not production deployment, live-provider quality, human enjoyment,
 autonomous world progression, broad multi-Character development or complete
 long-term memory. Real PostgreSQL CI remains required before G8 can close.
+
+## Repair pass (independent review FAIL response)
+
+The first candidate was reviewed by the independent reviewer and returned
+`FAIL`. The repair below answers `I-1`–`I-6` and `M-1`–`M-2`; `B-1` stays with
+CI, because real PostgreSQL is not reachable from the authoring machine and the
+repository Action owns that verification.
+
+| Finding | Repair |
+| --- | --- |
+| I-1 tombstone mutation | `assertMutableBranchWithClient` / `assertMutableContinuityWithClient` lock the Continuity and World rows and raise a stable `WORLD_TOMBSTONED` conflict on confirm, recoverable retry, recovery-point create/delete and Branch fork, instead of letting the trigger surface a generic 500. |
+| I-2 unbound export | `createExport` requires an owned, `RESERVED`, `EXPORT`-profile reservation whose `action_key` is exactly `export:<idempotencyKey>`, and records it on `export_jobs.reservation_id`. |
+| I-3 idempotency races | Usage reservation, appeal and export insertion are `on conflict do nothing` with a conflict-safe re-read; a reservation is recovered by action key before the quote's expiry is consulted, so an expired quote cannot strand a retry. |
+| I-4 volatile artifacts | The process-local `LocalArtifactStorage` map and its port are gone. Artifacts live in `export_jobs.artifact_bytes`, the export snapshot runs in one `REPEATABLE READ` transaction, and download re-verifies SHA-256 against the stored checksum. |
+| I-5 inert consent | `assertConsentActive` blocks authoring, Continuity, Action and recovery mutation while the newest decision for a consent type and scope is `WITHDRAWN`. Reads, access explanations, appeals, export and deletion stay open, and a re-grant at the same or a newer version restores authoring. |
+| I-6 thin change notice | Product changes now carry `affectedScopes`, `effectiveAt` and `availableChoices` through the contract, the projection and the Trust surface. |
+| M-1 idempotency transport | The IP-8 mutations accept the frozen contract's `Idempotency-Key` header; the body field still works, and a header that disagrees with the body is rejected rather than silently preferred. |
+| M-2 purge wording | The deletion result states that a confirmed deletion tombstones and blocks the World, and that no purge worker runs in this phase. |
+
+Migration `0041_ip8_trust_repairs.sql` is a successor to `0040`; `0040` is
+unchanged.
+
+### Repair verification
+
+| Check | Result |
+| --- | --- |
+| Prettier format check | PASS |
+| ESLint, JSON formatter, whole workspace | PASS, 0 errors, 0 warnings |
+| Typecheck | PASS |
+| Architecture check | PASS |
+| Migration check | PASS, 41 migrations |
+| Worker runtime startup/shutdown | PASS |
+| Workspace production build | PASS, ordinary run, no elevation |
+| Default Vitest | 65 passed; 130 PostgreSQL-dependent tests skipped because `SIMULORA_DATABASE_URL` is absent |
+| Full Playwright E2E + axe | 68/68 PASS, desktop Chromium and touch 390×844, normal exit |
+| Migration contract suite, PGlite | PASS, all 41 migrations apply to an empty database |
+| Repaired SQL against PGlite | 10/10 PASS: latest-decision consent gate, both tombstone guards, reservation binding, conflict-safe reservation insert, `bytea` artifact round trip, zero-row finalize on a tombstoned World, product-change fields, `REPEATABLE READ` at transaction start |
+| `0040` → `0041` upgrade against PGlite | PASS: pre-`0041` export rows stay readable with no reservation and no stored artifact, the seeded IP-8 change is backfilled to its original publication time, other changes take non-empty defaults, foreign keys survive |
+| Real PostgreSQL IP-8 integration | NOT RUN locally; Docker and `SIMULORA_DATABASE_URL` unavailable, delegated to the repository Action |
+| Independent re-review / G8 | PENDING; this report is not self-approval |
+
+The PGlite checks are real PostgreSQL semantics in WebAssembly, so they prove
+the new SQL parses and behaves as intended, but they are single-connection and
+do not replace the Action's concurrent, networked PostgreSQL run.
+
+Local tooling note: `pnpm lint` still fails in this environment with
+`TypeError: chalk.underline is not a function` inside ESLint's stylish
+formatter. That is an environment defect, not a lint finding; the same run with
+`--format json` reports zero errors and zero warnings.
+
+G8 stays `PENDING`. It closes only when the same independent reviewer passes
+the repair commit and the Action's real PostgreSQL evidence is attached.
