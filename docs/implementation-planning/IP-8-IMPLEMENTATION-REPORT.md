@@ -161,5 +161,26 @@ clause runs, no `0026` guard leaks in, and the table is empty.
 Run `35498286027` reached `129/130` PostgreSQL tests passing, with both IP-8
 suites green; this was the single remaining failure.
 
-This is why G8 could not have closed on local evidence. It stays `PENDING` until
-a green CI run and an independent re-review of the final repair commit.
+### Green CI evidence
+
+Run `35498511891` on `3136075` passed end to end against PostgreSQL 17:
+
+| CI step | Result |
+| --- | --- |
+| Migration against an empty and a prior PostgreSQL schema | PASS; 42 migrations, ledger and recovery rehearsal passed |
+| Authoritative PostgreSQL integration suites | PASS, 130/130 in 11 files, including both IP-8 suites and both prior-schema upgrade rehearsals |
+| `pnpm check` (format, lint, typecheck, architecture, migrations, test, build, runtime) | PASS; 195/195 tests, 42 migrations, worker runtime startup/shutdown |
+| API and worker container build and smoke | PASS |
+| Desktop and 390×844 browser checks with axe | PASS, 68/68 |
+
+The stylish-formatter `chalk.underline` crash is local to the authoring
+machine; `pnpm lint` passed on CI.
+
+So B-1 is closed: the frozen IP-8 envelope now holds against real, networked,
+concurrent PostgreSQL, and the tombstone, export-reservation, artifact
+durability, idempotency and consent repairs are proven there rather than only
+in WebAssembly.
+
+G8 still stays `PENDING`. Real CI evidence is necessary but not sufficient: the
+protocol requires the same independent reviewer to pass the repair commits, and
+the implementing agent does not approve its own Gate.
