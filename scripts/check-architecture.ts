@@ -79,5 +79,33 @@ for (const root of roots) {
   }
 }
 
+// A file under tests/ resolves its bare imports against the ROOT manifest. A
+// package that only a workspace package depends on may still resolve locally,
+// because an accumulated node_modules hoists it, and then fail on a clean CI
+// install. Check it here so that class of mistake cannot reach CI again.
+const rootManifest = JSON.parse(
+  await readFile(path.join(repositoryRoot, "package.json"), "utf8"),
+) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+const rootDependencies = new Set([
+  ...Object.keys(rootManifest.dependencies ?? {}),
+  ...Object.keys(rootManifest.devDependencies ?? {}),
+]);
+for (const file of await walk(path.join(repositoryRoot, "tests"))) {
+  const content = await readFile(file, "utf8");
+  const relative = path.relative(repositoryRoot, file).replaceAll("\\", "/");
+  for (const match of content.matchAll(/from\s+["']([^"'.][^"']*)["']/g)) {
+    const imported = match[1];
+    if (!imported || imported.startsWith("node:") || imported.startsWith("@simulora/")) continue;
+    const packageName = imported.startsWith("@")
+      ? imported.split("/").slice(0, 2).join("/")
+      : imported.split("/")[0];
+    if (packageName && !rootDependencies.has(packageName)) {
+      violations.push(
+        `${relative}: imports ${packageName}, which the root package.json does not declare`,
+      );
+    }
+  }
+}
+
 if (violations.length > 0) throw new Error(`Architecture violations:\n${violations.join("\n")}`);
 console.log("Architecture boundary check passed");

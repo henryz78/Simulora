@@ -1,10 +1,14 @@
 import { loadLocalEnvironment, loadServerConfig, redactConfig } from "@simulora/config";
+import { onTransactionRetryConflict } from "@simulora/database";
 import { createLogger } from "@simulora/observability";
 import { createWorkerComposition } from "./worker.js";
 
 loadLocalEnvironment();
 const config = loadServerConfig();
 const logger = createLogger("worker", config.SIMULORA_LOG_LEVEL);
+// The database package cannot import the logger, so the composition root fills
+// its seam. Without this, deadlock and serialization aborts leave no trace.
+onTransactionRetryConflict((detail) => logger.warn("transaction.retry_conflict", detail));
 const composition = createWorkerComposition(config.SIMULORA_DATABASE_URL);
 
 logger.info("service.started", {
