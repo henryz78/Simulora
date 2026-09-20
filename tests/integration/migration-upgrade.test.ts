@@ -118,11 +118,24 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       pool = createDatabasePool(url.toString());
       // Current fixture helpers write correlation metadata. Nullable columns
       // add no authority invariant; all lifecycle/proposal guards remain 0025.
+      // IP-8 lets an explicitly granted participant start a Continuity, so the
+      // lookup table from 0026 has to exist. It stays empty here, which is
+      // exactly the owner-only behaviour of the 0025 schema; none of 0026's
+      // guards are installed.
       await pool.query(`
         alter table simulora.actions add column correlation_id text;
         alter table simulora.durable_jobs add column correlation_id text;
         alter table simulora.generation_attempts add column correlation_id text;
         alter table simulora.branches add column fork_request_digest text;
+        create table simulora.world_access_grants (
+          world_id uuid not null references simulora.worlds(id),
+          account_id uuid not null references simulora.accounts(id),
+          role text not null check (role in ('PARTICIPANT', 'VIEWER')),
+          status text not null check (status in ('ACTIVE', 'REVOKED')),
+          created_at timestamptz not null default now(),
+          revoked_at timestamptz,
+          primary key (world_id, account_id)
+        );
       `);
       const repository = new AuthoritativeWorldRepository(pool);
       const account = { accountId: randomUUID(), eligibility: "adult" as const };

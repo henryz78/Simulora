@@ -141,5 +141,25 @@ cannot return to initialization, and Continuity identity stays immutable. The
 consent probe reports absent on a pre-`0040` schema and present on the current
 one.
 
+### Third defect, found once the first two were cleared
+
+With the consent probe in place the prior-schema rehearsal got further and
+reached a fourth defect from the first candidate: `686b93c` widened
+`startContinuity` so an explicitly granted participant can start a Continuity,
+which references `simulora.world_access_grants` from `0026`. The second
+rehearsal builds a populated `0025` database on purpose, so that relation does
+not exist there and `startContinuity` failed.
+
+The rehearsal already adds the few forward-compatible columns current code
+needs while keeping every `0026`-era guard out. The grants lookup is the same
+kind of affordance, so the fixture now creates the empty table and nothing
+else: an empty grants table is exactly the owner-only behaviour of a `0025`
+schema, and none of `0026`'s validation functions come with it. This was
+rehearsed against PGlite — the fixture applies on `0025`, the IP-8 participant
+clause runs, no `0026` guard leaks in, and the table is empty.
+
+Run `35498286027` reached `129/130` PostgreSQL tests passing, with both IP-8
+suites green; this was the single remaining failure.
+
 This is why G8 could not have closed on local evidence. It stays `PENDING` until
 a green CI run and an independent re-review of the final repair commit.
