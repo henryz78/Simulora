@@ -333,3 +333,19 @@ three findings were regressions introduced by the repairs themselves. Green CI
 was present for every one of those defects. That is the honest summary: the
 suites prove what they cover, and coverage of concurrent behaviour reached its
 current state by being challenged, not by design.
+
+### The new test's own first run failed
+
+The deterministic test imported `Client` from `pg` directly. `pg` belongs to
+`@simulora/database`, not to the root workspace, so under pnpm's strict layout
+CI could not resolve it and the whole IP-8 suite failed to collect - `0 test`,
+not a failed assertion. No local run caught it, because this machine's
+`node_modules` hoists more loosely and resolved the import fine. The holder and
+probe connections now come from a second pool through `createDatabasePool`,
+which the file already imported.
+
+CI run `35529474124` on `129d61e` is green: PostgreSQL 132/132 including
+`makes every guarded path take the World lock before the Continuity lock`,
+`pnpm check` 198/198, container smoke, browser 68/68. The test takes about three
+seconds, which is the three deliberate blocking waits, so it is doing the work
+rather than passing through.
