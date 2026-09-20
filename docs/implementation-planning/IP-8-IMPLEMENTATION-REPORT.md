@@ -115,3 +115,31 @@ formatter. That is an environment defect, not a lint finding; the same run with
 
 G8 stays `PENDING`. It closes only when the same independent reviewer passes
 the repair commit and the Action's real PostgreSQL evidence is attached.
+
+## Second repair pass (first real PostgreSQL CI evidence)
+
+CI run `35497372451` and `35497715141` were the first runs that ever contained
+IP-8, because neither the first candidate nor its handoff had been pushed. Real
+PostgreSQL immediately found three defects that no local check could reach.
+
+| Defect | Where it came from | Repair |
+| --- | --- | --- |
+| `pnpm db:verify` failed with `IP-7 metadata verification failed` | `0040` moves the recorded phase to IP-8, but the migration recovery rehearsal still asserted IP-7. Every earlier IP-N behavior commit moved that assertion; the first IP-8 candidate did not. | `verify.ts` asserts IP-8, and the unused `implementationPhase` constant follows. |
+| Both IP-8 PostgreSQL tests failed with `Active Continuity lifecycle cannot return to initialization` at `confirmDeletion` | `0014` froze the Continuity lifecycle so an ACTIVE Continuity could never leave ACTIVE. `0040` added `TOMBSTONED` to the status check but left that trigger alone, so **deletion confirmation had never worked against PostgreSQL**. | Successor `0042` allows `ACTIVE` → `TOMBSTONED` only, keeps `ACTIVE` → `INITIALIZING` blocked, keeps identity immutable, and makes a tombstone terminal. |
+| Both `migration-upgrade` tests failed with `relation "simulora.account_consents" does not exist` | The consent gate added in the first repair pass queries an IP-8-only table on every core mutation, which breaks the prior-schema upgrade rehearsal that drives current code against a 0031 database. | The gate probes for the table once per repository and returns early when it is absent; on the current schema the behavior and the query count are unchanged. |
+
+The rest of both IP-8 suites passed against PostgreSQL 17 before reaching the
+deletion step, so the first pass's export reservation binding, expired-quote
+reservation recovery, durable artifact read from a separate pool, in-transaction
+export read and consent gating are confirmed on real PostgreSQL. `126/130`
+PostgreSQL tests passed in run `35497715141`; the four failures were the two
+defects above.
+
+`0042` was also rehearsed against PGlite: a confirmed deletion tombstones an
+ACTIVE Continuity, a tombstone cannot be reactivated, an ACTIVE Continuity still
+cannot return to initialization, and Continuity identity stays immutable. The
+consent probe reports absent on a pre-`0040` schema and present on the current
+one.
+
+This is why G8 could not have closed on local evidence. It stays `PENDING` until
+a green CI run and an independent re-review of the final repair commit.
