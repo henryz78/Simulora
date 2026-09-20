@@ -53,12 +53,12 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("reports the IP-7 World Studio phase without claiming later capabilities", async () => {
+  it("reports the IP-8 trust lifecycle phase without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
     const foundation = foundationResponseSchema.parse(response.json());
-    expect(foundation.productImplementationPhase).toBe("IP-7");
+    expect(foundation.productImplementationPhase).toBe("IP-8");
     expect(foundation.productSemanticsStarted).toBe(true);
   });
 

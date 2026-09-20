@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   describeFoundation,
   type ActionTruthService,
+  type GovernanceService,
   type WorldContinuityService,
 } from "@simulora/application";
 import { DevelopmentAuthAdapter, type AuthPort } from "@simulora/auth";
@@ -40,6 +41,25 @@ import {
   selectBranchRequestSchema,
   worldStudioResponseSchema,
   worldValidationResponseSchema,
+  meResponseSchema,
+  consentListResponseSchema,
+  consentRequestSchema,
+  consentRecordSchema,
+  accessExplanationResponseSchema,
+  productChangesResponseSchema,
+  appealRequestSchema,
+  appealResponseSchema,
+  usageQuoteRequestSchema,
+  usageQuoteSchema,
+  usageReservationRequestSchema,
+  usageReservationSchema,
+  usageLedgerResponseSchema,
+  exportRequestSchema,
+  exportResponseSchema,
+  deletionProposalRequestSchema,
+  deletionProposalSchema,
+  deletionConfirmRequestSchema,
+  deletionStatusSchema,
 } from "@simulora/contracts";
 import {
   AccessDeniedError,
@@ -49,12 +69,15 @@ import {
 } from "@simulora/database";
 import { createLogger } from "@simulora/observability";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
+
+const opaqueIdSchema = z.string().uuid();
 
 export type ApiAppOptions = {
   logLevel?: "debug" | "info" | "warn" | "error";
   worldService?: WorldContinuityService;
   actionService?: ActionTruthService;
+  governanceService?: GovernanceService;
   auth?: AuthPort;
 };
 
@@ -137,6 +160,13 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         "RESTORE_REVIEW_STALE",
         "RESTORE_RESULT_UNAVAILABLE",
         "RESTORE_HAS_NO_CHANGES",
+        "USAGE_QUOTE_EXPIRED",
+        "USAGE_RESERVATION_TERMINAL",
+        "WORLD_TOMBSTONED",
+        "DELETION_DIGEST_MISMATCH",
+        "DELETION_PROPOSAL_EXPIRED",
+        "DELETION_SCOPE_CHANGED",
+        "EXPORT_CHECKSUM_MISMATCH",
       ]);
       const code = knownCodes.has(error.message) ? error.message : "STALE_DRAFT";
       void reply.status(409).send({ code, message: error.message });
@@ -166,6 +196,127 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       ]),
     ),
   );
+
+  if (options.governanceService) {
+    const governance = options.governanceService;
+    app.get("/v1/me", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      return meResponseSchema.parse(await governance.readMe(account));
+    });
+    app.get("/v1/me/consents", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      return consentListResponseSchema.parse(await governance.listConsents(account));
+    });
+    app.post("/v1/me/consents", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = consentRequestSchema.parse(request.body);
+      return consentRecordSchema.parse(await governance.setConsent(account, body));
+    });
+    app.get("/v1/resources/:resourceType/:resourceId/access", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { resourceType, resourceId } = request.params as {
+        resourceType: "world" | "continuity";
+        resourceId: string;
+      };
+      if (resourceType !== "world" && resourceType !== "continuity") {
+        throw new ValidationError("Invalid resource type");
+      }
+      return accessExplanationResponseSchema.parse(
+        await governance.readAccess(account, resourceType, opaqueIdSchema.parse(resourceId)),
+      );
+    });
+    app.get("/v1/product-changes", async () =>
+      productChangesResponseSchema.parse(await governance.listProductChanges()),
+    );
+    app.post("/v1/appeals", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = appealRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(appealResponseSchema.parse(await governance.openAppeal(account, body)));
+    });
+    app.get("/v1/appeals/:appealId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { appealId } = request.params as { appealId: string };
+      return appealResponseSchema.parse(
+        await governance.readAppeal(account, opaqueIdSchema.parse(appealId)),
+      );
+    });
+    app.post("/v1/usage/quotes", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = usageQuoteRequestSchema.parse(request.body);
+      return usageQuoteSchema.parse(await governance.createUsageQuote(account, body));
+    });
+    app.post("/v1/usage/quotes/:quoteId/reservations", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { quoteId } = request.params as { quoteId: string };
+      const body = usageReservationRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(
+          usageReservationSchema.parse(
+            await governance.reserveUsage(account, opaqueIdSchema.parse(quoteId), body),
+          ),
+        );
+    });
+    app.post("/v1/usage/reservations/:reservationId/settle", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { reservationId } = request.params as { reservationId: string };
+      return usageReservationSchema.parse(
+        await governance.settleUsage(account, opaqueIdSchema.parse(reservationId)),
+      );
+    });
+    app.post("/v1/usage/reservations/:reservationId/release", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { reservationId } = request.params as { reservationId: string };
+      return usageReservationSchema.parse(
+        await governance.releaseUsage(account, opaqueIdSchema.parse(reservationId)),
+      );
+    });
+    app.get("/v1/usage/ledger", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      return usageLedgerResponseSchema.parse(await governance.listUsageLedger(account));
+    });
+    app.post("/v1/exports", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = exportRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(exportResponseSchema.parse(await governance.createExport(account, body)));
+    });
+    app.get("/v1/exports/:exportId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { exportId } = request.params as { exportId: string };
+      return exportResponseSchema.parse(
+        await governance.readExport(account, opaqueIdSchema.parse(exportId)),
+      );
+    });
+    app.get("/v1/exports/:exportId/artifact", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { exportId } = request.params as { exportId: string };
+      const bytes = await governance.readExportArtifact(account, opaqueIdSchema.parse(exportId));
+      return reply.type("application/zip").send(Buffer.from(bytes));
+    });
+    app.post("/v1/deletion-proposals", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = deletionProposalRequestSchema.parse(request.body);
+      return reply
+        .status(201)
+        .send(deletionProposalSchema.parse(await governance.proposeDeletion(account, body)));
+    });
+    app.post("/v1/deletions", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const body = deletionConfirmRequestSchema.parse(request.body);
+      return deletionStatusSchema.parse(await governance.confirmDeletion(account, body));
+    });
+    app.get("/v1/deletions/:proposalId", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      const { proposalId } = request.params as { proposalId: string };
+      return deletionStatusSchema.parse(
+        await governance.readDeletion(account, opaqueIdSchema.parse(proposalId)),
+      );
+    });
+  }
 
   if (options.worldService) {
     const service = options.worldService;

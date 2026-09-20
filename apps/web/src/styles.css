@@ -1386,6 +1386,125 @@ h1 {
   margin: 0;
 }
 
+.trust-page {
+  width: min(1080px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 56px 0 80px;
+}
+
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.trust-grid > * {
+  min-width: 0;
+}
+
+.trust-wide {
+  grid-column: 1 / -1;
+}
+
+.trust-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.trust-facts div,
+.trust-review,
+.trust-result {
+  border: 1px solid #31514b;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.trust-facts dt,
+.trust-result span,
+.trust-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.trust-result span {
+  overflow-wrap: anywhere;
+}
+
+.trust-facts dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.trust-list {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trust-list li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.trust-list small {
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.trust-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 20px 0;
+  border: 0;
+  padding: 0;
+}
+
+.trust-checks legend {
+  width: 100%;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.trust-checks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: capitalize;
+}
+
+.trust-review,
+.trust-result {
+  margin-top: 18px;
+}
+
+.trust-review p,
+.trust-result span {
+  margin-top: 8px;
+}
+
+.boundary-note {
+  border-left: 3px solid #769f97;
+  padding-left: 12px;
+}
+
+.danger-card {
+  border-color: #73544a;
+}
+
+.danger-action {
+  background: #8b4335;
+}
+
 @media (max-width: 760px) {
   .site-header,
   .site-footer,
@@ -1509,14 +1628,21 @@ h1 {
     grid-template-columns: 1fr;
   }
 
-  .studio-page {
+  .studio-page,
+  .trust-page {
     width: min(100% - 28px, 680px);
     padding-top: 36px;
   }
 
   .studio-grid,
-  .studio-field-grid {
+  .studio-field-grid,
+  .trust-grid,
+  .trust-facts {
     grid-template-columns: 1fr;
+  }
+
+  .trust-wide {
+    grid-column: auto;
   }
 
   .studio-core {

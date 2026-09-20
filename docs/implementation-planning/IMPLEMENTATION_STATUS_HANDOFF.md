@@ -1,10 +1,17 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 CANDIDATE / G8 PENDING`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
 **Snapshot date:** `2026-09-19`.
+
+**Current phase handoff:** [IP-8 Trust / Lifecycle Implementation Report](IP-8-IMPLEMENTATION-REPORT.md).
+The local candidate implements IP-8.1–IP-8.6 and IP-8.9; staged import and
+bounded sharing remain visibly deferred under the original roadmap. Independent
+review and real-PostgreSQL Gate evidence are still required. No production live
+provider, autonomous scheduler, new truth model or complete long-term memory was
+added.
 
 **Current independent decision:** [RE-1–RE-3 Product Reality Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
 The underlying engineering authority remains the [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
@@ -85,11 +92,11 @@ Integrated G1–G6:                  approved / 0 blocker, 0 important, 0 minor
 IP-5 Recovery:                     implementation complete
 IP-6 Participation / characters:   implementation complete / approved
 IP-7 World Studio:                 implementation complete / G7 passed
-IP-8 Trust / lifecycle:            not started
+IP-8 Trust / lifecycle:            implementation candidate / G8 pending
 Live model provider:               not connected (production remains disabled)
 Live Model / Product Reality Spike: bounded RE-1–RE-3 convergence complete
 Formal deployment:                 not started
-Next decision:                     IP-8 requires separate authorization
+Next decision:                     independent IP-8 review and G8 evidence
 Product Reality Gate:              BOUNDED RE CONVERGENCE COMPLETE; human play remains a product-risk item
 ```
 
@@ -1029,3 +1036,34 @@ returned PASS / 0–0–0, and CI run `35479994387` closed the real PostgreSQL G
 Human long-session play, production live-model enablement, autonomous scheduling,
 full long-term memory and broad autonomous simulation remain unqualified and out
 of scope for this phase.
+
+## 39. IP-8 candidate handoff
+
+The original roadmap position and Gate are unchanged: IP-8 is the mandatory
+ownership, governance, portability and usage envelope before IP-9 hardening;
+Gate G8 requires explicit access explanations, authorized checked exports,
+separate deletion/tombstone behavior, effective-once zero-cost usage handling,
+non-leaking eligibility/consent/appeal recovery states, and visible deferral of
+unselected SHOULD items.
+
+The candidate implements IP-8.1–IP-8.6 and IP-8.9. It provides account policy
+outcomes, grants/visibility explanations, consent and material-change records,
+zero-unit quote/reservation/ledger transitions, selected-scope ZIP export with
+manifest/checksums, digest-bound deletion preview/confirmation, tombstones and
+mutation triggers, plus audit and appeal records. World ownership does not grant
+access to another participant's private Continuity. The Trust & lifecycle UI is
+responsive and exact-confirmation based. IP-8.7 staged import and IP-8.8 bounded
+sharing are deferred exactly as permitted by the roadmap.
+
+The candidate preserves the World/Revision/Continuity/authority contracts and
+does not enable a production provider, scheduler, complete long-term memory,
+new effect DSL or Prototype dependency. Local verification is green: format,
+lint, typecheck, architecture, migration (40 migrations), worker runtime,
+workspace build, 64 Vitest tests, 68/68 full desktop/mobile E2E and 2/2 focused
+IP-8 E2E/axe. Real PostgreSQL IP-8 integration is not locally runnable because
+`SIMULORA_DATABASE_URL` and Docker are unavailable; this is an explicit G8
+evidence gap, not a PASS. See the [IP-8 implementation report](IP-8-IMPLEMENTATION-REPORT.md).
+
+Independent review has not yet been performed. This candidate must stop at the
+review boundary until the independent Reviewer examines the exact behavior
+commit and, after any findings are repaired, records the G8 decision.

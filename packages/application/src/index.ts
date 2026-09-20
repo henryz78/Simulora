@@ -23,6 +23,24 @@ import type {
   WorldRevisionSummary,
   WorldStudioResponse,
   WorldValidationResponse,
+  AccessExplanationResponse,
+  AppealRequest,
+  AppealResponse,
+  ConsentRecord,
+  ConsentRequest,
+  DeletionConfirmRequest,
+  DeletionProposal,
+  DeletionProposalRequest,
+  DeletionStatus,
+  ExportRequest,
+  ExportResponse,
+  MeResponse,
+  ProductChange,
+  UsageLedgerEntry,
+  UsageQuote,
+  UsageQuoteRequest,
+  UsageReservation,
+  UsageReservationRequest,
 } from "@simulora/contracts";
 import type { ParticipationContract, StateRevisionDocument, WorldDocument } from "@simulora/domain";
 
@@ -41,7 +59,7 @@ export type DependencyHealth = {
 
 export function describeFoundation(dependencies: readonly DependencyHealth[]): FoundationResponse {
   return {
-    productImplementationPhase: "IP-7",
+    productImplementationPhase: "IP-8",
     productSemanticsStarted: true,
     capabilities: dependencies.map((dependency) => ({
       name: dependency.name,
@@ -135,6 +153,102 @@ export class ActionTruthService {
       throw new Error("Continuity correction is not configured");
     }
     return this.port.submitCorrection(account, branchId, request);
+  }
+}
+
+export interface GovernancePort {
+  readMe(account: EligibleAccount): Promise<MeResponse>;
+  listConsents(
+    account: EligibleAccount,
+  ): Promise<{ policyVersion: string; consents: ConsentRecord[] }>;
+  setConsent(account: EligibleAccount, request: ConsentRequest): Promise<ConsentRecord>;
+  readAccess(
+    account: EligibleAccount,
+    resourceType: "world" | "continuity",
+    resourceId: string,
+  ): Promise<AccessExplanationResponse>;
+  listProductChanges(): Promise<{ changes: ProductChange[] }>;
+  openAppeal(account: EligibleAccount, request: AppealRequest): Promise<AppealResponse>;
+  readAppeal(account: EligibleAccount, appealId: string): Promise<AppealResponse>;
+  createUsageQuote(account: EligibleAccount, request: UsageQuoteRequest): Promise<UsageQuote>;
+  reserveUsage(
+    account: EligibleAccount,
+    quoteId: string,
+    request: UsageReservationRequest,
+  ): Promise<UsageReservation>;
+  settleUsage(account: EligibleAccount, reservationId: string): Promise<UsageReservation>;
+  releaseUsage(account: EligibleAccount, reservationId: string): Promise<UsageReservation>;
+  listUsageLedger(account: EligibleAccount): Promise<{ entries: UsageLedgerEntry[] }>;
+  createExport(account: EligibleAccount, request: ExportRequest): Promise<ExportResponse>;
+  readExport(account: EligibleAccount, exportId: string): Promise<ExportResponse>;
+  readExportArtifact(account: EligibleAccount, exportId: string): Promise<Uint8Array>;
+  proposeDeletion(
+    account: EligibleAccount,
+    request: DeletionProposalRequest,
+  ): Promise<DeletionProposal>;
+  confirmDeletion(
+    account: EligibleAccount,
+    request: DeletionConfirmRequest,
+  ): Promise<DeletionStatus>;
+  readDeletion(account: EligibleAccount, proposalId: string): Promise<DeletionStatus>;
+}
+
+export class GovernanceService {
+  constructor(private readonly port: GovernancePort) {}
+
+  readMe(account: EligibleAccount) {
+    return this.port.readMe(account);
+  }
+  listConsents(account: EligibleAccount) {
+    return this.port.listConsents(account);
+  }
+  setConsent(account: EligibleAccount, request: ConsentRequest) {
+    return this.port.setConsent(account, request);
+  }
+  readAccess(account: EligibleAccount, resourceType: "world" | "continuity", resourceId: string) {
+    return this.port.readAccess(account, resourceType, resourceId);
+  }
+  listProductChanges() {
+    return this.port.listProductChanges();
+  }
+  openAppeal(account: EligibleAccount, request: AppealRequest) {
+    return this.port.openAppeal(account, request);
+  }
+  readAppeal(account: EligibleAccount, appealId: string) {
+    return this.port.readAppeal(account, appealId);
+  }
+  createUsageQuote(account: EligibleAccount, request: UsageQuoteRequest) {
+    return this.port.createUsageQuote(account, request);
+  }
+  reserveUsage(account: EligibleAccount, quoteId: string, request: UsageReservationRequest) {
+    return this.port.reserveUsage(account, quoteId, request);
+  }
+  settleUsage(account: EligibleAccount, reservationId: string) {
+    return this.port.settleUsage(account, reservationId);
+  }
+  releaseUsage(account: EligibleAccount, reservationId: string) {
+    return this.port.releaseUsage(account, reservationId);
+  }
+  listUsageLedger(account: EligibleAccount) {
+    return this.port.listUsageLedger(account);
+  }
+  createExport(account: EligibleAccount, request: ExportRequest) {
+    return this.port.createExport(account, request);
+  }
+  readExport(account: EligibleAccount, exportId: string) {
+    return this.port.readExport(account, exportId);
+  }
+  readExportArtifact(account: EligibleAccount, exportId: string) {
+    return this.port.readExportArtifact(account, exportId);
+  }
+  proposeDeletion(account: EligibleAccount, request: DeletionProposalRequest) {
+    return this.port.proposeDeletion(account, request);
+  }
+  confirmDeletion(account: EligibleAccount, request: DeletionConfirmRequest) {
+    return this.port.confirmDeletion(account, request);
+  }
+  readDeletion(account: EligibleAccount, proposalId: string) {
+    return this.port.readDeletion(account, proposalId);
   }
 }
 

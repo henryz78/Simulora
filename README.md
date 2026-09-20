@@ -29,8 +29,9 @@ real-model NPC movement, post-movement context, sampled Character attribution,
 `COMPLETED_NO_EFFECT` response-only and L3 exact confirmation are proven on the
 isolated formal Action path. Human browser enjoyment, long-session play,
 autonomous multi-Character behavior, broad effects and long-term memory remain
-future validation items. IP-7 World Studio and production deployment have not
-started.
+  future validation items. IP-7 World Studio is approved; IP-8 Trust & lifecycle
+  is an implementation candidate pending independent review and real-PostgreSQL
+  G8 evidence. Production deployment has not started.
 
 ## Development and verification
 

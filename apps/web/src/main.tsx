@@ -11,6 +11,7 @@ import {
   NotFoundPage,
   ParticipationPage,
   ReturnPage,
+  TrustLifecyclePage,
   RecoveryPage,
   WorldPage,
   WorldStudioPage,
@@ -22,6 +23,7 @@ const router = createBrowserRouter([
   { path: "/", element: <FoundationPage /> },
   { path: "/worlds/new", element: <WorldStudioPage /> },
   { path: "/worlds/:worldId/studio", element: <WorldStudioPage /> },
+  { path: "/worlds/:worldId/trust", element: <TrustLifecyclePage /> },
   {
     path: "/continuities/:continuityId",
     element: <ContinuityLayout />,

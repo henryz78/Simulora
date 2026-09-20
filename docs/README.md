@@ -38,6 +38,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Implementation Planning Consistency Audit](implementation-planning/IMPLEMENTATION_PLANNING_CONSISTENCY_AUDIT.md)
 - [Implementation Planning Handoff](implementation-planning/IMPLEMENTATION_PLANNING_HANDOFF.md)
 - [Current Implementation Status Handoff](implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md)
+- [IP-8 Trust / Lifecycle Implementation Report](implementation-planning/IP-8-IMPLEMENTATION-REPORT.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)

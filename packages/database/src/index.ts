@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   applyParticipationContractChange,
   applyValidatedActionCandidate,
@@ -415,6 +415,155 @@ export type RestoreCommitRecord = {
   committedAt: string;
 };
 
+export interface ArtifactStoragePort {
+  put(
+    metadata: { key: string; checksum: string; contentType: string },
+    body: Uint8Array,
+  ): Promise<void>;
+  get(key: string): Promise<Uint8Array | null>;
+}
+
+type GovernanceConsentRecord = {
+  consentType: "TERMS" | "PRIVACY" | "CONTENT_BOUNDARIES";
+  version: string;
+  scope: "ACCOUNT" | "WORLD";
+  decision: "GRANTED" | "WITHDRAWN";
+  withdrawalAvailable: boolean;
+  updatedAt: string;
+};
+type GovernanceConsentInput = Omit<GovernanceConsentRecord, "updatedAt" | "withdrawalAvailable">;
+
+type GovernanceMeResponse = {
+  accountId: string;
+  eligibility: SyntheticAccount["eligibility"];
+  policyVersion: string;
+  capabilities: { canCreateWorld: boolean; canParticipate: boolean; canAppeal: boolean };
+  reasonCode: "ELIGIBLE_ADULT" | "INELIGIBLE" | "UNKNOWN" | null;
+};
+
+type GovernanceAccessResponse = {
+  resourceType: "world" | "continuity";
+  resourceId: string;
+  accessLevel: "OWNER" | "PARTICIPANT" | "VIEWER" | "NONE";
+  visibility: "OWNER_ONLY" | "EXPLICIT_GRANT" | "CONTINUITY_PRIVATE" | "TOMBSTONED" | "UNKNOWN";
+  canRead: boolean;
+  canModify: boolean;
+  canStart: boolean;
+  reasonCode:
+    "OWNER" | "ACTIVE_GRANT" | "NO_ACCESS" | "TOMBSTONED" | "ELIGIBILITY_REQUIRED" | "NOT_FOUND";
+  explanation: string;
+  recovery: { label: string; href: string } | null;
+};
+
+type GovernanceProductChange = {
+  id: string;
+  version: string;
+  category: "CAPABILITY" | "POLICY" | "MODEL";
+  summary: string;
+  effect: string;
+  recovery: string;
+  publishedAt: string;
+};
+
+type GovernanceAppealRequest = {
+  schemaVersion: 1;
+  idempotencyKey: string;
+  reasonCode: "ELIGIBILITY" | "CONSENT" | "ACCESS" | "DELETION" | "OTHER";
+  subjectType: "ACCOUNT" | "WORLD" | "CONTINUITY" | "CHARACTER_ASSET";
+  subjectId?: string;
+  summary: string;
+};
+
+type GovernanceAppealResponse = {
+  appealId: string;
+  status: "OPEN" | "UNDER_REVIEW" | "RESOLVED" | "REJECTED";
+  recoveryState: "REVIEW_PENDING" | "REVIEWABLE" | "CLOSED";
+  reasonCode: GovernanceAppealRequest["reasonCode"];
+  subjectType: GovernanceAppealRequest["subjectType"];
+  subjectId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type GovernanceUsageQuoteRequest = { schemaVersion: 1; actionProfile: "WORLD_TURN" | "EXPORT" };
+type GovernanceUsageQuote = {
+  quoteId: string;
+  actionProfile: "WORLD_TURN" | "EXPORT";
+  policyVersion: string;
+  costMode: "ZERO_COST_TEST";
+  units: 0;
+  expiresAt: string;
+  failureBehavior: { retry: string; cancel: string; terminalNoCommit: string };
+  status: "ISSUED";
+};
+type GovernanceUsageReservationRequest = { schemaVersion: 1; actionKey: string };
+type GovernanceUsageReservation = {
+  reservationId: string;
+  quoteId: string;
+  actionKey: string;
+  status: "RESERVED" | "SETTLED" | "RELEASED";
+  units: 0;
+  createdAt: string;
+};
+type GovernanceUsageLedgerEntry = {
+  entryId: string;
+  reservationId: string;
+  entryType: "SETTLEMENT" | "RELEASE";
+  units: 0;
+  createdAt: string;
+};
+
+type GovernanceExportRequest = {
+  schemaVersion: 1;
+  idempotencyKey: string;
+  worldId: string;
+  include: { world: boolean; characters: boolean; continuity: boolean; history: boolean };
+};
+type GovernanceExportResponse = {
+  exportId: string;
+  status: "PENDING" | "READY" | "FAILED" | "REVOKED";
+  schemaVersion: 1;
+  worldId: string;
+  selectedScopes: string[];
+  omittedScopes: string[];
+  checksum: string | null;
+  artifactKey: string | null;
+  manifest: Record<string, unknown> | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+type GovernanceDeletionProposalRequest = {
+  schemaVersion: 1;
+  targetType: "WORLD" | "CHARACTER_ASSET";
+  targetId: string;
+};
+type GovernanceDeletionProposal = {
+  proposalId: string;
+  targetType: "WORLD" | "CHARACTER_ASSET";
+  targetId: string;
+  digest: string;
+  status: "ACTIVE" | "COMPLETED" | "EXPIRED" | "CANCELLED";
+  affected: { continuities: number; grants: number; exports: number; auditCategories: string[] };
+  expiresAt: string;
+  explanation: string;
+};
+type GovernanceDeletionConfirmRequest = {
+  schemaVersion: 1;
+  proposalId: string;
+  digest: string;
+  idempotencyKey: string;
+};
+type GovernanceDeletionStatus = {
+  proposalId: string;
+  targetType: "WORLD" | "CHARACTER_ASSET";
+  targetId: string;
+  status: "ACTIVE" | "COMPLETED" | "EXPIRED" | "CANCELLED";
+  tombstonedAt: string | null;
+  purgeStatus: "NOT_STARTED" | "QUEUED" | "RETAINING_MINIMAL_AUDIT";
+  updatedAt: string;
+};
+
 export type ActionGenerationContext = {
   participation: ParticipationContract;
   character:
@@ -745,11 +894,81 @@ async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<
   }
 }
 
+class LocalArtifactStorage implements ArtifactStoragePort {
+  // ponytail: process-local IP-1 fake; use the configured S3-compatible adapter before release.
+  readonly #objects = new Map<string, Uint8Array>();
+
+  put(metadata: { key: string; checksum: string; contentType: string }, body: Uint8Array) {
+    this.#objects.set(metadata.key, body.slice());
+    return Promise.resolve();
+  }
+
+  get(key: string): Promise<Uint8Array | null> {
+    return Promise.resolve(this.#objects.get(key)?.slice() ?? null);
+  }
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function zipStore(entries: Array<{ name: string; body: Uint8Array }>): Uint8Array {
+  const local: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const body = Buffer.from(entry.body);
+    const checksum = crc32(body);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50, 0);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(0x800, 6);
+    header.writeUInt16LE(0, 8);
+    header.writeUInt32LE(checksum, 14);
+    header.writeUInt32LE(body.length, 18);
+    header.writeUInt32LE(body.length, 22);
+    header.writeUInt16LE(name.length, 26);
+    local.push(header, name, body);
+
+    const directory = Buffer.alloc(46);
+    directory.writeUInt32LE(0x02014b50, 0);
+    directory.writeUInt16LE(20, 4);
+    directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(0x800, 8);
+    directory.writeUInt32LE(checksum, 16);
+    directory.writeUInt32LE(body.length, 20);
+    directory.writeUInt32LE(body.length, 24);
+    directory.writeUInt16LE(name.length, 28);
+    directory.writeUInt32LE(offset, 42);
+    central.push(directory, name);
+    offset += header.length + name.length + body.length;
+  }
+  const centralBody = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBody.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...local, centralBody, end]);
+}
+
+function sha256Bytes(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 export class AuthoritativeWorldRepository {
   constructor(
     private readonly pool: Pool,
     private readonly actionLease = { durationMs: 30_000, heartbeatMs: 10_000 },
     private readonly now: () => number = Date.now,
+    private readonly artifactStorage: ArtifactStoragePort = new LocalArtifactStorage(),
   ) {
     if (
       !Number.isSafeInteger(actionLease.durationMs) ||
@@ -1098,7 +1317,15 @@ export class AuthoritativeWorldRepository {
         `select r.id, r.revision_number, r.document
          from simulora.world_revisions r
          join simulora.worlds w on w.id = r.world_id
-         where r.id = $1 and w.owner_account_id = $2 and w.deleted_at is null`,
+         where r.id = $1 and w.deleted_at is null
+           and (
+             w.owner_account_id = $2
+             or exists (
+               select 1 from simulora.world_access_grants g
+               where g.world_id = w.id and g.account_id = $2
+                 and g.role = 'PARTICIPANT' and g.status = 'ACTIVE'
+             )
+           )`,
         [worldRevisionId, account.accountId],
       );
       const revision = revisionResult.rows[0];
@@ -4825,6 +5052,1120 @@ export class AuthoritativeWorldRepository {
       status: "CONFLICT",
       reason,
     });
+  }
+
+  async readMe(account: SyntheticAccount): Promise<GovernanceMeResponse> {
+    await this.ensureAccount(account);
+    const eligible = account.eligibility === "adult";
+    return {
+      accountId: account.accountId,
+      eligibility: account.eligibility,
+      policyVersion: "IP-8-ADULT-ONLY-V1",
+      capabilities: { canCreateWorld: eligible, canParticipate: eligible, canAppeal: true },
+      reasonCode:
+        account.eligibility === "adult"
+          ? "ELIGIBLE_ADULT"
+          : account.eligibility === "ineligible"
+            ? "INELIGIBLE"
+            : "UNKNOWN",
+    };
+  }
+
+  async listConsents(
+    account: SyntheticAccount,
+  ): Promise<{ policyVersion: string; consents: GovernanceConsentRecord[] }> {
+    await this.ensureAccount(account);
+    const result = await this.pool.query<{
+      consent_type: GovernanceConsentRecord["consentType"];
+      version: string;
+      scope: GovernanceConsentRecord["scope"];
+      decision: GovernanceConsentRecord["decision"];
+      updated_at: Date;
+    }>(
+      `select consent_type, version, scope, decision, updated_at
+       from simulora.account_consents where account_id = $1 order by updated_at desc`,
+      [account.accountId],
+    );
+    return {
+      policyVersion: "IP-8-ADULT-ONLY-V1",
+      consents: result.rows.map((row) => ({
+        consentType: row.consent_type,
+        version: row.version,
+        scope: row.scope,
+        decision: row.decision,
+        withdrawalAvailable: row.decision === "GRANTED",
+        updatedAt: row.updated_at.toISOString(),
+      })),
+    };
+  }
+
+  async setConsent(
+    account: SyntheticAccount,
+    request: GovernanceConsentInput,
+  ): Promise<GovernanceConsentRecord> {
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const current = await client.query<{
+        id: string;
+        decision: GovernanceConsentRecord["decision"];
+      }>(
+        `select id, decision from simulora.account_consents
+         where account_id = $1 and consent_type = $2 and version = $3 and scope = $4 for update`,
+        [account.accountId, request.consentType, request.version, request.scope],
+      );
+      const result = await client.query<{
+        consent_type: GovernanceConsentRecord["consentType"];
+        version: string;
+        scope: GovernanceConsentRecord["scope"];
+        decision: GovernanceConsentRecord["decision"];
+        updated_at: Date;
+      }>(
+        current.rows[0]
+          ? `update simulora.account_consents
+             set decision = $1, updated_at = case when decision = $1 then updated_at else now() end
+             where id = $2 returning consent_type, version, scope, decision, updated_at`
+          : `insert into simulora.account_consents
+             (id, account_id, consent_type, version, scope, decision)
+             values ($1, $2, $3, $4, $5, $6)
+             returning consent_type, version, scope, decision, updated_at`,
+        current.rows[0]
+          ? [request.decision, current.rows[0].id]
+          : [
+              randomUUID(),
+              account.accountId,
+              request.consentType,
+              request.version,
+              request.scope,
+              request.decision,
+            ],
+      );
+      if (current.rows[0]?.decision !== request.decision) {
+        await client.query(
+          `insert into simulora.governance_audit_events
+           (id, actor_account_id, event_type, resource_type, resource_id, purpose, outcome, metadata)
+           values ($1, $2, 'CONSENT_CHANGED', 'ACCOUNT', $2, 'consent decision', $3, $4::jsonb)`,
+          [
+            randomUUID(),
+            account.accountId,
+            request.decision,
+            JSON.stringify({
+              consentType: request.consentType,
+              version: request.version,
+              scope: request.scope,
+              previousDecision: current.rows[0]?.decision ?? null,
+            }),
+          ],
+        );
+      }
+      const row = result.rows[0]!;
+      return {
+        consentType: row.consent_type,
+        version: row.version,
+        scope: row.scope,
+        decision: row.decision,
+        withdrawalAvailable: row.decision === "GRANTED",
+        updatedAt: row.updated_at.toISOString(),
+      };
+    });
+  }
+
+  async readAccess(
+    account: SyntheticAccount,
+    resourceType: "world" | "continuity",
+    resourceId: string,
+  ): Promise<GovernanceAccessResponse> {
+    if (resourceType === "world") {
+      const result = await this.pool.query<{
+        owner_account_id: string;
+        deleted_at: Date | null;
+        role: "PARTICIPANT" | "VIEWER" | null;
+      }>(
+        `select w.owner_account_id, w.deleted_at, g.role
+         from simulora.worlds w
+         left join simulora.world_access_grants g
+           on g.world_id = w.id and g.account_id = $2 and g.status = 'ACTIVE'
+         where w.id = $1`,
+        [resourceId, account.accountId],
+      );
+      const row = result.rows[0];
+      if (!row) return this.noAccess(resourceType, resourceId, "NOT_FOUND");
+      if (row.deleted_at && row.owner_account_id !== account.accountId && !row.role) {
+        return this.noAccess(resourceType, resourceId, "NOT_FOUND");
+      }
+      if (row.deleted_at) {
+        return {
+          resourceType,
+          resourceId,
+          accessLevel: row.owner_account_id === account.accountId ? "OWNER" : (row.role ?? "NONE"),
+          visibility: "TOMBSTONED",
+          canRead: false,
+          canModify: false,
+          canStart: false,
+          reasonCode: "TOMBSTONED",
+          explanation:
+            "This World is closed to new reads and mutations while its deletion is retained for recovery and audit.",
+          recovery: { label: "Review deletion status", href: "/v1/deletions" },
+        };
+      }
+      if (row.owner_account_id === account.accountId) {
+        return {
+          resourceType,
+          resourceId,
+          accessLevel: "OWNER",
+          visibility: "OWNER_ONLY",
+          canRead: true,
+          canModify: account.eligibility === "adult",
+          canStart: account.eligibility === "adult",
+          reasonCode: account.eligibility === "adult" ? "OWNER" : "ELIGIBILITY_REQUIRED",
+          explanation:
+            account.eligibility === "adult"
+              ? "You own this World."
+              : "An eligible adult account is required to modify or start this World.",
+          recovery: null,
+        };
+      }
+      if (row.role) {
+        return {
+          resourceType,
+          resourceId,
+          accessLevel: row.role,
+          visibility: "EXPLICIT_GRANT",
+          canRead: true,
+          canModify: row.role === "PARTICIPANT" && account.eligibility === "adult",
+          canStart: row.role === "PARTICIPANT" && account.eligibility === "adult",
+          reasonCode: account.eligibility === "adult" ? "ACTIVE_GRANT" : "ELIGIBILITY_REQUIRED",
+          explanation: `You have an explicit ${row.role.toLowerCase()} grant. Private Continuity data remains owner-only.`,
+          recovery: null,
+        };
+      }
+      return this.noAccess(resourceType, resourceId, "NO_ACCESS");
+    }
+
+    const result = await this.pool.query<{
+      owner_account_id: string;
+      deleted_at: Date | null;
+    }>(
+      `select c.owner_account_id, w.deleted_at
+       from simulora.continuities c
+       join simulora.world_revisions r on r.id = c.world_revision_id
+       join simulora.worlds w on w.id = r.world_id
+       where c.id = $1`,
+      [resourceId],
+    );
+    const row = result.rows[0];
+    if (!row || row.owner_account_id !== account.accountId) {
+      return this.noAccess(resourceType, resourceId, row ? "NO_ACCESS" : "NOT_FOUND");
+    }
+    if (row.deleted_at) {
+      return {
+        resourceType,
+        resourceId,
+        accessLevel: "OWNER",
+        visibility: "TOMBSTONED",
+        canRead: false,
+        canModify: false,
+        canStart: false,
+        reasonCode: "TOMBSTONED",
+        explanation: "This private Continuity is unavailable because its World is tombstoned.",
+        recovery: { label: "Review deletion status", href: "/v1/deletions" },
+      };
+    }
+    return {
+      resourceType,
+      resourceId,
+      accessLevel: "OWNER",
+      visibility: "CONTINUITY_PRIVATE",
+      canRead: true,
+      canModify: account.eligibility === "adult",
+      canStart: false,
+      reasonCode: account.eligibility === "adult" ? "OWNER" : "ELIGIBILITY_REQUIRED",
+      explanation:
+        "This Continuity is private to its owner; a World grant does not grant Continuity access.",
+      recovery: null,
+    };
+  }
+
+  async listProductChanges(): Promise<{ changes: GovernanceProductChange[] }> {
+    const result = await this.pool.query<{
+      id: string;
+      version: string;
+      category: GovernanceProductChange["category"];
+      summary: string;
+      effect: string;
+      recovery: string;
+      published_at: Date;
+    }>(
+      `select id, version, category, summary, effect, recovery, published_at
+       from simulora.product_changes order by published_at desc`,
+    );
+    return {
+      changes: result.rows.map((row) => ({
+        id: row.id,
+        version: row.version,
+        category: row.category,
+        summary: row.summary,
+        effect: row.effect,
+        recovery: row.recovery,
+        publishedAt: row.published_at.toISOString(),
+      })),
+    };
+  }
+
+  async openAppeal(
+    account: SyntheticAccount,
+    request: GovernanceAppealRequest,
+  ): Promise<GovernanceAppealResponse> {
+    const digest = contentHash({
+      schemaVersion: request.schemaVersion,
+      reasonCode: request.reasonCode,
+      subjectType: request.subjectType,
+      subjectId: request.subjectId ?? null,
+      summary: request.summary,
+    });
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const existing = await client.query<{ id: string; request_digest: string }>(
+        `select id, request_digest from simulora.appeals
+         where account_id = $1 and idempotency_key = $2`,
+        [account.accountId, request.idempotencyKey],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].request_digest !== digest) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        const row = await client.query<{
+          id: string;
+          reason_code: GovernanceAppealRequest["reasonCode"];
+          subject_type: GovernanceAppealRequest["subjectType"];
+          subject_id: string | null;
+          status: GovernanceAppealResponse["status"];
+          recovery_state: GovernanceAppealResponse["recoveryState"];
+          created_at: Date;
+          updated_at: Date;
+        }>(
+          `select id, reason_code, subject_type, subject_id, status, recovery_state, created_at, updated_at
+           from simulora.appeals where id = $1`,
+          [existing.rows[0].id],
+        );
+        return this.mapAppeal(row.rows[0]!);
+      }
+      const id = randomUUID();
+      const result = await client.query<{
+        id: string;
+        reason_code: GovernanceAppealRequest["reasonCode"];
+        subject_type: GovernanceAppealRequest["subjectType"];
+        subject_id: string | null;
+        status: GovernanceAppealResponse["status"];
+        recovery_state: GovernanceAppealResponse["recoveryState"];
+        created_at: Date;
+        updated_at: Date;
+      }>(
+        `insert into simulora.appeals
+         (id, account_id, idempotency_key, request_digest, reason_code, subject_type,
+          subject_id, summary, status, recovery_state)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, 'OPEN', 'REVIEW_PENDING')
+         returning id, reason_code, subject_type, subject_id, status, recovery_state, created_at, updated_at`,
+        [
+          id,
+          account.accountId,
+          request.idempotencyKey,
+          digest,
+          request.reasonCode,
+          request.subjectType,
+          request.subjectId ?? null,
+          request.summary,
+        ],
+      );
+      await client.query(
+        `insert into simulora.governance_audit_events
+         (id, actor_account_id, event_type, resource_type, resource_id, purpose, outcome, metadata)
+         values ($1, $2, 'APPEAL_OPENED', $3, $4, 'account appeal', 'RECORDED', $5::jsonb)`,
+        [
+          randomUUID(),
+          account.accountId,
+          request.subjectType,
+          request.subjectId ?? null,
+          JSON.stringify({ reasonCode: request.reasonCode }),
+        ],
+      );
+      return this.mapAppeal(result.rows[0]!);
+    });
+  }
+
+  async readAppeal(account: SyntheticAccount, appealId: string): Promise<GovernanceAppealResponse> {
+    const result = await this.pool.query<{
+      id: string;
+      reason_code: GovernanceAppealRequest["reasonCode"];
+      subject_type: GovernanceAppealRequest["subjectType"];
+      subject_id: string | null;
+      status: GovernanceAppealResponse["status"];
+      recovery_state: GovernanceAppealResponse["recoveryState"];
+      created_at: Date;
+      updated_at: Date;
+    }>(
+      `select id, reason_code, subject_type, subject_id, status, recovery_state, created_at, updated_at
+       from simulora.appeals where id = $1 and account_id = $2`,
+      [appealId, account.accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Appeal not found");
+    return this.mapAppeal(row);
+  }
+
+  async createUsageQuote(
+    account: SyntheticAccount,
+    request: GovernanceUsageQuoteRequest,
+  ): Promise<GovernanceUsageQuote> {
+    if (request.actionProfile === "WORLD_TURN") this.assertEligible(account);
+    await this.ensureAccount(account);
+    const id = randomUUID();
+    const expiresAt = new Date(this.now() + 5 * 60_000);
+    await this.pool.query(
+      `insert into simulora.usage_quotes
+       (id, account_id, action_profile, policy_version, cost_mode, units, status, expires_at)
+       values ($1, $2, $3, 'IP-8-ZERO-COST-TEST-V1', 'ZERO_COST_TEST', 0, 'ISSUED', $4)`,
+      [id, account.accountId, request.actionProfile, expiresAt],
+    );
+    return {
+      quoteId: id,
+      actionProfile: request.actionProfile,
+      policyVersion: "IP-8-ZERO-COST-TEST-V1",
+      costMode: "ZERO_COST_TEST",
+      units: 0,
+      expiresAt: expiresAt.toISOString(),
+      failureBehavior: {
+        retry: "Retry only with the same idempotency key after a recoverable failure.",
+        cancel: "Cancellation releases the reservation without a ledger charge.",
+        terminalNoCommit:
+          "A failed or cancelled Action has no World Commit and no settlement entry.",
+      },
+      status: "ISSUED",
+    };
+  }
+
+  async reserveUsage(
+    account: SyntheticAccount,
+    quoteId: string,
+    request: GovernanceUsageReservationRequest,
+  ): Promise<GovernanceUsageReservation> {
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const quote = await client.query<{
+        action_profile: GovernanceUsageQuote["actionProfile"];
+        expires_at: Date;
+        status: string;
+      }>(
+        `select action_profile, expires_at, status
+         from simulora.usage_quotes where id = $1 and account_id = $2 for update`,
+        [quoteId, account.accountId],
+      );
+      const quoteRow = quote.rows[0];
+      if (!quoteRow) throw new NotFoundError("Usage quote not found");
+      if (quoteRow.action_profile === "WORLD_TURN") this.assertEligible(account);
+      if (quoteRow.status !== "ISSUED" || quoteRow.expires_at.getTime() <= this.now()) {
+        throw new ConflictError("USAGE_QUOTE_EXPIRED");
+      }
+      const existing = await client.query<{
+        id: string;
+        quote_id: string;
+        action_key: string;
+        status: GovernanceUsageReservation["status"];
+        units: 0;
+        created_at: Date;
+      }>(
+        `select id, quote_id, action_key, status, units, created_at
+         from simulora.usage_reservations where account_id = $1 and action_key = $2`,
+        [account.accountId, request.actionKey],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].quote_id !== quoteId) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.mapUsageReservation(existing.rows[0]);
+      }
+      const result = await client.query<{
+        id: string;
+        quote_id: string;
+        action_key: string;
+        status: GovernanceUsageReservation["status"];
+        units: 0;
+        created_at: Date;
+      }>(
+        `insert into simulora.usage_reservations
+         (id, quote_id, account_id, action_key, status, units)
+         values ($1, $2, $3, $4, 'RESERVED', 0)
+         returning id, quote_id, action_key, status, units, created_at`,
+        [randomUUID(), quoteId, account.accountId, request.actionKey],
+      );
+      return this.mapUsageReservation(result.rows[0]!);
+    });
+  }
+
+  async settleUsage(
+    account: SyntheticAccount,
+    reservationId: string,
+  ): Promise<GovernanceUsageReservation> {
+    return this.transitionUsage(account, reservationId, "SETTLED", "SETTLEMENT");
+  }
+
+  async releaseUsage(
+    account: SyntheticAccount,
+    reservationId: string,
+  ): Promise<GovernanceUsageReservation> {
+    return this.transitionUsage(account, reservationId, "RELEASED", "RELEASE");
+  }
+
+  async listUsageLedger(
+    account: SyntheticAccount,
+  ): Promise<{ entries: GovernanceUsageLedgerEntry[] }> {
+    const result = await this.pool.query<{
+      id: string;
+      reservation_id: string;
+      entry_type: GovernanceUsageLedgerEntry["entryType"];
+      units: 0;
+      created_at: Date;
+    }>(
+      `select id, reservation_id, entry_type, units, created_at
+       from simulora.usage_ledger where account_id = $1 order by created_at, id`,
+      [account.accountId],
+    );
+    return {
+      entries: result.rows.map((row) => ({
+        entryId: row.id,
+        reservationId: row.reservation_id,
+        entryType: row.entry_type,
+        units: 0,
+        createdAt: row.created_at.toISOString(),
+      })),
+    };
+  }
+
+  async createExport(
+    account: SyntheticAccount,
+    request: GovernanceExportRequest,
+  ): Promise<GovernanceExportResponse> {
+    const existing = await this.pool.query<{
+      id: string;
+      world_id: string;
+      selected_scopes: unknown;
+      omitted_scopes: unknown;
+    }>(
+      `select id, world_id, selected_scopes, omitted_scopes
+       from simulora.export_jobs where account_id = $1 and idempotency_key = $2`,
+      [account.accountId, request.idempotencyKey],
+    );
+    const selectedScopes = Object.entries(request.include)
+      .filter(([, selected]) => selected)
+      .map(([name]) => name);
+    const omittedScopes = Object.entries(request.include)
+      .filter(([, selected]) => !selected)
+      .map(([name]) => name);
+    if (!selectedScopes.length) throw new ValidationError("At least one export scope is required");
+    if (existing.rows[0]) {
+      const sameScopes =
+        JSON.stringify(existing.rows[0].selected_scopes) === JSON.stringify(selectedScopes) &&
+        JSON.stringify(existing.rows[0].omitted_scopes) === JSON.stringify(omittedScopes);
+      if (existing.rows[0].world_id !== request.worldId || !sameScopes) {
+        throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+      }
+      return this.readExport(account, existing.rows[0].id);
+    }
+    const worldResult = await this.pool.query<{ document: unknown; deleted_at: Date | null }>(
+      `select d.document, w.deleted_at from simulora.worlds w
+       join simulora.world_drafts d on d.world_id = w.id
+       where w.id = $1 and w.owner_account_id = $2`,
+      [request.worldId, account.accountId],
+    );
+    const worldRow = worldResult.rows[0];
+    if (!worldRow) throw new NotFoundError("World not found");
+    if (worldRow.deleted_at) throw new ConflictError("WORLD_TOMBSTONED");
+    const world = worldDocumentSchema.parse(worldRow.document);
+    const entries: Array<{ name: string; body: Uint8Array }> = [];
+    if (request.include.world) {
+      const revisions = await this.pool.query<{
+        id: string;
+        revision_number: number;
+        document: unknown;
+        document_hash: string;
+        created_at: Date;
+      }>(
+        `select id, revision_number, document, document_hash, created_at
+         from simulora.world_revisions where world_id = $1 order by revision_number`,
+        [request.worldId],
+      );
+      entries.push({
+        name: "world/world.json",
+        body: Buffer.from(
+          JSON.stringify(
+            {
+              draft: world,
+              revisions: revisions.rows.map((row) => ({
+                id: row.id,
+                revisionNumber: row.revision_number,
+                document: worldDocumentSchema.parse(row.document),
+                documentHash: row.document_hash,
+                createdAt: row.created_at.toISOString(),
+              })),
+            },
+            null,
+            2,
+          ),
+        ),
+      });
+    }
+    if (request.include.characters) {
+      for (const character of world.characters) {
+        entries.push({
+          name: `characters/${character.id}.json`,
+          body: Buffer.from(JSON.stringify(character, null, 2)),
+        });
+      }
+    }
+    if (request.include.continuity || request.include.history) {
+      const continuities = await this.pool.query<{
+        id: string;
+        world_revision_id: string;
+        status: string;
+        created_at: Date;
+        branch_id: string;
+        head_commit_id: string;
+        state_revision_id: string;
+        state_document: unknown;
+        state_hash: string;
+      }>(
+        `select c.id, c.world_revision_id, c.status, c.created_at,
+                b.id as branch_id, b.head_commit_id, s.id as state_revision_id,
+                s.document as state_document, s.document_hash as state_hash
+         from simulora.continuities c
+         join simulora.world_revisions r on r.id = c.world_revision_id
+         join simulora.branches b on b.id = c.active_branch_id
+         join simulora.state_revisions s on s.id = b.head_state_revision_id
+         where r.world_id = $1 and c.owner_account_id = $2 and c.status = 'ACTIVE'
+         order by c.created_at, c.id`,
+        [request.worldId, account.accountId],
+      );
+      if (request.include.continuity) {
+        for (const row of continuities.rows) {
+          entries.push({
+            name: `continuity/${row.id}/state.json`,
+            body: Buffer.from(
+              JSON.stringify(
+                {
+                  continuityId: row.id,
+                  worldRevisionId: row.world_revision_id,
+                  branchId: row.branch_id,
+                  headCommitId: row.head_commit_id,
+                  stateRevisionId: row.state_revision_id,
+                  stateHash: row.state_hash,
+                  state: stateRevisionDocumentSchema.parse(row.state_document),
+                  createdAt: row.created_at.toISOString(),
+                },
+                null,
+                2,
+              ),
+            ),
+          });
+        }
+      }
+      if (request.include.history) {
+        const history = await this.pool.query<{
+          commit_id: string;
+          kind: string;
+          created_at: Date;
+          event_type: string | null;
+          payload: unknown;
+        }>(
+          `select c.id as commit_id, c.kind, c.created_at, e.event_type, e.payload
+           from simulora.world_commits c
+           join simulora.branches b on b.id = c.branch_id
+           join simulora.continuities co on co.id = b.continuity_id
+           join simulora.world_revisions r on r.id = co.world_revision_id
+           left join simulora.domain_events e on e.commit_id = c.id
+           where r.world_id = $1 and co.owner_account_id = $2
+           order by c.created_at, c.id, e.event_type`,
+          [request.worldId, account.accountId],
+        );
+        const lines = history.rows.map((row) =>
+          JSON.stringify({
+            commitId: row.commit_id,
+            kind: row.kind,
+            createdAt: row.created_at.toISOString(),
+            eventType: row.event_type,
+            payload: row.payload,
+          }),
+        );
+        entries.push({ name: "history/events.ndjson", body: Buffer.from(`${lines.join("\n")}\n`) });
+      }
+    }
+    const fileChecksums = Object.fromEntries(
+      entries.map((entry) => [entry.name, sha256Bytes(entry.body)]),
+    );
+    const manifest = {
+      schemaVersion: 1,
+      productVersion: "0.0.0",
+      worldId: request.worldId,
+      exportedAt: new Date(this.now()).toISOString(),
+      selectedScopes,
+      omittedScopes,
+      provenance: "Owner-authorized Simulora World export",
+      omittedMaterial: [
+        "provider prompts and responses",
+        "secrets and hidden policy configuration",
+        "other accounts' private data",
+        "conversation transcript (not implemented in the current export format)",
+      ],
+      files: fileChecksums,
+    };
+    entries.push({ name: "manifest.json", body: Buffer.from(JSON.stringify(manifest, null, 2)) });
+    const checksumLines =
+      entries.map((entry) => `${sha256Bytes(entry.body)}  ${entry.name}`).join("\n") + "\n";
+    entries.push({ name: "checksums.sha256", body: Buffer.from(checksumLines) });
+    const artifact = zipStore(entries);
+    const exportId = randomUUID();
+    const artifactKey = `exports/${account.accountId}/${exportId}.zip`;
+    const checksum = sha256Bytes(artifact);
+    await this.pool.query(
+      `insert into simulora.export_jobs
+       (id, account_id, world_id, idempotency_key, selected_scopes, omitted_scopes, status, schema_version, manifest)
+       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 'PENDING', 1, $7::jsonb)`,
+      [
+        exportId,
+        account.accountId,
+        request.worldId,
+        request.idempotencyKey,
+        JSON.stringify(selectedScopes),
+        JSON.stringify(omittedScopes),
+        JSON.stringify(manifest),
+      ],
+    );
+    try {
+      await this.artifactStorage.put(
+        { key: artifactKey, checksum, contentType: "application/zip" },
+        artifact,
+      );
+      await this.pool.query(
+        `update simulora.export_jobs
+         set status = 'READY', artifact_key = $2, checksum = $3, completed_at = now()
+         where id = $1
+           and exists (
+             select 1 from simulora.worlds w
+             where w.id = simulora.export_jobs.world_id and w.deleted_at is null
+           )`,
+        [exportId, artifactKey, checksum],
+      );
+    } catch {
+      await this.pool.query(`update simulora.export_jobs set status = 'FAILED' where id = $1`, [
+        exportId,
+      ]);
+    }
+    return this.readExport(account, exportId);
+  }
+
+  async readExport(account: SyntheticAccount, exportId: string): Promise<GovernanceExportResponse> {
+    const result = await this.pool.query<{
+      id: string;
+      status: GovernanceExportResponse["status"];
+      world_id: string;
+      selected_scopes: unknown;
+      omitted_scopes: unknown;
+      checksum: string | null;
+      artifact_key: string | null;
+      manifest: Record<string, unknown> | null;
+      created_at: Date;
+      completed_at: Date | null;
+    }>(
+      `select id, status, world_id, selected_scopes, omitted_scopes, checksum, artifact_key, manifest, created_at, completed_at
+       from simulora.export_jobs where id = $1 and account_id = $2`,
+      [exportId, account.accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Export not found");
+    return {
+      exportId: row.id,
+      status: row.status,
+      schemaVersion: 1,
+      worldId: row.world_id,
+      selectedScopes: Array.isArray(row.selected_scopes)
+        ? row.selected_scopes.filter((value): value is string => typeof value === "string")
+        : [],
+      omittedScopes: Array.isArray(row.omitted_scopes)
+        ? row.omitted_scopes.filter((value): value is string => typeof value === "string")
+        : [],
+      checksum: row.checksum,
+      artifactKey: row.artifact_key,
+      manifest: row.manifest,
+      createdAt: row.created_at.toISOString(),
+      completedAt: row.completed_at?.toISOString() ?? null,
+    };
+  }
+
+  async readExportArtifact(account: SyntheticAccount, exportId: string): Promise<Uint8Array> {
+    const exportJob = await this.readExport(account, exportId);
+    if (exportJob.status !== "READY" || !exportJob.artifactKey || !exportJob.checksum) {
+      throw new NotFoundError("Export artifact not found");
+    }
+    const artifact = await this.artifactStorage.get(exportJob.artifactKey);
+    if (!artifact) throw new NotFoundError("Export artifact not found");
+    if (sha256Bytes(artifact) !== exportJob.checksum) {
+      throw new ConflictError("EXPORT_CHECKSUM_MISMATCH");
+    }
+    return artifact;
+  }
+
+  async proposeDeletion(
+    account: SyntheticAccount,
+    request: GovernanceDeletionProposalRequest,
+  ): Promise<GovernanceDeletionProposal> {
+    const affected = {
+      continuities: 0,
+      grants: 0,
+      exports: 0,
+      auditCategories: ["DELETION", "ACCESS", "RECOVERY"],
+    };
+    if (request.targetType === "WORLD") {
+      const world = await this.pool.query<{ id: string }>(
+        `select id from simulora.worlds where id = $1 and owner_account_id = $2 and deleted_at is null`,
+        [request.targetId, account.accountId],
+      );
+      if (!world.rows[0]) throw new NotFoundError("World not found");
+      const counts = await this.pool.query<{
+        continuities: string;
+        grants: string;
+        exports: string;
+      }>(
+        `select
+           (select count(*) from simulora.continuities c join simulora.world_revisions r on r.id = c.world_revision_id where r.world_id = $1 and c.status = 'ACTIVE') as continuities,
+           (select count(*) from simulora.world_access_grants where world_id = $1 and status = 'ACTIVE') as grants,
+           (select count(*) from simulora.export_jobs where world_id = $1 and status in ('PENDING', 'READY')) as exports`,
+        [request.targetId],
+      );
+      affected.continuities = Number(counts.rows[0]?.continuities ?? 0);
+      affected.grants = Number(counts.rows[0]?.grants ?? 0);
+      affected.exports = Number(counts.rows[0]?.exports ?? 0);
+    } else {
+      const asset = await this.pool.query<{ id: string }>(
+        `select id from simulora.character_assets where id = $1 and owner_account_id = $2 and status = 'ACTIVE'`,
+        [request.targetId, account.accountId],
+      );
+      if (!asset.rows[0]) throw new NotFoundError("Character Asset not found");
+      affected.auditCategories = ["DELETION", "REVISION_SNAPSHOT"];
+    }
+    const proposalId = randomUUID();
+    const digest = sha256Bytes(
+      Buffer.from(
+        JSON.stringify({ targetType: request.targetType, targetId: request.targetId, affected }),
+      ),
+    );
+    const expiresAt = new Date(this.now() + 10 * 60_000);
+    await this.pool.query(
+      `insert into simulora.deletion_proposals
+       (id, account_id, target_type, target_id, digest, affected, status, expires_at, purge_status)
+       values ($1, $2, $3, $4, $5, $6::jsonb, 'ACTIVE', $7, 'NOT_STARTED')`,
+      [
+        proposalId,
+        account.accountId,
+        request.targetType,
+        request.targetId,
+        digest,
+        JSON.stringify(affected),
+        expiresAt,
+      ],
+    );
+    return {
+      proposalId,
+      targetType: request.targetType,
+      targetId: request.targetId,
+      digest,
+      status: "ACTIVE",
+      affected,
+      expiresAt: expiresAt.toISOString(),
+      explanation:
+        "Confirmation tombstones the target, revokes future mutation, and retains minimal audit metadata.",
+    };
+  }
+
+  async confirmDeletion(
+    account: SyntheticAccount,
+    request: GovernanceDeletionConfirmRequest,
+  ): Promise<GovernanceDeletionStatus> {
+    return transaction(this.pool, async (client) => {
+      const result = await client.query<{
+        id: string;
+        target_type: GovernanceDeletionProposal["targetType"];
+        target_id: string;
+        digest: string;
+        affected: GovernanceDeletionProposal["affected"];
+        status: GovernanceDeletionProposal["status"];
+        expires_at: Date;
+        tombstoned_at: Date | null;
+        confirmation_idempotency_key: string | null;
+        purge_status: GovernanceDeletionStatus["purgeStatus"];
+        updated_at: Date;
+      }>(
+        `select id, target_type, target_id, digest, affected, status, expires_at, tombstoned_at,
+                confirmation_idempotency_key, purge_status, updated_at
+         from simulora.deletion_proposals where id = $1 and account_id = $2 for update`,
+        [request.proposalId, account.accountId],
+      );
+      const proposal = result.rows[0];
+      if (!proposal) throw new NotFoundError("Deletion proposal not found");
+      if (proposal.digest !== request.digest) throw new ConflictError("DELETION_DIGEST_MISMATCH");
+      if (proposal.status === "COMPLETED") {
+        if (proposal.confirmation_idempotency_key !== request.idempotencyKey) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.mapDeletionStatus(proposal);
+      }
+      const reused = await client.query<{ id: string }>(
+        `select id from simulora.deletion_proposals
+         where account_id = $1 and confirmation_idempotency_key = $2 and id <> $3`,
+        [account.accountId, request.idempotencyKey, proposal.id],
+      );
+      if (reused.rows[0]) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+      if (proposal.expires_at.getTime() <= this.now()) {
+        await client.query(
+          `update simulora.deletion_proposals set status = 'EXPIRED', updated_at = now() where id = $1`,
+          [proposal.id],
+        );
+        throw new ConflictError("DELETION_PROPOSAL_EXPIRED");
+      }
+      if (proposal.target_type === "WORLD") {
+        const world = await client.query<{ id: string }>(
+          `select id from simulora.worlds
+           where id = $1 and owner_account_id = $2 and deleted_at is null for update`,
+          [proposal.target_id, account.accountId],
+        );
+        if (!world.rows[0]) throw new ConflictError("WORLD_TOMBSTONED");
+        const counts = await client.query<{
+          continuities: string;
+          grants: string;
+          exports: string;
+        }>(
+          `select
+             (select count(*) from simulora.continuities c join simulora.world_revisions r on r.id = c.world_revision_id where r.world_id = $1 and c.status = 'ACTIVE') as continuities,
+             (select count(*) from simulora.world_access_grants where world_id = $1 and status = 'ACTIVE') as grants,
+             (select count(*) from simulora.export_jobs where world_id = $1 and status in ('PENDING', 'READY')) as exports`,
+          [proposal.target_id],
+        );
+        const currentAffected = {
+          continuities: Number(counts.rows[0]?.continuities ?? 0),
+          grants: Number(counts.rows[0]?.grants ?? 0),
+          exports: Number(counts.rows[0]?.exports ?? 0),
+          auditCategories: ["DELETION", "ACCESS", "RECOVERY"],
+        };
+        if (contentHash(currentAffected) !== contentHash(proposal.affected)) {
+          throw new ConflictError("DELETION_SCOPE_CHANGED");
+        }
+        await client.query(
+          `update simulora.worlds set deleted_at = coalesce(deleted_at, now()) where id = $1`,
+          [proposal.target_id],
+        );
+        await client.query(
+          `update simulora.world_access_grants set status = 'REVOKED', revoked_at = now() where world_id = $1 and status = 'ACTIVE'`,
+          [proposal.target_id],
+        );
+        await client.query(
+          `update simulora.export_jobs set status = 'REVOKED'
+           where world_id = $1 and status in ('PENDING', 'READY')`,
+          [proposal.target_id],
+        );
+        await client.query(
+          `update simulora.continuities set status = 'TOMBSTONED'
+           where world_revision_id in (select id from simulora.world_revisions where world_id = $1)`,
+          [proposal.target_id],
+        );
+      } else {
+        const asset = await client.query<{ id: string }>(
+          `select id from simulora.character_assets
+           where id = $1 and owner_account_id = $2 and status = 'ACTIVE' for update`,
+          [proposal.target_id, account.accountId],
+        );
+        if (!asset.rows[0]) throw new ConflictError("DELETION_SCOPE_CHANGED");
+        await client.query(
+          `update simulora.character_assets set status = 'DELETED', updated_at = now() where id = $1`,
+          [proposal.target_id],
+        );
+      }
+      await client.query(
+        `insert into simulora.governance_audit_events
+         (id, actor_account_id, event_type, resource_type, resource_id, purpose, outcome, metadata)
+         values ($1, $2, 'DELETION_CONFIRMED', $3, $4, 'user deletion', 'COMPLETED', $5::jsonb)`,
+        [
+          randomUUID(),
+          account.accountId,
+          proposal.target_type,
+          proposal.target_id,
+          JSON.stringify({ idempotencyKey: request.idempotencyKey }),
+        ],
+      );
+      const updated = await client.query<{
+        tombstoned_at: Date;
+        purge_status: GovernanceDeletionStatus["purgeStatus"];
+        updated_at: Date;
+      }>(
+        `update simulora.deletion_proposals
+         set status = 'COMPLETED', tombstoned_at = now(), confirmation_idempotency_key = $2,
+             purge_status = 'RETAINING_MINIMAL_AUDIT', updated_at = now()
+         where id = $1 returning tombstoned_at, purge_status, updated_at`,
+        [proposal.id, request.idempotencyKey],
+      );
+      return {
+        proposalId: proposal.id,
+        targetType: proposal.target_type,
+        targetId: proposal.target_id,
+        status: "COMPLETED",
+        tombstonedAt: updated.rows[0]!.tombstoned_at.toISOString(),
+        purgeStatus: updated.rows[0]!.purge_status,
+        updatedAt: updated.rows[0]!.updated_at.toISOString(),
+      };
+    });
+  }
+
+  async readDeletion(
+    account: SyntheticAccount,
+    proposalId: string,
+  ): Promise<GovernanceDeletionStatus> {
+    const result = await this.pool.query<{
+      id: string;
+      target_type: GovernanceDeletionStatus["targetType"];
+      target_id: string;
+      status: GovernanceDeletionStatus["status"];
+      tombstoned_at: Date | null;
+      purge_status: GovernanceDeletionStatus["purgeStatus"];
+      updated_at: Date;
+    }>(
+      `select id, target_type, target_id, status, tombstoned_at, purge_status, updated_at
+       from simulora.deletion_proposals where id = $1 and account_id = $2`,
+      [proposalId, account.accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Deletion proposal not found");
+    return {
+      proposalId: row.id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      status: row.status,
+      tombstonedAt: row.tombstoned_at?.toISOString() ?? null,
+      purgeStatus: row.purge_status,
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  private noAccess(
+    resourceType: "world" | "continuity",
+    resourceId: string,
+    reasonCode: GovernanceAccessResponse["reasonCode"],
+  ): GovernanceAccessResponse {
+    return {
+      resourceType,
+      resourceId,
+      accessLevel: "NONE",
+      visibility: reasonCode === "NOT_FOUND" ? "UNKNOWN" : "OWNER_ONLY",
+      canRead: false,
+      canModify: false,
+      canStart: false,
+      reasonCode,
+      explanation: "This resource is unavailable to the current account.",
+      recovery:
+        reasonCode === "NO_ACCESS"
+          ? { label: "Request access from the owner", href: "/v1/appeals" }
+          : null,
+    };
+  }
+
+  private mapAppeal(row: {
+    id: string;
+    reason_code: GovernanceAppealRequest["reasonCode"];
+    subject_type: GovernanceAppealRequest["subjectType"];
+    subject_id: string | null;
+    status: GovernanceAppealResponse["status"];
+    recovery_state: GovernanceAppealResponse["recoveryState"];
+    created_at: Date;
+    updated_at: Date;
+  }): GovernanceAppealResponse {
+    return {
+      appealId: row.id,
+      status: row.status,
+      recoveryState: row.recovery_state,
+      reasonCode: row.reason_code,
+      subjectType: row.subject_type,
+      subjectId: row.subject_id,
+      createdAt: row.created_at.toISOString(),
+      updatedAt: row.updated_at.toISOString(),
+    };
+  }
+
+  private mapUsageReservation(row: {
+    id: string;
+    quote_id: string;
+    action_key: string;
+    status: GovernanceUsageReservation["status"];
+    units: 0;
+    created_at: Date;
+  }): GovernanceUsageReservation {
+    return {
+      reservationId: row.id,
+      quoteId: row.quote_id,
+      actionKey: row.action_key,
+      status: row.status,
+      units: 0,
+      createdAt: row.created_at.toISOString(),
+    };
+  }
+
+  private async transitionUsage(
+    account: SyntheticAccount,
+    reservationId: string,
+    status: "SETTLED" | "RELEASED",
+    entryType: "SETTLEMENT" | "RELEASE",
+  ): Promise<GovernanceUsageReservation> {
+    return transaction(this.pool, async (client) => {
+      const current = await client.query<{
+        id: string;
+        quote_id: string;
+        action_key: string;
+        status: GovernanceUsageReservation["status"];
+        units: 0;
+        created_at: Date;
+      }>(
+        `select id, quote_id, action_key, status, units, created_at from simulora.usage_reservations where id = $1 and account_id = $2 for update`,
+        [reservationId, account.accountId],
+      );
+      const row = current.rows[0];
+      if (!row) throw new NotFoundError("Usage reservation not found");
+      if (row.status === status) return this.mapUsageReservation(row);
+      if (row.status !== "RESERVED") throw new ConflictError("USAGE_RESERVATION_TERMINAL");
+      await client.query(`update simulora.usage_reservations set status = $2 where id = $1`, [
+        reservationId,
+        status,
+      ]);
+      await client.query(
+        `insert into simulora.usage_ledger (id, reservation_id, account_id, entry_type, units)
+         values ($1, $2, $3, $4, 0) on conflict (reservation_id, entry_type) do nothing`,
+        [randomUUID(), reservationId, account.accountId, entryType],
+      );
+      return this.mapUsageReservation({ ...row, status });
+    });
+  }
+
+  private mapDeletionStatus(row: {
+    id: string;
+    target_type: GovernanceDeletionStatus["targetType"];
+    target_id: string;
+    status: GovernanceDeletionStatus["status"];
+    tombstoned_at: Date | null;
+    purge_status: GovernanceDeletionStatus["purgeStatus"];
+    updated_at: Date;
+  }): GovernanceDeletionStatus {
+    return {
+      proposalId: row.id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      status: row.status,
+      tombstonedAt: row.tombstoned_at?.toISOString() ?? null,
+      purgeStatus: row.purge_status,
+      updatedAt: row.updated_at.toISOString(),
+    };
   }
 
   private assertEligible(account: SyntheticAccount): void {

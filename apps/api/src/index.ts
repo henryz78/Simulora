@@ -1,4 +1,8 @@
-import { ActionTruthService, WorldContinuityService } from "@simulora/application";
+import {
+  ActionTruthService,
+  GovernanceService,
+  WorldContinuityService,
+} from "@simulora/application";
 import { loadLocalEnvironment, loadServerConfig, redactConfig } from "@simulora/config";
 import { AuthoritativeWorldRepository, createDatabasePool } from "@simulora/database";
 import { createLogger } from "@simulora/observability";
@@ -13,6 +17,7 @@ const app = createApiApp({
   logLevel: config.SIMULORA_LOG_LEVEL,
   worldService: new WorldContinuityService(repository),
   actionService: new ActionTruthService(repository),
+  governanceService: new GovernanceService(repository),
 });
 app.addHook("onClose", async () => pool.end());
 

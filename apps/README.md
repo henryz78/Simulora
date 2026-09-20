@@ -4,6 +4,6 @@
 - `api` — versioned JSON/SSE Node composition root.
 - `worker` — independently scalable Node worker composition root.
 
-The production application includes the IP-7 World Studio implementation on top of the approved IP-1–IP-6 authority spine; G7 passed with independent review and real PostgreSQL CI evidence. Live model behavior and later lifecycle/release work remain intentionally absent until their authorized phases.
+The production application includes the approved IP-1–IP-7 authority and World Studio spine plus an IP-8 Trust & lifecycle implementation candidate. G7 passed with independent review and real-PostgreSQL CI evidence; IP-8 remains pending independent review and real-PostgreSQL G8 evidence. Live model behavior and later release work remain intentionally absent.
 
 Production apps must not import from `prototypes/`.

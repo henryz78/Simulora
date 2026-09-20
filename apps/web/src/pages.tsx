@@ -13,12 +13,16 @@ import {
   type AuthoritativeStateResponse,
   type BranchTraceResponse,
   type CorrectionRequest,
+  type DeletionProposal,
+  type DeletionStatus,
   type ExplanationResponse,
+  type ExportResponse,
   type OrientationResponse,
   type ProjectionFreshness,
   type ParticipationContract,
   type RecoveryResponse,
   type RestoreProposal,
+  type UsageQuote,
   type WorldDocumentInput,
   type WorldStudioResponse,
   type WorldValidationResponse,
@@ -56,6 +60,19 @@ import {
   updateWorldDraft,
   validateWorldDraft,
 } from "./ip7-api.js";
+import {
+  confirmDeletion,
+  createExport,
+  createUsageQuote,
+  loadTrust,
+  openAppeal,
+  proposeDeletion,
+  releaseUsage,
+  reserveUsage,
+  setConsent,
+  settleUsage,
+  type TrustLoad,
+} from "./ip8-api.js";
 
 export { ContinuityLayout };
 
@@ -69,7 +86,7 @@ export function FoundationPage(): ReactElement {
           </span>
           <span>Simulora</span>
         </Link>
-        <span className="phase-badge">IP-7 · World Studio</span>
+        <span className="phase-badge">IP-8 · Trust & lifecycle</span>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
@@ -103,7 +120,7 @@ export function FoundationPage(): ReactElement {
           </Link>
         </section>
       </main>
-      <footer className="site-footer">Product Implementation · IP-7 World Studio</footer>
+      <footer className="site-footer">Product Implementation · IP-8 Trust & lifecycle</footer>
     </div>
   );
 }
@@ -2159,19 +2176,29 @@ export function WorldStudioPage(): ReactElement {
             silently changes an existing Continuity.
           </p>
         </div>
-        {!isNew && studio?.revisions[0] ? (
-          <button
-            className="primary-action"
-            type="button"
-            disabled={busy !== null}
-            onClick={() => void beginPlay()}
-          >
-            {busy === "play"
-              ? "Opening…"
-              : studio.continuities.length
-                ? "Resume pinned Continuity"
-                : "Begin play"}
-          </button>
+        {!isNew ? (
+          <div className="review-actions">
+            <Link
+              className="secondary-action inline-action"
+              to={`/worlds/${encodeURIComponent(worldId)}/trust`}
+            >
+              Trust & lifecycle
+            </Link>
+            {studio?.revisions[0] ? (
+              <button
+                className="primary-action"
+                type="button"
+                disabled={busy !== null}
+                onClick={() => void beginPlay()}
+              >
+                {busy === "play"
+                  ? "Opening…"
+                  : studio.continuities.length
+                    ? "Resume pinned Continuity"
+                    : "Begin play"}
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </header>
 
@@ -3059,6 +3086,425 @@ function starterWorld(): WorldDocumentInput {
     interactionBoundaries: ["The world never authors the user's speech, consent or commitments."],
     objectives: [],
   };
+}
+
+const consentLabels = {
+  TERMS: "Terms and ownership boundary",
+  PRIVACY: "Privacy and retention notice",
+  CONTENT_BOUNDARIES: "Content and participation boundaries",
+} as const;
+
+export function TrustLifecyclePage(): ReactElement {
+  const { worldId } = useParams<{ worldId: string }>();
+  const navigate = useNavigate();
+  const [trust, setTrust] = useState<TrustLoad | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [quote, setQuote] = useState<UsageQuote | null>(null);
+  const [exported, setExported] = useState<ExportResponse | null>(null);
+  const [include, setInclude] = useState({
+    world: true,
+    characters: true,
+    continuity: true,
+    history: true,
+  });
+  const [deletion, setDeletion] = useState<DeletionProposal | null>(null);
+  const [deletionStatus, setDeletionStatus] = useState<DeletionStatus | null>(null);
+  const [appealSummary, setAppealSummary] = useState("");
+
+  const reload = async (): Promise<void> => {
+    if (!worldId) return;
+    const result = await loadTrust(worldId);
+    if (result.data) {
+      setTrust(result.data);
+      setError(null);
+    } else {
+      setError("Trust and lifecycle information is unavailable. No World data was changed.");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void reload();
+    // The route id is the only load dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [worldId]);
+
+  const run = async (name: string, work: () => Promise<void>): Promise<void> => {
+    if (busy) return;
+    setBusy(name);
+    setMessage(null);
+    setError(null);
+    try {
+      await work();
+    } catch {
+      setError("The request could not be completed. Existing World state remains unchanged.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!worldId)
+    return <StatusPage title="This path is incomplete" copy="A World id is required." />;
+  if (loading)
+    return (
+      <StatusPage
+        title="Opening Trust & lifecycle…"
+        copy="Reading current access, consent and ownership records."
+      />
+    );
+  if (!trust)
+    return (
+      <StatusPage
+        title="Trust information is unavailable"
+        copy={error ?? "No lifecycle operation was performed."}
+      >
+        <Link className="secondary-action inline-action" to={`/worlds/${worldId}/studio`}>
+          Return to Studio
+        </Link>
+      </StatusPage>
+    );
+
+  return (
+    <main id="main-content" className="surface-page trust-page">
+      <header className="surface-header">
+        <div>
+          <Link className="back-link" to={`/worlds/${encodeURIComponent(worldId)}/studio`}>
+            ← Back to World Studio
+          </Link>
+          <p className="eyebrow">Trust & lifecycle</p>
+          <h1>Ownership, portability and exit</h1>
+          <p className="surface-copy">
+            Review who can act, what an export contains, and what deletion will close before making
+            a consequential choice.
+          </p>
+        </div>
+      </header>
+
+      {error ? (
+        <p className="action-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p className="studio-message" role="status">
+          {message}
+        </p>
+      ) : null}
+
+      <div className="trust-grid">
+        <section className="surface-card" aria-labelledby="access-title">
+          <p className="card-label">Current account and World</p>
+          <h2 id="access-title">Access is explicit</h2>
+          <dl className="trust-facts">
+            <div>
+              <dt>Eligibility</dt>
+              <dd>{trust.me.reasonCode?.replaceAll("_", " ") ?? trust.me.eligibility}</dd>
+            </div>
+            <div>
+              <dt>Access</dt>
+              <dd>{trust.access.accessLevel}</dd>
+            </div>
+            <div>
+              <dt>Visibility</dt>
+              <dd>{trust.access.visibility.replaceAll("_", " ")}</dd>
+            </div>
+          </dl>
+          <p>{trust.access.explanation}</p>
+          <p className="boundary-note">
+            World ownership or a World grant never grants another account access to a private
+            Continuity.
+          </p>
+        </section>
+
+        <section className="surface-card" aria-labelledby="consent-title">
+          <p className="card-label">Policy {trust.consents.policyVersion}</p>
+          <h2 id="consent-title">Consent records</h2>
+          <ul className="trust-list">
+            {Object.entries(consentLabels).map(([type, label]) => {
+              const consentType = type as keyof typeof consentLabels;
+              const current = trust.consents.consents.find(
+                (record) => record.consentType === consentType && record.version === "IP-8-V1",
+              );
+              return (
+                <li key={type}>
+                  <span>
+                    <strong>{label}</strong>
+                    <small>{current?.decision ?? "NOT RECORDED"}</small>
+                  </span>
+                  <button
+                    className="text-action"
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void run(`consent-${type}`, async () => {
+                        const result = await setConsent({
+                          schemaVersion: 1,
+                          consentType,
+                          version: "IP-8-V1",
+                          scope: "ACCOUNT",
+                          decision: current?.decision === "GRANTED" ? "WITHDRAWN" : "GRANTED",
+                        });
+                        if (!result.data) {
+                          setError("The consent record was not changed.");
+                          return;
+                        }
+                        await reload();
+                        setMessage(`Consent recorded as ${result.data.decision.toLowerCase()}.`);
+                      })
+                    }
+                  >
+                    {current?.decision === "GRANTED" ? "Withdraw" : "Grant"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+
+        <section className="surface-card trust-wide" aria-labelledby="export-title">
+          <p className="card-label">Selected-scope portable ZIP</p>
+          <h2 id="export-title">Export a readable copy</h2>
+          <p>
+            The package includes only selected owner-authorized World data, a versioned manifest and
+            checksums. It excludes provider prompts, secrets and other accounts’ private data.
+          </p>
+          <fieldset className="trust-checks">
+            <legend>Include</legend>
+            {Object.entries(include).map(([scope, selected]) => (
+              <label key={scope}>
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(event) =>
+                    setInclude((current) => ({ ...current, [scope]: event.target.checked }))
+                  }
+                />
+                {scope}
+              </label>
+            ))}
+          </fieldset>
+          {!quote ? (
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={busy !== null || !Object.values(include).some(Boolean)}
+              onClick={() =>
+                void run("quote", async () => {
+                  const result = await createUsageQuote({
+                    schemaVersion: 1,
+                    actionProfile: "EXPORT",
+                  });
+                  if (!result.data) return setError("The export usage quote is unavailable.");
+                  setQuote(result.data);
+                  setMessage("Usage reviewed. Creating this export consumes zero test units.");
+                })
+              }
+            >
+              Review export usage
+            </button>
+          ) : (
+            <div className="trust-review">
+              <strong>{quote.costMode.replaceAll("_", " ")} · 0 units</strong>
+              <p>{quote.failureBehavior.terminalNoCommit}</p>
+              <div className="review-actions">
+                <button
+                  className="primary-action"
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run("export", async () => {
+                      const idempotencyKey = crypto.randomUUID();
+                      const reserved = await reserveUsage(quote.quoteId, {
+                        schemaVersion: 1,
+                        actionKey: `export:${idempotencyKey}`,
+                      });
+                      if (!reserved.data) return setError("The usage reservation was not created.");
+                      const result = await createExport({
+                        schemaVersion: 1,
+                        idempotencyKey,
+                        worldId,
+                        include,
+                      });
+                      if (!result.data || result.data.status !== "READY") {
+                        await releaseUsage(reserved.data.reservationId);
+                        return setError(
+                          "The export artifact was not created; its zero-unit reservation was released. Retry creates a separate reviewed job.",
+                        );
+                      }
+                      await settleUsage(reserved.data.reservationId);
+                      setExported(result.data);
+                      setQuote(null);
+                      setMessage("Export ready. The in-product World remains unchanged.");
+                    })
+                  }
+                >
+                  Create selected export
+                </button>
+                <button className="secondary-action" type="button" onClick={() => setQuote(null)}>
+                  Cancel unchanged
+                </button>
+              </div>
+            </div>
+          )}
+          {exported ? (
+            <div className="trust-result">
+              <strong>Export ready</strong>
+              <span>SHA-256 {exported.checksum}</span>
+              <span>Selected: {exported.selectedScopes.join(", ")}</span>
+              <a
+                className="secondary-action inline-action"
+                href={`/v1/exports/${encodeURIComponent(exported.exportId)}/artifact`}
+              >
+                Download ZIP
+              </a>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="surface-card" aria-labelledby="changes-title">
+          <p className="card-label">Material changes</p>
+          <h2 id="changes-title">What changed</h2>
+          <ul className="trust-list">
+            {trust.changes.changes.map((change) => (
+              <li key={change.id}>
+                <span>
+                  <strong>{change.summary}</strong>
+                  <small>{change.effect}</small>
+                  <small>Recovery: {change.recovery}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="surface-card" aria-labelledby="appeal-title">
+          <p className="card-label">Recovery and review</p>
+          <h2 id="appeal-title">Open an appeal</h2>
+          <label className="field-label" htmlFor="appeal-summary">
+            What needs review?
+            <textarea
+              id="appeal-summary"
+              rows={3}
+              value={appealSummary}
+              onChange={(event) => setAppealSummary(event.target.value)}
+            />
+          </label>
+          <button
+            className="secondary-action"
+            type="button"
+            disabled={busy !== null || !appealSummary.trim()}
+            onClick={() =>
+              void run("appeal", async () => {
+                const result = await openAppeal({
+                  schemaVersion: 1,
+                  idempotencyKey: crypto.randomUUID(),
+                  reasonCode: "ACCESS",
+                  subjectType: "WORLD",
+                  subjectId: worldId,
+                  summary: appealSummary,
+                });
+                if (!result.data) return setError("The appeal was not recorded.");
+                setAppealSummary("");
+                setMessage(
+                  `Appeal ${result.data.appealId.slice(0, 8)} is ${result.data.status.toLowerCase()}.`,
+                );
+              })
+            }
+          >
+            Open appeal
+          </button>
+        </section>
+
+        <section className="surface-card trust-wide danger-card" aria-labelledby="delete-title">
+          <p className="card-label">Separate lifecycle boundary</p>
+          <h2 id="delete-title">Delete this World</h2>
+          <p>
+            Delete is not Restore, Branch or correction. Confirmation tombstones the World, blocks
+            new mutation, revokes grants and exported artifacts, and retains only the stated audit
+            boundary pending an approved purge policy.
+          </p>
+          {!deletion && !deletionStatus ? (
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={busy !== null}
+              onClick={() =>
+                void run("deletion-preview", async () => {
+                  const result = await proposeDeletion({
+                    schemaVersion: 1,
+                    targetType: "WORLD",
+                    targetId: worldId,
+                  });
+                  if (!result.data) return setError("The deletion effect could not be calculated.");
+                  setDeletion(result.data);
+                  setMessage("Deletion effect calculated. Nothing has been deleted.");
+                })
+              }
+            >
+              Review deletion effect
+            </button>
+          ) : null}
+          {deletion ? (
+            <div className="trust-review">
+              <strong>Exact deletion review</strong>
+              <ul>
+                <li>{deletion.affected.continuities} Continuities become unavailable.</li>
+                <li>{deletion.affected.grants} active grants are revoked.</li>
+                <li>{deletion.affected.exports} ready exports are revoked.</li>
+              </ul>
+              <p>{deletion.explanation}</p>
+              <div className="review-actions">
+                <button
+                  className="primary-action danger-action"
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() =>
+                    void run("delete", async () => {
+                      const result = await confirmDeletion({
+                        schemaVersion: 1,
+                        proposalId: deletion.proposalId,
+                        digest: deletion.digest,
+                        idempotencyKey: crypto.randomUUID(),
+                      });
+                      if (!result.data)
+                        return setError(
+                          "Deletion was not confirmed; do not assume the World changed.",
+                        );
+                      setDeletion(null);
+                      setDeletionStatus(result.data);
+                      setMessage("World tombstoned. New World mutations are blocked.");
+                    })
+                  }
+                >
+                  Confirm exact deletion
+                </button>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={() => setDeletion(null)}
+                >
+                  Cancel unchanged
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {deletionStatus ? (
+            <div className="trust-result">
+              <strong>{deletionStatus.status}</strong>
+              <span>Purge status: {deletionStatus.purgeStatus.replaceAll("_", " ")}</span>
+              <button className="secondary-action" type="button" onClick={() => void navigate("/")}>
+                Return to Worlds
+              </button>
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </main>
+  );
 }
 
 export function NotFoundPage(): ReactElement {

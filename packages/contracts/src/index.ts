@@ -14,7 +14,16 @@ export const foundationCapabilitySchema = z.object({
 });
 
 export const foundationResponseSchema = z.object({
-  productImplementationPhase: z.enum(["IP-1", "IP-2", "IP-3", "IP-4", "IP-5", "IP-6", "IP-7"]),
+  productImplementationPhase: z.enum([
+    "IP-1",
+    "IP-2",
+    "IP-3",
+    "IP-4",
+    "IP-5",
+    "IP-6",
+    "IP-7",
+    "IP-8",
+  ]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
 });
@@ -165,6 +174,274 @@ export type WorldRevisionSummary = z.infer<typeof worldRevisionSummarySchema>;
 export type WorldValidationResponse = z.infer<typeof worldValidationResponseSchema>;
 export type WorldStudioResponse = z.infer<typeof worldStudioResponseSchema>;
 export const startContinuityRequestSchema = z.object({ participation: participationSchema });
+
+const consentTypeSchema = z.enum(["TERMS", "PRIVACY", "CONTENT_BOUNDARIES"]);
+const consentDecisionSchema = z.enum(["GRANTED", "WITHDRAWN"]);
+const consentScopeSchema = z.enum(["ACCOUNT", "WORLD"]);
+
+export const meResponseSchema = z.object({
+  accountId: stableIdSchema,
+  eligibility: z.enum(["adult", "ineligible", "unknown"]),
+  policyVersion: z.string().min(1),
+  capabilities: z.object({
+    canCreateWorld: z.boolean(),
+    canParticipate: z.boolean(),
+    canAppeal: z.boolean(),
+  }),
+  reasonCode: z.enum(["ELIGIBLE_ADULT", "INELIGIBLE", "UNKNOWN"]).nullable(),
+});
+
+export const consentRecordSchema = z.object({
+  consentType: consentTypeSchema,
+  version: z.string().trim().min(1).max(80),
+  scope: consentScopeSchema,
+  decision: consentDecisionSchema,
+  withdrawalAvailable: z.boolean(),
+  updatedAt: z.string().datetime(),
+});
+
+export const consentRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    consentType: consentTypeSchema,
+    version: z.string().trim().min(1).max(80),
+    scope: consentScopeSchema,
+    decision: consentDecisionSchema,
+  })
+  .strict();
+
+export const consentListResponseSchema = z.object({
+  policyVersion: z.string().min(1),
+  consents: z.array(consentRecordSchema),
+});
+
+export const accessExplanationResponseSchema = z.object({
+  resourceType: z.enum(["world", "continuity"]),
+  resourceId: stableIdSchema,
+  accessLevel: z.enum(["OWNER", "PARTICIPANT", "VIEWER", "NONE"]),
+  visibility: z.enum([
+    "OWNER_ONLY",
+    "EXPLICIT_GRANT",
+    "CONTINUITY_PRIVATE",
+    "TOMBSTONED",
+    "UNKNOWN",
+  ]),
+  canRead: z.boolean(),
+  canModify: z.boolean(),
+  canStart: z.boolean(),
+  reasonCode: z.enum([
+    "OWNER",
+    "ACTIVE_GRANT",
+    "NO_ACCESS",
+    "TOMBSTONED",
+    "ELIGIBILITY_REQUIRED",
+    "NOT_FOUND",
+  ]),
+  explanation: z.string().min(1).max(500),
+  recovery: z.object({ label: z.string().min(1), href: z.string().min(1) }).nullable(),
+});
+
+export const productChangeSchema = z.object({
+  id: stableIdSchema,
+  version: z.string().min(1),
+  category: z.enum(["CAPABILITY", "POLICY", "MODEL"]),
+  summary: z.string().min(1).max(500),
+  effect: z.string().min(1).max(500),
+  recovery: z.string().min(1).max(500),
+  publishedAt: z.string().datetime(),
+});
+
+export const productChangesResponseSchema = z.object({
+  changes: z.array(productChangeSchema),
+});
+
+const appealReasonSchema = z.enum(["ELIGIBILITY", "CONSENT", "ACCESS", "DELETION", "OTHER"]);
+const appealStatusSchema = z.enum(["OPEN", "UNDER_REVIEW", "RESOLVED", "REJECTED"]);
+
+export const appealRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    reasonCode: appealReasonSchema,
+    subjectType: z.enum(["ACCOUNT", "WORLD", "CONTINUITY", "CHARACTER_ASSET"]),
+    subjectId: stableIdSchema.optional(),
+    summary: nonEmptyTextSchema,
+  })
+  .strict();
+
+export const appealResponseSchema = z.object({
+  appealId: stableIdSchema,
+  status: appealStatusSchema,
+  recoveryState: z.enum(["REVIEW_PENDING", "REVIEWABLE", "CLOSED"]),
+  reasonCode: appealReasonSchema,
+  subjectType: z.enum(["ACCOUNT", "WORLD", "CONTINUITY", "CHARACTER_ASSET"]),
+  subjectId: stableIdSchema.nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const usageQuoteRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    actionProfile: z.enum(["WORLD_TURN", "EXPORT"]),
+  })
+  .strict();
+
+export const usageQuoteSchema = z.object({
+  quoteId: stableIdSchema,
+  actionProfile: z.enum(["WORLD_TURN", "EXPORT"]),
+  policyVersion: z.string().min(1),
+  costMode: z.literal("ZERO_COST_TEST"),
+  units: z.literal(0),
+  expiresAt: z.string().datetime(),
+  failureBehavior: z.object({
+    retry: z.string().min(1),
+    cancel: z.string().min(1),
+    terminalNoCommit: z.string().min(1),
+  }),
+  status: z.literal("ISSUED"),
+});
+
+export const usageReservationRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    actionKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+  })
+  .strict();
+
+export const usageReservationSchema = z.object({
+  reservationId: stableIdSchema,
+  quoteId: stableIdSchema,
+  actionKey: z.string().min(1),
+  status: z.enum(["RESERVED", "SETTLED", "RELEASED"]),
+  units: z.literal(0),
+  createdAt: z.string().datetime(),
+});
+
+export const usageLedgerEntrySchema = z.object({
+  entryId: stableIdSchema,
+  reservationId: stableIdSchema,
+  entryType: z.enum(["SETTLEMENT", "RELEASE"]),
+  units: z.literal(0),
+  createdAt: z.string().datetime(),
+});
+
+export const usageLedgerResponseSchema = z.object({
+  entries: z.array(usageLedgerEntrySchema),
+});
+
+export const exportRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+    worldId: stableIdSchema,
+    include: z.object({
+      world: z.boolean(),
+      characters: z.boolean(),
+      continuity: z.boolean(),
+      history: z.boolean(),
+    }),
+  })
+  .strict();
+
+export const exportResponseSchema = z.object({
+  exportId: stableIdSchema,
+  status: z.enum(["PENDING", "READY", "FAILED", "REVOKED"]),
+  schemaVersion: z.literal(1),
+  worldId: stableIdSchema,
+  selectedScopes: z.array(z.string().min(1)),
+  omittedScopes: z.array(z.string().min(1)),
+  checksum: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .nullable(),
+  artifactKey: z.string().min(1).nullable(),
+  manifest: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: z.string().datetime(),
+  completedAt: z.string().datetime().nullable(),
+});
+
+export const deletionProposalRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    targetType: z.enum(["WORLD", "CHARACTER_ASSET"]),
+    targetId: stableIdSchema,
+  })
+  .strict();
+
+export const deletionProposalSchema = z.object({
+  proposalId: stableIdSchema,
+  targetType: z.enum(["WORLD", "CHARACTER_ASSET"]),
+  targetId: stableIdSchema,
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+  status: z.enum(["ACTIVE", "COMPLETED", "EXPIRED", "CANCELLED"]),
+  affected: z.object({
+    continuities: z.number().int().nonnegative(),
+    grants: z.number().int().nonnegative(),
+    exports: z.number().int().nonnegative(),
+    auditCategories: z.array(z.string().min(1)),
+  }),
+  expiresAt: z.string().datetime(),
+  explanation: z.string().min(1).max(500),
+});
+
+export const deletionConfirmRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    proposalId: stableIdSchema,
+    digest: z.string().regex(/^[0-9a-f]{64}$/),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
+  })
+  .strict();
+
+export const deletionStatusSchema = z.object({
+  proposalId: stableIdSchema,
+  targetType: z.enum(["WORLD", "CHARACTER_ASSET"]),
+  targetId: stableIdSchema,
+  status: z.enum(["ACTIVE", "COMPLETED", "EXPIRED", "CANCELLED"]),
+  tombstonedAt: z.string().datetime().nullable(),
+  purgeStatus: z.enum(["NOT_STARTED", "QUEUED", "RETAINING_MINIMAL_AUDIT"]),
+  updatedAt: z.string().datetime(),
+});
+
+export type MeResponse = z.infer<typeof meResponseSchema>;
+export type ConsentRecord = z.infer<typeof consentRecordSchema>;
+export type ConsentRequest = z.infer<typeof consentRequestSchema>;
+export type AccessExplanationResponse = z.infer<typeof accessExplanationResponseSchema>;
+export type ProductChange = z.infer<typeof productChangeSchema>;
+export type AppealRequest = z.infer<typeof appealRequestSchema>;
+export type AppealResponse = z.infer<typeof appealResponseSchema>;
+export type UsageQuoteRequest = z.infer<typeof usageQuoteRequestSchema>;
+export type UsageQuote = z.infer<typeof usageQuoteSchema>;
+export type UsageReservationRequest = z.infer<typeof usageReservationRequestSchema>;
+export type UsageReservation = z.infer<typeof usageReservationSchema>;
+export type UsageLedgerEntry = z.infer<typeof usageLedgerEntrySchema>;
+export type ExportRequest = z.infer<typeof exportRequestSchema>;
+export type ExportResponse = z.infer<typeof exportResponseSchema>;
+export type DeletionProposalRequest = z.infer<typeof deletionProposalRequestSchema>;
+export type DeletionProposal = z.infer<typeof deletionProposalSchema>;
+export type DeletionConfirmRequest = z.infer<typeof deletionConfirmRequestSchema>;
+export type DeletionStatus = z.infer<typeof deletionStatusSchema>;
 
 export const authoritativeStateResponseSchema = z.object({
   continuity: z.object({
