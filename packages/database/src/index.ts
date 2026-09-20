@@ -946,6 +946,8 @@ function sha256Bytes(bytes: Uint8Array): string {
 }
 
 export class AuthoritativeWorldRepository {
+  #consentTablePresent: Promise<boolean> | undefined;
+
   constructor(
     private readonly pool: Pool,
     private readonly actionLease = { durationMs: 30_000, heartbeatMs: 10_000 },
@@ -6278,9 +6280,26 @@ export class AuthoritativeWorldRepository {
     }
   }
 
+  // The prior-schema upgrade rehearsal drives this repository against databases
+  // older than 0040, where consent records do not exist yet and nothing can have
+  // been withdrawn. Probe once per repository rather than on every mutation.
+  private async hasConsentRecords(): Promise<boolean> {
+    this.#consentTablePresent ??= this.pool
+      .query<{ present: boolean }>(
+        `select to_regclass('simulora.account_consents') is not null as present`,
+      )
+      .then((result) => result.rows[0]?.present === true)
+      .catch((error: unknown) => {
+        this.#consentTablePresent = undefined;
+        throw error;
+      });
+    return this.#consentTablePresent;
+  }
+
   // Only the newest decision per consent type and scope authorizes a mutation, so a
   // re-grant - at the same version or a newer one - restores authoring immediately.
   private async assertConsentActive(account: SyntheticAccount): Promise<void> {
+    if (!(await this.hasConsentRecords())) return;
     const result = await this.pool.query<{ withdrawn: boolean }>(
       `select exists(
          select 1 from (
