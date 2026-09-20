@@ -184,3 +184,38 @@ in WebAssembly.
 G8 still stays `PENDING`. Real CI evidence is necessary but not sufficient: the
 protocol requires the same independent reviewer to pass the repair commits, and
 the implementing agent does not approve its own Gate.
+
+## Re-review pass
+
+The reviewer the user originally designated, `/root/ip8_reviewer_new`, belongs to
+a different machine and could not be reached from here. At the user's direction
+a review agent was run in its place. **This is weaker independence than the
+protocol asks for**: the implementing agent wrote that reviewer's prompt and it
+ran inside the implementing session. The prompt gave it the original FAIL list
+as its agenda and told it to treat every report in this repository as a claim to
+be checked, but the limitation is real and is recorded here rather than papered
+over.
+
+Its verdict was `PASS WITH ISSUES`, `0B / 2I / 1M`. It confirmed B-1 and
+I-1 through I-6 CLOSED against the real CI run, ran the local suites itself
+(including a full `pnpm test:e2e` to normal exit) and did its own PGlite work.
+It also judged the `world_access_grants` fixture addition in `3136075` a
+legitimate forward-compatibility affordance rather than a test bent around
+broken code, and confirmed `startContinuity`'s participant clause is inside the
+frozen `API_SECURITY_AND_OPERATIONS.md` §5.1 role, not scope creep.
+
+Its three findings were each re-verified before being acted on.
+
+| Finding | Independently re-checked | Action |
+| --- | --- | --- |
+| M-1 partial: `POST /v1/usage/quotes/:quoteId/reservations` never read the `Idempotency-Key` header | Correct. The route parsed `request.body` directly. | `bodyWithIdempotencyHeader` now takes the target field, and the reservation route fills `actionKey` from the header. Covered by a new API test: header-only, body-only, and a disagreeing header rejected with 422. |
+| NEW-1 important: the consent gate orders by recency, not by version | The stated reproduction is **wrong**. Re-withdrawing an already-withdrawn version does not re-block, because `setConsent` leaves `updated_at` alone when the decision is unchanged; the reviewer inserted rows directly and bypassed that. Driven through the real `setConsent` statements the result is `blocked = false`. A different, reachable case does exist: with two versions granted, withdrawing the older one blocks. | The logic is kept and the over-claiming comment is corrected. Recency is the rule the schema can actually support: `version` is free text with no ordering contract, so `"V10"` sorts below `"V2"` and must not decide precedence. The `version desc` tiebreak is replaced with `id desc` so nothing hints at version ordering, and a PostgreSQL test now pins all four multi-version cases. A withdrawal blocking while an older version is still granted is the conservative reading of the user's last stated decision, and is now documented as such rather than left implicit. |
+| NEW-2 minor: `confirmRestore` folded a tombstoned World into `RESTORE_REVIEW_STALE` | Correct. The path was already safe - it refuses to mutate - but named the wrong cause. | `confirmRestore` now calls the same tombstone guard as the other five paths and returns `WORLD_TOMBSTONED`. **This one ships without a dedicated test.** Reaching it needs a live ACTIVE restore proposal, which needs a full action and commit cycle; that fixture is out of proportion to an error-code correction. The guard is the helper three other paths already exercise against real PostgreSQL in the same suite. |
+
+The `version desc` to `id desc` change is behaviour-visible only when two rows
+for one consent type and scope share an `updated_at`, which `setConsent` cannot
+produce because each write is its own transaction.
+
+Local verification after this pass: format, typecheck, architecture, migrations
+(42), runtime, ESLint 0/0, `pnpm build`, Vitest 66 passed with 131 PostgreSQL
+tests skipped, and Playwright 68/68 to a normal exit.
