@@ -1071,3 +1071,28 @@ evidence gap, not a PASS. See the [IP-8 implementation report](IP-8-IMPLEMENTATI
 Independent review has not yet been performed. This candidate must stop at the
 review boundary until the independent Reviewer examines the exact behavior
 commit and, after any findings are repaired, records the G8 decision.
+
+## 40. IP-8 repair and re-review handoff
+
+The IP-8 candidate `686b93c` was repaired across five review passes. Behaviour
+is at `9fce1a8`; real PostgreSQL CI has been green since `129d61e` (run
+`35529474124`): 132/132 PostgreSQL integration tests, 198/198 under `pnpm
+check`, container smoke, and 68/68 browser checks, with migrations at 42.
+
+The original reviewer's `B-1` and `I-1`–`I-6` are closed, and `M-1`/`M-2` are
+addressed for the IP-8 routes. Real PostgreSQL found three defects that no local
+check could reach, including that IP-8 deletion had never worked against
+PostgreSQL because `0040` widened the Continuity status check without updating
+the `0014` lifecycle trigger; successor `0042` fixes that. Later passes found a
+lock-order inversion introduced by the repairs themselves and, after a first
+incomplete fix, a surviving inversion in `confirmRestore`.
+
+**G8 remains PENDING.** The re-reviews were run by a substitute reviewer whose
+prompt the implementing agent wrote, inside the implementing session — weaker
+independence than the protocol requires — because the designated reviewer
+`/root/ip8_reviewer_new` is on another machine. Closing G8 is the user's
+decision. IP-8.7 staged import and IP-8.8 bounded sharing stay deferred, and
+production live model, human long-play, broad autonomous simulation and full
+long-term memory remain unverified. Full detail, including what the evidence
+does not prove, is in the
+[IP-8 implementation report](IP-8-IMPLEMENTATION-REPORT.md).

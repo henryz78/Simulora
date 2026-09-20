@@ -349,3 +349,56 @@ CI run `35529474124` on `129d61e` is green: PostgreSQL 132/132 including
 `pnpm check` 198/198, container smoke, browser 68/68. The test takes about three
 seconds, which is the three deliberate blocking waits, so it is doing the work
 rather than passing through.
+
+## Fourth and fifth re-review passes: PASS
+
+The fourth pass was asked to finish what it had left unverified and to test a
+claim rather than accept it. It returned **PASS**, `0B / 0I / 2M`.
+
+It re-derived the lock sequence of all six guard callers from source and
+confirmed `confirmRestore` is fixed, so the "one order across all callers"
+claim is true for the first time. On whether the new test can detect an
+inversion it was explicit about the limit of its own evidence: the mechanism is
+sound - `FOR UPDATE OF w` locks only the named alias, and a granted row lock is
+invisible in `pg_locks`, so `for update nowait` raising `55P03` is the correct
+detector - but it could not execute the reverted code, because PGlite serializes
+everything through one backend and cannot host two genuinely contending
+transactions. It corroborated with CI timing instead: the test takes 3246ms and
+2483ms across the two runs, which is the three deliberate blocking waits.
+
+It also completed the lock-order sweep to a stated depth and found no second
+inversion within it, while saying plainly which pairs it did not cross-check.
+That remains **unverified by completeness** rather than clean.
+
+Its two Minors are now fixed, and the fifth pass confirmed them **PASS**,
+`0B / 0I / 1M`:
+
+- `onTransactionRetryConflict` was exported but never called, so the `40001` and
+  `40P01` observability repair logged nothing and only read as closed. The
+  reviewer found the seam shape was nonetheless right, because
+  `check-architecture.ts` forbids `packages/database` from importing
+  `@simulora/observability`. Both composition roots now fill it.
+- The `pg` import class had no local safeguard. `check-architecture.ts` now
+  fails when a file under `tests/` imports a package the root `package.json`
+  does not declare. Verified by reintroducing the import and watching the check
+  fail by name, then pass again once removed.
+
+The remaining Minor is recorded and not fixed: `scripts/product-reality-spike.ts`
+builds its own pool and repository without going through either composition
+root, so a deadlock or serialization abort inside that manual script stays
+untraced. It is not a running service.
+
+### Standing state
+
+`IP-8` behaviour is at `9fce1a8`. Real PostgreSQL CI has been green since
+`129d61e`. **G8 is PENDING and is not closed by this report.** Five review
+passes were run by a substitute reviewer whose prompt the implementing agent
+wrote and which ran inside the implementing session, which is weaker
+independence than the protocol requires. Whether that is sufficient to close G8
+is the user's decision, not this agent's.
+
+Two facts belong with that decision. Three of the defects found across these
+passes were regressions introduced by the repairs themselves, and every one of
+them coexisted with green CI. And each round of pressure found something the
+previous round had missed, which means the coverage of concurrent behaviour
+reached its present state by being challenged rather than by design.
