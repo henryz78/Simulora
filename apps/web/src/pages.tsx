@@ -1878,14 +1878,21 @@ function shortId(value: string): string {
   return value.length > 12 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
 }
 
-function readStoredWorldDraft(key: string): { draft: WorldDocumentInput; savedAt: number } | null {
+function readStoredWorldDraft(
+  key: string,
+): { draft: WorldDocumentInput; savedAt: number; raw: string } | null {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "null");
+    const raw = localStorage.getItem(key);
+    const parsed: unknown = JSON.parse(raw ?? "null");
     if (!parsed || typeof parsed !== "object") return null;
     const envelope = parsed as { draft?: unknown; savedAt?: unknown };
     const draft = worldDocumentInputSchema.safeParse(envelope.draft ?? parsed);
     return draft.success
-      ? { draft: draft.data, savedAt: typeof envelope.savedAt === "number" ? envelope.savedAt : 0 }
+      ? {
+          draft: draft.data,
+          savedAt: typeof envelope.savedAt === "number" ? envelope.savedAt : 0,
+          raw: raw ?? "null",
+        }
       : null;
   } catch {
     return null;
@@ -1895,7 +1902,7 @@ function readStoredWorldDraft(key: string): { draft: WorldDocumentInput; savedAt
 function findStoredWorldDraft(
   prefix: string,
   legacyKey: string,
-): { key: string; draft: WorldDocumentInput } | null {
+): { key: string; draft: WorldDocumentInput; savedAt: number; raw: string } | null {
   const keys = [legacyKey];
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index);
@@ -1904,11 +1911,22 @@ function findStoredWorldDraft(
   const stored = keys
     .map((key) => ({ key, stored: readStoredWorldDraft(key) }))
     .filter(
-      (entry): entry is { key: string; stored: { draft: WorldDocumentInput; savedAt: number } } =>
-        Boolean(entry.stored),
+      (
+        entry,
+      ): entry is {
+        key: string;
+        stored: { draft: WorldDocumentInput; savedAt: number; raw: string };
+      } => Boolean(entry.stored),
     )
     .sort((left, right) => right.stored.savedAt - left.stored.savedAt)[0];
-  return stored ? { key: stored.key, draft: stored.stored.draft } : null;
+  return stored
+    ? {
+        key: stored.key,
+        draft: stored.stored.draft,
+        savedAt: stored.stored.savedAt,
+        raw: stored.stored.raw,
+      }
+    : null;
 }
 
 export function WorldStudioPage(): ReactElement {
@@ -1925,6 +1943,7 @@ export function WorldStudioPage(): ReactElement {
   const [unsentAvailable, setUnsentAvailable] = useState(false);
   const [unsentKey, setUnsentKey] = useState<string | null>(null);
   const [restoredKey, setRestoredKey] = useState<string | null>(null);
+  const [restoredRaw, setRestoredRaw] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [tabId] = useState(() => {
     const key = "simulora:world-studio-tab-id";
@@ -1961,6 +1980,7 @@ export function WorldStudioPage(): ReactElement {
         : null;
     setUnsentKey(local?.key ?? null);
     setRestoredKey(null);
+    setRestoredRaw(null);
     setUnsentAvailable(Boolean(local));
     setDraft(result.data.draft.document);
     setMessage(null);
@@ -2005,6 +2025,7 @@ export function WorldStudioPage(): ReactElement {
             setUnsentKey(storageKey);
           }
           setRestoredKey(null);
+          setRestoredRaw(null);
           setUnsentAvailable(true);
           await load();
           setMessage(
@@ -2019,9 +2040,12 @@ export function WorldStudioPage(): ReactElement {
       setStudio((current) => (current ? { ...current, draft: result.data! } : current));
       setValidation(null);
       if (storageKey) localStorage.removeItem(storageKey);
-      if (restoredKey && restoredKey !== storageKey) localStorage.removeItem(restoredKey);
+      if (restoredKey && restoredKey !== storageKey && restoredRaw !== null) {
+        if (localStorage.getItem(restoredKey) === restoredRaw) localStorage.removeItem(restoredKey);
+      }
       setUnsentKey(null);
       setRestoredKey(null);
+      setRestoredRaw(null);
       setUnsentAvailable(false);
       setMessage("Draft saved. Existing Continuities remain pinned to their earlier Revision.");
     });
@@ -2197,6 +2221,7 @@ export function WorldStudioPage(): ReactElement {
                   try {
                     setDraft(local.draft);
                     setRestoredKey(unsentKey);
+                    setRestoredRaw(local.raw);
                     setUnsentAvailable(false);
                     setMessage(
                       "Unsent edits restored locally. Save them intentionally after reviewing the current Draft.",
@@ -2204,6 +2229,8 @@ export function WorldStudioPage(): ReactElement {
                   } catch {
                     localStorage.removeItem(unsentKey);
                     setUnsentKey(null);
+                    setRestoredKey(null);
+                    setRestoredRaw(null);
                     setUnsentAvailable(false);
                   }
                 }}
