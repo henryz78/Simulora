@@ -275,3 +275,61 @@ Local verification after this pass: format, typecheck, architecture, migrations
 (42), runtime, ESLint 0/0, build, Vitest 66 passed with 132 PostgreSQL tests
 skipped, Playwright 68/68 to a normal exit, and a PGlite check that the split
 guard statements plan correctly and that `for update of w` is honoured.
+
+## Third re-review pass: FAIL, and it was right
+
+The reviewer was asked to attack the lock-order repair rather than confirm it.
+It returned **FAIL**, `0B / 2I / 2M`, and the first finding is a real miss by the
+implementing agent.
+
+**The inversion survived in `confirmRestore`.** The guard was added *after* that
+function's own pre-existing `select ... from simulora.continuities ... for
+update`, so its end-to-end order was still Continuity then World. Five of six
+callers were fixed; the sixth was the very function the finding started in. The
+`2d1eb70` commit message and the previous section of this report both claimed
+"every caller takes the two locks in one order", and that claim was false. The
+guard call now runs before the peek, so the peek re-locks a row the transaction
+already holds. The claim is only true as of this pass.
+
+**The concurrency test was close to theatre.** The reviewer judged that
+`Promise.allSettled` over three operations forces no interleaving, that the
+assertion is near-tautological once both sides order locks the same way, and
+that it never exercised `confirmRestore` at all, so it could not have caught the
+defect above. All three points hold. It has been replaced.
+
+The replacement is deterministic. One connection holds the `worlds` row lock -
+which is the first lock `confirmDeletion` takes - and each guarded path is then
+started and must still be pending. Pending alone proves nothing, because an
+inverted path would also wait there while holding the Continuity. So a third
+connection probes the Continuity with `for update nowait`. A granted row lock
+lives in the tuple header and never appears in `pg_locks`, so `nowait` is the
+detector: `55P03` means the blocked path already holds the Continuity, which is
+exactly the inversion. The probe fails on the pre-repair ordering and passes on
+the repaired one, and it covers `confirmRestore` with a live `ACTIVE` restore
+proposal built from a real Action and Commit - the fixture judged disproportionate
+for an error-code correction two passes ago, which is proportionate now that a
+lock-ordering property depends on it.
+
+An earlier draft of this test asserted on `pg_locks` instead. That assertion was
+vacuous for the same tuple-header reason and was removed before this pass shipped.
+
+The reviewer's Minor on observability is also taken: `transaction` now reports
+the original SQLSTATE through `onTransactionRetryConflict` before flattening
+`40001` and `40P01` to a 409, so a rising rate of either stays traceable.
+
+Its remaining Minor is recorded and not acted on: the sweep for other lock-order
+pairs was targeted at the tables `confirmDeletion` touches, not an exhaustive
+enumeration of every locking statement in the file, so the absence of further
+inversions is **unverified by completeness** rather than established.
+
+Local verification after this pass: format, typecheck, architecture, migrations
+(42), runtime, ESLint 0/0, build, Vitest 66 passed with 132 PostgreSQL tests
+skipped, Playwright 68/68 to a normal exit.
+
+### What these three review rounds say about the evidence
+
+Each round of pressure found something the previous round missed, and two of the
+three findings were regressions introduced by the repairs themselves. Green CI
+was present for every one of those defects. That is the honest summary: the
+suites prove what they cover, and coverage of concurrent behaviour reached its
+current state by being challenged, not by design.
