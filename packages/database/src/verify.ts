@@ -29,8 +29,8 @@ try {
     from app_meta.foundation_metadata
     where key = 'implementation_phase'
   `);
-  if (foundation.rows[0]?.phase !== "IP-7" || foundation.rows[0].started !== true) {
-    throw new Error("IP-7 metadata verification failed");
+  if (foundation.rows[0]?.phase !== "IP-8" || foundation.rows[0].started !== true) {
+    throw new Error("IP-8 metadata verification failed");
   }
 
   const ledger = await client.query<{ checksum: string }>(
