@@ -322,6 +322,75 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     }
   });
 
+  it("keeps deletion confirmation and guarded mutation free of lock-order deadlocks", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const owner = { accountId: randomUUID(), eligibility: "adult" as const };
+    try {
+      const world = await repository.createWorld(owner, lanternReachSeed);
+      await repository.validateDraft(owner, world.worldId);
+      const revision = await repository.createRevision(owner, world.worldId, 1);
+      const continuity = await repository.startContinuity(owner, revision.revisionId, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+      const proposal = await repository.proposeDeletion(owner, {
+        schemaVersion: 1,
+        targetType: "WORLD",
+        targetId: world.worldId,
+      });
+
+      // confirmDeletion locks the World then its Continuities; the tombstone guard
+      // must take the same two locks in the same order, or PostgreSQL aborts one
+      // side with a deadlock that would surface as a generic failure.
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const outcomes = await Promise.race([
+        Promise.allSettled([
+          repository.confirmDeletion(owner, {
+            schemaVersion: 1,
+            proposalId: proposal.proposalId,
+            digest: proposal.digest,
+            idempotencyKey: randomUUID(),
+          }),
+          repository.createRecoveryPoint(owner, continuity.branchId, {
+            idempotencyKey: `deadlock-${randomUUID()}`,
+            label: "Racing a confirmed deletion",
+          }),
+          repository.forkBranch(owner, continuity.continuityId, {
+            idempotencyKey: `deadlock-fork-${randomUUID()}`,
+            name: "Racing a confirmed deletion",
+            sourceCommitId: continuity.headCommitId,
+            expectedHeadCommitId: continuity.headCommitId,
+          }),
+        ]),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error("Deletion lock ordering timed out")), 10_000);
+        }),
+      ]).finally(() => clearTimeout(timeout));
+
+      expect(
+        outcomes.some(
+          (outcome) =>
+            outcome.status === "rejected" &&
+            String(outcome.reason).toLowerCase().includes("deadlock detected"),
+        ),
+      ).toBe(false);
+      // The deletion is authoritative either way; a losing mutation must name a
+      // stable conflict rather than fail as an internal error.
+      for (const outcome of outcomes) {
+        if (outcome.status === "rejected") {
+          expect(String(outcome.reason)).toMatch(
+            /WORLD_TOMBSTONED|CONCURRENT_UPDATE_RETRY|IDEMPOTENCY/,
+          );
+        }
+      }
+      expect((await repository.readDeletion(owner, proposal.proposalId)).status).toBe("COMPLETED");
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("lets the newest consent decision govern when several versions coexist", async () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const pool = createDatabasePool(connectionString);

@@ -884,6 +884,13 @@ async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<
     return result;
   } catch (error) {
     await client.query("rollback").catch(() => undefined);
+    // PostgreSQL aborts one side of a deadlock, and a REPEATABLE READ snapshot can
+    // fail to serialize. Neither is an internal fault, so report a stable conflict
+    // the caller can retry rather than letting it surface as a 500.
+    const code = (error as { code?: unknown }).code;
+    if (code === "40001" || code === "40P01") {
+      throw new ConflictError("CONCURRENT_UPDATE_RETRY");
+    }
     throw error;
   } finally {
     client.release();
@@ -6333,45 +6340,49 @@ export class AuthoritativeWorldRepository {
     accountId: string,
     branchId: string,
   ): Promise<string> {
-    const result = await client.query<{
-      continuity_id: string;
-      continuity_status: string;
-      deleted_at: Date | null;
-    }>(
-      `select c.id as continuity_id, c.status as continuity_status, w.deleted_at
+    const owning = await client.query<{ continuity_id: string }>(
+      `select c.id as continuity_id
        from simulora.branches b
        join simulora.continuities c on c.id = b.continuity_id and c.owner_account_id = $2
-       join simulora.world_revisions r on r.id = c.world_revision_id
-       join simulora.worlds w on w.id = r.world_id
-       where b.id = $1
-       for update of c, w`,
+       where b.id = $1`,
       [branchId, accountId],
     );
-    const row = result.rows[0];
-    if (!row) throw new NotFoundError("Branch not found");
-    if (row.continuity_status !== "ACTIVE" || row.deleted_at) {
-      throw new ConflictError("WORLD_TOMBSTONED");
-    }
-    return row.continuity_id;
+    const continuityId = owning.rows[0]?.continuity_id;
+    if (!continuityId) throw new NotFoundError("Branch not found");
+    await this.assertMutableContinuityWithClient(client, accountId, continuityId);
+    return continuityId;
   }
 
+  // Deletion confirmation locks the World before its Continuities, so this guard
+  // has to take the same two locks in the same order. Locking the Continuity first
+  // would invert the order and let a concurrent deletion deadlock a guarded
+  // mutation, which PostgreSQL resolves by aborting one side - the generic failure
+  // this guard exists to prevent.
   private async assertMutableContinuityWithClient(
     client: PoolClient,
     accountId: string,
     continuityId: string,
   ): Promise<void> {
-    const result = await client.query<{ status: string; deleted_at: Date | null }>(
-      `select c.status, w.deleted_at
+    const world = await client.query<{ deleted_at: Date | null }>(
+      `select w.deleted_at
        from simulora.continuities c
        join simulora.world_revisions r on r.id = c.world_revision_id
        join simulora.worlds w on w.id = r.world_id
        where c.id = $1 and c.owner_account_id = $2
-       for update of c, w`,
+       for update of w`,
       [continuityId, accountId],
     );
-    const row = result.rows[0];
+    if (!world.rows[0]) throw new NotFoundError("Continuity not found");
+    const continuity = await client.query<{ status: string }>(
+      `select status from simulora.continuities
+       where id = $1 and owner_account_id = $2 for update`,
+      [continuityId, accountId],
+    );
+    const row = continuity.rows[0];
     if (!row) throw new NotFoundError("Continuity not found");
-    if (row.status !== "ACTIVE" || row.deleted_at) throw new ConflictError("WORLD_TOMBSTONED");
+    if (row.status !== "ACTIVE" || world.rows[0].deleted_at) {
+      throw new ConflictError("WORLD_TOMBSTONED");
+    }
   }
 
   private async ensureAccountWithClient(

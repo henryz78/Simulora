@@ -184,6 +184,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         "USAGE_RESERVATION_REQUIRED",
         "USAGE_RESERVATION_TERMINAL",
         "IDEMPOTENCY_RETRY_CONFLICT",
+        "CONCURRENT_UPDATE_RETRY",
         "WORLD_TOMBSTONED",
         "DELETION_DIGEST_MISMATCH",
         "DELETION_PROPOSAL_EXPIRED",
