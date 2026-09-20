@@ -3326,6 +3326,7 @@ export function TrustLifecyclePage(): ReactElement {
                       const result = await createExport({
                         schemaVersion: 1,
                         idempotencyKey,
+                        reservationId: reserved.data.reservationId,
                         worldId,
                         include,
                       });
@@ -3375,6 +3376,9 @@ export function TrustLifecyclePage(): ReactElement {
                   <strong>{change.summary}</strong>
                   <small>{change.effect}</small>
                   <small>Recovery: {change.recovery}</small>
+                  <small>Affected: {change.affectedScopes.join(", ")}</small>
+                  <small>Effective: {new Date(change.effectiveAt).toLocaleString()}</small>
+                  <small>Choices: {change.availableChoices.join(", ")}</small>
                 </span>
               </li>
             ))}
@@ -3496,6 +3500,11 @@ export function TrustLifecyclePage(): ReactElement {
             <div className="trust-result">
               <strong>{deletionStatus.status}</strong>
               <span>Purge status: {deletionStatus.purgeStatus.replaceAll("_", " ")}</span>
+              <small>
+                Confirmed means the World is tombstoned and blocked from further change. A
+                background purge worker is not part of this phase, so the stored data is retained
+                under minimal audit rather than erased.
+              </small>
               <button className="secondary-action" type="button" onClick={() => void navigate("/")}>
                 Return to Worlds
               </button>

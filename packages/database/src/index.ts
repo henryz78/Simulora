@@ -415,14 +415,6 @@ export type RestoreCommitRecord = {
   committedAt: string;
 };
 
-export interface ArtifactStoragePort {
-  put(
-    metadata: { key: string; checksum: string; contentType: string },
-    body: Uint8Array,
-  ): Promise<void>;
-  get(key: string): Promise<Uint8Array | null>;
-}
-
 type GovernanceConsentRecord = {
   consentType: "TERMS" | "PRIVACY" | "CONTENT_BOUNDARIES";
   version: string;
@@ -462,6 +454,9 @@ type GovernanceProductChange = {
   summary: string;
   effect: string;
   recovery: string;
+  affectedScopes: string[];
+  effectiveAt: string;
+  availableChoices: string[];
   publishedAt: string;
 };
 
@@ -516,6 +511,7 @@ type GovernanceUsageLedgerEntry = {
 type GovernanceExportRequest = {
   schemaVersion: 1;
   idempotencyKey: string;
+  reservationId: string;
   worldId: string;
   include: { world: boolean; characters: boolean; continuity: boolean; history: boolean };
 };
@@ -894,20 +890,6 @@ async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<
   }
 }
 
-class LocalArtifactStorage implements ArtifactStoragePort {
-  // ponytail: process-local IP-1 fake; use the configured S3-compatible adapter before release.
-  readonly #objects = new Map<string, Uint8Array>();
-
-  put(metadata: { key: string; checksum: string; contentType: string }, body: Uint8Array) {
-    this.#objects.set(metadata.key, body.slice());
-    return Promise.resolve();
-  }
-
-  get(key: string): Promise<Uint8Array | null> {
-    return Promise.resolve(this.#objects.get(key)?.slice() ?? null);
-  }
-}
-
 function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
   for (const byte of bytes) {
@@ -968,7 +950,6 @@ export class AuthoritativeWorldRepository {
     private readonly pool: Pool,
     private readonly actionLease = { durationMs: 30_000, heartbeatMs: 10_000 },
     private readonly now: () => number = Date.now,
-    private readonly artifactStorage: ArtifactStoragePort = new LocalArtifactStorage(),
   ) {
     if (
       !Number.isSafeInteger(actionLease.durationMs) ||
@@ -996,6 +977,7 @@ export class AuthoritativeWorldRepository {
     request: CreateCharacterAssetRequest,
   ): Promise<CharacterAssetRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     const document = characterAssetDefinitionSchema.parse(request.document);
     const id = randomUUID();
     const documentHash = contentHash(document);
@@ -1018,6 +1000,7 @@ export class AuthoritativeWorldRepository {
     documentInput: WorldDocument,
   ): Promise<WorldDraftRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     const document = worldDocumentSchema.parse(documentInput);
     const hash = contentHash(document);
     const worldId = randomUUID();
@@ -1045,6 +1028,7 @@ export class AuthoritativeWorldRepository {
     documentInput: WorldDocument,
   ): Promise<WorldDraftRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     const document = worldDocumentSchema.parse(documentInput);
     const hash = contentHash(document);
     const result = await this.pool.query<{ row_version: number }>(
@@ -1164,6 +1148,7 @@ export class AuthoritativeWorldRepository {
 
   async validateDraft(account: SyntheticAccount, worldId: string): Promise<WorldValidationRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const result = await client.query<{ row_version: number; document: unknown }>(
         `select d.row_version, d.document
@@ -1201,6 +1186,7 @@ export class AuthoritativeWorldRepository {
     expectedDraftVersion: number,
   ): Promise<WorldRevisionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const draftResult = await client.query<{
         row_version: number;
@@ -1306,6 +1292,7 @@ export class AuthoritativeWorldRepository {
     participationInput: ParticipationContract,
   ): Promise<ContinuityStateRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     const participation = participationContractSchema.parse(participationInput);
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
@@ -1476,6 +1463,7 @@ export class AuthoritativeWorldRepository {
     correlationId?: string,
   ): Promise<ActionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     const intent = input.intent.trim();
     const targetCharacterId = input.targetCharacterId;
     const requestedEffect = input.requestedEffect ?? "FACT_REWRITE";
@@ -1691,6 +1679,7 @@ export class AuthoritativeWorldRepository {
     input: ChangeParticipationContractRequest,
   ): Promise<ActionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     const before = participationContractSchema.parse(input.before);
     const after = participationContractSchema.parse(input.after);
     if (
@@ -1947,6 +1936,7 @@ export class AuthoritativeWorldRepository {
     input: CorrectionRequest,
   ): Promise<ActionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     if (input.target.type !== "fact") {
       throw new ValidationError("Only canonical fact correction is supported in IP-4");
     }
@@ -2180,6 +2170,7 @@ export class AuthoritativeWorldRepository {
     request: { proposalId: string; proposalDigest: string; expectedHeadCommitId: string },
   ): Promise<ActionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const actionResult = await client.query<{
         id: string;
@@ -2253,12 +2244,7 @@ export class AuthoritativeWorldRepository {
         throw new ConflictError("CONFIRMATION_EXPIRED_OR_PROPOSAL_CHANGED");
       }
 
-      await client.query(
-        `select id from simulora.continuities
-          where id = (select continuity_id from simulora.branches where id = $1)
-          for update`,
-        [action.branch_id],
-      );
+      await this.assertMutableBranchWithClient(client, account.accountId, action.branch_id);
       const branchResult = await client.query<{
         continuity_id: string;
         head_commit_id: string;
@@ -2520,6 +2506,7 @@ export class AuthoritativeWorldRepository {
 
   async cancelAction(account: SyntheticAccount, actionId: string): Promise<ActionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const result = await client.query<{ status: ActionStatus }>(
         `select status from simulora.actions where id = $1 and actor_account_id = $2 for update`,
@@ -2581,15 +2568,18 @@ export class AuthoritativeWorldRepository {
 
   async retryAction(account: SyntheticAccount, actionId: string): Promise<ActionRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
-      const result = await client.query<{ status: ActionStatus }>(
-        `select status from simulora.actions where id = $1 and actor_account_id = $2 for update`,
+      const result = await client.query<{ status: ActionStatus; branch_id: string }>(
+        `select status, branch_id from simulora.actions
+         where id = $1 and actor_account_id = $2 for update`,
         [actionId, account.accountId],
       );
       const action = result.rows[0];
       if (!action) throw new NotFoundError("Action not found");
       if (action.status !== "FAILED_RECOVERABLE")
         return this.readActionWithClient(client, account, actionId);
+      await this.assertMutableBranchWithClient(client, account.accountId, action.branch_id);
       await client.query(
         `update simulora.actions set status = 'GENERATING', status_reason = null,
          terminal_at = null, updated_at = now(), row_version = row_version + 1 where id = $1`,
@@ -2801,6 +2791,7 @@ export class AuthoritativeWorldRepository {
     input: { idempotencyKey: string; label: string; commitId?: string },
   ): Promise<RecoveryPointRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
       const readRetry = async (id: string): Promise<RecoveryPointRecord> => {
@@ -2821,6 +2812,7 @@ export class AuthoritativeWorldRepository {
       if (existing.rows[0]) {
         return readRetry(existing.rows[0].id);
       }
+      await this.assertMutableBranchWithClient(client, account.accountId, branchId);
       const branch = await client.query<{ continuity_id: string; head_commit_id: string }>(
         `select b.continuity_id, b.head_commit_id from simulora.branches b
          join simulora.continuities c on c.id = b.continuity_id
@@ -2871,12 +2863,14 @@ export class AuthoritativeWorldRepository {
     recoveryPointId: string,
   ): Promise<RecoveryPointRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const point = await this.readRecoveryPointWithClient(
         client,
         account.accountId,
         recoveryPointId,
       );
+      await this.assertMutableBranchWithClient(client, account.accountId, point.branchId);
       await client.query(
         `update simulora.recovery_points set deleted_at = coalesce(deleted_at, now())
          where id = $1`,
@@ -2902,6 +2896,7 @@ export class AuthoritativeWorldRepository {
     },
   ): Promise<RecoveryBranchRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
       const requestDigest = contentHash({
@@ -2926,6 +2921,7 @@ export class AuthoritativeWorldRepository {
       };
       const existingFork = await findExistingFork();
       if (existingFork) return existingFork;
+      await this.assertMutableContinuityWithClient(client, account.accountId, continuityId);
       await client.query(
         `select id from simulora.continuities
           where id = $1 and owner_account_id = $2 and status = 'ACTIVE' for update`,
@@ -3043,6 +3039,7 @@ export class AuthoritativeWorldRepository {
     restoreProposals: RestoreProposalRecord[];
   }> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     await transaction(this.pool, async (client) => {
       const continuity = await client.query<{ active_branch_id: string }>(
         `select active_branch_id from simulora.continuities
@@ -3080,6 +3077,7 @@ export class AuthoritativeWorldRepository {
     sourceCommitId: string,
   ): Promise<RestoreProposalRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const lockedContinuity = await client.query<{ id: string }>(
         `select continuity.id
@@ -3213,6 +3211,7 @@ export class AuthoritativeWorldRepository {
     request: { proposalId: string; digest: string; expectedHeadCommitId: string },
   ): Promise<RestoreCommitRecord> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     await this.pool.query(
       `update simulora.restore_proposals proposal set status = 'EXPIRED'
          from simulora.continuities continuity
@@ -3597,6 +3596,7 @@ export class AuthoritativeWorldRepository {
     branchId: string,
   ): Promise<OrientationResponse> {
     this.assertEligible(account);
+    await this.assertConsentActive(account);
     return transaction(this.pool, async (client) => {
       const branchResult = await client.query<{
         continuity_id: string;
@@ -5293,9 +5293,13 @@ export class AuthoritativeWorldRepository {
       summary: string;
       effect: string;
       recovery: string;
+      affected_scopes: unknown;
+      effective_at: Date;
+      available_choices: unknown;
       published_at: Date;
     }>(
-      `select id, version, category, summary, effect, recovery, published_at
+      `select id, version, category, summary, effect, recovery, affected_scopes,
+              effective_at, available_choices, published_at
        from simulora.product_changes order by published_at desc`,
     );
     return {
@@ -5306,6 +5310,13 @@ export class AuthoritativeWorldRepository {
         summary: row.summary,
         effect: row.effect,
         recovery: row.recovery,
+        affectedScopes: Array.isArray(row.affected_scopes)
+          ? row.affected_scopes.filter((value): value is string => typeof value === "string")
+          : [],
+        effectiveAt: row.effective_at.toISOString(),
+        availableChoices: Array.isArray(row.available_choices)
+          ? row.available_choices.filter((value): value is string => typeof value === "string")
+          : [],
         publishedAt: row.published_at.toISOString(),
       })),
     };
@@ -5364,6 +5375,7 @@ export class AuthoritativeWorldRepository {
          (id, account_id, idempotency_key, request_digest, reason_code, subject_type,
           subject_id, summary, status, recovery_state)
          values ($1, $2, $3, $4, $5, $6, $7, $8, 'OPEN', 'REVIEW_PENDING')
+         on conflict (account_id, idempotency_key) do nothing
          returning id, reason_code, subject_type, subject_id, status, recovery_state, created_at, updated_at`,
         [
           id,
@@ -5376,6 +5388,18 @@ export class AuthoritativeWorldRepository {
           request.summary,
         ],
       );
+      if (!result.rows[0]) {
+        const raced = await client.query<{ id: string; request_digest: string }>(
+          `select id, request_digest from simulora.appeals
+           where account_id = $1 and idempotency_key = $2`,
+          [account.accountId, request.idempotencyKey],
+        );
+        if (!raced.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        if (raced.rows[0].request_digest !== digest) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.readAppeal(account, raced.rows[0].id);
+      }
       await client.query(
         `insert into simulora.governance_audit_events
          (id, actor_account_id, event_type, resource_type, resource_id, purpose, outcome, metadata)
@@ -5388,7 +5412,7 @@ export class AuthoritativeWorldRepository {
           JSON.stringify({ reasonCode: request.reasonCode }),
         ],
       );
-      return this.mapAppeal(result.rows[0]!);
+      return this.mapAppeal(result.rows[0]);
     });
   }
 
@@ -5450,6 +5474,25 @@ export class AuthoritativeWorldRepository {
   ): Promise<GovernanceUsageReservation> {
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
+      const existing = await client.query<{
+        id: string;
+        quote_id: string;
+        action_key: string;
+        status: GovernanceUsageReservation["status"];
+        units: 0;
+        created_at: Date;
+      }>(
+        `select id, quote_id, action_key, status, units, created_at
+         from simulora.usage_reservations where account_id = $1 and action_key = $2
+         for update`,
+        [account.accountId, request.actionKey],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].quote_id !== quoteId) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.mapUsageReservation(existing.rows[0]);
+      }
       const quote = await client.query<{
         action_profile: GovernanceUsageQuote["actionProfile"];
         expires_at: Date;
@@ -5465,24 +5508,6 @@ export class AuthoritativeWorldRepository {
       if (quoteRow.status !== "ISSUED" || quoteRow.expires_at.getTime() <= this.now()) {
         throw new ConflictError("USAGE_QUOTE_EXPIRED");
       }
-      const existing = await client.query<{
-        id: string;
-        quote_id: string;
-        action_key: string;
-        status: GovernanceUsageReservation["status"];
-        units: 0;
-        created_at: Date;
-      }>(
-        `select id, quote_id, action_key, status, units, created_at
-         from simulora.usage_reservations where account_id = $1 and action_key = $2`,
-        [account.accountId, request.actionKey],
-      );
-      if (existing.rows[0]) {
-        if (existing.rows[0].quote_id !== quoteId) {
-          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
-        }
-        return this.mapUsageReservation(existing.rows[0]);
-      }
       const result = await client.query<{
         id: string;
         quote_id: string;
@@ -5494,10 +5519,26 @@ export class AuthoritativeWorldRepository {
         `insert into simulora.usage_reservations
          (id, quote_id, account_id, action_key, status, units)
          values ($1, $2, $3, $4, 'RESERVED', 0)
+         on conflict (account_id, action_key) do nothing
          returning id, quote_id, action_key, status, units, created_at`,
         [randomUUID(), quoteId, account.accountId, request.actionKey],
       );
-      return this.mapUsageReservation(result.rows[0]!);
+      if (result.rows[0]) return this.mapUsageReservation(result.rows[0]);
+      const raced = await client.query<{
+        id: string;
+        quote_id: string;
+        action_key: string;
+        status: GovernanceUsageReservation["status"];
+        units: 0;
+        created_at: Date;
+      }>(
+        `select id, quote_id, action_key, status, units, created_at
+         from simulora.usage_reservations where account_id = $1 and action_key = $2`,
+        [account.accountId, request.actionKey],
+      );
+      if (!raced.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+      if (raced.rows[0].quote_id !== quoteId) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+      return this.mapUsageReservation(raced.rows[0]);
     });
   }
 
@@ -5544,96 +5585,120 @@ export class AuthoritativeWorldRepository {
     account: SyntheticAccount,
     request: GovernanceExportRequest,
   ): Promise<GovernanceExportResponse> {
-    const existing = await this.pool.query<{
-      id: string;
-      world_id: string;
-      selected_scopes: unknown;
-      omitted_scopes: unknown;
-    }>(
-      `select id, world_id, selected_scopes, omitted_scopes
-       from simulora.export_jobs where account_id = $1 and idempotency_key = $2`,
-      [account.accountId, request.idempotencyKey],
-    );
-    const selectedScopes = Object.entries(request.include)
-      .filter(([, selected]) => selected)
-      .map(([name]) => name);
-    const omittedScopes = Object.entries(request.include)
-      .filter(([, selected]) => !selected)
-      .map(([name]) => name);
-    if (!selectedScopes.length) throw new ValidationError("At least one export scope is required");
-    if (existing.rows[0]) {
-      const sameScopes =
-        JSON.stringify(existing.rows[0].selected_scopes) === JSON.stringify(selectedScopes) &&
-        JSON.stringify(existing.rows[0].omitted_scopes) === JSON.stringify(omittedScopes);
-      if (existing.rows[0].world_id !== request.worldId || !sameScopes) {
-        throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+    return transaction(this.pool, async (client) => {
+      await client.query("set transaction isolation level repeatable read");
+      const existing = await client.query<{
+        id: string;
+        world_id: string;
+        selected_scopes: unknown;
+        omitted_scopes: unknown;
+      }>(
+        `select id, world_id, selected_scopes, omitted_scopes
+         from simulora.export_jobs where account_id = $1 and idempotency_key = $2`,
+        [account.accountId, request.idempotencyKey],
+      );
+      const selectedScopes = Object.entries(request.include)
+        .filter(([, selected]) => selected)
+        .map(([name]) => name);
+      const omittedScopes = Object.entries(request.include)
+        .filter(([, selected]) => !selected)
+        .map(([name]) => name);
+      if (!selectedScopes.length)
+        throw new ValidationError("At least one export scope is required");
+      if (existing.rows[0]) {
+        const sameScopes =
+          JSON.stringify(existing.rows[0].selected_scopes) === JSON.stringify(selectedScopes) &&
+          JSON.stringify(existing.rows[0].omitted_scopes) === JSON.stringify(omittedScopes);
+        if (existing.rows[0].world_id !== request.worldId || !sameScopes) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.readExportWithExecutor(client, account.accountId, existing.rows[0].id);
       }
-      return this.readExport(account, existing.rows[0].id);
-    }
-    const worldResult = await this.pool.query<{ document: unknown; deleted_at: Date | null }>(
-      `select d.document, w.deleted_at from simulora.worlds w
+      const reservation = await client.query<{
+        action_key: string;
+        status: string;
+        action_profile: string;
+      }>(
+        `select r.action_key, r.status, q.action_profile
+         from simulora.usage_reservations r
+         join simulora.usage_quotes q on q.id = r.quote_id
+         where r.id = $1 and r.account_id = $2
+         for share of r`,
+        [request.reservationId, account.accountId],
+      );
+      const reservationRow = reservation.rows[0];
+      if (
+        !reservationRow ||
+        reservationRow.status !== "RESERVED" ||
+        reservationRow.action_profile !== "EXPORT" ||
+        reservationRow.action_key !== `export:${request.idempotencyKey}`
+      ) {
+        throw new ConflictError("USAGE_RESERVATION_REQUIRED");
+      }
+      const worldResult = await client.query<{ document: unknown; deleted_at: Date | null }>(
+        `select d.document, w.deleted_at from simulora.worlds w
        join simulora.world_drafts d on d.world_id = w.id
        where w.id = $1 and w.owner_account_id = $2`,
-      [request.worldId, account.accountId],
-    );
-    const worldRow = worldResult.rows[0];
-    if (!worldRow) throw new NotFoundError("World not found");
-    if (worldRow.deleted_at) throw new ConflictError("WORLD_TOMBSTONED");
-    const world = worldDocumentSchema.parse(worldRow.document);
-    const entries: Array<{ name: string; body: Uint8Array }> = [];
-    if (request.include.world) {
-      const revisions = await this.pool.query<{
-        id: string;
-        revision_number: number;
-        document: unknown;
-        document_hash: string;
-        created_at: Date;
-      }>(
-        `select id, revision_number, document, document_hash, created_at
-         from simulora.world_revisions where world_id = $1 order by revision_number`,
-        [request.worldId],
+        [request.worldId, account.accountId],
       );
-      entries.push({
-        name: "world/world.json",
-        body: Buffer.from(
-          JSON.stringify(
-            {
-              draft: world,
-              revisions: revisions.rows.map((row) => ({
-                id: row.id,
-                revisionNumber: row.revision_number,
-                document: worldDocumentSchema.parse(row.document),
-                documentHash: row.document_hash,
-                createdAt: row.created_at.toISOString(),
-              })),
-            },
-            null,
-            2,
-          ),
-        ),
-      });
-    }
-    if (request.include.characters) {
-      for (const character of world.characters) {
+      const worldRow = worldResult.rows[0];
+      if (!worldRow) throw new NotFoundError("World not found");
+      if (worldRow.deleted_at) throw new ConflictError("WORLD_TOMBSTONED");
+      const world = worldDocumentSchema.parse(worldRow.document);
+      const entries: Array<{ name: string; body: Uint8Array }> = [];
+      if (request.include.world) {
+        const revisions = await client.query<{
+          id: string;
+          revision_number: number;
+          document: unknown;
+          document_hash: string;
+          created_at: Date;
+        }>(
+          `select id, revision_number, document, document_hash, created_at
+         from simulora.world_revisions where world_id = $1 order by revision_number`,
+          [request.worldId],
+        );
         entries.push({
-          name: `characters/${character.id}.json`,
-          body: Buffer.from(JSON.stringify(character, null, 2)),
+          name: "world/world.json",
+          body: Buffer.from(
+            JSON.stringify(
+              {
+                draft: world,
+                revisions: revisions.rows.map((row) => ({
+                  id: row.id,
+                  revisionNumber: row.revision_number,
+                  document: worldDocumentSchema.parse(row.document),
+                  documentHash: row.document_hash,
+                  createdAt: row.created_at.toISOString(),
+                })),
+              },
+              null,
+              2,
+            ),
+          ),
         });
       }
-    }
-    if (request.include.continuity || request.include.history) {
-      const continuities = await this.pool.query<{
-        id: string;
-        world_revision_id: string;
-        status: string;
-        created_at: Date;
-        branch_id: string;
-        head_commit_id: string;
-        state_revision_id: string;
-        state_document: unknown;
-        state_hash: string;
-      }>(
-        `select c.id, c.world_revision_id, c.status, c.created_at,
+      if (request.include.characters) {
+        for (const character of world.characters) {
+          entries.push({
+            name: `characters/${character.id}.json`,
+            body: Buffer.from(JSON.stringify(character, null, 2)),
+          });
+        }
+      }
+      if (request.include.continuity || request.include.history) {
+        const continuities = await client.query<{
+          id: string;
+          world_revision_id: string;
+          status: string;
+          created_at: Date;
+          branch_id: string;
+          head_commit_id: string;
+          state_revision_id: string;
+          state_document: unknown;
+          state_hash: string;
+        }>(
+          `select c.id, c.world_revision_id, c.status, c.created_at,
                 b.id as branch_id, b.head_commit_id, s.id as state_revision_id,
                 s.document as state_document, s.document_hash as state_hash
          from simulora.continuities c
@@ -5642,40 +5707,40 @@ export class AuthoritativeWorldRepository {
          join simulora.state_revisions s on s.id = b.head_state_revision_id
          where r.world_id = $1 and c.owner_account_id = $2 and c.status = 'ACTIVE'
          order by c.created_at, c.id`,
-        [request.worldId, account.accountId],
-      );
-      if (request.include.continuity) {
-        for (const row of continuities.rows) {
-          entries.push({
-            name: `continuity/${row.id}/state.json`,
-            body: Buffer.from(
-              JSON.stringify(
-                {
-                  continuityId: row.id,
-                  worldRevisionId: row.world_revision_id,
-                  branchId: row.branch_id,
-                  headCommitId: row.head_commit_id,
-                  stateRevisionId: row.state_revision_id,
-                  stateHash: row.state_hash,
-                  state: stateRevisionDocumentSchema.parse(row.state_document),
-                  createdAt: row.created_at.toISOString(),
-                },
-                null,
-                2,
+          [request.worldId, account.accountId],
+        );
+        if (request.include.continuity) {
+          for (const row of continuities.rows) {
+            entries.push({
+              name: `continuity/${row.id}/state.json`,
+              body: Buffer.from(
+                JSON.stringify(
+                  {
+                    continuityId: row.id,
+                    worldRevisionId: row.world_revision_id,
+                    branchId: row.branch_id,
+                    headCommitId: row.head_commit_id,
+                    stateRevisionId: row.state_revision_id,
+                    stateHash: row.state_hash,
+                    state: stateRevisionDocumentSchema.parse(row.state_document),
+                    createdAt: row.created_at.toISOString(),
+                  },
+                  null,
+                  2,
+                ),
               ),
-            ),
-          });
+            });
+          }
         }
-      }
-      if (request.include.history) {
-        const history = await this.pool.query<{
-          commit_id: string;
-          kind: string;
-          created_at: Date;
-          event_type: string | null;
-          payload: unknown;
-        }>(
-          `select c.id as commit_id, c.kind, c.created_at, e.event_type, e.payload
+        if (request.include.history) {
+          const history = await client.query<{
+            commit_id: string;
+            kind: string;
+            created_at: Date;
+            event_type: string | null;
+            payload: unknown;
+          }>(
+            `select c.id as commit_id, c.kind, c.created_at, e.event_type, e.payload
            from simulora.world_commits c
            join simulora.branches b on b.id = c.branch_id
            join simulora.continuities co on co.id = b.continuity_id
@@ -5683,86 +5748,117 @@ export class AuthoritativeWorldRepository {
            left join simulora.domain_events e on e.commit_id = c.id
            where r.world_id = $1 and co.owner_account_id = $2
            order by c.created_at, c.id, e.event_type`,
-          [request.worldId, account.accountId],
-        );
-        const lines = history.rows.map((row) =>
-          JSON.stringify({
-            commitId: row.commit_id,
-            kind: row.kind,
-            createdAt: row.created_at.toISOString(),
-            eventType: row.event_type,
-            payload: row.payload,
-          }),
-        );
-        entries.push({ name: "history/events.ndjson", body: Buffer.from(`${lines.join("\n")}\n`) });
+            [request.worldId, account.accountId],
+          );
+          const lines = history.rows.map((row) =>
+            JSON.stringify({
+              commitId: row.commit_id,
+              kind: row.kind,
+              createdAt: row.created_at.toISOString(),
+              eventType: row.event_type,
+              payload: row.payload,
+            }),
+          );
+          entries.push({
+            name: "history/events.ndjson",
+            body: Buffer.from(`${lines.join("\n")}\n`),
+          });
+        }
       }
-    }
-    const fileChecksums = Object.fromEntries(
-      entries.map((entry) => [entry.name, sha256Bytes(entry.body)]),
-    );
-    const manifest = {
-      schemaVersion: 1,
-      productVersion: "0.0.0",
-      worldId: request.worldId,
-      exportedAt: new Date(this.now()).toISOString(),
-      selectedScopes,
-      omittedScopes,
-      provenance: "Owner-authorized Simulora World export",
-      omittedMaterial: [
-        "provider prompts and responses",
-        "secrets and hidden policy configuration",
-        "other accounts' private data",
-        "conversation transcript (not implemented in the current export format)",
-      ],
-      files: fileChecksums,
-    };
-    entries.push({ name: "manifest.json", body: Buffer.from(JSON.stringify(manifest, null, 2)) });
-    const checksumLines =
-      entries.map((entry) => `${sha256Bytes(entry.body)}  ${entry.name}`).join("\n") + "\n";
-    entries.push({ name: "checksums.sha256", body: Buffer.from(checksumLines) });
-    const artifact = zipStore(entries);
-    const exportId = randomUUID();
-    const artifactKey = `exports/${account.accountId}/${exportId}.zip`;
-    const checksum = sha256Bytes(artifact);
-    await this.pool.query(
-      `insert into simulora.export_jobs
-       (id, account_id, world_id, idempotency_key, selected_scopes, omitted_scopes, status, schema_version, manifest)
-       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, 'PENDING', 1, $7::jsonb)`,
-      [
-        exportId,
-        account.accountId,
-        request.worldId,
-        request.idempotencyKey,
-        JSON.stringify(selectedScopes),
-        JSON.stringify(omittedScopes),
-        JSON.stringify(manifest),
-      ],
-    );
-    try {
-      await this.artifactStorage.put(
-        { key: artifactKey, checksum, contentType: "application/zip" },
-        artifact,
+      const fileChecksums = Object.fromEntries(
+        entries.map((entry) => [entry.name, sha256Bytes(entry.body)]),
       );
-      await this.pool.query(
+      const manifest = {
+        schemaVersion: 1,
+        productVersion: "0.0.0",
+        worldId: request.worldId,
+        exportedAt: new Date(this.now()).toISOString(),
+        selectedScopes,
+        omittedScopes,
+        provenance: "Owner-authorized Simulora World export",
+        omittedMaterial: [
+          "provider prompts and responses",
+          "secrets and hidden policy configuration",
+          "other accounts' private data",
+          "conversation transcript (not implemented in the current export format)",
+        ],
+        files: fileChecksums,
+      };
+      entries.push({ name: "manifest.json", body: Buffer.from(JSON.stringify(manifest, null, 2)) });
+      const checksumLines =
+        entries.map((entry) => `${sha256Bytes(entry.body)}  ${entry.name}`).join("\n") + "\n";
+      entries.push({ name: "checksums.sha256", body: Buffer.from(checksumLines) });
+      const artifact = zipStore(entries);
+      const exportId = randomUUID();
+      const artifactKey = `exports/${account.accountId}/${exportId}.zip`;
+      const checksum = sha256Bytes(artifact);
+      const inserted = await client.query<{ id: string }>(
+        `insert into simulora.export_jobs
+       (id, account_id, world_id, reservation_id, idempotency_key, selected_scopes, omitted_scopes, status, schema_version, manifest)
+       values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, 'PENDING', 1, $8::jsonb)
+       on conflict (account_id, idempotency_key) do nothing
+       returning id`,
+        [
+          exportId,
+          account.accountId,
+          request.worldId,
+          request.reservationId,
+          request.idempotencyKey,
+          JSON.stringify(selectedScopes),
+          JSON.stringify(omittedScopes),
+          JSON.stringify(manifest),
+        ],
+      );
+      if (!inserted.rows[0]) {
+        const raced = await client.query<{
+          id: string;
+          world_id: string;
+          selected_scopes: unknown;
+          omitted_scopes: unknown;
+        }>(
+          `select id, world_id, selected_scopes, omitted_scopes
+         from simulora.export_jobs where account_id = $1 and idempotency_key = $2`,
+          [account.accountId, request.idempotencyKey],
+        );
+        const racedRow = raced.rows[0];
+        if (!racedRow) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        const sameScopes =
+          JSON.stringify(racedRow.selected_scopes) === JSON.stringify(selectedScopes) &&
+          JSON.stringify(racedRow.omitted_scopes) === JSON.stringify(omittedScopes);
+        if (racedRow.world_id !== request.worldId || !sameScopes) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.readExportWithExecutor(client, account.accountId, racedRow.id);
+      }
+      const finalized = await client.query(
         `update simulora.export_jobs
-         set status = 'READY', artifact_key = $2, checksum = $3, completed_at = now()
+         set status = 'READY', artifact_key = $2, checksum = $3, artifact_bytes = $4, completed_at = now()
          where id = $1
            and exists (
              select 1 from simulora.worlds w
              where w.id = simulora.export_jobs.world_id and w.deleted_at is null
            )`,
-        [exportId, artifactKey, checksum],
+        [exportId, artifactKey, checksum, Buffer.from(artifact)],
       );
-    } catch {
-      await this.pool.query(`update simulora.export_jobs set status = 'FAILED' where id = $1`, [
-        exportId,
-      ]);
-    }
-    return this.readExport(account, exportId);
+      // The job and its artifact commit together, so a tombstoned World leaves no
+      // half-written PENDING row behind.
+      if (finalized.rowCount !== 1) throw new ConflictError("WORLD_TOMBSTONED");
+      return this.readExportWithExecutor(client, account.accountId, exportId);
+    });
   }
 
   async readExport(account: SyntheticAccount, exportId: string): Promise<GovernanceExportResponse> {
-    const result = await this.pool.query<{
+    return this.readExportWithExecutor(this.pool, account.accountId, exportId);
+  }
+
+  // Export creation returns its own uncommitted row, so the read must run on the
+  // same transaction client; a pooled connection cannot see it yet.
+  private async readExportWithExecutor(
+    executor: Pool | PoolClient,
+    accountId: string,
+    exportId: string,
+  ): Promise<GovernanceExportResponse> {
+    const result = await executor.query<{
       id: string;
       status: GovernanceExportResponse["status"];
       world_id: string;
@@ -5776,7 +5872,7 @@ export class AuthoritativeWorldRepository {
     }>(
       `select id, status, world_id, selected_scopes, omitted_scopes, checksum, artifact_key, manifest, created_at, completed_at
        from simulora.export_jobs where id = $1 and account_id = $2`,
-      [exportId, account.accountId],
+      [exportId, accountId],
     );
     const row = result.rows[0];
     if (!row) throw new NotFoundError("Export not found");
@@ -5800,13 +5896,21 @@ export class AuthoritativeWorldRepository {
   }
 
   async readExportArtifact(account: SyntheticAccount, exportId: string): Promise<Uint8Array> {
-    const exportJob = await this.readExport(account, exportId);
-    if (exportJob.status !== "READY" || !exportJob.artifactKey || !exportJob.checksum) {
+    const result = await this.pool.query<{
+      status: GovernanceExportResponse["status"];
+      checksum: string | null;
+      artifact_bytes: Buffer | null;
+    }>(
+      `select status, checksum, artifact_bytes
+       from simulora.export_jobs where id = $1 and account_id = $2`,
+      [exportId, account.accountId],
+    );
+    const row = result.rows[0];
+    if (!row || row.status !== "READY" || !row.checksum || !row.artifact_bytes) {
       throw new NotFoundError("Export artifact not found");
     }
-    const artifact = await this.artifactStorage.get(exportJob.artifactKey);
-    if (!artifact) throw new NotFoundError("Export artifact not found");
-    if (sha256Bytes(artifact) !== exportJob.checksum) {
+    const artifact = new Uint8Array(row.artifact_bytes);
+    if (sha256Bytes(artifact) !== row.checksum) {
       throw new ConflictError("EXPORT_CHECKSUM_MISMATCH");
     }
     return artifact;
@@ -6172,6 +6276,72 @@ export class AuthoritativeWorldRepository {
     if (account.eligibility !== "adult") {
       throw new AccessDeniedError("An eligible adult account is required");
     }
+  }
+
+  // Only the newest decision per consent type and scope authorizes a mutation, so a
+  // re-grant - at the same version or a newer one - restores authoring immediately.
+  private async assertConsentActive(account: SyntheticAccount): Promise<void> {
+    const result = await this.pool.query<{ withdrawn: boolean }>(
+      `select exists(
+         select 1 from (
+           select distinct on (consent_type, scope) decision
+           from simulora.account_consents
+           where account_id = $1
+           order by consent_type, scope, updated_at desc, version desc
+         ) latest
+         where latest.decision = 'WITHDRAWN'
+       ) as withdrawn`,
+      [account.accountId],
+    );
+    if (result.rows[0]?.withdrawn) {
+      throw new AccessDeniedError("Required consent is withdrawn");
+    }
+  }
+
+  private async assertMutableBranchWithClient(
+    client: PoolClient,
+    accountId: string,
+    branchId: string,
+  ): Promise<string> {
+    const result = await client.query<{
+      continuity_id: string;
+      continuity_status: string;
+      deleted_at: Date | null;
+    }>(
+      `select c.id as continuity_id, c.status as continuity_status, w.deleted_at
+       from simulora.branches b
+       join simulora.continuities c on c.id = b.continuity_id and c.owner_account_id = $2
+       join simulora.world_revisions r on r.id = c.world_revision_id
+       join simulora.worlds w on w.id = r.world_id
+       where b.id = $1
+       for update of c, w`,
+      [branchId, accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Branch not found");
+    if (row.continuity_status !== "ACTIVE" || row.deleted_at) {
+      throw new ConflictError("WORLD_TOMBSTONED");
+    }
+    return row.continuity_id;
+  }
+
+  private async assertMutableContinuityWithClient(
+    client: PoolClient,
+    accountId: string,
+    continuityId: string,
+  ): Promise<void> {
+    const result = await client.query<{ status: string; deleted_at: Date | null }>(
+      `select c.status, w.deleted_at
+       from simulora.continuities c
+       join simulora.world_revisions r on r.id = c.world_revision_id
+       join simulora.worlds w on w.id = r.world_id
+       where c.id = $1 and c.owner_account_id = $2
+       for update of c, w`,
+      [continuityId, accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundError("Continuity not found");
+    if (row.status !== "ACTIVE" || row.deleted_at) throw new ConflictError("WORLD_TOMBSTONED");
   }
 
   private async ensureAccountWithClient(

@@ -248,6 +248,9 @@ export const productChangeSchema = z.object({
   summary: z.string().min(1).max(500),
   effect: z.string().min(1).max(500),
   recovery: z.string().min(1).max(500),
+  affectedScopes: z.array(z.string().min(1)).min(1),
+  effectiveAt: z.string().datetime(),
+  availableChoices: z.array(z.string().min(1)).min(1),
   publishedAt: z.string().datetime(),
 });
 
@@ -349,6 +352,7 @@ export const exportRequestSchema = z
       .min(8)
       .max(160)
       .regex(/^[A-Za-z0-9._:-]+$/),
+    reservationId: stableIdSchema,
     worldId: stableIdSchema,
     include: z.object({
       world: z.boolean(),

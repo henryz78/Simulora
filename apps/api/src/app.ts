@@ -87,6 +87,25 @@ async function authenticatedAccount(request: FastifyRequest, auth: AuthPort) {
   return account;
 }
 
+// The frozen API contract carries idempotency in the `Idempotency-Key` header. The
+// body field stays accepted for compatibility, but the two must agree.
+function bodyWithIdempotencyHeader(request: FastifyRequest): unknown {
+  const header = request.headers["idempotency-key"];
+  if (header === undefined) return request.body;
+  if (Array.isArray(header)) {
+    throw new ValidationError("Exactly one Idempotency-Key header is required");
+  }
+  const key = header.trim();
+  if (!key) throw new ValidationError("Idempotency-Key must not be empty");
+  if (typeof request.body !== "object" || request.body === null) return request.body;
+  const body = request.body as Record<string, unknown>;
+  const existing = body.idempotencyKey;
+  if (existing !== undefined && existing !== key) {
+    throw new ValidationError("Idempotency-Key header and body idempotencyKey disagree");
+  }
+  return { ...body, idempotencyKey: key };
+}
+
 function stateResponse(result: Awaited<ReturnType<WorldContinuityService["readCurrentState"]>>) {
   return authoritativeStateResponseSchema.parse({
     continuity: {
@@ -161,7 +180,9 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         "RESTORE_RESULT_UNAVAILABLE",
         "RESTORE_HAS_NO_CHANGES",
         "USAGE_QUOTE_EXPIRED",
+        "USAGE_RESERVATION_REQUIRED",
         "USAGE_RESERVATION_TERMINAL",
+        "IDEMPOTENCY_RETRY_CONFLICT",
         "WORLD_TOMBSTONED",
         "DELETION_DIGEST_MISMATCH",
         "DELETION_PROPOSAL_EXPIRED",
@@ -230,7 +251,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     );
     app.post("/v1/appeals", async (request, reply) => {
       const account = await authenticatedAccount(request, auth);
-      const body = appealRequestSchema.parse(request.body);
+      const body = appealRequestSchema.parse(bodyWithIdempotencyHeader(request));
       return reply
         .status(201)
         .send(appealResponseSchema.parse(await governance.openAppeal(account, body)));
@@ -279,7 +300,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/exports", async (request, reply) => {
       const account = await authenticatedAccount(request, auth);
-      const body = exportRequestSchema.parse(request.body);
+      const body = exportRequestSchema.parse(bodyWithIdempotencyHeader(request));
       return reply
         .status(201)
         .send(exportResponseSchema.parse(await governance.createExport(account, body)));
@@ -306,7 +327,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/deletions", async (request) => {
       const account = await authenticatedAccount(request, auth);
-      const body = deletionConfirmRequestSchema.parse(request.body);
+      const body = deletionConfirmRequestSchema.parse(bodyWithIdempotencyHeader(request));
       return deletionStatusSchema.parse(await governance.confirmDeletion(account, body));
     });
     app.get("/v1/deletions/:proposalId", async (request) => {

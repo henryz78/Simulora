@@ -65,7 +65,7 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       });
       const reservationRequest = {
         schemaVersion: 1 as const,
-        actionKey: `export:${world.worldId}`,
+        actionKey: `export:export-${world.worldId}`,
       };
       const reservation = await repository.reserveUsage(owner, quote.quoteId, reservationRequest);
       expect(await repository.reserveUsage(owner, quote.quoteId, reservationRequest)).toEqual(
@@ -78,19 +78,19 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       await expect(
         repository.reserveUsage(owner, secondQuote.quoteId, reservationRequest),
       ).rejects.toBeInstanceOf(ConflictError);
-      await repository.settleUsage(owner, reservation.reservationId);
-      await repository.settleUsage(owner, reservation.reservationId);
-      expect((await repository.listUsageLedger(owner)).entries).toHaveLength(1);
-
       const exportRequest = {
         schemaVersion: 1 as const,
         idempotencyKey: `export-${world.worldId}`,
+        reservationId: reservation.reservationId,
         worldId: world.worldId,
         include: { world: true, characters: true, continuity: true, history: true },
       };
       const exported = await repository.createExport(owner, exportRequest);
       expect(exported.status).toBe("READY");
       expect(exported.checksum).toMatch(/^[0-9a-f]{64}$/);
+      await repository.settleUsage(owner, reservation.reservationId);
+      await repository.settleUsage(owner, reservation.reservationId);
+      expect((await repository.listUsageLedger(owner)).entries).toHaveLength(1);
       expect(await repository.createExport(owner, exportRequest)).toEqual(exported);
       await expect(
         repository.createExport(owner, {
@@ -174,6 +174,149 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       expect((await repository.listProductChanges()).changes[0]?.version).toBe(
         "IP-8-TRUST-LIFECYCLE-V1",
       );
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("binds exports to a reservation, keeps artifacts durable and gates on live consent", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const owner = { accountId: randomUUID(), eligibility: "adult" as const };
+    try {
+      const world = await repository.createWorld(owner, lanternReachSeed);
+      await repository.validateDraft(owner, world.worldId);
+      const revision = await repository.createRevision(owner, world.worldId, 1);
+      const continuity = await repository.startContinuity(owner, revision.revisionId, {
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+
+      // I-6: a material change explains scope, timing and the choices it leaves open.
+      const change = (await repository.listProductChanges()).changes.find(
+        (entry) => entry.version === "IP-8-TRUST-LIFECYCLE-V1",
+      );
+      expect(change?.affectedScopes.length).toBeGreaterThan(0);
+      expect(change?.availableChoices.length).toBeGreaterThan(0);
+      expect(Date.parse(change?.effectiveAt ?? "")).not.toBeNaN();
+
+      // I-2: an export needs an owned, open EXPORT reservation bound to its own key.
+      const idempotencyKey = `export-${randomUUID()}`;
+      const exportRequest = {
+        schemaVersion: 1 as const,
+        idempotencyKey,
+        reservationId: randomUUID(),
+        worldId: world.worldId,
+        include: { world: true, characters: false, continuity: false, history: false },
+      };
+      await expect(repository.createExport(owner, exportRequest)).rejects.toThrow(
+        /USAGE_RESERVATION_REQUIRED/,
+      );
+      const quote = await repository.createUsageQuote(owner, {
+        schemaVersion: 1,
+        actionProfile: "EXPORT",
+      });
+      const mismatched = await repository.reserveUsage(owner, quote.quoteId, {
+        schemaVersion: 1,
+        actionKey: `export:not-${idempotencyKey}`,
+      });
+      await expect(
+        repository.createExport(owner, {
+          ...exportRequest,
+          reservationId: mismatched.reservationId,
+        }),
+      ).rejects.toThrow(/USAGE_RESERVATION_REQUIRED/);
+
+      const reservationRequest = {
+        schemaVersion: 1 as const,
+        actionKey: `export:${idempotencyKey}`,
+      };
+      const reservation = await repository.reserveUsage(owner, quote.quoteId, reservationRequest);
+      // I-3: an expired quote must not strand a retry that reuses the same action key.
+      await pool.query(
+        `update simulora.usage_quotes set expires_at = now() - interval '1 hour'
+                        where id = $1`,
+        [quote.quoteId],
+      );
+      expect(await repository.reserveUsage(owner, quote.quoteId, reservationRequest)).toEqual(
+        reservation,
+      );
+      const exported = await repository.createExport(owner, {
+        ...exportRequest,
+        reservationId: reservation.reservationId,
+      });
+      expect(exported.status).toBe("READY");
+
+      // I-4: the artifact is recoverable from PostgreSQL by a separate process.
+      const freshPool = createDatabasePool(connectionString);
+      try {
+        const fresh = new AuthoritativeWorldRepository(freshPool);
+        const artifact = Buffer.from(await fresh.readExportArtifact(owner, exported.exportId));
+        expect(artifact.toString("utf8")).toContain("manifest.json");
+      } finally {
+        await freshPool.end();
+      }
+
+      // I-5: withdrawn consent blocks authoring but leaves recovery paths open.
+      await repository.setConsent(owner, {
+        consentType: "TERMS",
+        version: "IP-8-V1",
+        scope: "ACCOUNT",
+        decision: "WITHDRAWN",
+      });
+      await expect(repository.createWorld(owner, lanternReachSeed)).rejects.toThrow(
+        /consent is withdrawn/i,
+      );
+      expect((await repository.readAccess(owner, "world", world.worldId)).canRead).toBe(true);
+      const appeal = await repository.openAppeal(owner, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        reasonCode: "CONSENT",
+        subjectType: "ACCOUNT",
+        summary: "Consent was withdrawn by mistake.",
+      });
+      expect(appeal.status).toBe("OPEN");
+      await repository.setConsent(owner, {
+        consentType: "TERMS",
+        version: "IP-8-V2",
+        scope: "ACCOUNT",
+        decision: "GRANTED",
+      });
+      const recoveryPoint = await repository.createRecoveryPoint(owner, continuity.branchId, {
+        idempotencyKey: `point-${randomUUID()}`,
+        label: "After restoring consent",
+      });
+
+      // I-1: once the World is tombstoned, mutation paths refuse with a stable conflict.
+      const proposal = await repository.proposeDeletion(owner, {
+        schemaVersion: 1,
+        targetType: "WORLD",
+        targetId: world.worldId,
+      });
+      await repository.confirmDeletion(owner, {
+        schemaVersion: 1,
+        proposalId: proposal.proposalId,
+        digest: proposal.digest,
+        idempotencyKey: randomUUID(),
+      });
+      await expect(repository.deleteRecoveryPoint(owner, recoveryPoint.id)).rejects.toThrow(
+        /WORLD_TOMBSTONED/,
+      );
+      await expect(
+        repository.createRecoveryPoint(owner, continuity.branchId, {
+          idempotencyKey: `point-${randomUUID()}`,
+          label: "Blocked after deletion",
+        }),
+      ).rejects.toThrow(/WORLD_TOMBSTONED/);
+      await expect(
+        repository.forkBranch(owner, continuity.continuityId, {
+          idempotencyKey: `fork-${randomUUID()}`,
+          name: "Blocked after deletion",
+          sourceCommitId: continuity.headCommitId,
+          expectedHeadCommitId: continuity.headCommitId,
+        }),
+      ).rejects.toThrow(/WORLD_TOMBSTONED/);
     } finally {
       await pool.end();
     }

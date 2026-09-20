@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import {
   ActionTruthService,
+  GovernanceService,
   WorldContinuityService,
   createInitialState,
   lanternReachSeed,
+  type GovernancePort,
   type WorldContinuityPort,
   type ActionTruthPort,
 } from "@simulora/application";
@@ -306,5 +308,68 @@ describe("API composition root", () => {
     });
     expect(asset.statusCode).toBe(201);
     expect(asset.json()).toMatchObject({ document: { name: "Iora" } });
+  });
+
+  it("carries idempotency in the Idempotency-Key header without breaking the body form", async () => {
+    const seen: string[] = [];
+    const governancePort = {
+      openAppeal: (_account: unknown, request: { idempotencyKey: string }) => {
+        seen.push(request.idempotencyKey);
+        return Promise.resolve({
+          appealId: "20000000-0000-4000-8000-000000000001",
+          status: "OPEN" as const,
+          recoveryState: "REVIEW_PENDING" as const,
+          reasonCode: "ACCESS" as const,
+          subjectType: "WORLD" as const,
+          subjectId: null,
+          summary: "Review the access boundary.",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      },
+    } as unknown as GovernancePort;
+    app = createApiApp({
+      logLevel: "error",
+      governanceService: new GovernanceService(governancePort),
+    });
+    const payload = {
+      schemaVersion: 1,
+      reasonCode: "ACCESS",
+      subjectType: "WORLD",
+      summary: "Review the access boundary.",
+    };
+
+    const headerOnly = await app.inject({
+      method: "POST",
+      url: "/v1/appeals",
+      headers: { "idempotency-key": "appeal-header-key" },
+      payload,
+    });
+    expect(headerOnly.statusCode).toBe(201);
+
+    const bodyOnly = await app.inject({
+      method: "POST",
+      url: "/v1/appeals",
+      payload: { ...payload, idempotencyKey: "appeal-body-key" },
+    });
+    expect(bodyOnly.statusCode).toBe(201);
+
+    const agreeing = await app.inject({
+      method: "POST",
+      url: "/v1/appeals",
+      headers: { "idempotency-key": "appeal-body-key" },
+      payload: { ...payload, idempotencyKey: "appeal-body-key" },
+    });
+    expect(agreeing.statusCode).toBe(201);
+    expect(seen).toEqual(["appeal-header-key", "appeal-body-key", "appeal-body-key"]);
+
+    const disagreeing = await app.inject({
+      method: "POST",
+      url: "/v1/appeals",
+      headers: { "idempotency-key": "appeal-header-key" },
+      payload: { ...payload, idempotencyKey: "appeal-body-key" },
+    });
+    expect(disagreeing.statusCode).toBe(422);
+    expect(seen).toHaveLength(3);
   });
 });
