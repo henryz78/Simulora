@@ -21,6 +21,8 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     try {
       expect((await repository.readMe(owner)).capabilities.canCreateWorld).toBe(true);
       const consentRequest = {
+        schemaVersion: 1 as const,
+        idempotencyKey: `consent-${randomUUID()}`,
         consentType: "TERMS" as const,
         version: "IP-8-V1",
         scope: "ACCOUNT" as const,
@@ -30,6 +32,9 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       const retriedConsent = await repository.setConsent(owner, consentRequest);
       expect(retriedConsent).toEqual(firstConsent);
       expect(retriedConsent.withdrawalAvailable).toBe(true);
+      await expect(
+        repository.setConsent(owner, { ...consentRequest, decision: "WITHDRAWN" }),
+      ).rejects.toBeInstanceOf(ConflictError);
 
       const world = await repository.createWorld(owner, lanternReachSeed);
       await repository.validateDraft(owner, world.worldId);
@@ -51,6 +56,15 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         (await repository.readAccess(participant, "continuity", ownerContinuity.continuityId))
           .canRead,
       ).toBe(false);
+      expect(
+        (await repository.readAccess(participant, "continuity", ownerContinuity.continuityId))
+          .reasonCode,
+      ).toBe("NOT_FOUND");
+      const stranger = { accountId: randomUUID(), eligibility: "adult" as const };
+      await repository.ensureAccount(stranger);
+      const hiddenWorld = await repository.readAccess(stranger, "world", world.worldId);
+      expect(hiddenWorld.reasonCode).toBe("NOT_FOUND");
+      expect(hiddenWorld.visibility).toBe("UNKNOWN");
       const participantContinuity = await repository.startContinuity(
         participant,
         revision.revisionId,
@@ -60,10 +74,13 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         repository.readCurrentState(owner, participantContinuity.continuityId),
       ).rejects.toThrow("Continuity not found");
 
-      const quote = await repository.createUsageQuote(owner, {
+      const quoteRequest = {
         schemaVersion: 1,
+        idempotencyKey: `quote-${randomUUID()}`,
         actionProfile: "EXPORT",
-      });
+      } as const;
+      const quote = await repository.createUsageQuote(owner, quoteRequest);
+      expect(await repository.createUsageQuote(owner, quoteRequest)).toEqual(quote);
       const reservationRequest = {
         schemaVersion: 1 as const,
         actionKey: `export:export-${world.worldId}`,
@@ -74,6 +91,7 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       );
       const secondQuote = await repository.createUsageQuote(owner, {
         schemaVersion: 1,
+        idempotencyKey: `quote-${randomUUID()}`,
         actionProfile: "EXPORT",
       });
       await expect(
@@ -122,11 +140,14 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         repository.openAppeal(owner, { ...appealRequest, summary: "Different request" }),
       ).rejects.toBeInstanceOf(ConflictError);
 
-      const proposal = await repository.proposeDeletion(owner, {
+      const proposalRequest = {
         schemaVersion: 1,
+        idempotencyKey: `deletion-${randomUUID()}`,
         targetType: "WORLD",
         targetId: world.worldId,
-      });
+      } as const;
+      const proposal = await repository.proposeDeletion(owner, proposalRequest);
+      expect(await repository.proposeDeletion(owner, proposalRequest)).toEqual(proposal);
       expect(proposal.affected).toMatchObject({ continuities: 2, grants: 1, exports: 1 });
       const ineligibleOwner = { ...owner, eligibility: "ineligible" as const };
       expect((await repository.readMe(ineligibleOwner)).capabilities.canParticipate).toBe(false);
@@ -216,6 +237,7 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       );
       const quote = await repository.createUsageQuote(owner, {
         schemaVersion: 1,
+        idempotencyKey: `quote-${randomUUID()}`,
         actionProfile: "EXPORT",
       });
       const mismatched = await repository.reserveUsage(owner, quote.quoteId, {
@@ -261,6 +283,8 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
 
       // I-5: withdrawn consent blocks authoring but leaves recovery paths open.
       await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
         consentType: "TERMS",
         version: "IP-8-V1",
         scope: "ACCOUNT",
@@ -279,6 +303,8 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       });
       expect(appeal.status).toBe("OPEN");
       await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
         consentType: "TERMS",
         version: "IP-8-V2",
         scope: "ACCOUNT",
@@ -292,6 +318,7 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       // I-1: once the World is tombstoned, mutation paths refuse with a stable conflict.
       const proposal = await repository.proposeDeletion(owner, {
         schemaVersion: 1,
+        idempotencyKey: `deletion-${randomUUID()}`,
         targetType: "WORLD",
         targetId: world.worldId,
       });
@@ -319,6 +346,73 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         }),
       ).rejects.toThrow(/WORLD_TOMBSTONED/);
     } finally {
+      await pool.end();
+    }
+  });
+
+  it("does not create an export after a queued World tombstone wins", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const side = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const owner = { accountId: randomUUID(), eligibility: "adult" as const };
+    const holder = await side.connect();
+    try {
+      const world = await repository.createWorld(owner, lanternReachSeed);
+      const proposal = await repository.proposeDeletion(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `deletion-${randomUUID()}`,
+        targetType: "WORLD",
+        targetId: world.worldId,
+      });
+      const quote = await repository.createUsageQuote(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `quote-${randomUUID()}`,
+        actionProfile: "EXPORT",
+      });
+      const exportKey = `export-${randomUUID()}`;
+      const reservation = await repository.reserveUsage(owner, quote.quoteId, {
+        schemaVersion: 1,
+        actionKey: `export:${exportKey}`,
+      });
+
+      await holder.query("begin");
+      await holder.query("select id from simulora.worlds where id = $1 for update", [
+        world.worldId,
+      ]);
+      const pendingDeletion = repository
+        .confirmDeletion(owner, {
+          schemaVersion: 1,
+          proposalId: proposal.proposalId,
+          digest: proposal.digest,
+          idempotencyKey: `confirm-${randomUUID()}`,
+        })
+        .then((value) => ({ value, error: null as unknown }))
+        .catch((error: unknown) => ({ value: null, error }));
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const pendingExport = repository
+        .createExport(owner, {
+          schemaVersion: 1,
+          idempotencyKey: exportKey,
+          reservationId: reservation.reservationId,
+          worldId: world.worldId,
+          include: { world: true, characters: false, continuity: false, history: false },
+        })
+        .then((value) => ({ value, error: null as unknown }))
+        .catch((error: unknown) => ({ value: null, error }));
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      await holder.query("commit");
+
+      const deletion = await pendingDeletion;
+      expect(deletion.error).toBeNull();
+      expect(deletion.value?.status).toBe("COMPLETED");
+      const exported = await pendingExport;
+      expect(exported.value).toBeNull();
+      expect(String(exported.error)).toMatch(/CONCURRENT_UPDATE_RETRY|WORLD_TOMBSTONED/);
+    } finally {
+      await holder.query("rollback").catch(() => undefined);
+      holder.release();
+      await side.end();
       await pool.end();
     }
   });
@@ -473,23 +567,53 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     try {
       await repository.ensureAccount(owner);
       const terms = { consentType: "TERMS" as const, scope: "ACCOUNT" as const };
-      await repository.setConsent(owner, { ...terms, version: "IP-8-V1", decision: "GRANTED" });
-      await repository.setConsent(owner, { ...terms, version: "IP-8-V1", decision: "WITHDRAWN" });
+      await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
+        ...terms,
+        version: "IP-8-V1",
+        decision: "GRANTED",
+      });
+      await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
+        ...terms,
+        version: "IP-8-V1",
+        decision: "WITHDRAWN",
+      });
       await expect(repository.createWorld(owner, lanternReachSeed)).rejects.toThrow(
         /consent is withdrawn/i,
       );
 
       // A grant at a newer version supersedes the older withdrawal.
-      await repository.setConsent(owner, { ...terms, version: "IP-8-V2", decision: "GRANTED" });
+      await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
+        ...terms,
+        version: "IP-8-V2",
+        decision: "GRANTED",
+      });
       const world = await repository.createWorld(owner, lanternReachSeed);
       expect(world.worldId).toMatch(/^[0-9a-f-]{36}$/);
 
       // Repeating the older withdrawal is idempotent and must not re-block.
-      await repository.setConsent(owner, { ...terms, version: "IP-8-V1", decision: "WITHDRAWN" });
+      await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
+        ...terms,
+        version: "IP-8-V1",
+        decision: "WITHDRAWN",
+      });
       await repository.createWorld(owner, lanternReachSeed);
 
       // The newest decision governs, so withdrawing the current version blocks.
-      await repository.setConsent(owner, { ...terms, version: "IP-8-V2", decision: "WITHDRAWN" });
+      await repository.setConsent(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `consent-${randomUUID()}`,
+        ...terms,
+        version: "IP-8-V2",
+        decision: "WITHDRAWN",
+      });
       await expect(repository.createWorld(owner, lanternReachSeed)).rejects.toThrow(
         /consent is withdrawn/i,
       );

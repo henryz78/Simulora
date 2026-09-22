@@ -423,7 +423,14 @@ type GovernanceConsentRecord = {
   withdrawalAvailable: boolean;
   updatedAt: string;
 };
-type GovernanceConsentInput = Omit<GovernanceConsentRecord, "updatedAt" | "withdrawalAvailable">;
+type GovernanceConsentInput = {
+  schemaVersion: 1;
+  idempotencyKey: string;
+  consentType: GovernanceConsentRecord["consentType"];
+  version: string;
+  scope: GovernanceConsentRecord["scope"];
+  decision: GovernanceConsentRecord["decision"];
+};
 
 type GovernanceMeResponse = {
   accountId: string;
@@ -480,7 +487,11 @@ type GovernanceAppealResponse = {
   updatedAt: string;
 };
 
-type GovernanceUsageQuoteRequest = { schemaVersion: 1; actionProfile: "WORLD_TURN" | "EXPORT" };
+type GovernanceUsageQuoteRequest = {
+  schemaVersion: 1;
+  idempotencyKey: string;
+  actionProfile: "WORLD_TURN" | "EXPORT";
+};
 type GovernanceUsageQuote = {
   quoteId: string;
   actionProfile: "WORLD_TURN" | "EXPORT";
@@ -531,6 +542,7 @@ type GovernanceExportResponse = {
 
 type GovernanceDeletionProposalRequest = {
   schemaVersion: 1;
+  idempotencyKey: string;
   targetType: "WORLD" | "CHARACTER_ASSET";
   targetId: string;
 };
@@ -5134,8 +5146,57 @@ export class AuthoritativeWorldRepository {
     account: SyntheticAccount,
     request: GovernanceConsentInput,
   ): Promise<GovernanceConsentRecord> {
+    const requestDigest = contentHash({
+      schemaVersion: request.schemaVersion,
+      consentType: request.consentType,
+      version: request.version,
+      scope: request.scope,
+      decision: request.decision,
+    });
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
+      const existingOperation = await client.query<{
+        request_digest: string;
+        result: GovernanceConsentRecord;
+      }>(
+        `select request_digest, result
+         from simulora.consent_operations
+         where account_id = $1 and idempotency_key = $2
+         for update`,
+        [account.accountId, request.idempotencyKey],
+      );
+      if (existingOperation.rows[0]) {
+        if (existingOperation.rows[0].request_digest !== requestDigest) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return existingOperation.rows[0].result;
+      }
+      const operationId = randomUUID();
+      const insertedOperation = await client.query<{ id: string }>(
+        `insert into simulora.consent_operations
+         (id, account_id, idempotency_key, request_digest, result)
+         values ($1, $2, $3, $4, '{}'::jsonb)
+         on conflict (account_id, idempotency_key) do nothing
+         returning id`,
+        [operationId, account.accountId, request.idempotencyKey, requestDigest],
+      );
+      if (!insertedOperation.rows[0]) {
+        const raced = await client.query<{
+          request_digest: string;
+          result: GovernanceConsentRecord;
+        }>(
+          `select request_digest, result
+           from simulora.consent_operations
+           where account_id = $1 and idempotency_key = $2
+           for update`,
+          [account.accountId, request.idempotencyKey],
+        );
+        if (!raced.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+        if (raced.rows[0].request_digest !== requestDigest) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return raced.rows[0].result;
+      }
       const current = await client.query<{
         id: string;
         decision: GovernanceConsentRecord["decision"];
@@ -5184,12 +5245,13 @@ export class AuthoritativeWorldRepository {
               version: request.version,
               scope: request.scope,
               previousDecision: current.rows[0]?.decision ?? null,
+              idempotencyKey: request.idempotencyKey,
             }),
           ],
         );
       }
       const row = result.rows[0]!;
-      return {
+      const response = {
         consentType: row.consent_type,
         version: row.version,
         scope: row.scope,
@@ -5197,6 +5259,11 @@ export class AuthoritativeWorldRepository {
         withdrawalAvailable: row.decision === "GRANTED",
         updatedAt: row.updated_at.toISOString(),
       };
+      await client.query(
+        `update simulora.consent_operations set result = $2::jsonb where id = $1`,
+        [operationId, JSON.stringify(response)],
+      );
+      return response;
     });
   }
 
@@ -5269,7 +5336,8 @@ export class AuthoritativeWorldRepository {
           recovery: null,
         };
       }
-      return this.noAccess(resourceType, resourceId, "NO_ACCESS");
+      // Unowned opaque IDs must not reveal whether a resource exists.
+      return this.noAccess(resourceType, resourceId, "NOT_FOUND");
     }
 
     const result = await this.pool.query<{
@@ -5285,7 +5353,8 @@ export class AuthoritativeWorldRepository {
     );
     const row = result.rows[0];
     if (!row || row.owner_account_id !== account.accountId) {
-      return this.noAccess(resourceType, resourceId, row ? "NO_ACCESS" : "NOT_FOUND");
+      // A private Continuity is indistinguishable from an unknown ID to other accounts.
+      return this.noAccess(resourceType, resourceId, "NOT_FOUND");
     }
     if (row.deleted_at) {
       return {
@@ -5472,30 +5541,80 @@ export class AuthoritativeWorldRepository {
     request: GovernanceUsageQuoteRequest,
   ): Promise<GovernanceUsageQuote> {
     if (request.actionProfile === "WORLD_TURN") this.assertEligible(account);
-    await this.ensureAccount(account);
-    const id = randomUUID();
-    const expiresAt = new Date(this.now() + 5 * 60_000);
-    await this.pool.query(
-      `insert into simulora.usage_quotes
-       (id, account_id, action_profile, policy_version, cost_mode, units, status, expires_at)
-       values ($1, $2, $3, 'IP-8-ZERO-COST-TEST-V1', 'ZERO_COST_TEST', 0, 'ISSUED', $4)`,
-      [id, account.accountId, request.actionProfile, expiresAt],
-    );
-    return {
-      quoteId: id,
+    const requestDigest = contentHash({
+      schemaVersion: request.schemaVersion,
       actionProfile: request.actionProfile,
-      policyVersion: "IP-8-ZERO-COST-TEST-V1",
-      costMode: "ZERO_COST_TEST",
-      units: 0,
-      expiresAt: expiresAt.toISOString(),
-      failureBehavior: {
-        retry: "Retry only with the same idempotency key after a recoverable failure.",
-        cancel: "Cancellation releases the reservation without a ledger charge.",
-        terminalNoCommit:
-          "A failed or cancelled Action has no World Commit and no settlement entry.",
-      },
-      status: "ISSUED",
-    };
+    });
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const existing = await client.query<{
+        id: string;
+        action_profile: GovernanceUsageQuote["actionProfile"];
+        policy_version: string;
+        cost_mode: GovernanceUsageQuote["costMode"];
+        units: 0;
+        expires_at: Date;
+        request_digest: string;
+      }>(
+        `select id, action_profile, policy_version, cost_mode, units, expires_at, request_digest
+         from simulora.usage_quotes
+         where account_id = $1 and idempotency_key = $2
+         for update`,
+        [account.accountId, request.idempotencyKey],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].request_digest !== requestDigest) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.mapUsageQuote(existing.rows[0]);
+      }
+      const id = randomUUID();
+      const expiresAt = new Date(this.now() + 5 * 60_000);
+      const inserted = await client.query<{
+        id: string;
+        action_profile: GovernanceUsageQuote["actionProfile"];
+        policy_version: string;
+        cost_mode: GovernanceUsageQuote["costMode"];
+        units: 0;
+        expires_at: Date;
+        request_digest: string;
+      }>(
+        `insert into simulora.usage_quotes
+         (id, account_id, idempotency_key, request_digest, action_profile, policy_version,
+          cost_mode, units, status, expires_at)
+         values ($1, $2, $3, $4, $5, 'IP-8-ZERO-COST-TEST-V1', 'ZERO_COST_TEST', 0, 'ISSUED', $6)
+         on conflict (account_id, idempotency_key) do nothing
+         returning id, action_profile, policy_version, cost_mode, units, expires_at, request_digest`,
+        [
+          id,
+          account.accountId,
+          request.idempotencyKey,
+          requestDigest,
+          request.actionProfile,
+          expiresAt,
+        ],
+      );
+      if (inserted.rows[0]) return this.mapUsageQuote(inserted.rows[0]);
+      const raced = await client.query<{
+        id: string;
+        action_profile: GovernanceUsageQuote["actionProfile"];
+        policy_version: string;
+        cost_mode: GovernanceUsageQuote["costMode"];
+        units: 0;
+        expires_at: Date;
+        request_digest: string;
+      }>(
+        `select id, action_profile, policy_version, cost_mode, units, expires_at, request_digest
+         from simulora.usage_quotes
+         where account_id = $1 and idempotency_key = $2`,
+        [account.accountId, request.idempotencyKey],
+      );
+      if (!raced.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+      if (raced.rows[0].request_digest !== requestDigest) {
+        throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+      }
+      return this.mapUsageQuote(raced.rows[0]);
+    });
   }
 
   async reserveUsage(
@@ -5669,7 +5788,8 @@ export class AuthoritativeWorldRepository {
       const worldResult = await client.query<{ document: unknown; deleted_at: Date | null }>(
         `select d.document, w.deleted_at from simulora.worlds w
        join simulora.world_drafts d on d.world_id = w.id
-       where w.id = $1 and w.owner_account_id = $2`,
+       where w.id = $1 and w.owner_account_id = $2
+       for share of w`,
         [request.worldId, account.accountId],
       );
       const worldRow = worldResult.rows[0];
@@ -5951,72 +6071,128 @@ export class AuthoritativeWorldRepository {
     account: SyntheticAccount,
     request: GovernanceDeletionProposalRequest,
   ): Promise<GovernanceDeletionProposal> {
-    const affected = {
-      continuities: 0,
-      grants: 0,
-      exports: 0,
-      auditCategories: ["DELETION", "ACCESS", "RECOVERY"],
-    };
-    if (request.targetType === "WORLD") {
-      const world = await this.pool.query<{ id: string }>(
-        `select id from simulora.worlds where id = $1 and owner_account_id = $2 and deleted_at is null`,
-        [request.targetId, account.accountId],
-      );
-      if (!world.rows[0]) throw new NotFoundError("World not found");
-      const counts = await this.pool.query<{
-        continuities: string;
-        grants: string;
-        exports: string;
-      }>(
-        `select
-           (select count(*) from simulora.continuities c join simulora.world_revisions r on r.id = c.world_revision_id where r.world_id = $1 and c.status = 'ACTIVE') as continuities,
-           (select count(*) from simulora.world_access_grants where world_id = $1 and status = 'ACTIVE') as grants,
-           (select count(*) from simulora.export_jobs where world_id = $1 and status in ('PENDING', 'READY')) as exports`,
-        [request.targetId],
-      );
-      affected.continuities = Number(counts.rows[0]?.continuities ?? 0);
-      affected.grants = Number(counts.rows[0]?.grants ?? 0);
-      affected.exports = Number(counts.rows[0]?.exports ?? 0);
-    } else {
-      const asset = await this.pool.query<{ id: string }>(
-        `select id from simulora.character_assets where id = $1 and owner_account_id = $2 and status = 'ACTIVE'`,
-        [request.targetId, account.accountId],
-      );
-      if (!asset.rows[0]) throw new NotFoundError("Character Asset not found");
-      affected.auditCategories = ["DELETION", "REVISION_SNAPSHOT"];
-    }
-    const proposalId = randomUUID();
-    const digest = sha256Bytes(
-      Buffer.from(
-        JSON.stringify({ targetType: request.targetType, targetId: request.targetId, affected }),
-      ),
-    );
-    const expiresAt = new Date(this.now() + 10 * 60_000);
-    await this.pool.query(
-      `insert into simulora.deletion_proposals
-       (id, account_id, target_type, target_id, digest, affected, status, expires_at, purge_status)
-       values ($1, $2, $3, $4, $5, $6::jsonb, 'ACTIVE', $7, 'NOT_STARTED')`,
-      [
-        proposalId,
-        account.accountId,
-        request.targetType,
-        request.targetId,
-        digest,
-        JSON.stringify(affected),
-        expiresAt,
-      ],
-    );
-    return {
-      proposalId,
+    const requestDigest = contentHash({
+      schemaVersion: request.schemaVersion,
       targetType: request.targetType,
       targetId: request.targetId,
-      digest,
-      status: "ACTIVE",
-      affected,
-      expiresAt: expiresAt.toISOString(),
-      explanation:
-        "Confirmation tombstones the target, revokes future mutation, and retains minimal audit metadata.",
-    };
+    });
+    return transaction(this.pool, async (client) => {
+      await this.ensureAccountWithClient(client, account);
+      const existing = await client.query<{
+        id: string;
+        request_digest: string;
+        target_type: GovernanceDeletionProposal["targetType"];
+        target_id: string;
+        digest: string;
+        affected: GovernanceDeletionProposal["affected"];
+        status: GovernanceDeletionProposal["status"];
+        expires_at: Date;
+      }>(
+        `select id, request_digest, target_type, target_id, digest, affected, status, expires_at
+         from simulora.deletion_proposals
+         where account_id = $1 and idempotency_key = $2
+         for update`,
+        [account.accountId, request.idempotencyKey],
+      );
+      if (existing.rows[0]) {
+        if (existing.rows[0].request_digest !== requestDigest) {
+          throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+        }
+        return this.mapDeletionProposal(existing.rows[0]);
+      }
+      const affected = {
+        continuities: 0,
+        grants: 0,
+        exports: 0,
+        auditCategories: ["DELETION", "ACCESS", "RECOVERY"],
+      };
+      if (request.targetType === "WORLD") {
+        const world = await client.query<{ id: string }>(
+          `select id from simulora.worlds
+           where id = $1 and owner_account_id = $2 and deleted_at is null
+           for share`,
+          [request.targetId, account.accountId],
+        );
+        if (!world.rows[0]) throw new NotFoundError("World not found");
+        const counts = await client.query<{
+          continuities: string;
+          grants: string;
+          exports: string;
+        }>(
+          `select
+             (select count(*) from simulora.continuities c join simulora.world_revisions r on r.id = c.world_revision_id where r.world_id = $1 and c.status = 'ACTIVE') as continuities,
+             (select count(*) from simulora.world_access_grants where world_id = $1 and status = 'ACTIVE') as grants,
+             (select count(*) from simulora.export_jobs where world_id = $1 and status in ('PENDING', 'READY')) as exports`,
+          [request.targetId],
+        );
+        affected.continuities = Number(counts.rows[0]?.continuities ?? 0);
+        affected.grants = Number(counts.rows[0]?.grants ?? 0);
+        affected.exports = Number(counts.rows[0]?.exports ?? 0);
+      } else {
+        const asset = await client.query<{ id: string }>(
+          `select id from simulora.character_assets where id = $1 and owner_account_id = $2 and status = 'ACTIVE'`,
+          [request.targetId, account.accountId],
+        );
+        if (!asset.rows[0]) throw new NotFoundError("Character Asset not found");
+        affected.auditCategories = ["DELETION", "REVISION_SNAPSHOT"];
+      }
+      const proposalId = randomUUID();
+      const digest = sha256Bytes(
+        Buffer.from(
+          JSON.stringify({ targetType: request.targetType, targetId: request.targetId, affected }),
+        ),
+      );
+      const expiresAt = new Date(this.now() + 10 * 60_000);
+      const inserted = await client.query<{
+        id: string;
+        request_digest: string;
+        target_type: GovernanceDeletionProposal["targetType"];
+        target_id: string;
+        digest: string;
+        affected: GovernanceDeletionProposal["affected"];
+        status: GovernanceDeletionProposal["status"];
+        expires_at: Date;
+      }>(
+        `insert into simulora.deletion_proposals
+         (id, account_id, idempotency_key, request_digest, target_type, target_id, digest,
+          affected, status, expires_at, purge_status)
+         values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 'ACTIVE', $9, 'NOT_STARTED')
+         on conflict (account_id, idempotency_key) do nothing
+         returning id, request_digest, target_type, target_id, digest, affected, status, expires_at`,
+        [
+          proposalId,
+          account.accountId,
+          request.idempotencyKey,
+          requestDigest,
+          request.targetType,
+          request.targetId,
+          digest,
+          JSON.stringify(affected),
+          expiresAt,
+        ],
+      );
+      if (inserted.rows[0]) return this.mapDeletionProposal(inserted.rows[0]);
+      const raced = await client.query<{
+        id: string;
+        request_digest: string;
+        target_type: GovernanceDeletionProposal["targetType"];
+        target_id: string;
+        digest: string;
+        affected: GovernanceDeletionProposal["affected"];
+        status: GovernanceDeletionProposal["status"];
+        expires_at: Date;
+      }>(
+        `select id, request_digest, target_type, target_id, digest, affected, status, expires_at
+         from simulora.deletion_proposals
+         where account_id = $1 and idempotency_key = $2`,
+        [account.accountId, request.idempotencyKey],
+      );
+      if (!raced.rows[0]) throw new ConflictError("IDEMPOTENCY_RETRY_CONFLICT");
+      if (raced.rows[0].request_digest !== requestDigest) {
+        throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+      }
+      return this.mapDeletionProposal(raced.rows[0]);
+    });
   }
 
   async confirmDeletion(
@@ -6245,6 +6421,54 @@ export class AuthoritativeWorldRepository {
       status: row.status,
       units: 0,
       createdAt: row.created_at.toISOString(),
+    };
+  }
+
+  private mapUsageQuote(row: {
+    id: string;
+    action_profile: GovernanceUsageQuote["actionProfile"];
+    policy_version: string;
+    cost_mode: GovernanceUsageQuote["costMode"];
+    units: 0;
+    expires_at: Date;
+    request_digest: string;
+  }): GovernanceUsageQuote {
+    return {
+      quoteId: row.id,
+      actionProfile: row.action_profile,
+      policyVersion: row.policy_version,
+      costMode: row.cost_mode,
+      units: 0,
+      expiresAt: row.expires_at.toISOString(),
+      failureBehavior: {
+        retry: "Retry only with the same idempotency key after a recoverable failure.",
+        cancel: "Cancellation releases the reservation without a ledger charge.",
+        terminalNoCommit:
+          "A failed or cancelled Action has no World Commit and no settlement entry.",
+      },
+      status: "ISSUED",
+    };
+  }
+
+  private mapDeletionProposal(row: {
+    id: string;
+    target_type: GovernanceDeletionProposal["targetType"];
+    target_id: string;
+    digest: string;
+    affected: GovernanceDeletionProposal["affected"];
+    status: GovernanceDeletionProposal["status"];
+    expires_at: Date;
+  }): GovernanceDeletionProposal {
+    return {
+      proposalId: row.id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      digest: row.digest,
+      status: row.status,
+      affected: row.affected,
+      expiresAt: row.expires_at.toISOString(),
+      explanation:
+        "Confirmation tombstones the target, revokes future mutation, and retains minimal audit metadata.",
     };
   }
 

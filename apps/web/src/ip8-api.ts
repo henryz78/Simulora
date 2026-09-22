@@ -28,6 +28,10 @@ import {
 import { requestJson, type ApiResult } from "./ip4-api.js";
 
 const jsonHeaders = { "content-type": "application/json", accept: "application/json" };
+const idempotencyHeaders = (key: string) => ({
+  ...jsonHeaders,
+  "idempotency-key": key,
+});
 
 export const readMe = () =>
   requestJson("/v1/me", { headers: { accept: "application/json" } }, (value) =>
@@ -43,7 +47,11 @@ export function setConsent(request: ConsentRequest) {
   const body = consentRequestSchema.parse(request);
   return requestJson(
     "/v1/me/consents",
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.idempotencyKey),
+      body: JSON.stringify(body),
+    },
     (value) => consentRecordSchema.parse(value),
   );
 }
@@ -64,7 +72,11 @@ export function createUsageQuote(request: UsageQuoteRequest) {
   const body = usageQuoteRequestSchema.parse(request);
   return requestJson(
     "/v1/usage/quotes",
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.idempotencyKey),
+      body: JSON.stringify(body),
+    },
     (value) => usageQuoteSchema.parse(value),
   );
 }
@@ -73,7 +85,11 @@ export function reserveUsage(quoteId: string, request: UsageReservationRequest) 
   const body = usageReservationRequestSchema.parse(request);
   return requestJson(
     `/v1/usage/quotes/${encodeURIComponent(quoteId)}/reservations`,
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.actionKey),
+      body: JSON.stringify(body),
+    },
     (value) => usageReservationSchema.parse(value),
   );
 }
@@ -96,7 +112,11 @@ export function createExport(request: ExportRequest) {
   const body = exportRequestSchema.parse(request);
   return requestJson(
     "/v1/exports",
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.idempotencyKey),
+      body: JSON.stringify(body),
+    },
     (value) => exportResponseSchema.parse(value),
   );
 }
@@ -105,7 +125,11 @@ export function proposeDeletion(request: DeletionProposalRequest) {
   const body = deletionProposalRequestSchema.parse(request);
   return requestJson(
     "/v1/deletion-proposals",
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.idempotencyKey),
+      body: JSON.stringify(body),
+    },
     (value) => deletionProposalSchema.parse(value),
   );
 }
@@ -114,7 +138,11 @@ export function confirmDeletion(request: DeletionConfirmRequest) {
   const body = deletionConfirmRequestSchema.parse(request);
   return requestJson(
     "/v1/deletions",
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.idempotencyKey),
+      body: JSON.stringify(body),
+    },
     (value) => deletionStatusSchema.parse(value),
   );
 }
@@ -123,7 +151,11 @@ export function openAppeal(request: AppealRequest) {
   const body = appealRequestSchema.parse(request);
   return requestJson(
     "/v1/appeals",
-    { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) },
+    {
+      method: "POST",
+      headers: idempotencyHeaders(body.idempotencyKey),
+      body: JSON.stringify(body),
+    },
     (value) => appealResponseSchema.parse(value),
   );
 }

@@ -420,4 +420,86 @@ describe("API composition root", () => {
     expect(disagreeing.statusCode).toBe(422);
     expect(seen).toHaveLength(2);
   });
+
+  it("carries the Idempotency-Key header through IP-8 governance routes", async () => {
+    const seen: string[] = [];
+    const worldId = "20000000-0000-4000-8000-000000000010";
+    const governancePort = {
+      setConsent: (_account: unknown, request: { idempotencyKey: string }) => {
+        seen.push(`consent:${request.idempotencyKey}`);
+        return Promise.resolve({
+          consentType: "TERMS" as const,
+          version: "IP-8-V1",
+          scope: "ACCOUNT" as const,
+          decision: "GRANTED" as const,
+          withdrawalAvailable: true,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+      createUsageQuote: (_account: unknown, request: { idempotencyKey: string }) => {
+        seen.push(`quote:${request.idempotencyKey}`);
+        return Promise.resolve({
+          quoteId: "20000000-0000-4000-8000-000000000011",
+          actionProfile: "EXPORT" as const,
+          policyVersion: "IP-8-ZERO-COST-TEST-V1",
+          costMode: "ZERO_COST_TEST" as const,
+          units: 0 as const,
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          failureBehavior: { retry: "retry", cancel: "cancel", terminalNoCommit: "none" },
+          status: "ISSUED" as const,
+        });
+      },
+      proposeDeletion: (_account: unknown, request: { idempotencyKey: string }) => {
+        seen.push(`deletion:${request.idempotencyKey}`);
+        return Promise.resolve({
+          proposalId: "20000000-0000-4000-8000-000000000012",
+          targetType: "WORLD" as const,
+          targetId: worldId,
+          digest: "a".repeat(64),
+          status: "ACTIVE" as const,
+          affected: { continuities: 0, grants: 0, exports: 0, auditCategories: ["DELETION"] },
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          explanation: "Review before confirming.",
+        });
+      },
+    } as unknown as GovernancePort;
+    app = createApiApp({
+      logLevel: "error",
+      governanceService: new GovernanceService(governancePort),
+    });
+
+    const consent = await app.inject({
+      method: "POST",
+      url: "/v1/me/consents",
+      headers: { "idempotency-key": "consent-header-key" },
+      payload: {
+        schemaVersion: 1,
+        consentType: "TERMS",
+        version: "IP-8-V1",
+        scope: "ACCOUNT",
+        decision: "GRANTED",
+      },
+    });
+    const quote = await app.inject({
+      method: "POST",
+      url: "/v1/usage/quotes",
+      headers: { "idempotency-key": "quote-header-key" },
+      payload: { schemaVersion: 1, actionProfile: "EXPORT" },
+    });
+    const proposal = await app.inject({
+      method: "POST",
+      url: "/v1/deletion-proposals",
+      headers: { "idempotency-key": "deletion-header-key" },
+      payload: { schemaVersion: 1, targetType: "WORLD", targetId: worldId },
+    });
+
+    expect(consent.statusCode).toBe(200);
+    expect(quote.statusCode).toBe(200);
+    expect(proposal.statusCode).toBe(201);
+    expect(seen).toEqual([
+      "consent:consent-header-key",
+      "quote:quote-header-key",
+      "deletion:deletion-header-key",
+    ]);
+  });
 });

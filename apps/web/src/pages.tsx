@@ -3243,6 +3243,7 @@ export function TrustLifecyclePage(): ReactElement {
                       void run(`consent-${type}`, async () => {
                         const result = await setConsent({
                           schemaVersion: 1,
+                          idempotencyKey: crypto.randomUUID(),
                           consentType,
                           version: "IP-8-V1",
                           scope: "ACCOUNT",
@@ -3296,6 +3297,7 @@ export function TrustLifecyclePage(): ReactElement {
                 void run("quote", async () => {
                   const result = await createUsageQuote({
                     schemaVersion: 1,
+                    idempotencyKey: crypto.randomUUID(),
                     actionProfile: "EXPORT",
                   });
                   if (!result.data) return setError("The export usage quote is unavailable.");
@@ -3440,6 +3442,7 @@ export function TrustLifecyclePage(): ReactElement {
                 void run("deletion-preview", async () => {
                   const result = await proposeDeletion({
                     schemaVersion: 1,
+                    idempotencyKey: crypto.randomUUID(),
                     targetType: "WORLD",
                     targetId: worldId,
                   });

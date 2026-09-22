@@ -232,7 +232,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/me/consents", async (request) => {
       const account = await authenticatedAccount(request, auth);
-      const body = consentRequestSchema.parse(request.body);
+      const body = consentRequestSchema.parse(bodyWithIdempotencyHeader(request));
       return consentRecordSchema.parse(await governance.setConsent(account, body));
     });
     app.get("/v1/resources/:resourceType/:resourceId/access", async (request) => {
@@ -267,7 +267,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/usage/quotes", async (request) => {
       const account = await authenticatedAccount(request, auth);
-      const body = usageQuoteRequestSchema.parse(request.body);
+      const body = usageQuoteRequestSchema.parse(bodyWithIdempotencyHeader(request));
       return usageQuoteSchema.parse(await governance.createUsageQuote(account, body));
     });
     app.post("/v1/usage/quotes/:quoteId/reservations", async (request, reply) => {
@@ -324,7 +324,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/deletion-proposals", async (request, reply) => {
       const account = await authenticatedAccount(request, auth);
-      const body = deletionProposalRequestSchema.parse(request.body);
+      const body = deletionProposalRequestSchema.parse(bodyWithIdempotencyHeader(request));
       return reply
         .status(201)
         .send(deletionProposalSchema.parse(await governance.proposeDeletion(account, body)));

@@ -203,6 +203,12 @@ export const consentRecordSchema = z.object({
 export const consentRequestSchema = z
   .object({
     schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
     consentType: consentTypeSchema,
     version: z.string().trim().min(1).max(80),
     scope: consentScopeSchema,
@@ -291,6 +297,12 @@ export const appealResponseSchema = z.object({
 export const usageQuoteRequestSchema = z
   .object({
     schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
     actionProfile: z.enum(["WORLD_TURN", "EXPORT"]),
   })
   .strict();
@@ -383,6 +395,12 @@ export const exportResponseSchema = z.object({
 export const deletionProposalRequestSchema = z
   .object({
     schemaVersion: z.literal(1),
+    idempotencyKey: z
+      .string()
+      .trim()
+      .min(8)
+      .max(160)
+      .regex(/^[A-Za-z0-9._:-]+$/),
     targetType: z.enum(["WORLD", "CHARACTER_ASSET"]),
     targetId: stableIdSchema,
   })
