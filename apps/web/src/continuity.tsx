@@ -877,6 +877,12 @@ export function ActionStatusCard({
       <p className="action-intent">{action.intent}</p>
       <h2 id={`action-status-${action.id}`}>{labelMode(action.status)}</h2>
       <p>{copy[action.status]}</p>
+      {action.generation?.fallbackFrom ? (
+        <p className="action-note">
+          The primary model was unavailable, so this response came from the declared fallback
+          profile. It passed the same checks, and nothing is recorded until you confirm.
+        </p>
+      ) : null}
       {action.proposal && action.status === "AWAITING_CONFIRMATION" ? (
         <div className="proposal-review">
           <p className="proposal-label">Provisional — not current truth</p>

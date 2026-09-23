@@ -242,7 +242,11 @@ importers:
         specifier: 3.1138.0
         version: 3.1138.0
 
-  packages/testkit: {}
+  packages/testkit:
+    dependencies:
+      '@simulora/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/ui:
     dependencies:

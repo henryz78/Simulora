@@ -2,9 +2,11 @@ import {
   loadLocalEnvironment,
   loadServerConfig,
   redactConfig,
+  selectModelRouting,
   selectObjectStorage,
 } from "@simulora/config";
 import { onTransactionRetryConflict } from "@simulora/database";
+import { createModelGateway } from "@simulora/model-gateway";
 import { createLogger } from "@simulora/observability";
 import { createObjectStorage } from "@simulora/storage";
 import { createWorkerComposition } from "./worker.js";
@@ -17,6 +19,7 @@ const logger = createLogger("worker", config.SIMULORA_LOG_LEVEL);
 onTransactionRetryConflict((detail) => logger.warn("transaction.retry_conflict", detail));
 const composition = createWorkerComposition(config.SIMULORA_DATABASE_URL, {
   objectStorage: createObjectStorage(selectObjectStorage(config)),
+  modelGateway: createModelGateway(selectModelRouting(config)),
 });
 
 logger.info("service.started", {
@@ -75,7 +78,27 @@ const interval = setInterval(() => {
 }, config.SIMULORA_WORKER_POLL_MS);
 
 if (composition.actionRepository) {
-  logger.info("action.worker_ready", { poll_ms: config.SIMULORA_WORKER_POLL_MS });
+  logger.info("action.worker_ready", {
+    poll_ms: config.SIMULORA_WORKER_POLL_MS,
+    model_profile: `${composition.modelGateway.profile.id}@${composition.modelGateway.profile.version}`,
+  });
+  // A failure here must not stop Action processing; it is logged and retried at
+  // the next start, and the attempt rows still carry the routed profile.
+  void composition
+    .recordModelProfile()
+    .then((activation) => {
+      if (activation?.changed) {
+        logger.info("model.profile_activated", {
+          profile: `${activation.profileId}@${activation.profileVersion}`,
+          material: activation.material,
+        });
+      }
+    })
+    .catch((error: unknown) => {
+      logger.error("model.profile_activation_failed", {
+        error_name: error instanceof Error ? error.name : "unknown",
+      });
+    });
 }
 
 function shutdown(signal: string): void {

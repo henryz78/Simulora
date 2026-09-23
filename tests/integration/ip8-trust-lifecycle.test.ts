@@ -208,7 +208,8 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         "CONSENT_CHANGED",
         "DELETION_CONFIRMED",
       ]);
-      expect((await repository.listProductChanges()).changes[0]?.version).toBe(
+      // IP-9 model-profile notices can be newer, so assert presence, not position.
+      expect((await repository.listProductChanges()).changes.map((c) => c.version)).toContain(
         "IP-8-TRUST-LIFECYCLE-V1",
       );
     } finally {

@@ -673,6 +673,15 @@ export const actionResponseSchema = z
     proposal: actionProposalSchema.nullable(),
     commit: actionCommitSchema.nullable(),
     dialogue: actionDialogueSchema.nullable().optional(),
+    // IP-9: which capability profile produced the draft. A fallback is disclosed.
+    generation: z
+      .object({
+        profileId: z.string().min(1),
+        profileVersion: z.string().min(1),
+        fallbackFrom: z.string().min(1).nullable(),
+      })
+      .nullable()
+      .optional(),
   })
   .superRefine((action, context) => {
     if (action.status === "COMPLETED_NO_EFFECT" && !action.dialogue) {

@@ -865,6 +865,16 @@ h1 {
   line-height: 1.5;
 }
 
+/* A fallback disclosure is text, not colour alone, so it survives any theme. */
+.action-note {
+  margin: 8px 0 0;
+  border-left: 3px solid #f0c988;
+  padding-left: 10px;
+  color: #edf4f2;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .pending-list-unavailable {
   display: grid;
   gap: 12px;

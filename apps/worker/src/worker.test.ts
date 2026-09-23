@@ -9,7 +9,11 @@ describe("worker composition", () => {
     await expect(worker.modelGateway.status()).resolves.toEqual({
       adapter: "deterministic",
       liveProviderConfigured: false,
+      profile: { id: "deterministic", version: "1" },
+      fallback: null,
     });
+    // Without a database there is nothing to record and nothing to generate.
+    await expect(worker.recordModelProfile()).resolves.toBeNull();
     await expect(worker.jobs.claimNext("test-worker")).resolves.toBeNull();
   });
 

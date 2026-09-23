@@ -323,6 +323,8 @@ export type ActionRecord = {
   proposal: ActionProposalRecord | null;
   commit: ActionCommitRecord | null;
   dialogue: ActionDialogueRecord | null;
+  /** Which capability profile produced the current draft, when one did. */
+  generation?: { profileId: string; profileVersion: string; fallbackFrom: string | null } | null;
   /** Internal lineage field; transport schemas intentionally omit it. */
   correlationId?: string | null;
 };
@@ -620,7 +622,75 @@ export type ActionGenerator = (request: {
   targetFact: ActionGenerationContext["targetFact"];
   context?: Readonly<Record<string, unknown>>;
   priorDialogue?: ReadonlyArray<ActionDialogueRecord>;
-}) => Promise<{ narrative: string; responseSource: ActionResponseSource; candidate: unknown }>;
+}) => Promise<{
+  narrative: string;
+  responseSource: ActionResponseSource;
+  candidate: unknown;
+  generatedBy?: { profileId: string; profileVersion: string; fallbackFrom?: string };
+}>;
+
+export type ModelProfileActivationInput = {
+  profileId: string;
+  profileVersion: string;
+  adapter: "deterministic" | "openai-compatible";
+  model: string | null;
+  promptVersion: number;
+  profileDigest: string;
+  /** `id@version` of the declared fallback, or null when there is none. */
+  fallbackProfile: string | null;
+  /** The gateway owns the materiality rule; the repository only records it. */
+  isMaterialChange(
+    previous: {
+      id: string;
+      adapter: "deterministic" | "openai-compatible";
+      model: string | null;
+      promptVersion: number;
+    } | null,
+  ): boolean;
+};
+
+export type ModelProfileActivationRecord = {
+  id: string;
+  profileId: string;
+  profileVersion: string;
+  material: boolean;
+  productChangeId: string | null;
+  activatedAt: string;
+  /** False when the profile was already the active one. */
+  changed: boolean;
+};
+
+const modelProfileLock = 7_243_611_009;
+
+function mapModelProfileActivation(row: {
+  id: string;
+  profile_id: string;
+  profile_version: string;
+  material: boolean;
+  product_change_id: string | null;
+  activated_at: Date;
+}): ModelProfileActivationRecord {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    profileVersion: row.profile_version,
+    material: row.material,
+    productChangeId: row.product_change_id,
+    activatedAt: row.activated_at.toISOString(),
+    changed: false,
+  };
+}
+
+/** The capability profile a worker routes Actions to, recorded on each attempt. */
+export type ActionProcessingOptions = {
+  profile?: { id: string; version: string; adapter: "deterministic" | "openai-compatible" };
+};
+
+const deterministicRouting = {
+  id: "deterministic",
+  version: "1",
+  adapter: "deterministic",
+} as const;
 
 export class AccessDeniedError extends Error {}
 export class NotFoundError extends Error {}
@@ -691,7 +761,7 @@ function isGeneratorEligibleFact(fact: StateRevisionDocument["facts"][number]): 
   return fact.lifecycle === "ACTIVE" && fact.scope === "SHARED";
 }
 
-function compileActionGenerationContext(
+export function compileActionGenerationContext(
   world: WorldDocument,
   state: StateRevisionDocument,
   targetCharacterId?: string,
@@ -999,6 +1069,26 @@ function sha256Bytes(bytes: Uint8Array): string {
 
 export class AuthoritativeWorldRepository {
   #consentTablePresent: Promise<boolean> | undefined;
+  #generationProfileColumns: Promise<boolean> | undefined;
+
+  // Probed on the caller's transaction client: acquiring a second pooled
+  // connection while a transaction holds one can starve a small pool.
+  private async hasGenerationProfileColumns(client: PoolClient): Promise<boolean> {
+    this.#generationProfileColumns ??= client
+      .query<{ present: boolean }>(
+        `select exists(
+           select 1 from information_schema.columns
+           where table_schema = 'simulora' and table_name = 'generation_attempts'
+             and column_name = 'profile_id'
+         ) as present`,
+      )
+      .then((result) => result.rows[0]?.present === true)
+      .catch((error: unknown) => {
+        this.#generationProfileColumns = undefined;
+        throw error;
+      });
+    return this.#generationProfileColumns;
+  }
 
   constructor(
     private readonly pool: Pool,
@@ -4381,7 +4471,9 @@ export class AuthoritativeWorldRepository {
     actionId: string,
     generator: ActionGenerator,
     workerId = "worker",
+    options: ActionProcessingOptions = {},
   ): Promise<ActionRecord | null> {
+    const profile = options.profile ?? deterministicRouting;
     const prepared = await transaction(this.pool, async (client) => {
       // All lifecycle transactions lock Action -> job -> attempt, including cancellation.
       const actionResult = await client.query<{
@@ -4602,17 +4694,34 @@ export class AuthoritativeWorldRepository {
           priorDialogueDigest: contentHash(priorDialogue),
         });
       }
+      // Prior-schema databases in the upgrade rehearsal predate the profile
+      // columns; there the routed profile is recorded by `adapter` alone.
+      const attemptColumns = [
+        "id",
+        "action_id",
+        "attempt_number",
+        "adapter",
+        "status",
+        "context_manifest",
+        "correlation_id",
+      ];
+      const attemptValues: unknown[] = [
+        attemptId,
+        actionId,
+        lease.rows[0].attempts,
+        profile.adapter,
+        "RUNNING",
+        JSON.stringify(contextManifest),
+        action.correlation_id,
+      ];
+      if (await this.hasGenerationProfileColumns(client)) {
+        attemptColumns.push("profile_id", "profile_version");
+        attemptValues.push(profile.id, profile.version);
+      }
       await client.query(
-        `insert into simulora.generation_attempts
-         (id, action_id, attempt_number, adapter, status, context_manifest, correlation_id)
-         values ($1, $2, $3, 'deterministic', 'RUNNING', $4::jsonb, $5)`,
-        [
-          attemptId,
-          actionId,
-          lease.rows[0].attempts,
-          JSON.stringify(contextManifest),
-          action.correlation_id,
-        ],
+        `insert into simulora.generation_attempts (${attemptColumns.join(", ")})
+         values (${attemptValues.map((_, index) => `$${index + 1}`).join(", ")})`,
+        attemptValues,
       );
       await this.appendProgressWithClient(client, actionId, "action.status", {
         status: "GENERATING",
@@ -4885,6 +4994,7 @@ export class AuthoritativeWorldRepository {
           narrative: candidate.candidate.narrative,
           responseSource: candidate.candidate.responseSource,
           provisional: true,
+          ...(generated.generatedBy ? { generatedBy: generated.generatedBy } : {}),
         });
         await this.appendProgressWithClient(client, actionId, "confirmation.required", {
           status: "AWAITING_CONFIRMATION",
@@ -4941,9 +5051,109 @@ export class AuthoritativeWorldRepository {
     }
   }
 
+  /**
+   * Records which capability profile workers now route to. A new activation is
+   * written only when the profile differs from the last one; a material change
+   * also publishes a MODEL product-change notice in the same transaction, so a
+   * change people would notice can never take effect silently.
+   */
+  async recordModelProfileActivation(
+    activation: ModelProfileActivationInput,
+  ): Promise<ModelProfileActivationRecord> {
+    return transaction(this.pool, async (client) => {
+      // Workers can start together; serialize so each change is recorded once.
+      await client.query("select pg_advisory_xact_lock($1)", [modelProfileLock]);
+      const latest = await client.query<{
+        id: string;
+        profile_id: string;
+        profile_version: string;
+        adapter: ModelProfileActivationInput["adapter"];
+        model: string | null;
+        prompt_version: number;
+        profile_digest: string;
+        fallback_profile: string | null;
+        material: boolean;
+        product_change_id: string | null;
+        activated_at: Date;
+      }>(
+        `select id, profile_id, profile_version, adapter, model, prompt_version, profile_digest,
+                fallback_profile, material, product_change_id, activated_at
+         from simulora.model_profile_activations order by sequence desc limit 1`,
+      );
+      const previous = latest.rows[0];
+      if (
+        previous &&
+        previous.profile_digest === activation.profileDigest &&
+        previous.fallback_profile === activation.fallbackProfile
+      ) {
+        return mapModelProfileActivation(previous);
+      }
+      const material = activation.isMaterialChange(
+        previous
+          ? {
+              id: previous.profile_id,
+              adapter: previous.adapter,
+              model: previous.model,
+              promptVersion: previous.prompt_version,
+            }
+          : null,
+      );
+      const id = randomUUID();
+      let productChangeId: string | null = null;
+      if (material) {
+        productChangeId = randomUUID();
+        await client.query(
+          `insert into simulora.product_changes
+           (id, version, category, summary, effect, recovery, affected_scopes, effective_at,
+            available_choices)
+           values ($1, $2, 'MODEL', $3, $4, $5, $6::jsonb, now(), $7::jsonb)`,
+          [
+            productChangeId,
+            `MODEL-${activation.profileId}-${activation.profileVersion}-${id.slice(0, 8)}`,
+            `World responses now come from the ${activation.profileId} profile (version ${activation.profileVersion}).`,
+            "New responses may read differently. Existing World truth, history and pending reviews are unchanged, and every response is still checked by the same rules before anything is recorded.",
+            "Review any pending proposal before confirming it; nothing changes unless you confirm.",
+            JSON.stringify(["WORLD", "CONTINUITY"]),
+            JSON.stringify(["REVIEW_PENDING_PROPOSALS", "OPEN_APPEAL"]),
+          ],
+        );
+      }
+      const inserted = await client.query<{ activated_at: Date }>(
+        `insert into simulora.model_profile_activations
+         (id, profile_id, profile_version, adapter, model, prompt_version, profile_digest,
+          fallback_profile, material, previous_activation_id, product_change_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         returning activated_at`,
+        [
+          id,
+          activation.profileId,
+          activation.profileVersion,
+          activation.adapter,
+          activation.model,
+          activation.promptVersion,
+          activation.profileDigest,
+          activation.fallbackProfile,
+          material,
+          previous?.id ?? null,
+          productChangeId,
+        ],
+      );
+      return {
+        id,
+        profileId: activation.profileId,
+        profileVersion: activation.profileVersion,
+        material,
+        productChangeId,
+        activatedAt: inserted.rows[0]!.activated_at.toISOString(),
+        changed: true,
+      };
+    });
+  }
+
   async processNextAction(
     generator: ActionGenerator,
     workerId = "worker",
+    options: ActionProcessingOptions = {},
   ): Promise<ActionRecord | null> {
     const next = await this.pool.query<{ action_id: string }>(
       `select action_id from simulora.durable_jobs
@@ -4951,7 +5161,9 @@ export class AuthoritativeWorldRepository {
           or (status = 'LEASED' and lease_until <= clock_timestamp())
        order by available_at, created_at limit 1`,
     );
-    return next.rows[0] ? this.processAction(next.rows[0].action_id, generator, workerId) : null;
+    return next.rows[0]
+      ? this.processAction(next.rows[0].action_id, generator, workerId, options)
+      : null;
   }
 
   private async readActionWithPool(
@@ -4998,6 +5210,11 @@ export class AuthoritativeWorldRepository {
       commit_state: string | null;
       committed_at: Date | null;
       dialogue_record: ActionDialogueRecord | null;
+      generated_by: {
+        profileId?: unknown;
+        profileVersion?: unknown;
+        fallbackFrom?: unknown;
+      } | null;
     }>(
       `select a.id, a.continuity_id, a.branch_id, a.correlation_id, a.expected_head_commit_id, a.operation_type, a.status, a.intent,
               a.participation_expectation, a.acknowledged_at, a.terminal_at, a.status_reason, a.operation_payload,
@@ -5007,7 +5224,10 @@ export class AuthoritativeWorldRepository {
                p.candidate_transition->'responseSource' as proposal_response_source,
                p.display_effect,
               c.id as commit_id, c.id as commit_head, sr.id as commit_state, c.created_at as committed_at,
-              to_jsonb(a)->'dialogue_record' as dialogue_record
+              to_jsonb(a)->'dialogue_record' as dialogue_record,
+              (select g.output->'generatedBy' from simulora.generation_attempts g
+                where g.action_id = a.id and g.status = 'SUCCEEDED'
+                order by g.attempt_number desc limit 1) as generated_by
        from simulora.actions a
        left join simulora.action_proposals p on p.action_id = a.id
          and p.status in ('ACTIVE', 'CONFIRMED')
@@ -5068,6 +5288,18 @@ export class AuthoritativeWorldRepository {
             }
           : null,
       dialogue: parseActionDialogue(row.dialogue_record),
+      generation:
+        typeof row.generated_by?.profileId === "string" &&
+        typeof row.generated_by.profileVersion === "string"
+          ? {
+              profileId: row.generated_by.profileId,
+              profileVersion: row.generated_by.profileVersion,
+              fallbackFrom:
+                typeof row.generated_by.fallbackFrom === "string"
+                  ? row.generated_by.fallbackFrom
+                  : null,
+            }
+          : null,
     };
   }
 
