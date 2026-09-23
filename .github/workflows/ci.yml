@@ -113,6 +113,12 @@ jobs:
         run: |
           docker build -f deploy/containers/api.Dockerfile -t simulora-api:g5 .
           docker build -f deploy/containers/worker.Dockerfile -t simulora-worker:g5 .
+          # The runtime gets its own migrated database, so the profile measures this
+          # API and worker rather than the backlog the integration suites leave behind.
+          docker run --rm --network host -e PGPASSWORD=simulora postgres:17-alpine \
+            createdb -h 127.0.0.1 -U simulora simulora_runtime
+          export SIMULORA_DATABASE_URL=postgres://simulora:simulora@127.0.0.1:5432/simulora_runtime
+          pnpm db:migrate > /dev/null
           OBJECT_ENV="-e SIMULORA_OBJECT_ENDPOINT=http://127.0.0.1:9000 -e SIMULORA_OBJECT_BUCKET=simulora-ci -e SIMULORA_OBJECT_ACCESS_KEY=simulora -e SIMULORA_OBJECT_SECRET_KEY=change-me-local-only"
           docker run -d --network host --name simulora-api-g5 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" $OBJECT_ENV simulora-api:g5
           docker run -d --network host --name simulora-worker-g5 -e SIMULORA_ENV=test -e SIMULORA_WORKER_POLL_MS=200 -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" $OBJECT_ENV simulora-worker:g5
@@ -130,7 +136,12 @@ jobs:
           # IP-9.4 PERF-ACK: 200 Actions over HTTP at concurrency 10 against the API
           # container, drained by the worker container, under the documented profile.
           set -o pipefail
-          pnpm perf:ack | tee perf-ack.json
+          if ! pnpm perf:ack | tee perf-ack.json; then
+            docker logs simulora-worker-g5 2>&1 | tail -40
+            exit 1
+          fi
+          # A summary of what the worker actually did, as evidence and for diagnosis.
+          docker logs simulora-worker-g5 2>&1 | grep -o '"message":"[a-z_.]*"' | sort | uniq -c
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium firefox webkit

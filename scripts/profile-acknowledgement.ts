@@ -147,7 +147,9 @@ export async function profileAcknowledgement(options: {
       undrained,
       errors,
       targets: { acknowledgementP95Ms: 1000 },
-      passed: errors === 0 && acknowledgementMs.p95 <= 1000,
+      // The drain is not a latency target, but a worker that resolves nothing is
+      // a broken runtime, so every acknowledged Action must reach a proposal.
+      passed: errors === 0 && undrained === 0 && acknowledgementMs.p95 <= 1000,
     };
   } finally {
     await pool.end();
