@@ -134,13 +134,17 @@ suite("IP-9 live provider path against PostgreSQL", () => {
       initiativeMode: "GUIDED",
       structureMode: "OPEN_ENDED",
     });
-    const submit = (intent: string) =>
+    const submit = (
+      intent: string,
+      extra: { targetCharacterId?: string; requestedEffect?: "NO_WORLD_EFFECT" } = {},
+    ) =>
       repository.submitAction(owner, continuity.branchId, {
         schemaVersion: 1,
         idempotencyKey: `ip9-provider-${randomUUID()}`,
         expectedHeadCommitId: continuity.headCommitId,
         participationExpectation: continuity.state.participation,
         intent,
+        ...extra,
       });
     return { owner, continuity, submit };
   }
@@ -209,6 +213,81 @@ suite("IP-9 live provider path against PostgreSQL", () => {
         expect(messages[0]?.role).toBe("system");
         expect(messages[0]?.content).not.toContain("SYSTEM OVERRIDE");
       }
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("binds valid live output as evidence and records it only after exact confirmation", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    try {
+      const { owner, continuity, submit } = await continuityFor(repository);
+      const gateway = liveGateway(provider, "none");
+      provider.behaviour = { kind: "answer", answer: (request) => candidateFor(request) };
+      const action = await submit("Ask Wren to read the gauge again.");
+      const proposed = await repository.processAction(
+        action.id,
+        (request) => gateway.generateWorldTurn(request),
+        "ip9-live-proposal",
+        { profile: routing },
+      );
+      // The database accepted the live attempt as proposal evidence, and nothing
+      // is recorded until the person confirms the exact effect.
+      expect(proposed?.status).toBe("AWAITING_CONFIRMATION");
+      expect(proposed?.generation).toEqual({
+        profileId: "live-eval",
+        profileVersion: "1",
+        fallbackFrom: null,
+      });
+      const pending = await repository.readCurrentState(owner, continuity.continuityId);
+      expect(pending.headCommitId).toBe(continuity.headCommitId);
+      const committed = await repository.confirmAction(owner, action.id, {
+        proposalId: proposed!.proposal!.id,
+        proposalDigest: proposed!.proposal!.digest,
+        expectedHeadCommitId: proposed!.proposal!.expectedHeadCommitId,
+      });
+      expect(committed.status).toBe("COMMITTED");
+      const after = await repository.readCurrentState(owner, continuity.continuityId);
+      expect(after.state.facts.find((fact) => fact.id === "fact.tide-gauge-high")?.statement).toBe(
+        "The tide gauge reads high and still rising.",
+      );
+
+      // A response-only live answer is recorded as dialogue with no World change.
+      provider.behaviour = {
+        kind: "answer",
+        answer: (request) =>
+          candidateFor(request, {
+            narrative: "Wren squints at the water and says nobody crosses tonight.",
+            operation: {
+              type: "NO_WORLD_EFFECT",
+              reason: "Advice only; the tide is unchanged.",
+              causalFactIds: [request.targetFact.id],
+            },
+          }),
+      };
+      const current = await repository.readCurrentState(owner, continuity.continuityId);
+      const question = await repository.submitAction(owner, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: `ip9-provider-${randomUUID()}`,
+        expectedHeadCommitId: current.headCommitId,
+        participationExpectation: current.state.participation,
+        intent: "Ask Wren whether anyone should cross.",
+        targetCharacterId: "character.wren",
+        requestedEffect: "NO_WORLD_EFFECT",
+      });
+      const answered = await repository.processAction(
+        question.id,
+        (request) => gateway.generateWorldTurn(request),
+        "ip9-live-dialogue",
+        { profile: routing },
+      );
+      expect(answered?.status).toBe("COMPLETED_NO_EFFECT");
+      expect(answered?.dialogue?.narrative).toContain("nobody crosses tonight");
+      expect((await repository.readCurrentState(owner, continuity.continuityId)).headCommitId).toBe(
+        current.headCommitId,
+      );
     } finally {
       await pool.end();
     }

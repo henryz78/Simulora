@@ -4922,7 +4922,16 @@ export class AuthoritativeWorldRepository {
         await client.query(
           `update simulora.generation_attempts
            set status = 'SUCCEEDED', output = $2::jsonb, completed_at = now() where id = $1`,
-          [prepared.attemptId, JSON.stringify(generated)],
+          // The database binds proposals to this exact output shape, so profile
+          // provenance travels in the draft frame instead of the evidence.
+          [
+            prepared.attemptId,
+            JSON.stringify({
+              narrative: generated.narrative,
+              responseSource: generated.responseSource,
+              candidate: generated.candidate,
+            }),
+          ],
         );
         await client.query(
           `update simulora.actions set status = 'VALIDATING', updated_at = now(), row_version = row_version + 1 where id = $1`,
@@ -4953,6 +4962,7 @@ export class AuthoritativeWorldRepository {
             responseSource: generated.responseSource,
             provisional: false,
             noWorldMutation: true,
+            ...(generated.generatedBy ? { generatedBy: generated.generatedBy } : {}),
             message: "Response recorded as dialogue; current World truth is unchanged.",
           });
           await this.appendProgressWithClient(client, actionId, "action.status", {
@@ -5225,9 +5235,10 @@ export class AuthoritativeWorldRepository {
                p.display_effect,
               c.id as commit_id, c.id as commit_head, sr.id as commit_state, c.created_at as committed_at,
               to_jsonb(a)->'dialogue_record' as dialogue_record,
-              (select g.output->'generatedBy' from simulora.generation_attempts g
-                where g.action_id = a.id and g.status = 'SUCCEEDED'
-                order by g.attempt_number desc limit 1) as generated_by
+              (select e.payload->'generatedBy' from simulora.action_progress_events e
+                where e.action_id = a.id and e.event_type = 'generation.draft'
+                  and e.payload ? 'generatedBy'
+                order by e.sequence desc limit 1) as generated_by
        from simulora.actions a
        left join simulora.action_proposals p on p.action_id = a.id
          and p.status in ('ACTIVE', 'CONFIRMED')
