@@ -462,6 +462,28 @@ describe("API composition root", () => {
           explanation: "Review before confirming.",
         });
       },
+      settleUsage: (_account: unknown, reservationId: string) => {
+        seen.push(`settle:${reservationId}`);
+        return Promise.resolve({
+          reservationId,
+          quoteId: "20000000-0000-4000-8000-000000000013",
+          actionKey: "export:test",
+          status: "SETTLED" as const,
+          units: 0 as const,
+          createdAt: new Date().toISOString(),
+        });
+      },
+      releaseUsage: (_account: unknown, reservationId: string) => {
+        seen.push(`release:${reservationId}`);
+        return Promise.resolve({
+          reservationId,
+          quoteId: "20000000-0000-4000-8000-000000000013",
+          actionKey: "export:test",
+          status: "RELEASED" as const,
+          units: 0 as const,
+          createdAt: new Date().toISOString(),
+        });
+      },
     } as unknown as GovernancePort;
     app = createApiApp({
       logLevel: "error",
@@ -492,14 +514,37 @@ describe("API composition root", () => {
       headers: { "idempotency-key": "deletion-header-key" },
       payload: { schemaVersion: 1, targetType: "WORLD", targetId: worldId },
     });
+    const reservationId = "20000000-0000-4000-8000-000000000014";
+    const settle = await app.inject({
+      method: "POST",
+      url: `/v1/usage/reservations/${reservationId}/settle`,
+      headers: { "idempotency-key": "settle-header-key" },
+      payload: {},
+    });
+    const release = await app.inject({
+      method: "POST",
+      url: `/v1/usage/reservations/${reservationId}/release`,
+      headers: { "idempotency-key": "release-header-key" },
+      payload: {},
+    });
+    const missingSettlementHeader = await app.inject({
+      method: "POST",
+      url: `/v1/usage/reservations/${reservationId}/settle`,
+      payload: {},
+    });
 
     expect(consent.statusCode).toBe(200);
     expect(quote.statusCode).toBe(200);
     expect(proposal.statusCode).toBe(201);
+    expect(settle.statusCode).toBe(200);
+    expect(release.statusCode).toBe(200);
+    expect(missingSettlementHeader.statusCode).toBe(422);
     expect(seen).toEqual([
       "consent:consent-header-key",
       "quote:quote-header-key",
       "deletion:deletion-header-key",
+      `settle:${reservationId}`,
+      `release:${reservationId}`,
     ]);
   });
 });

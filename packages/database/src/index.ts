@@ -5740,10 +5740,11 @@ export class AuthoritativeWorldRepository {
       const existing = await client.query<{
         id: string;
         world_id: string;
+        reservation_id: string;
         selected_scopes: unknown;
         omitted_scopes: unknown;
       }>(
-        `select id, world_id, selected_scopes, omitted_scopes
+        `select id, world_id, reservation_id, selected_scopes, omitted_scopes
          from simulora.export_jobs where account_id = $1 and idempotency_key = $2`,
         [account.accountId, request.idempotencyKey],
       );
@@ -5759,7 +5760,11 @@ export class AuthoritativeWorldRepository {
         const sameScopes =
           JSON.stringify(existing.rows[0].selected_scopes) === JSON.stringify(selectedScopes) &&
           JSON.stringify(existing.rows[0].omitted_scopes) === JSON.stringify(omittedScopes);
-        if (existing.rows[0].world_id !== request.worldId || !sameScopes) {
+        if (
+          existing.rows[0].world_id !== request.worldId ||
+          existing.rows[0].reservation_id !== request.reservationId ||
+          !sameScopes
+        ) {
           throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
         }
         return this.readExportWithExecutor(client, account.accountId, existing.rows[0].id);
@@ -5964,10 +5969,11 @@ export class AuthoritativeWorldRepository {
         const raced = await client.query<{
           id: string;
           world_id: string;
+          reservation_id: string;
           selected_scopes: unknown;
           omitted_scopes: unknown;
         }>(
-          `select id, world_id, selected_scopes, omitted_scopes
+          `select id, world_id, reservation_id, selected_scopes, omitted_scopes
          from simulora.export_jobs where account_id = $1 and idempotency_key = $2`,
           [account.accountId, request.idempotencyKey],
         );
@@ -5976,7 +5982,11 @@ export class AuthoritativeWorldRepository {
         const sameScopes =
           JSON.stringify(racedRow.selected_scopes) === JSON.stringify(selectedScopes) &&
           JSON.stringify(racedRow.omitted_scopes) === JSON.stringify(omittedScopes);
-        if (racedRow.world_id !== request.worldId || !sameScopes) {
+        if (
+          racedRow.world_id !== request.worldId ||
+          racedRow.reservation_id !== request.reservationId ||
+          !sameScopes
+        ) {
           throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
         }
         return this.readExportWithExecutor(client, account.accountId, racedRow.id);

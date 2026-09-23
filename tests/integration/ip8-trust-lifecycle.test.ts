@@ -112,6 +112,9 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       expect((await repository.listUsageLedger(owner)).entries).toHaveLength(1);
       expect(await repository.createExport(owner, exportRequest)).toEqual(exported);
       await expect(
+        repository.createExport(owner, { ...exportRequest, reservationId: randomUUID() }),
+      ).rejects.toBeInstanceOf(ConflictError);
+      await expect(
         repository.createExport(owner, {
           ...exportRequest,
           include: { ...exportRequest.include, history: false },

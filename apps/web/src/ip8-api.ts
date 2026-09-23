@@ -97,14 +97,14 @@ export function reserveUsage(quoteId: string, request: UsageReservationRequest) 
 export const settleUsage = (reservationId: string) =>
   requestJson(
     `/v1/usage/reservations/${encodeURIComponent(reservationId)}/settle`,
-    { method: "POST", headers: jsonHeaders, body: "{}" },
+    { method: "POST", headers: idempotencyHeaders(reservationId), body: "{}" },
     (value) => usageReservationSchema.parse(value),
   );
 
 export const releaseUsage = (reservationId: string) =>
   requestJson(
     `/v1/usage/reservations/${encodeURIComponent(reservationId)}/release`,
-    { method: "POST", headers: jsonHeaders, body: "{}" },
+    { method: "POST", headers: idempotencyHeaders(reservationId), body: "{}" },
     (value) => usageReservationSchema.parse(value),
   );
 

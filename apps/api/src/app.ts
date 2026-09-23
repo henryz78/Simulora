@@ -90,14 +90,23 @@ async function authenticatedAccount(request: FastifyRequest, auth: AuthPort) {
 // The frozen API contract carries idempotency in the `Idempotency-Key` header. The
 // body field stays accepted for compatibility, but the two must agree. A usage
 // reservation dedupes on `actionKey`, so that is the field the header fills there.
-function bodyWithIdempotencyHeader(request: FastifyRequest, field = "idempotencyKey"): unknown {
+function idempotencyKeyFromHeader(request: FastifyRequest): string {
   const header = request.headers["idempotency-key"];
-  if (header === undefined) return request.body;
-  if (Array.isArray(header)) {
+  if (header === undefined || Array.isArray(header)) {
     throw new ValidationError("Exactly one Idempotency-Key header is required");
   }
   const key = header.trim();
   if (!key) throw new ValidationError("Idempotency-Key must not be empty");
+  if (!/^[A-Za-z0-9._:-]{8,160}$/.test(key)) {
+    throw new ValidationError("Idempotency-Key has an invalid format");
+  }
+  return key;
+}
+
+function bodyWithIdempotencyHeader(request: FastifyRequest, field = "idempotencyKey"): unknown {
+  const header = request.headers["idempotency-key"];
+  if (header === undefined) return request.body;
+  const key = idempotencyKeyFromHeader(request);
   if (typeof request.body !== "object" || request.body === null) return request.body;
   const body = request.body as Record<string, unknown>;
   const existing = body[field];
@@ -286,6 +295,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/usage/reservations/:reservationId/settle", async (request) => {
       const account = await authenticatedAccount(request, auth);
+      idempotencyKeyFromHeader(request);
       const { reservationId } = request.params as { reservationId: string };
       return usageReservationSchema.parse(
         await governance.settleUsage(account, opaqueIdSchema.parse(reservationId)),
@@ -293,6 +303,7 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     });
     app.post("/v1/usage/reservations/:reservationId/release", async (request) => {
       const account = await authenticatedAccount(request, auth);
+      idempotencyKeyFromHeader(request);
       const { reservationId } = request.params as { reservationId: string };
       return usageReservationSchema.parse(
         await governance.releaseUsage(account, opaqueIdSchema.parse(reservationId)),
