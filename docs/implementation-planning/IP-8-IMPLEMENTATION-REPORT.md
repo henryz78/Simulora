@@ -1,8 +1,15 @@
 # IP-8 Trust / Lifecycle Implementation Report
 
-**State:** `REPAIRED IMPLEMENTATION CANDIDATE / G8 PENDING`
+**State:** `BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL`
 
-**Candidate behavior commit:** `686b93c4a2964aa95eaef41966347bad74f2988e`
+**Approved behavior commit:** `666db383eeb413778f5b090f1b2089b93e31ef53`
+
+**Exact-SHA CI:** [run 35820149803](https://github.com/henryz78/Simulora/actions/runs/35820149803) — success
+
+**Independent decision:** `PASS WITH ISSUES`, `0 BLOCKER / 1 IMPORTANT / 1 MINOR`.
+The bounded IP-8 behavior passes. The remaining important item is the accepted
+artifact/purge architecture disposition, and the minor item is documentation
+evidence synchronization; both are recorded below.
 
 **Scope:** the frozen IP-8 roadmap envelope only. This candidate implements
 IP-8.1–IP-8.6 and IP-8.9: eligibility/policy outcomes, ownership/grants/
@@ -48,21 +55,23 @@ bound to existing World Revision and Continuity lifecycles.
 | ESLint JSON-result check | PASS |
 | Typecheck | PASS |
 | Architecture check | PASS |
-| Migration check | PASS, 40 migrations |
+| Migration check | PASS, 43 migrations |
 | Worker runtime startup/shutdown | PASS |
-| Workspace production build | PASS (esbuild required the approved elevated run) |
-| Default Vitest | 64 passed; 129 PostgreSQL-dependent tests skipped because `SIMULORA_DATABASE_URL` is absent |
+| Workspace production build | CI container build/smoke PASS; local sandbox run was access-limited |
+| Default Vitest | 67 passed; 133 PostgreSQL-dependent tests skipped because `SIMULORA_DATABASE_URL` is absent |
 | Full Playwright E2E + axe | 68/68 PASS, desktop Chromium and touch 390×844 |
 | Dedicated IP-8 E2E + axe | 2/2 PASS, desktop Chromium and touch 390×844 |
 | Real PostgreSQL IP-8 integration | NOT RUN locally; Docker and `SIMULORA_DATABASE_URL` unavailable |
-| Independent review / G8 | PENDING; this report is not self-approval |
+| Exact-SHA CI / independent review | PASS WITH ISSUES; run `35820149803`, behavior `666db38` |
 
 ## Known boundaries
 
 This evidence proves the bounded lifecycle envelope and local integration
 contracts, not production deployment, live-provider quality, human enjoyment,
 autonomous world progression, broad multi-Character development or complete
-long-term memory. Real PostgreSQL CI remains required before G8 can close.
+long-term memory. The exact-SHA CI supplies the PostgreSQL evidence for this
+bounded Gate; it does not claim production object-storage, purge-worker or
+human-play validation.
 
 ## Repair pass (independent review FAIL response)
 
@@ -388,7 +397,7 @@ builds its own pool and repository without going through either composition
 root, so a deadlock or serialization abort inside that manual script stays
 untraced. It is not a running service.
 
-### Standing state
+### Historical standing state (superseded by the current exact-SHA closure below)
 
 `IP-8` behaviour is at `9fce1a8`. Real PostgreSQL CI has been green since
 `129d61e`. **G8 is PENDING and is not closed by this report.** Five review
@@ -402,3 +411,34 @@ passes were regressions introduced by the repairs themselves, and every one of
 them coexisted with green CI. And each round of pressure found something the
 previous round had missed, which means the coverage of concurrent behaviour
 reached its present state by being challenged rather than by design.
+
+## Current exact-SHA closure
+
+The final IP-8 behavior is `666db383eeb413778f5b090f1b2089b93e31ef53`.
+Independent focused re-review of that exact SHA returned **PASS WITH ISSUES**
+(`0B / 1I / 1M`) after exact-SHA CI run
+[`35820149803`](https://github.com/henryz78/Simulora/actions/runs/35820149803)
+passed: 43 migrations, 133 authoritative PostgreSQL tests, 200 quality tests,
+container smoke, and 68 desktop/mobile browser tests.
+
+The re-review closed the export reservation identity gap and the settle/release
+header gap. Export replay and conflict re-read now compare World, reservation
+and selected/omitted scopes. Settle/release require a single valid
+`Idempotency-Key`, and the web client sends the reservation ID as that stable
+transport key; the reservation row lock and unique ledger entry remain the
+persistent exact-once identity.
+
+The remaining important item is an explicit bounded architecture disposition:
+IP-8 stores the generated ZIP in PostgreSQL `export_jobs.artifact_bytes`, serves
+it through the authorized API, and reports `RETAINING_MINIMAL_AUDIT` after
+deletion. It does not claim S3-compatible storage, signed object URLs or a
+background purge worker. This is accepted for the IP-8 behavioral Gate because
+the required export authorization/checksum/privacy and visible purge-status
+behavior is present, while the frozen production object-storage and governed
+purge architecture remains a later hardening/release obligation.
+
+The remaining minor item was documentation synchronization and is closed by
+this section and the matching current-status handoff. IP-8.7 staged import and
+IP-8.8 bounded sharing remain deferred. IP-9 is not started by this closure;
+production object storage/purge, live provider, long-play, autonomous
+progression and full long-term memory remain unqualified.

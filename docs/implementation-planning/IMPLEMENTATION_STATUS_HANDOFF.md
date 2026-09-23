@@ -1,20 +1,26 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 CANDIDATE / G8 PENDING`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL`
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
-**Snapshot date:** `2026-09-19`.
+**Snapshot date:** `2026-09-23`.
 
 **Current phase handoff:** [IP-8 Trust / Lifecycle Implementation Report](IP-8-IMPLEMENTATION-REPORT.md).
-The local candidate implements IP-8.1–IP-8.6 and IP-8.9; staged import and
-bounded sharing remain visibly deferred under the original roadmap. Independent
-review and real-PostgreSQL Gate evidence are still required. No production live
-provider, autonomous scheduler, new truth model or complete long-term memory was
-added.
-The exact candidate behavior commit is `686b93c4a2964aa95eaef41966347bad74f2988e`;
-the documentation-only descendant may record review closure but does not replace
-that behavior baseline.
+The implementation covers IP-8.1–IP-8.6 and IP-8.9; staged import and bounded
+sharing remain visibly deferred under the original roadmap. The exact approved
+behavior commit is `666db383eeb413778f5b090f1b2089b93e31ef53`. Independent
+focused review returned `PASS WITH ISSUES` (`0B / 1I / 1M`) and exact-SHA CI
+[run 35820149803](https://github.com/henryz78/Simulora/actions/runs/35820149803)
+passed real PostgreSQL migration/integration, quality, container and browser
+checks. No production live provider, autonomous scheduler, new truth model or
+complete long-term memory was added.
+
+The accepted bounded architecture disposition is explicit: this IP-8 candidate
+stores export ZIP bytes in PostgreSQL and exposes authorized API download; it
+does not claim S3-compatible object storage, signed object URLs or a background
+purge worker. The frozen object-storage/purge architecture remains a later
+hardening/release obligation. IP-9 is not started by this handoff.
 
 **Current independent decision:** [RE-1–RE-3 Product Reality Closure Handoff](RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md).
 The underlying engineering authority remains the [G1–G6 Final / Integrated Review](G1-G6-FINAL-INTEGRATED-REVIEW.md).
@@ -1096,3 +1102,26 @@ production live model, human long-play, broad autonomous simulation and full
 long-term memory remain unverified. Full detail, including what the evidence
 does not prove, is in the
 [IP-8 implementation report](IP-8-IMPLEMENTATION-REPORT.md).
+
+## 41. IP-8 exact-SHA conditional closure
+
+The current IP-8 behavior is `666db383eeb413778f5b090f1b2089b93e31ef53`.
+The same independent Reviewer rechecked that exact SHA after the reservation
+identity and settle/release header repairs. Exact-SHA CI
+[35820149803](https://github.com/henryz78/Simulora/actions/runs/35820149803)
+passed 43 migrations, 133 authoritative PostgreSQL tests, 200 quality tests,
+container smoke, and 68 desktop/mobile browser tests.
+
+The independent result is **PASS WITH ISSUES**, `0 BLOCKER / 1 IMPORTANT /
+1 MINOR`. The important item is the explicit bounded architecture disposition
+for PostgreSQL-backed `artifact_bytes`, authorized API download and status-only
+purge; the implementation does not claim production S3-compatible storage,
+signed object URLs or a purge worker. The minor documentation item is closed by
+this current section and the updated IP-8 report. This disposition is accepted
+for the IP-8 behavioral Gate and remains a production hardening/release
+obligation.
+
+IP-8.7 staged import and IP-8.8 bounded sharing remain deferred. IP-9 remains
+not started; production live model, autonomous scheduling, full long-term
+memory, human long-play and production object-storage/purge operations remain
+unqualified.
