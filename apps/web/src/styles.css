@@ -979,6 +979,10 @@ h1 {
 .field-label input,
 .field-label select {
   width: 100%;
+  /* A grid item keeps min-width: auto, and WebKit sizes a select's minimum to
+     its longest option; without this a long Commit label breaks 320px reflow. */
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid #4e736c;
   border-radius: 14px;
   padding: 14px;

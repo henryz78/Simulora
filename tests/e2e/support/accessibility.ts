@@ -13,12 +13,25 @@ export async function expectAccessible(page: Page): Promise<void> {
 
   const original = page.viewportSize();
   await page.setViewportSize({ width: 320, height: 640 });
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
+  const reflow = await page.evaluate(() => {
+    const limit = document.documentElement.clientWidth;
+    // Name the innermost elements that cross the edge, so a failure says where.
+    const culprits = [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((element) => element.getBoundingClientRect().right > limit + 1)
+      .filter(
+        (element) =>
+          ![...element.children].some((child) => child.getBoundingClientRect().right > limit + 1),
+      )
+      .slice(0, 5)
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()}${element.className ? `.${String(element.className)}` : ""} (${Math.round(element.getBoundingClientRect().right)}px)`,
+      );
+    return { overflow: document.documentElement.scrollWidth - limit, culprits };
+  });
   expect(
-    overflow,
-    "content must reflow at 320 CSS px without horizontal scrolling",
+    reflow.overflow,
+    `content must reflow at 320 CSS px without horizontal scrolling; widest: ${reflow.culprits.join(", ")}`,
   ).toBeLessThanOrEqual(1);
   if (original) await page.setViewportSize(original);
 
