@@ -1125,3 +1125,34 @@ IP-8.7 staged import and IP-8.8 bounded sharing remain deferred. IP-9 remains
 not started; production live model, autonomous scheduling, full long-term
 memory, human long-play and production object-storage/purge operations remain
 unqualified.
+
+## 42. Current status summary for external handoff
+
+Current `main` HEAD is the documentation closure commit
+`e7493789db3f78baf619ead59ed26f50cca07866`. The approved IP-8 behavior remains
+`666db383eeb413778f5b090f1b2089b93e31ef53`; the documentation commit does not
+change runtime behavior.
+
+IP-8 implementation is complete for the frozen scope: eligibility and access
+explanations, consent and material-change records, zero-cost usage quote /
+reservation / ledger, selected-scope export with manifest/checksums, deletion
+proposal / tombstone / mutation blocking / purge status, audit and appeal seams.
+IP-8.7 staged import and IP-8.8 bounded sharing remain deferred.
+
+The same independent Reviewer rechecked the behavior and then the documentation.
+The final result is `PASS WITH ISSUES`, currently `0 BLOCKER / 1 IMPORTANT /
+0 MINOR`. The accepted important disposition is that this bounded IP-8
+implementation stores export bytes in PostgreSQL and serves them through the
+authorized API; production S3-compatible object storage, signed object URLs and
+a background purge worker are not implemented. This is recorded as a later
+hardening / release obligation and is not presented as complete.
+
+Evidence is exact and green:
+
+- behavior CI [`35820149803`](https://github.com/henryz78/Simulora/actions/runs/35820149803): 43 migrations, 133 authoritative PostgreSQL tests, 200 quality tests, container smoke, and 68 desktop/mobile browser tests;
+- documentation-head CI [`35822216400`](https://github.com/henryz78/Simulora/actions/runs/35822216400): all migration, PostgreSQL, quality, container and browser steps passed.
+
+IP-9 has not started. Production live-model enablement, autonomous scheduling,
+full long-term memory, broad autonomous simulation and human long-session play
+remain unqualified. This section is a status report for external review and
+does not request a new source review or product decision.
