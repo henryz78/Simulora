@@ -152,6 +152,18 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
     reply.header("x-correlation-id", correlationId);
   });
 
+  // User and model text is always rendered as data by the web client; these
+  // headers keep API responses from ever being treated as a document, framed or
+  // leaking a signed download path through the Referer header.
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("referrer-policy", "no-referrer");
+    reply.header("x-frame-options", "DENY");
+    reply.header("content-security-policy", "default-src 'none'; frame-ancestors 'none'");
+    if (!reply.hasHeader("cache-control")) reply.header("cache-control", "no-store");
+    return payload;
+  });
+
   app.addHook("onResponse", async (request, reply) => {
     logger.info("request.complete", {
       request_id: request.id,

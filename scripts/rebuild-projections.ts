@@ -3,11 +3,14 @@
 // or writes World truth; a missing or drifted projection is simply rebuilt.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Pool } from "pg";
 import {
   AuthoritativeWorldRepository,
   createDatabasePool,
+  type DatabasePool,
 } from "../packages/database/src/index.js";
+
+// `pg` is a dependency of the database package, not of this workspace root.
+type Pool = DatabasePool;
 
 export type ProjectionRebuildSummary = {
   /** FRESH projections whose source head no longer matched the Branch head. */

@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 
 const continuityId = "60000000-0000-4000-8000-000000000001";
 const branchId = "60000000-0000-4000-8000-000000000002";
@@ -425,7 +425,7 @@ test("Safe Point, Branch and exact append-only Restore share one Recovery model"
   await expect(
     page.getByRole("heading", { name: "Correction and Delete are not Restore" }),
   ).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("lost Restore confirmation response reconciles the durable outcome", async ({ page }) => {

@@ -10,6 +10,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
   },
+  // IP-9.8: the same journeys on each engine and form factor the product supports.
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     {
@@ -20,6 +21,20 @@ export default defineConfig({
         isMobile: true,
         viewport: { width: 390, height: 844 },
       },
+    },
+    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] } },
+    {
+      name: "mobile-webkit-390x844",
+      use: {
+        browserName: "webkit",
+        hasTouch: true,
+        isMobile: true,
+        viewport: { width: 390, height: 844 },
+      },
+    },
+    {
+      name: "tablet-chromium-768x1024",
+      use: { browserName: "chromium", hasTouch: true, viewport: { width: 768, height: 1024 } },
     },
   ],
   webServer: {

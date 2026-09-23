@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 
 const worldId = "71000000-0000-4000-8000-000000000001";
 const revisionId = "71000000-0000-4000-8000-000000000002";
@@ -148,7 +148,7 @@ test("creator can make a Draft, inspect play effect, and keep revision boundarie
   await page.getByRole("button", { name: "Create playable Revision" }).click();
   await expect(page.getByRole("status")).toContainText("Revision 1 created");
   await expect(page.getByText("not applied to existing Continuities")).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("Studio keeps an existing Continuity pinned and is complete on mobile", async ({ page }) => {
@@ -192,5 +192,5 @@ test("Studio keeps an existing Continuity pinned and is complete on mobile", asy
     `/continuities/${continuityId}`,
   );
   await expect(page.getByRole("button", { name: "Resume pinned Continuity" })).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });

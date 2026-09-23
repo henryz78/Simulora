@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 
 const continuityId = "10000000-0000-4000-8000-000000000001";
 let simulateReadFailure = false;
@@ -95,7 +95,7 @@ test("read-only authoritative World shell renders accessibly", async ({ page }) 
   await expect(page.getByText("The western signal is dim.")).toBeVisible();
   await expect(page.getByText("Guided · Open ended")).toBeVisible();
   await expect(page.getByText("Revision 1 · current path")).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("route refresh recovers the World from the API instead of client fixtures", async ({

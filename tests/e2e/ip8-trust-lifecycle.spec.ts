@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 
 const worldId = "81000000-0000-4000-8000-000000000001";
 const quoteId = "81000000-0000-4000-8000-000000000002";
@@ -228,7 +228,7 @@ test("owner can inspect trust, export selected data, appeal, and review deletion
   await page.getByRole("button", { name: "Confirm exact deletion" }).click();
   await expect(page.getByText("RETAINING MINIMAL AUDIT")).toBeVisible();
   expect(deleted).toBe(true);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("a delayed export stays reviewable and settles only once it is stored", async ({ page }) => {
@@ -297,7 +297,7 @@ test("a delayed export stays reviewable and settles only once it is stored", asy
   await expect(page.getByRole("status")).toContainText("not downloadable yet");
   await expect(page.getByRole("link", { name: "Download ZIP" })).toHaveCount(0);
   expect(settled).toBe(false);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 
   const check = page.getByRole("button", { name: "Check export again" });
   await check.focus();

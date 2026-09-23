@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectAccessible, tabTo } from "./support/accessibility.js";
 
 const continuityId = "30000000-0000-4000-8000-000000000001";
 const branchId = "30000000-0000-4000-8000-000000000002";
@@ -278,7 +278,7 @@ test("Action Truth completes twice without confusing proposal and current truth"
   const recordedHistory = page.getByRole("heading", { name: "Recorded Actions" }).locator("..");
   await expect(recordedHistory).toBeVisible();
   await expect(recordedHistory.getByRole("listitem")).toHaveCount(2);
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("an unresolved Action is recovered after refresh by durable Action ID", async ({ page }) => {
@@ -306,4 +306,23 @@ test("reconciles a lost acknowledgement before another Action", async ({ page })
   await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Send Action" })).toBeDisabled();
   expect(observedIdempotencyKeys).toHaveLength(1);
+});
+
+test("a keyboard-only person can send, review and confirm an exact Action", async ({ page }) => {
+  await page.goto(`/continuities/${continuityId}`);
+  const intent = page.getByLabel("Your Action");
+  await tabTo(page, intent);
+  await page.keyboard.type("Relight the western signal using only the keyboard.");
+  await tabTo(page, page.getByRole("button", { name: "Send Action" }));
+  await page.keyboard.press("Enter");
+  // The provisional state is announced as text, not only through colour.
+  await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  const confirm = page.getByRole("button", { name: "Confirm this exact change" });
+  await tabTo(page, confirm);
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(
+    page.getByLabel("Current world context").getByText("Recorded consequence 1.", { exact: true }),
+  ).toBeVisible();
+  await expectAccessible(page);
 });

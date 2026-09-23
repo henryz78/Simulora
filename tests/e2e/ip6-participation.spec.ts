@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 import type { ParticipationContract } from "../../packages/contracts/src/index.js";
 
 const continuityId = "61000000-0000-4000-8000-000000000001";
@@ -171,7 +171,7 @@ test("changes the two independent axes through an exact direct review", async ({
   await expect(page.getByText("World active · Goal framed", { exact: true }).first()).toBeVisible();
   await page.reload();
   await expect(page.getByText("World active · Goal framed", { exact: true }).first()).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("stale review writes nothing and requires a fresh intentional review", async ({ page }) => {

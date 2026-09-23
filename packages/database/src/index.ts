@@ -177,6 +177,9 @@ export type FoundationDatabase = {
   "app_meta.foundation_metadata": FoundationMetadataTable;
 };
 
+/** Re-exported so callers outside this package never import `pg` themselves. */
+export type { Pool as DatabasePool, PoolClient as DatabaseClient } from "pg";
+
 export function createDatabasePool(
   connectionString: string | undefined,
   overrides: PoolConfig = {},
@@ -5040,7 +5043,10 @@ export class AuthoritativeWorldRepository {
           await client.query(
             `update simulora.durable_jobs set status = 'DEAD', lease_owner = null, lease_until = null,
              last_error = $2, updated_at = now() where id = $1`,
-            [prepared.jobId, error instanceof Error ? error.message : "Unknown generation failure"],
+            [
+              prepared.jobId,
+              (error instanceof Error ? error.message : "Unknown generation failure").slice(0, 500),
+            ],
           );
           await this.appendProgressWithClient(client, actionId, "action.failed", {
             status: "FAILED_RECOVERABLE",
@@ -5050,7 +5056,10 @@ export class AuthoritativeWorldRepository {
           await client.query(
             `update simulora.durable_jobs set status = 'AVAILABLE', lease_owner = null, lease_until = null,
              available_at = now(), last_error = $2, updated_at = now() where id = $1`,
-            [prepared.jobId, error instanceof Error ? error.message : "Unknown generation failure"],
+            [
+              prepared.jobId,
+              (error instanceof Error ? error.message : "Unknown generation failure").slice(0, 500),
+            ],
           );
         }
         return this.readActionWithClient(client, account, actionId);

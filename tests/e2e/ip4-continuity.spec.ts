@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 
 const continuityId = "40000000-0000-4000-8000-000000000001";
 const branchId = "40000000-0000-4000-8000-000000000002";
@@ -547,7 +547,7 @@ test("Return surfaces bounded freshness and falls back to the authoritative Worl
   await expect(page.getByRole("heading", { name: "Lantern Reach" })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Recent recorded changes" })).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("Return never describes missing projection history as no recorded change", async ({
@@ -605,7 +605,7 @@ test("Continuity fact Lens leads to exact Correction review without mutating tru
     after: { statement: "The western signal is steady." },
     reason: "The keeper verified the lens reading.",
   });
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("older participation and Correction pending Actions remain visible together", async ({
@@ -657,7 +657,7 @@ test("older participation and Correction pending Actions remain visible together
   await expect(
     page.getByLabel("Pending work").getByRole("heading", { name: "Pending work" }),
   ).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("a lost confirmation response reports an unknown outcome instead of false unchanged truth", async ({

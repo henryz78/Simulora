@@ -5,15 +5,19 @@
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Client } from "pg";
 import { GovernanceService } from "../packages/application/src/index.js";
 import {
   AuthoritativeWorldRepository,
   createDatabasePool,
+  type DatabaseClient,
 } from "../packages/database/src/index.js";
 import { lanternReachSeed } from "../packages/domain/src/index.js";
 import { DeterministicModelGateway } from "../packages/model-gateway/src/index.js";
 import { S3ObjectStorage, type ObjectStoragePort } from "../packages/storage/src/index.js";
+
+// `pg` is a dependency of the database package, not of this workspace root, so
+// connections and their types come through it.
+type Client = DatabaseClient;
 
 export type RestoreDrillCheck = { check: string; passed: boolean; detail: string };
 
@@ -106,10 +110,10 @@ export async function runRestoreDrill(options: {
   restoredUrl: string;
   objects?: ObjectStoragePort;
 }): Promise<RestoreDrillReport> {
-  const source = new Client({ connectionString: options.sourceUrl });
-  const restored = new Client({ connectionString: options.restoredUrl });
-  await source.connect();
-  await restored.connect();
+  const sourcePool = createDatabasePool(options.sourceUrl, { max: 1 });
+  const restoredClientPool = createDatabasePool(options.restoredUrl, { max: 1 });
+  const source: Client = await sourcePool.connect();
+  const restored: Client = await restoredClientPool.connect();
   const checks: RestoreDrillCheck[] = [];
   try {
     // A consistent snapshot of the source while it is compared.
@@ -206,8 +210,10 @@ export async function runRestoreDrill(options: {
       passed: checks.every((check) => check.passed),
     };
   } finally {
-    await source.end();
-    await restored.end();
+    source.release();
+    restored.release();
+    await sourcePool.end();
+    await restoredClientPool.end();
   }
 }
 

@@ -90,7 +90,11 @@ const rootDependencies = new Set([
   ...Object.keys(rootManifest.dependencies ?? {}),
   ...Object.keys(rootManifest.devDependencies ?? {}),
 ]);
-for (const file of await walk(path.join(repositoryRoot, "tests"))) {
+// Root scripts resolve against the same root manifest, and missed it once (IP-9).
+for (const file of [
+  ...(await walk(path.join(repositoryRoot, "tests"))),
+  ...(await walk(path.join(repositoryRoot, "scripts"))),
+]) {
   const content = await readFile(file, "utf8");
   const relative = path.relative(repositoryRoot, file).replaceAll("\\", "/");
   for (const match of content.matchAll(/from\s+["']([^"'.][^"']*)["']/g)) {

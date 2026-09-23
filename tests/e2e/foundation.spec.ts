@@ -1,5 +1,5 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { expectAccessible } from "./support/accessibility.js";
 
 test("IP-8 shell is honest, responsive and accessible", async ({ page }) => {
   await page.goto("/");
@@ -8,7 +8,7 @@ test("IP-8 shell is honest, responsive and accessible", async ({ page }) => {
     "durable world begins with a known source of truth",
   );
   await expect(page.getByText("IP-8 · Trust & lifecycle")).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expectAccessible(page);
 });
 
 test("home shell remains keyboard reachable", async ({ page }) => {

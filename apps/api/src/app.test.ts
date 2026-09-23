@@ -605,4 +605,16 @@ describe("API composition root", () => {
     expect(delayed.headers["retry-after"]).toBe("30");
     expect(delayed.json()).toMatchObject({ code: "OBJECT_STORE_UNAVAILABLE" });
   });
+
+  it("marks every API response as non-document, unframeable and uncached by default", async () => {
+    app = createApiApp({ logLevel: "error" });
+    const response = await app.inject({ method: "GET", url: "/v1/foundation" });
+    expect(response.headers).toMatchObject({
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "no-referrer",
+      "x-frame-options": "DENY",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+      "cache-control": "no-store",
+    });
+  });
 });

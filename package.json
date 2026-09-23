@@ -25,6 +25,8 @@
     "model:evaluate": "tsx scripts/evaluate-model-profile.ts",
     "projections:rebuild": "tsx scripts/rebuild-projections.ts",
     "restore:drill": "tsx scripts/restore-drill.ts",
+    "perf:ack": "tsx scripts/profile-acknowledgement.ts",
+    "web:csp": "tsx scripts/check-web-csp.ts",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm architecture:check && pnpm migrations:check && pnpm test && pnpm build && pnpm runtime:check",
     "dev": "concurrently -k -n web,api,worker -c cyan,green,magenta \"pnpm --filter @simulora/web dev\" \"pnpm --filter @simulora/api dev\" \"pnpm --filter @simulora/worker dev\"",
     "dev:web": "pnpm --filter @simulora/web dev",
