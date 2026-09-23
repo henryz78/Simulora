@@ -3,7 +3,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadLocalEnvironment, loadServerConfig, redactConfig } from "./index.js";
+import {
+  loadLocalEnvironment,
+  loadServerConfig,
+  redactConfig,
+  selectObjectStorage,
+} from "./index.js";
 
 describe("server config", () => {
   it("loads safe local defaults", () => {
@@ -39,6 +44,30 @@ describe("server config", () => {
     );
     expect(environment.SIMULORA_DATABASE_URL).toBe("postgres://file:file@127.0.0.1:5432/file");
     expect(environment.SIMULORA_API_PORT).toBe("4200");
+  });
+
+  it("selects object storage without silently degrading a configured endpoint", () => {
+    expect(selectObjectStorage(loadServerConfig({ SIMULORA_ENV: "test" }))).toEqual({
+      adapter: "memory",
+    });
+    expect(selectObjectStorage(loadServerConfig({})).adapter).toBe("filesystem");
+    expect(
+      selectObjectStorage(
+        loadServerConfig({
+          SIMULORA_ENV: "test",
+          SIMULORA_OBJECT_ENDPOINT: "http://127.0.0.1:9000",
+          SIMULORA_OBJECT_ACCESS_KEY: "key",
+          SIMULORA_OBJECT_SECRET_KEY: "secret",
+        }),
+      ),
+    ).toMatchObject({ adapter: "s3", endpoint: "http://127.0.0.1:9000", bucket: "simulora-local" });
+  });
+
+  it("redacts the download signing key", () => {
+    const config = loadServerConfig({
+      SIMULORA_DOWNLOAD_SIGNING_KEY: "signing-key-that-must-never-be-logged-0000",
+    });
+    expect(JSON.stringify(redactConfig(config))).not.toContain("never-be-logged");
   });
 
   it("fails closed when an unapproved shared or production environment is requested", () => {

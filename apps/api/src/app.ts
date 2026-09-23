@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
+  DependencyUnavailableError,
   describeFoundation,
+  ExportIntegrityError,
+  InvalidDownloadLinkError,
   type ActionTruthService,
   type GovernanceService,
   type WorldContinuityService,
@@ -54,6 +57,7 @@ import {
   usageReservationRequestSchema,
   usageReservationSchema,
   usageLedgerResponseSchema,
+  exportDownloadLinkSchema,
   exportRequestSchema,
   exportResponseSchema,
   deletionProposalRequestSchema,
@@ -159,6 +163,26 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
   });
 
   app.setErrorHandler((error, _request, reply) => {
+    if (error instanceof DependencyUnavailableError) {
+      // A dependency outage is a visible, retryable delay, never an internal error.
+      void reply
+        .status(503)
+        .header("retry-after", "30")
+        .send({ code: error.reasonCode, message: "A dependency is delayed; retry shortly" });
+      return;
+    }
+    if (error instanceof ExportIntegrityError) {
+      logger.error("export.integrity_violation", { reason_code: error.reasonCode });
+      void reply.status(409).send({ code: error.reasonCode, message: error.reasonCode });
+      return;
+    }
+    if (error instanceof InvalidDownloadLinkError) {
+      // Expired, forged and revoked links are indistinguishable to the caller.
+      void reply
+        .status(404)
+        .send({ code: "DOWNLOAD_LINK_INVALID", message: "Download link is invalid or expired" });
+      return;
+    }
     if (error instanceof ZodError) {
       void reply
         .status(400)
@@ -332,6 +356,27 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
       const { exportId } = request.params as { exportId: string };
       const bytes = await governance.readExportArtifact(account, opaqueIdSchema.parse(exportId));
       return reply.type("application/zip").send(Buffer.from(bytes));
+    });
+    app.post("/v1/exports/:exportId/download-links", async (request, reply) => {
+      const account = await authenticatedAccount(request, auth);
+      const { exportId } = request.params as { exportId: string };
+      return reply
+        .status(201)
+        .header("cache-control", "no-store")
+        .send(
+          exportDownloadLinkSchema.parse(
+            await governance.createExportDownloadLink(account, opaqueIdSchema.parse(exportId)),
+          ),
+        );
+    });
+    app.get("/v1/export-downloads/:token", async (request, reply) => {
+      const { token } = request.params as { token: string };
+      const { exportId, bytes } = await governance.readSignedExport(token);
+      return reply
+        .type("application/zip")
+        .header("cache-control", "no-store")
+        .header("content-disposition", `attachment; filename="simulora-export-${exportId}.zip"`)
+        .send(Buffer.from(bytes));
     });
     app.post("/v1/deletion-proposals", async (request, reply) => {
       const account = await authenticatedAccount(request, auth);

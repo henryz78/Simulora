@@ -31,6 +31,11 @@ jobs:
       SIMULORA_DATABASE_URL: postgres://simulora:simulora@127.0.0.1:5432/simulora
       SIMULORA_AUTH_ADAPTER: development
       SIMULORA_MODEL_ADAPTER: deterministic
+      # IP-9: a real S3-compatible store for export artifacts and outage drills.
+      SIMULORA_TEST_S3_ENDPOINT: http://127.0.0.1:9000
+      SIMULORA_TEST_S3_BUCKET: simulora-ci
+      SIMULORA_TEST_S3_ACCESS_KEY: simulora
+      SIMULORA_TEST_S3_SECRET_KEY: change-me-local-only
 
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +54,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # A service container cannot pass MinIO its `server` arguments, so start it here.
+      - name: Start S3-compatible object store
+        run: |
+          docker run -d --name simulora-minio -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER=simulora -e MINIO_ROOT_PASSWORD=change-me-local-only \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null; then break; fi
+            if [ "$attempt" = 30 ]; then docker logs simulora-minio; exit 1; fi
+            sleep 1
+          done
+          SIMULORA_OBJECT_ENDPOINT=http://127.0.0.1:9000 SIMULORA_OBJECT_BUCKET=simulora-ci \
+            SIMULORA_OBJECT_ACCESS_KEY=simulora SIMULORA_OBJECT_SECRET_KEY=change-me-local-only \
+            pnpm objects:bucket
+
       - name: Run migration against empty and prior PostgreSQL schema
         run: |
           pnpm db:migrate
@@ -65,8 +85,9 @@ jobs:
         run: |
           docker build -f deploy/containers/api.Dockerfile -t simulora-api:g5 .
           docker build -f deploy/containers/worker.Dockerfile -t simulora-worker:g5 .
-          docker run -d --network host --name simulora-api-g5 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" simulora-api:g5
-          docker run -d --network host --name simulora-worker-g5 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" simulora-worker:g5
+          OBJECT_ENV="-e SIMULORA_OBJECT_ENDPOINT=http://127.0.0.1:9000 -e SIMULORA_OBJECT_BUCKET=simulora-ci -e SIMULORA_OBJECT_ACCESS_KEY=simulora -e SIMULORA_OBJECT_SECRET_KEY=change-me-local-only"
+          docker run -d --network host --name simulora-api-g5 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" $OBJECT_ENV simulora-api:g5
+          docker run -d --network host --name simulora-worker-g5 -e SIMULORA_ENV=test -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" $OBJECT_ENV simulora-worker:g5
           trap 'docker rm -f simulora-api-g5 simulora-worker-g5 >/dev/null 2>&1 || true' EXIT
           for attempt in $(seq 1 20); do
             if curl --fail --silent http://127.0.0.1:4000/health >/dev/null; then break; fi

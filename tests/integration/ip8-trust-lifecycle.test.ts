@@ -5,8 +5,10 @@ import {
   ConflictError,
   createDatabasePool,
 } from "../../packages/database/src/index.js";
+import { ExportStorageWorker, GovernanceService } from "../../packages/application/src/index.js";
 import { lanternReachSeed } from "../../packages/domain/src/index.js";
 import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
+import { InMemoryObjectStorage } from "../../packages/storage/src/index.js";
 
 const connectionString = process.env.SIMULORA_DATABASE_URL;
 const suite = connectionString ? describe.sequential : describe.skip;
@@ -16,6 +18,9 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const pool = createDatabasePool(connectionString);
     const repository = new AuthoritativeWorldRepository(pool);
+    // IP-9: an export is READY only once the object store holds it.
+    const storage = new InMemoryObjectStorage();
+    const governance = new GovernanceService(repository, { artifacts: storage });
     const owner = { accountId: randomUUID(), eligibility: "adult" as const };
     const participant = { accountId: randomUUID(), eligibility: "adult" as const };
     try {
@@ -104,23 +109,24 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         worldId: world.worldId,
         include: { world: true, characters: true, continuity: true, history: true },
       };
-      const exported = await repository.createExport(owner, exportRequest);
+      const exported = await governance.createExport(owner, exportRequest);
       expect(exported.status).toBe("READY");
       expect(exported.checksum).toMatch(/^[0-9a-f]{64}$/);
+      expect(storage.has(exported.artifactKey!)).toBe(true);
       await repository.settleUsage(owner, reservation.reservationId);
       await repository.settleUsage(owner, reservation.reservationId);
       expect((await repository.listUsageLedger(owner)).entries).toHaveLength(1);
-      expect(await repository.createExport(owner, exportRequest)).toEqual(exported);
+      expect(await governance.createExport(owner, exportRequest)).toEqual(exported);
       await expect(
-        repository.createExport(owner, { ...exportRequest, reservationId: randomUUID() }),
+        governance.createExport(owner, { ...exportRequest, reservationId: randomUUID() }),
       ).rejects.toBeInstanceOf(ConflictError);
       await expect(
-        repository.createExport(owner, {
+        governance.createExport(owner, {
           ...exportRequest,
           include: { ...exportRequest.include, history: false },
         }),
       ).rejects.toBeInstanceOf(ConflictError);
-      const artifact = Buffer.from(await repository.readExportArtifact(owner, exported.exportId));
+      const artifact = Buffer.from(await governance.readExportArtifact(owner, exported.exportId));
       const readableArtifact = artifact.toString("utf8");
       expect(readableArtifact).toContain("world/world.json");
       expect(readableArtifact).toContain("characters/character.iora.json");
@@ -170,9 +176,15 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
         }),
       ).rejects.toBeInstanceOf(ConflictError);
       expect((await repository.readExport(owner, exported.exportId)).status).toBe("REVOKED");
-      await expect(repository.readExportArtifact(owner, exported.exportId)).rejects.toThrow(
+      await expect(governance.readExportArtifact(owner, exported.exportId)).rejects.toThrow(
         "Export artifact not found",
       );
+      // IP-9: deletion propagates to the stored object, not only to the job status.
+      const storageWorker = new ExportStorageWorker(repository, storage);
+      for (let step = 0; step < 20 && storage.has(exported.artifactKey!); step += 1) {
+        await storageWorker.processNext({ worldId: world.worldId });
+      }
+      expect(storage.has(exported.artifactKey!)).toBe(false);
       expect(
         (await repository.readAccess(owner, "continuity", ownerContinuity.continuityId)).visibility,
       ).toBe("TOMBSTONED");
@@ -208,6 +220,8 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const pool = createDatabasePool(connectionString);
     const repository = new AuthoritativeWorldRepository(pool);
+    const storage = new InMemoryObjectStorage();
+    const governance = new GovernanceService(repository, { artifacts: storage });
     const owner = { accountId: randomUUID(), eligibility: "adult" as const };
     try {
       const world = await repository.createWorld(owner, lanternReachSeed);
@@ -268,16 +282,19 @@ suite("IP-8 trust and lifecycle against PostgreSQL", () => {
       expect(await repository.reserveUsage(owner, quote.quoteId, reservationRequest)).toEqual(
         reservation,
       );
-      const exported = await repository.createExport(owner, {
+      const exported = await governance.createExport(owner, {
         ...exportRequest,
         reservationId: reservation.reservationId,
       });
       expect(exported.status).toBe("READY");
 
-      // I-4: the artifact is recoverable from PostgreSQL by a separate process.
+      // I-4: a separate process recovers the artifact through PostgreSQL's record of
+      // it; since IP-9 the bytes themselves come from the shared object store.
       const freshPool = createDatabasePool(connectionString);
       try {
-        const fresh = new AuthoritativeWorldRepository(freshPool);
+        const fresh = new GovernanceService(new AuthoritativeWorldRepository(freshPool), {
+          artifacts: storage,
+        });
         const artifact = Buffer.from(await fresh.readExportArtifact(owner, exported.exportId));
         expect(artifact.toString("utf8")).toContain("manifest.json");
       } finally {

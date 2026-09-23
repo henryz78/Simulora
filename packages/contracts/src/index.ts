@@ -23,6 +23,7 @@ export const foundationResponseSchema = z.object({
     "IP-6",
     "IP-7",
     "IP-8",
+    "IP-9",
   ]),
   productSemanticsStarted: z.boolean(),
   capabilities: z.array(foundationCapabilitySchema),
@@ -390,6 +391,21 @@ export const exportResponseSchema = z.object({
   manifest: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.string().datetime(),
   completedAt: z.string().datetime().nullable(),
+  // IP-9: an export stays PENDING until the object store holds it. A recorded
+  // storage failure is surfaced here so the delay is visible, not silent.
+  delay: z
+    .object({
+      reasonCode: z.literal("OBJECT_STORE_UNAVAILABLE"),
+      message: z.string().min(1),
+    })
+    .nullable()
+    .optional(),
+});
+
+export const exportDownloadLinkSchema = z.object({
+  url: z.string().min(1),
+  expiresAt: z.string().datetime(),
+  method: z.enum(["OBJECT_STORE_SIGNED", "API_SIGNED"]),
 });
 
 export const deletionProposalRequestSchema = z

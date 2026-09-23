@@ -1,6 +1,12 @@
-import { loadLocalEnvironment, loadServerConfig, redactConfig } from "@simulora/config";
+import {
+  loadLocalEnvironment,
+  loadServerConfig,
+  redactConfig,
+  selectObjectStorage,
+} from "@simulora/config";
 import { onTransactionRetryConflict } from "@simulora/database";
 import { createLogger } from "@simulora/observability";
+import { createObjectStorage } from "@simulora/storage";
 import { createWorkerComposition } from "./worker.js";
 
 loadLocalEnvironment();
@@ -9,7 +15,9 @@ const logger = createLogger("worker", config.SIMULORA_LOG_LEVEL);
 // The database package cannot import the logger, so the composition root fills
 // its seam. Without this, deadlock and serialization aborts leave no trace.
 onTransactionRetryConflict((detail) => logger.warn("transaction.retry_conflict", detail));
-const composition = createWorkerComposition(config.SIMULORA_DATABASE_URL);
+const composition = createWorkerComposition(config.SIMULORA_DATABASE_URL, {
+  objectStorage: createObjectStorage(selectObjectStorage(config)),
+});
 
 logger.info("service.started", {
   config: redactConfig(config),
@@ -45,6 +53,22 @@ const interval = setInterval(() => {
     })
     .catch((error: unknown) => {
       logger.error("projection.rebuild_failed", {
+        error_name: error instanceof Error ? error.name : "unknown",
+      });
+    });
+  void composition
+    .processNextExportStorage()
+    .then((result) => {
+      if (!result) return;
+      // A delay is an expected outage signal, recorded at warn so alerts can key on it.
+      logger[result.outcome === "DELAYED" ? "warn" : "info"]("export.storage", {
+        export_id: result.exportId,
+        operation: result.operation,
+        outcome: result.outcome,
+      });
+    })
+    .catch((error: unknown) => {
+      logger.error("export.storage_failed", {
         error_name: error instanceof Error ? error.name : "unknown",
       });
     });

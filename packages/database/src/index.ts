@@ -538,7 +538,28 @@ type GovernanceExportResponse = {
   manifest: Record<string, unknown> | null;
   createdAt: string;
   completedAt: string | null;
+  delay: { reasonCode: "OBJECT_STORE_UNAVAILABLE"; message: string } | null;
 };
+
+/** Where an export's bytes live. Only a READY export has one. */
+export type ExportArtifactLocation = {
+  exportId: string;
+  accountId: string;
+  objectKey: string;
+  checksum: string;
+  /** Present only for artifacts written before object storage existed. */
+  inlineBytes: Uint8Array | null;
+};
+
+export type ExportStorageWork =
+  | {
+      operation: "STORE";
+      exportId: string;
+      objectKey: string;
+      checksum: string;
+      bytes: Uint8Array;
+    }
+  | { operation: "DELETE"; exportId: string; objectKey: string };
 
 type GovernanceDeletionProposalRequest = {
   schemaVersion: 1;
@@ -5948,10 +5969,14 @@ export class AuthoritativeWorldRepository {
       const exportId = randomUUID();
       const artifactKey = `exports/${account.accountId}/${exportId}.zip`;
       const checksum = sha256Bytes(artifact);
+      // The artifact is built from this transaction's snapshot and staged with its
+      // checksum. It becomes READY only once the object store holds it, so an
+      // object-store outage delays the export visibly instead of losing it.
       const inserted = await client.query<{ id: string }>(
         `insert into simulora.export_jobs
-       (id, account_id, world_id, reservation_id, idempotency_key, selected_scopes, omitted_scopes, status, schema_version, manifest)
-       values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, 'PENDING', 1, $8::jsonb)
+       (id, account_id, world_id, reservation_id, idempotency_key, selected_scopes, omitted_scopes,
+        status, schema_version, manifest, artifact_key, checksum, artifact_bytes, storage_state)
+       values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, 'PENDING', 1, $8::jsonb, $9, $10, $11, 'STAGED')
        on conflict (account_id, idempotency_key) do nothing
        returning id`,
         [
@@ -5963,6 +5988,9 @@ export class AuthoritativeWorldRepository {
           JSON.stringify(selectedScopes),
           JSON.stringify(omittedScopes),
           JSON.stringify(manifest),
+          artifactKey,
+          checksum,
+          Buffer.from(artifact),
         ],
       );
       if (!inserted.rows[0]) {
@@ -5991,21 +6019,138 @@ export class AuthoritativeWorldRepository {
         }
         return this.readExportWithExecutor(client, account.accountId, racedRow.id);
       }
-      const finalized = await client.query(
-        `update simulora.export_jobs
-         set status = 'READY', artifact_key = $2, checksum = $3, artifact_bytes = $4, completed_at = now()
-         where id = $1
-           and exists (
-             select 1 from simulora.worlds w
-             where w.id = simulora.export_jobs.world_id and w.deleted_at is null
-           )`,
-        [exportId, artifactKey, checksum, Buffer.from(artifact)],
-      );
-      // The job and its artifact commit together, so a tombstoned World leaves no
-      // half-written PENDING row behind.
-      if (finalized.rowCount !== 1) throw new ConflictError("WORLD_TOMBSTONED");
       return this.readExportWithExecutor(client, account.accountId, exportId);
     });
+  }
+
+  /** The staged bytes of one export, for the upload that follows its creation. */
+  async readStagedExport(exportId: string): Promise<ExportStorageWork | null> {
+    const result = await this.pool.query<{
+      id: string;
+      artifact_key: string;
+      checksum: string;
+      artifact_bytes: Buffer;
+    }>(
+      `select id, artifact_key, checksum, artifact_bytes from simulora.export_jobs
+       where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE')
+         and status in ('PENDING', 'READY') and artifact_bytes is not null
+         and artifact_key is not null and checksum is not null`,
+      [exportId],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          operation: "STORE",
+          exportId: row.id,
+          objectKey: row.artifact_key,
+          checksum: row.checksum,
+          bytes: new Uint8Array(row.artifact_bytes),
+        }
+      : null;
+  }
+
+  /**
+   * Claims one unit of object-store work with a short lease. Two workers can race
+   * on an upload safely: the bytes are immutable and only one finalize succeeds.
+   */
+  async claimExportStorageWork(
+    scope: { worldId?: string } = {},
+    leaseMs = 30_000,
+  ): Promise<ExportStorageWork | null> {
+    return transaction(this.pool, async (client) => {
+      const result = await client.query<{
+        id: string;
+        storage_state: string;
+        artifact_key: string | null;
+        checksum: string | null;
+        artifact_bytes: Buffer | null;
+      }>(
+        `select id, storage_state, artifact_key, checksum, artifact_bytes
+         from simulora.export_jobs
+         where (storage_available_at is null or storage_available_at <= clock_timestamp())
+           and ($1::uuid is null or world_id = $1::uuid)
+           and (
+             storage_state = 'DELETE_PENDING'
+             or (storage_state in ('STAGED', 'LEGACY_INLINE')
+                 and status in ('PENDING', 'READY') and artifact_bytes is not null
+                 and artifact_key is not null and checksum is not null)
+           )
+         order by storage_available_at nulls first, created_at
+         limit 1
+         for update skip locked`,
+        [scope.worldId ?? null],
+      );
+      const row = result.rows[0];
+      if (!row) return null;
+      await client.query(
+        `update simulora.export_jobs
+         set storage_available_at = clock_timestamp() + $2 * interval '1 millisecond'
+         where id = $1`,
+        [row.id, leaseMs],
+      );
+      if (row.storage_state === "DELETE_PENDING") {
+        // A revoked export with no key never reached the store; nothing to remove.
+        if (!row.artifact_key) {
+          await client.query(
+            `update simulora.export_jobs
+             set storage_state = 'DELETED', object_deleted_at = now() where id = $1`,
+            [row.id],
+          );
+          return null;
+        }
+        return { operation: "DELETE", exportId: row.id, objectKey: row.artifact_key };
+      }
+      return {
+        operation: "STORE",
+        exportId: row.id,
+        objectKey: row.artifact_key!,
+        checksum: row.checksum!,
+        bytes: new Uint8Array(row.artifact_bytes!),
+      };
+    });
+  }
+
+  /**
+   * Returns false when the export was revoked while its upload was in flight; the
+   * row is then DELETE_PENDING and the object the upload wrote must be removed.
+   */
+  async markExportStored(exportId: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `update simulora.export_jobs
+       set status = 'READY', storage_state = 'STORED', artifact_bytes = null,
+           object_stored_at = now(), completed_at = coalesce(completed_at, now()),
+           storage_last_error = null, storage_available_at = null
+       where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE')
+         and status in ('PENDING', 'READY')`,
+      [exportId],
+    );
+    return result.rowCount === 1;
+  }
+
+  async recordExportStorageDelay(
+    exportId: string,
+    reasonCode: "OBJECT_STORE_UNAVAILABLE" | "OBJECT_INTEGRITY_FAILED",
+  ): Promise<void> {
+    // Bounded exponential backoff so an outage does not turn into a hot loop.
+    await this.pool.query(
+      `update simulora.export_jobs
+       set storage_attempts = storage_attempts + 1, storage_last_error = $2,
+           storage_available_at = clock_timestamp()
+             + least(300000, 1000 * power(2, least(storage_attempts, 8)))
+               * interval '1 millisecond'
+       where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE', 'DELETE_PENDING')`,
+      [exportId, reasonCode],
+    );
+  }
+
+  async markExportObjectDeleted(exportId: string): Promise<void> {
+    await this.pool.query(
+      `update simulora.export_jobs
+       set storage_state = 'DELETED', object_deleted_at = now(),
+           storage_last_error = null, storage_available_at = null
+       where id = $1 and storage_state = 'DELETE_PENDING'`,
+      [exportId],
+    );
   }
 
   async readExport(account: SyntheticAccount, exportId: string): Promise<GovernanceExportResponse> {
@@ -6030,8 +6175,11 @@ export class AuthoritativeWorldRepository {
       manifest: Record<string, unknown> | null;
       created_at: Date;
       completed_at: Date | null;
+      storage_state: string;
+      storage_last_error: string | null;
     }>(
-      `select id, status, world_id, selected_scopes, omitted_scopes, checksum, artifact_key, manifest, created_at, completed_at
+      `select id, status, world_id, selected_scopes, omitted_scopes, checksum, artifact_key,
+              manifest, created_at, completed_at, storage_state, storage_last_error
        from simulora.export_jobs where id = $1 and account_id = $2`,
       [exportId, accountId],
     );
@@ -6053,28 +6201,63 @@ export class AuthoritativeWorldRepository {
       manifest: row.manifest,
       createdAt: row.created_at.toISOString(),
       completedAt: row.completed_at?.toISOString() ?? null,
+      delay:
+        row.status === "PENDING" && row.storage_state === "STAGED" && row.storage_last_error
+          ? {
+              reasonCode: "OBJECT_STORE_UNAVAILABLE",
+              message:
+                "The export is built and checksummed but storage is delayed. It becomes downloadable automatically; the World is unaffected.",
+            }
+          : null,
     };
   }
 
-  async readExportArtifact(account: SyntheticAccount, exportId: string): Promise<Uint8Array> {
+  /**
+   * Resolves a READY export to its stored object. With `accountId` the caller must
+   * own it; without, the caller is a signed-link download that verifies ownership
+   * against the returned `accountId` itself.
+   */
+  async readExportArtifactLocation(
+    exportId: string,
+    accountId?: string,
+  ): Promise<ExportArtifactLocation> {
     const result = await this.pool.query<{
+      id: string;
+      account_id: string;
       status: GovernanceExportResponse["status"];
+      storage_state: string;
       checksum: string | null;
+      artifact_key: string | null;
       artifact_bytes: Buffer | null;
     }>(
-      `select status, checksum, artifact_bytes
-       from simulora.export_jobs where id = $1 and account_id = $2`,
-      [exportId, account.accountId],
+      `select id, account_id, status, storage_state, checksum, artifact_key, artifact_bytes
+       from simulora.export_jobs
+       where id = $1 and ($2::uuid is null or account_id = $2::uuid)`,
+      [exportId, accountId ?? null],
     );
     const row = result.rows[0];
-    if (!row || row.status !== "READY" || !row.checksum || !row.artifact_bytes) {
+    if (!row || row.status !== "READY" || !row.checksum || !row.artifact_key) {
       throw new NotFoundError("Export artifact not found");
     }
-    const artifact = new Uint8Array(row.artifact_bytes);
-    if (sha256Bytes(artifact) !== row.checksum) {
-      throw new ConflictError("EXPORT_CHECKSUM_MISMATCH");
+    if (row.storage_state === "STORED") {
+      return {
+        exportId: row.id,
+        accountId: row.account_id,
+        objectKey: row.artifact_key,
+        checksum: row.checksum,
+        inlineBytes: null,
+      };
     }
-    return artifact;
+    if (row.storage_state === "LEGACY_INLINE" && row.artifact_bytes) {
+      return {
+        exportId: row.id,
+        accountId: row.account_id,
+        objectKey: row.artifact_key,
+        checksum: row.checksum,
+        inlineBytes: new Uint8Array(row.artifact_bytes),
+      };
+    }
+    throw new NotFoundError("Export artifact not found");
   }
 
   async proposeDeletion(
@@ -6285,8 +6468,12 @@ export class AuthoritativeWorldRepository {
           `update simulora.world_access_grants set status = 'REVOKED', revoked_at = now() where world_id = $1 and status = 'ACTIVE'`,
           [proposal.target_id],
         );
+        // Revocation clears staged bytes at once and queues the stored object for
+        // removal, so deletion propagates to object artifacts and not just status.
         await client.query(
-          `update simulora.export_jobs set status = 'REVOKED'
+          `update simulora.export_jobs
+           set status = 'REVOKED', storage_state = 'DELETE_PENDING', artifact_bytes = null,
+               storage_available_at = null
            where world_id = $1 and status in ('PENDING', 'READY')`,
           [proposal.target_id],
         );

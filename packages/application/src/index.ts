@@ -1,3 +1,4 @@
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type {
   ActionProgressResponse,
   ActionResponse,
@@ -59,7 +60,7 @@ export type DependencyHealth = {
 
 export function describeFoundation(dependencies: readonly DependencyHealth[]): FoundationResponse {
   return {
-    productImplementationPhase: "IP-8",
+    productImplementationPhase: "IP-9",
     productSemanticsStarted: true,
     capabilities: dependencies.map((dependency) => ({
       name: dependency.name,
@@ -181,7 +182,10 @@ export interface GovernancePort {
   listUsageLedger(account: EligibleAccount): Promise<{ entries: UsageLedgerEntry[] }>;
   createExport(account: EligibleAccount, request: ExportRequest): Promise<ExportResponse>;
   readExport(account: EligibleAccount, exportId: string): Promise<ExportResponse>;
-  readExportArtifact(account: EligibleAccount, exportId: string): Promise<Uint8Array>;
+  readExportArtifactLocation(exportId: string, accountId?: string): Promise<ExportArtifactLocation>;
+  readStagedExport(exportId: string): Promise<ExportStorageWork | null>;
+  markExportStored(exportId: string): Promise<boolean>;
+  recordExportStorageDelay(exportId: string, reasonCode: ExportStorageDelayReason): Promise<void>;
   proposeDeletion(
     account: EligibleAccount,
     request: DeletionProposalRequest,
@@ -193,8 +197,102 @@ export interface GovernancePort {
   readDeletion(account: EligibleAccount, proposalId: string): Promise<DeletionStatus>;
 }
 
+/**
+ * The object-store capability the export path needs. `@simulora/storage`
+ * satisfies it structurally; the application layer does not depend on it.
+ */
+export interface ExportArtifactStore {
+  readonly kind: string;
+  put(
+    metadata: { key: string; checksum: string; contentType: string },
+    body: Uint8Array,
+  ): Promise<void>;
+  get(key: string): Promise<Uint8Array | null>;
+  delete(key: string): Promise<void>;
+  signedDownloadUrl?(
+    key: string,
+    options: { expiresInSeconds: number; filename: string },
+  ): Promise<string>;
+}
+
+export type ExportArtifactLocation = {
+  exportId: string;
+  accountId: string;
+  objectKey: string;
+  checksum: string;
+  inlineBytes: Uint8Array | null;
+};
+
+export type ExportStorageWork =
+  | { operation: "STORE"; exportId: string; objectKey: string; checksum: string; bytes: Uint8Array }
+  | { operation: "DELETE"; exportId: string; objectKey: string };
+
+export type ExportStorageDelayReason = "OBJECT_STORE_UNAVAILABLE" | "OBJECT_INTEGRITY_FAILED";
+
+export type ExportDownloadLink = {
+  url: string;
+  expiresAt: string;
+  method: "OBJECT_STORE_SIGNED" | "API_SIGNED";
+};
+
+/** A dependency outside PostgreSQL is down; the request may be retried later. */
+export class DependencyUnavailableError extends Error {
+  override readonly name = "DependencyUnavailableError";
+  constructor(
+    readonly reasonCode: "OBJECT_STORE_UNAVAILABLE" | "MODEL_PROVIDER_UNAVAILABLE",
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/** A stored artifact no longer matches the checksum PostgreSQL recorded for it. */
+export class ExportIntegrityError extends Error {
+  override readonly name = "ExportIntegrityError";
+  constructor(readonly reasonCode: "EXPORT_CHECKSUM_MISMATCH" | "EXPORT_OBJECT_MISSING") {
+    super(reasonCode);
+  }
+}
+
+/** A signed download link that is malformed, expired or not issued by this service. */
+export class InvalidDownloadLinkError extends Error {
+  override readonly name = "InvalidDownloadLinkError";
+}
+
+function isObjectStoreUnavailable(error: unknown): boolean {
+  return (error as { name?: unknown }).name === "ObjectStoreUnavailableError";
+}
+
+function isObjectIntegrityFailure(error: unknown): boolean {
+  return (error as { name?: unknown }).name === "ObjectIntegrityError";
+}
+
+const downloadLinkTtlSeconds = 120;
+
+export type GovernanceServiceOptions = {
+  artifacts?: ExportArtifactStore;
+  /** HMAC key for API-signed download links. Required when the store cannot sign. */
+  downloadSigningKey?: string;
+  now?: () => number;
+};
+
 export class GovernanceService {
-  constructor(private readonly port: GovernancePort) {}
+  readonly #artifacts: ExportArtifactStore | undefined;
+  readonly #signingKey: Buffer;
+  readonly #now: () => number;
+
+  constructor(
+    private readonly port: GovernancePort,
+    options: GovernanceServiceOptions = {},
+  ) {
+    this.#artifacts = options.artifacts;
+    // Without a configured key, links are valid only for this process lifetime,
+    // which is the safe failure for local and test use.
+    this.#signingKey = options.downloadSigningKey
+      ? Buffer.from(options.downloadSigningKey, "utf8")
+      : randomBytes(32);
+    this.#now = options.now ?? Date.now;
+  }
 
   readMe(account: EligibleAccount) {
     return this.port.readMe(account);
@@ -232,14 +330,122 @@ export class GovernanceService {
   listUsageLedger(account: EligibleAccount) {
     return this.port.listUsageLedger(account);
   }
-  createExport(account: EligibleAccount, request: ExportRequest) {
-    return this.port.createExport(account, request);
+  async createExport(account: EligibleAccount, request: ExportRequest): Promise<ExportResponse> {
+    const created = await this.port.createExport(account, request);
+    if (created.status !== "PENDING") return created;
+    // A retry of a delayed export is also a chance to store it now.
+    await this.storeExport(created.exportId);
+    return this.port.readExport(account, created.exportId);
   }
+
   readExport(account: EligibleAccount, exportId: string) {
     return this.port.readExport(account, exportId);
   }
-  readExportArtifact(account: EligibleAccount, exportId: string) {
-    return this.port.readExportArtifact(account, exportId);
+
+  /**
+   * Uploads one staged export. An unavailable store is recorded as a visible delay
+   * and left for the worker; it never fails the request that created the export.
+   */
+  async storeExport(exportId: string): Promise<"STORED" | "DELAYED" | "REVOKED" | "NOTHING"> {
+    const work = await this.port.readStagedExport(exportId);
+    if (!work || work.operation !== "STORE") return "NOTHING";
+    if (!this.#artifacts) {
+      await this.port.recordExportStorageDelay(exportId, "OBJECT_STORE_UNAVAILABLE");
+      return "DELAYED";
+    }
+    return storeExportWork(this.port, this.#artifacts, work);
+  }
+
+  async readExportArtifact(account: EligibleAccount, exportId: string): Promise<Uint8Array> {
+    const location = await this.port.readExportArtifactLocation(exportId, account.accountId);
+    return this.#loadVerified(location);
+  }
+
+  async createExportDownloadLink(
+    account: EligibleAccount,
+    exportId: string,
+  ): Promise<ExportDownloadLink> {
+    const location = await this.port.readExportArtifactLocation(exportId, account.accountId);
+    const expiresAtSeconds = Math.floor(this.#now() / 1000) + downloadLinkTtlSeconds;
+    const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
+    if (!location.inlineBytes && this.#artifacts?.signedDownloadUrl) {
+      try {
+        const url = await this.#artifacts.signedDownloadUrl(location.objectKey, {
+          expiresInSeconds: downloadLinkTtlSeconds,
+          filename: `simulora-export-${exportId}.zip`,
+        });
+        return { url, expiresAt, method: "OBJECT_STORE_SIGNED" };
+      } catch (error) {
+        if (isObjectStoreUnavailable(error)) {
+          throw new DependencyUnavailableError("OBJECT_STORE_UNAVAILABLE", "Storage is delayed");
+        }
+        throw error;
+      }
+    }
+    const signature = this.#sign(location.exportId, location.accountId, expiresAtSeconds);
+    return {
+      url: `/v1/export-downloads/${location.exportId}.${expiresAtSeconds}.${signature}`,
+      expiresAt,
+      method: "API_SIGNED",
+    };
+  }
+
+  /** Serves an API-signed link. The link is the authority, so no session is needed. */
+  async readSignedExport(token: string): Promise<{ exportId: string; bytes: Uint8Array }> {
+    const match = /^([0-9a-f-]{36})\.(\d{1,12})\.([A-Za-z0-9_-]{43})$/.exec(token);
+    if (!match) throw new InvalidDownloadLinkError("Download link is invalid");
+    const [, exportId, expiresRaw, signature] = match as unknown as [
+      string,
+      string,
+      string,
+      string,
+    ];
+    const expiresAtSeconds = Number(expiresRaw);
+    if (expiresAtSeconds * 1000 <= this.#now()) {
+      throw new InvalidDownloadLinkError("Download link has expired");
+    }
+    let location: ExportArtifactLocation;
+    try {
+      location = await this.port.readExportArtifactLocation(exportId);
+    } catch {
+      // A revoked or deleted export must look the same as a forged link.
+      throw new InvalidDownloadLinkError("Download link is invalid");
+    }
+    const expected = Buffer.from(this.#sign(exportId, location.accountId, expiresAtSeconds));
+    const supplied = Buffer.from(signature);
+    if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
+      throw new InvalidDownloadLinkError("Download link is invalid");
+    }
+    return { exportId, bytes: await this.#loadVerified(location) };
+  }
+
+  #sign(exportId: string, accountId: string, expiresAtSeconds: number): string {
+    return createHmac("sha256", this.#signingKey)
+      .update(`simulora-export-download:v1:${exportId}:${accountId}:${expiresAtSeconds}`)
+      .digest("base64url");
+  }
+
+  async #loadVerified(location: ExportArtifactLocation): Promise<Uint8Array> {
+    let bytes = location.inlineBytes;
+    if (!bytes) {
+      if (!this.#artifacts) {
+        throw new DependencyUnavailableError("OBJECT_STORE_UNAVAILABLE", "Storage is delayed");
+      }
+      try {
+        bytes = await this.#artifacts.get(location.objectKey);
+      } catch (error) {
+        if (isObjectStoreUnavailable(error)) {
+          throw new DependencyUnavailableError("OBJECT_STORE_UNAVAILABLE", "Storage is delayed");
+        }
+        throw error;
+      }
+    }
+    // PostgreSQL recorded the checksum, so it decides whether these bytes are the export.
+    if (!bytes) throw new ExportIntegrityError("EXPORT_OBJECT_MISSING");
+    if (createHash("sha256").update(bytes).digest("hex") !== location.checksum) {
+      throw new ExportIntegrityError("EXPORT_CHECKSUM_MISMATCH");
+    }
+    return bytes;
   }
   proposeDeletion(account: EligibleAccount, request: DeletionProposalRequest) {
     return this.port.proposeDeletion(account, request);
@@ -249,6 +455,77 @@ export class GovernanceService {
   }
   readDeletion(account: EligibleAccount, proposalId: string) {
     return this.port.readDeletion(account, proposalId);
+  }
+}
+
+type ExportStorageRecorder = Pick<GovernancePort, "markExportStored" | "recordExportStorageDelay">;
+
+async function storeExportWork(
+  port: ExportStorageRecorder,
+  artifacts: ExportArtifactStore,
+  work: Extract<ExportStorageWork, { operation: "STORE" }>,
+): Promise<"STORED" | "DELAYED" | "REVOKED"> {
+  try {
+    await artifacts.put(
+      { key: work.objectKey, checksum: work.checksum, contentType: "application/zip" },
+      work.bytes,
+    );
+  } catch (error) {
+    if (isObjectStoreUnavailable(error)) {
+      await port.recordExportStorageDelay(work.exportId, "OBJECT_STORE_UNAVAILABLE");
+      return "DELAYED";
+    }
+    if (isObjectIntegrityFailure(error)) {
+      await port.recordExportStorageDelay(work.exportId, "OBJECT_INTEGRITY_FAILED");
+      return "DELAYED";
+    }
+    throw error;
+  }
+  if (await port.markExportStored(work.exportId)) return "STORED";
+  // Revoked while the upload was in flight. The row is DELETE_PENDING, so the
+  // worker removes the object even if this best-effort delete fails.
+  await artifacts.delete(work.objectKey).catch(() => undefined);
+  return "REVOKED";
+}
+
+export interface ExportStorageWorkPort extends ExportStorageRecorder {
+  claimExportStorageWork(scope?: { worldId?: string }): Promise<ExportStorageWork | null>;
+  markExportObjectDeleted(exportId: string): Promise<void>;
+}
+
+export type ExportStorageOutcome = {
+  exportId: string;
+  operation: ExportStorageWork["operation"];
+  outcome: "STORED" | "DELAYED" | "REVOKED" | "DELETED";
+};
+
+/**
+ * Drives staged uploads, legacy inline migration and revocation deletes to
+ * completion. Every step is idempotent, so a crash at any point is retried safely.
+ */
+export class ExportStorageWorker {
+  constructor(
+    private readonly port: ExportStorageWorkPort,
+    private readonly artifacts: ExportArtifactStore,
+  ) {}
+
+  /** `scope` narrows the queue to one World; drills and tests use it for isolation. */
+  async processNext(scope: { worldId?: string } = {}): Promise<ExportStorageOutcome | null> {
+    const work = await this.port.claimExportStorageWork(scope);
+    if (!work) return null;
+    if (work.operation === "STORE") {
+      const outcome = await storeExportWork(this.port, this.artifacts, work);
+      return { exportId: work.exportId, operation: work.operation, outcome };
+    }
+    try {
+      await this.artifacts.delete(work.objectKey);
+    } catch (error) {
+      if (!isObjectStoreUnavailable(error)) throw error;
+      await this.port.recordExportStorageDelay(work.exportId, "OBJECT_STORE_UNAVAILABLE");
+      return { exportId: work.exportId, operation: work.operation, outcome: "DELAYED" };
+    }
+    await this.port.markExportObjectDeleted(work.exportId);
+    return { exportId: work.exportId, operation: work.operation, outcome: "DELETED" };
   }
 }
 

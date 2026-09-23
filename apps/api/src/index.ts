@@ -3,13 +3,19 @@ import {
   GovernanceService,
   WorldContinuityService,
 } from "@simulora/application";
-import { loadLocalEnvironment, loadServerConfig, redactConfig } from "@simulora/config";
+import {
+  loadLocalEnvironment,
+  loadServerConfig,
+  redactConfig,
+  selectObjectStorage,
+} from "@simulora/config";
 import {
   AuthoritativeWorldRepository,
   createDatabasePool,
   onTransactionRetryConflict,
 } from "@simulora/database";
 import { createLogger } from "@simulora/observability";
+import { createObjectStorage } from "@simulora/storage";
 import { createApiApp } from "./app.js";
 
 loadLocalEnvironment();
@@ -25,7 +31,12 @@ const app = createApiApp({
   logLevel: config.SIMULORA_LOG_LEVEL,
   worldService: new WorldContinuityService(repository),
   actionService: new ActionTruthService(repository),
-  governanceService: new GovernanceService(repository),
+  governanceService: new GovernanceService(repository, {
+    artifacts: createObjectStorage(selectObjectStorage(config)),
+    ...(config.SIMULORA_DOWNLOAD_SIGNING_KEY
+      ? { downloadSigningKey: config.SIMULORA_DOWNLOAD_SIGNING_KEY }
+      : {}),
+  }),
 });
 app.addHook("onClose", async () => pool.end());
 

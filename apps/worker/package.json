@@ -18,6 +18,8 @@
     "@simulora/observability": "workspace:*",
     "@opentelemetry/api": "1.9.1",
     "pg": "8.23.0",
-    "zod": "4.5.2"
+    "zod": "4.5.2",
+    "@simulora/application": "workspace:*",
+    "@simulora/storage": "workspace:*"
   }
 }

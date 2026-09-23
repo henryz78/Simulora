@@ -121,6 +121,13 @@ export function createExport(request: ExportRequest) {
   );
 }
 
+export const readExport = (exportId: string) =>
+  requestJson(
+    `/v1/exports/${encodeURIComponent(exportId)}`,
+    { headers: { accept: "application/json" } },
+    (value) => exportResponseSchema.parse(value),
+  );
+
 export function proposeDeletion(request: DeletionProposalRequest) {
   const body = deletionProposalRequestSchema.parse(request);
   return requestJson(

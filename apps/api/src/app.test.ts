@@ -15,6 +15,7 @@ import {
   type WorldStudioResponse,
   type WorldValidationResponse,
 } from "@simulora/contracts";
+import { InMemoryObjectStorage, sha256Hex } from "@simulora/storage";
 import { createApiApp } from "./app.js";
 
 let app: FastifyInstance | undefined;
@@ -55,12 +56,12 @@ describe("API composition root", () => {
     expect(response.headers["x-correlation-id"]).toBe(response.headers["x-request-id"]);
   });
 
-  it("reports the IP-8 trust lifecycle phase without claiming later capabilities", async () => {
+  it("reports the IP-9 hardening phase without claiming later capabilities", async () => {
     app = createApiApp({ logLevel: "error" });
     const response = await app.inject({ method: "GET", url: "/v1/foundation" });
     expect(response.statusCode).toBe(200);
     const foundation = foundationResponseSchema.parse(response.json());
-    expect(foundation.productImplementationPhase).toBe("IP-8");
+    expect(foundation.productImplementationPhase).toBe("IP-9");
     expect(foundation.productSemanticsStarted).toBe(true);
   });
 
@@ -546,5 +547,62 @@ describe("API composition root", () => {
       `settle:${reservationId}`,
       `release:${reservationId}`,
     ]);
+  });
+
+  it("issues single-export signed links and reports a storage outage as a retryable 503", async () => {
+    const exportId = "20000000-0000-4000-8000-0000000000e1";
+    const accountId = "00000000-0000-4000-8000-000000000001";
+    const bytes = new TextEncoder().encode("export bytes");
+    const storage = new InMemoryObjectStorage();
+    const objectKey = `exports/${accountId}/${exportId}.zip`;
+    await storage.put(
+      { key: objectKey, checksum: sha256Hex(bytes), contentType: "application/zip" },
+      bytes,
+    );
+    const location = {
+      exportId,
+      accountId,
+      objectKey,
+      checksum: sha256Hex(bytes),
+      inlineBytes: null,
+    };
+    const governancePort = {
+      readExportArtifactLocation: (id: string, owner?: string) =>
+        id === exportId && (owner === undefined || owner === accountId)
+          ? Promise.resolve(location)
+          : Promise.reject(new Error("unexpected lookup")),
+    } as unknown as GovernancePort;
+    app = createApiApp({
+      logLevel: "error",
+      governanceService: new GovernanceService(governancePort, {
+        artifacts: storage,
+        downloadSigningKey: "api-test-signing-key-0123456789abcdef",
+      }),
+    });
+
+    const link = await app.inject({
+      method: "POST",
+      url: `/v1/exports/${exportId}/download-links`,
+    });
+    expect(link.statusCode).toBe(201);
+    expect(link.headers["cache-control"]).toBe("no-store");
+    const { url, method } = link.json<{ url: string; method: string }>();
+    expect(method).toBe("API_SIGNED");
+    expect(url).not.toContain(accountId);
+
+    const download = await app.inject({ method: "GET", url });
+    expect(download.statusCode).toBe(200);
+    expect(download.headers["content-type"]).toBe("application/zip");
+    expect(download.rawPayload).toEqual(Buffer.from(bytes));
+
+    const tampered = await app.inject({ method: "GET", url: `${url.slice(0, -2)}xx` });
+    expect(tampered.statusCode).toBe(404);
+    expect(tampered.json()).toMatchObject({ code: "DOWNLOAD_LINK_INVALID" });
+
+    storage.setAvailable(false);
+    const delayed = await app.inject({ method: "GET", url: `/v1/exports/${exportId}/artifact` });
+    expect(delayed.statusCode).toBe(503);
+    expect(delayed.headers["retry-after"]).toBe("30");
+    expect(delayed.json()).toMatchObject({ code: "OBJECT_STORE_UNAVAILABLE" });
   });
 });

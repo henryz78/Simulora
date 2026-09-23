@@ -63,6 +63,7 @@ import {
 import {
   confirmDeletion,
   createExport,
+  readExport,
   createUsageQuote,
   loadTrust,
   openAppeal,
@@ -3104,6 +3105,9 @@ export function TrustLifecyclePage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [quote, setQuote] = useState<UsageQuote | null>(null);
   const [exported, setExported] = useState<ExportResponse | null>(null);
+  // A delayed export keeps its reservation open until the artifact is stored, so
+  // settlement never runs ahead of a downloadable result.
+  const [pendingReservationId, setPendingReservationId] = useState<string | null>(null);
   const [include, setInclude] = useState({
     world: true,
     characters: true,
@@ -3146,6 +3150,34 @@ export function TrustLifecyclePage(): ReactElement {
       setBusy(null);
     }
   };
+
+  const refreshPendingExport = async (): Promise<void> => {
+    if (!exported || exported.status !== "PENDING") return;
+    const result = await readExport(exported.exportId);
+    if (!result.data) return;
+    if (result.data.status === "READY" && pendingReservationId) {
+      await settleUsage(pendingReservationId);
+      setPendingReservationId(null);
+      setMessage("Export ready. The in-product World remains unchanged.");
+    }
+    setExported(result.data);
+  };
+
+  const pendingExportId = exported?.status === "PENDING" ? exported.exportId : null;
+  useEffect(() => {
+    if (!pendingExportId) return;
+    // The worker retries storage in the background; a few quiet checks let the
+    // page notice without asking the person to keep pressing a button.
+    let checks = 0;
+    const timer = window.setInterval(() => {
+      checks += 1;
+      if (checks > 15) window.clearInterval(timer);
+      else void refreshPendingExport();
+    }, 4000);
+    return () => window.clearInterval(timer);
+    // Re-arm only when a different export becomes pending.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingExportId]);
 
   if (!worldId)
     return <StatusPage title="This path is incomplete" copy="A World id is required." />;
@@ -3332,6 +3364,14 @@ export function TrustLifecyclePage(): ReactElement {
                         worldId,
                         include,
                       });
+                      if (result.data?.status === "PENDING") {
+                        setExported(result.data);
+                        setPendingReservationId(reserved.data.reservationId);
+                        setQuote(null);
+                        return setMessage(
+                          "Export built and checksummed. Storage is delayed, so it is not downloadable yet; it will finish automatically. The in-product World remains unchanged.",
+                        );
+                      }
                       if (!result.data || result.data.status !== "READY") {
                         await releaseUsage(reserved.data.reservationId);
                         return setError(
@@ -3353,7 +3393,24 @@ export function TrustLifecyclePage(): ReactElement {
               </div>
             </div>
           )}
-          {exported ? (
+          {exported?.status === "PENDING" ? (
+            <div className="trust-result">
+              <strong>Export storage delayed</strong>
+              <span>SHA-256 {exported.checksum}</span>
+              <span>
+                {exported.delay?.message ??
+                  "The export is built and checksummed and is waiting to be stored."}
+              </span>
+              <button
+                className="secondary-action inline-action"
+                type="button"
+                disabled={busy !== null}
+                onClick={() => void run("export-check", refreshPendingExport)}
+              >
+                {busy === "export-check" ? "Checking…" : "Check export again"}
+              </button>
+            </div>
+          ) : exported ? (
             <div className="trust-result">
               <strong>Export ready</strong>
               <span>SHA-256 {exported.checksum}</span>

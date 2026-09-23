@@ -18,6 +18,11 @@ const serverConfigSchema = z
     SIMULORA_OBJECT_BUCKET: z.string().min(1).default("simulora-local"),
     SIMULORA_OBJECT_ACCESS_KEY: z.string().min(1).optional(),
     SIMULORA_OBJECT_SECRET_KEY: z.string().min(1).optional(),
+    // Without an endpoint, local development keeps objects on disk and tests keep
+    // them in memory. Shared environments must name an S3-compatible endpoint.
+    SIMULORA_OBJECT_ADAPTER: z.enum(["s3", "filesystem", "memory"]).optional(),
+    SIMULORA_OBJECT_DIR: z.string().min(1).default(".local-data/objects"),
+    SIMULORA_DOWNLOAD_SIGNING_KEY: z.string().min(32).optional(),
     SIMULORA_AUTH_ADAPTER: z.literal("development").default("development"),
     SIMULORA_MODEL_ADAPTER: z.literal("deterministic").default("deterministic"),
   })
@@ -73,11 +78,51 @@ export function loadServerConfig(environment: NodeJS.ProcessEnv = process.env): 
   return config;
 }
 
+export type ObjectStorageSelection =
+  | {
+      adapter: "s3";
+      endpoint: string | undefined;
+      region: string;
+      bucket: string;
+      accessKeyId: string | undefined;
+      secretAccessKey: string | undefined;
+    }
+  | { adapter: "filesystem"; directory: string }
+  | { adapter: "memory" };
+
+/** Chooses the object store for a runtime without silently degrading a shared one. */
+export function selectObjectStorage(config: ServerConfig): ObjectStorageSelection {
+  const adapter =
+    config.SIMULORA_OBJECT_ADAPTER ??
+    (config.SIMULORA_OBJECT_ENDPOINT
+      ? "s3"
+      : config.SIMULORA_ENV === "test"
+        ? "memory"
+        : "filesystem");
+  if (adapter !== "s3" && !["local", "test"].includes(config.SIMULORA_ENV)) {
+    throw new Error("Shared environments require S3-compatible object storage");
+  }
+  if (adapter === "s3") {
+    return {
+      adapter,
+      endpoint: config.SIMULORA_OBJECT_ENDPOINT,
+      region: config.SIMULORA_OBJECT_REGION,
+      bucket: config.SIMULORA_OBJECT_BUCKET,
+      accessKeyId: config.SIMULORA_OBJECT_ACCESS_KEY,
+      secretAccessKey: config.SIMULORA_OBJECT_SECRET_KEY,
+    };
+  }
+  return adapter === "filesystem"
+    ? { adapter, directory: path.resolve(config.SIMULORA_OBJECT_DIR) }
+    : { adapter };
+}
+
 export function redactConfig(config: ServerConfig): Record<string, unknown> {
   return {
     ...config,
     SIMULORA_DATABASE_URL: config.SIMULORA_DATABASE_URL ? "[configured]" : undefined,
     SIMULORA_OBJECT_ACCESS_KEY: config.SIMULORA_OBJECT_ACCESS_KEY ? "[redacted]" : undefined,
     SIMULORA_OBJECT_SECRET_KEY: config.SIMULORA_OBJECT_SECRET_KEY ? "[redacted]" : undefined,
+    SIMULORA_DOWNLOAD_SIGNING_KEY: config.SIMULORA_DOWNLOAD_SIGNING_KEY ? "[redacted]" : undefined,
   };
 }

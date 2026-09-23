@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import {
+  ExportStorageWorker,
+  type ExportArtifactStore,
+  type ExportStorageOutcome,
+} from "@simulora/application";
 import { NoopJobRepository, type JobRepository } from "@simulora/jobs";
 import { DeterministicModelGateway, type ModelGatewayPort } from "@simulora/model-gateway";
 import { AuthoritativeWorldRepository, createDatabasePool } from "@simulora/database";
@@ -14,14 +19,26 @@ export type WorkerComposition = {
   processNextProjection(): Promise<
     Awaited<ReturnType<AuthoritativeWorldRepository["processNextProjection"]>>
   >;
+  processNextExportStorage(): Promise<ExportStorageOutcome | null>;
 };
 
-export function createWorkerComposition(databaseUrl?: string): WorkerComposition {
+export type WorkerCompositionOptions = {
+  objectStorage?: ExportArtifactStore;
+};
+
+export function createWorkerComposition(
+  databaseUrl?: string,
+  options: WorkerCompositionOptions = {},
+): WorkerComposition {
   const workerId = `worker-${randomUUID()}`;
   const actionRepository = databaseUrl
     ? new AuthoritativeWorldRepository(createDatabasePool(databaseUrl, { max: 4 }))
     : undefined;
   const modelGateway = new DeterministicModelGateway();
+  const exportStorage =
+    actionRepository && options.objectStorage
+      ? new ExportStorageWorker(actionRepository, options.objectStorage)
+      : undefined;
   return {
     jobs: new NoopJobRepository(),
     modelGateway,
@@ -36,6 +53,8 @@ export function createWorkerComposition(databaseUrl?: string): WorkerComposition
         : Promise.resolve(null),
     processNextProjection: () =>
       actionRepository ? actionRepository.processNextProjection() : Promise.resolve(null),
+    processNextExportStorage: () =>
+      exportStorage ? exportStorage.processNext() : Promise.resolve(null),
   };
 }
 

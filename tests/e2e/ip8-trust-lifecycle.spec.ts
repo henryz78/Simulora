@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const worldId = "81000000-0000-4000-8000-000000000001";
 const quoteId = "81000000-0000-4000-8000-000000000002";
@@ -7,10 +7,7 @@ const reservationId = "81000000-0000-4000-8000-000000000003";
 const exportId = "81000000-0000-4000-8000-000000000004";
 const proposalId = "81000000-0000-4000-8000-000000000005";
 
-test("owner can inspect trust, export selected data, appeal, and review deletion", async ({
-  page,
-}) => {
-  let deleted = false;
+async function routeTrustBasics(page: Page): Promise<void> {
   await page.route("**/v1/me", (route) =>
     route.fulfill({
       contentType: "application/json",
@@ -124,6 +121,13 @@ test("owner can inspect trust, export selected data, appeal, and review deletion
       }),
     }),
   );
+}
+
+test("owner can inspect trust, export selected data, appeal, and review deletion", async ({
+  page,
+}) => {
+  let deleted = false;
+  await routeTrustBasics(page);
   await page.route("**/v1/exports", (route) =>
     route.fulfill({
       status: 201,
@@ -225,4 +229,81 @@ test("owner can inspect trust, export selected data, appeal, and review deletion
   await expect(page.getByText("RETAINING MINIMAL AUDIT")).toBeVisible();
   expect(deleted).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test("a delayed export stays reviewable and settles only once it is stored", async ({ page }) => {
+  await routeTrustBasics(page);
+  let settled = false;
+  let released = false;
+  let reads = 0;
+  await page.route(`**/v1/usage/reservations/${reservationId}/settle`, (route) => {
+    settled = true;
+    return route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        reservationId,
+        quoteId,
+        actionKey: "export:test",
+        status: "SETTLED",
+        units: 0,
+        createdAt: new Date().toISOString(),
+      }),
+    });
+  });
+  await page.route(`**/v1/usage/reservations/${reservationId}/release`, (route) => {
+    released = true;
+    return route.fulfill({ status: 500, body: "unexpected release" });
+  });
+  const exportBody = (status: "PENDING" | "READY") => ({
+    exportId,
+    status,
+    schemaVersion: 1,
+    worldId,
+    selectedScopes: ["world", "characters", "continuity", "history"],
+    omittedScopes: [],
+    checksum: "c".repeat(64),
+    artifactKey: `exports/${exportId}.zip`,
+    manifest: { schemaVersion: 1, worldId },
+    createdAt: new Date().toISOString(),
+    completedAt: status === "READY" ? new Date().toISOString() : null,
+    delay:
+      status === "PENDING"
+        ? {
+            reasonCode: "OBJECT_STORE_UNAVAILABLE",
+            message: "The export is built and checksummed but storage is delayed.",
+          }
+        : null,
+  });
+  await page.route("**/v1/exports", (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify(exportBody("PENDING")),
+    }),
+  );
+  await page.route(`**/v1/exports/${exportId}`, (route) => {
+    reads += 1;
+    return route.fulfill({
+      contentType: "application/json",
+      // The first status read still finds it delayed; storage finishes after that.
+      body: JSON.stringify(exportBody(reads >= 2 ? "READY" : "PENDING")),
+    });
+  });
+
+  await page.goto(`/worlds/${worldId}/trust`);
+  await page.getByRole("button", { name: "Review export usage" }).click();
+  await page.getByRole("button", { name: "Create selected export" }).click();
+  await expect(page.getByText("Export storage delayed")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("not downloadable yet");
+  await expect(page.getByRole("link", { name: "Download ZIP" })).toHaveCount(0);
+  expect(settled).toBe(false);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  const check = page.getByRole("button", { name: "Check export again" });
+  await check.focus();
+  await page.keyboard.press("Enter");
+  // Either the explicit check or the page's own background check completes it.
+  await expect(page.getByRole("link", { name: "Download ZIP" })).toBeVisible({ timeout: 12_000 });
+  expect(settled).toBe(true);
+  expect(released).toBe(false);
 });
