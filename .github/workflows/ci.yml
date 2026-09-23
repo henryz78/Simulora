@@ -81,6 +81,34 @@ jobs:
       - name: Run IP-5 quality and PostgreSQL integration checks
         run: pnpm check
 
+      # IP-9.10: seed a source through the real repository and object store, dump
+      # it, restore into an isolated database and refuse to trust the copy until
+      # every table, integrity rule, canonical hash and stored object checks out.
+      - name: Rehearse backup restore into an isolated database
+        run: |
+          BASE=postgres://simulora:simulora@127.0.0.1:5432
+          PG="docker run --rm --network host -e PGPASSWORD=simulora postgres:17-alpine"
+          export SIMULORA_OBJECT_ENDPOINT=http://127.0.0.1:9000 SIMULORA_OBJECT_BUCKET=simulora-ci
+          export SIMULORA_OBJECT_ACCESS_KEY=simulora SIMULORA_OBJECT_SECRET_KEY=change-me-local-only
+          $PG createdb -h 127.0.0.1 -U simulora simulora_drill_source
+          $PG createdb -h 127.0.0.1 -U simulora simulora_drill_restored
+          SIMULORA_DATABASE_URL=$BASE/simulora_drill_source pnpm db:migrate > /dev/null
+          SIMULORA_DATABASE_URL=$BASE/simulora_drill_source pnpm restore:drill --seed
+          $PG sh -c "pg_dump -h 127.0.0.1 -U simulora -Fc simulora_drill_source | pg_restore -h 127.0.0.1 -U simulora -d simulora_drill_restored --no-owner --exit-on-error"
+          export SIMULORA_DATABASE_URL=$BASE/simulora_drill_source
+          SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_drill_restored pnpm restore:drill
+          # The restored migration ledger is complete, so nothing is applied again.
+          if SIMULORA_DATABASE_URL=$BASE/simulora_drill_restored pnpm db:migrate | grep -q '^Applied '; then
+            echo "The restored database re-applied a migration"; exit 1
+          fi
+          # A tampered copy must fail the drill rather than be trusted.
+          $PG psql -h 127.0.0.1 -U simulora -d simulora_drill_restored -c \
+            "delete from simulora.return_orientation_projections where branch_id = (select branch_id from simulora.return_orientation_projections limit 1)"
+          if SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_drill_restored pnpm restore:drill > tampered.json; then
+            echo "A tampered restore passed the drill"; exit 1
+          fi
+          grep -q '"TABLE_CONTENT_IDENTICAL"' tampered.json
+
       - name: Build and smoke API and worker containers
         run: |
           docker build -f deploy/containers/api.Dockerfile -t simulora-api:g5 .
