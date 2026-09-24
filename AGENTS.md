@@ -124,10 +124,11 @@ IP-7 仍未开始。
 IP-7 仍未开始。
 
 IP-9 已实施，G9 独立 Review PASS（首轮 `PASS WITH ISSUES` 0B/2I/1M，修复后同一 Reviewer
-focused 复审 PASS）。批准行为 SHA `a59a58a38f338426cad757977b0dc657fe512a90`，
-exact-SHA CI `35955102973` PASS。报告见 `docs/implementation-planning/IP-9-IMPLEMENTATION-REPORT.md`，
-Review 见 `docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43。
-S3 兼容导出对象存储、签名链接与删除传播已完成。live adapter 只针对 provider double 验证：
+focused 复审 PASS）。之后第二轮独立审计的问题全部核实并修复（`d7430e3`、`e1fa0a6`，见交接 §44），
+同一 Reviewer 复审 PASS。当前批准行为 SHA `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`，
+exact-SHA CI `35964085085` PASS。报告见 `docs/implementation-planning/IP-9-IMPLEMENTATION-REPORT.md`，
+Review 见 `docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43–§44。
+S3 兼容导出对象存储、仅 API 签名的下载链接与删除传播已完成（presigned URL 已移除）。live adapter 只针对 provider double 验证：
 没有调用真实 provider，也没有 provider 获得 retention 批准，所以 production live 仍未启用。
 PostgreSQL retention purge 仍是 release 义务。IP-10 未开始、未授权。
 

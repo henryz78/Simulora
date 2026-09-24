@@ -389,3 +389,426 @@ the exact-SHA CI run (`35955102973`, `success`, `headSha` confirmed), and update
 No BLOCKER was found in either review pass. I recommend committing the currently-uncommitted
 `IP-9-IMPLEMENTATION-REPORT.md` update as part of closing this Gate, since an accurate report
 that only exists in the working tree is not yet durable project history.
+
+---
+
+## Second audit repair re-review — 2026-09-24
+
+**Trigger:** a second, separate audit of G9 returned `PASS WITH ISSUES` with six findings. The
+implementer verified each against the code, reports every one was real, and repaired all of them
+in behavior commit `d7430e3ede0ace1ef64df4d35899fa39b63e2fcf` (on top of the approved `a59a58a`).
+I re-reviewed this independently and skeptically rather than accepting "every one was real" at
+face value.
+
+**SHA reviewed:** `d7430e3ede0ace1ef64df4d35899fa39b63e2fcf`.
+**CI run reviewed:** `35961891632` — confirmed via `gh run view 35961891632
+--json headSha,conclusion`: `headSha` is exactly `d7430e3ede0ace1ef64df4d35899fa39b63e2fcf`,
+`conclusion` is `success`. Downloaded the full log (`gh run view 35961891632 --log`, 4646 lines)
+and cross-checked it directly.
+
+Note: `git log a59a58a..d7430e3` is two commits — `711e1f9` (docs: recorded my first-pass G9
+PASS against `a59a58a`/`35955102973`, including committing the then-current
+`IP-9-INDEPENDENT-REVIEW.md` — which is why that file shows as changed in this range even though
+I did not author `711e1f9`) and `d7430e3` (the actual second-audit repair). I diffed `a59a58a`
+against `d7430e3` for the full picture but attributed each change to the commit that introduced
+it (`git diff a59a58a 711e1f9` vs `git diff 711e1f9 d7430e3`) wherever it mattered, in particular
+for the documentation-currency finding below.
+
+### Finding-by-finding disposition
+
+**1. Export finalization race (worker A's stale lease-less finalize deletes worker B's stored
+object; the API's synchronous upload took no lease at all).**
+**Real, and fixed.** Read `a59a58a`'s `markExportStored`: it returned a bare `boolean`, and its
+only caller (`storeExportWork`, `packages/application/src/index.ts`) treated *any* `false` as
+"revoked while in flight" and deleted the object — but `false` was also what a *second* uploader
+finalizing the same already-`STORED` row would see, since the `UPDATE ... WHERE storage_state in
+('STAGED','LEGACY_INLINE')` no longer matches once the state is `STORED`. `a59a58a`'s
+`readStagedExport` (the API's synchronous path) was a bare `SELECT`, taking no lease at all, so a
+retry, a slow request racing the background worker, or two API requests for the same idempotency
+key could genuinely both attempt to finalize the same export. I confirmed this was a real,
+reachable defect in the reviewed prior state, not a hypothetical.
+`d7430e3` fixes it correctly: `markExportStored` now returns `"STORED" | "ALREADY_STORED" |
+"REVOKED"` (`packages/database/src/index.ts`), distinguishing "someone else already stored this
+immutable object" from "this was actually revoked," and `storeExportWork`
+(`packages/application/src/index.ts`) only calls `artifacts.delete(...)` when the outcome is
+`"REVOKED"` — `if (finalized !== "REVOKED") return "STORED";`. The API's synchronous path now
+uses a new `claimStagedExport`, a single atomic `UPDATE ... RETURNING` that takes the same
+`storage_lease_until` lease the worker's `claimExportStorageWork` takes, so the two paths
+mutually exclude through the same column regardless of which one gets there first. I verified
+this is not just a type-level fix: `tests/integration/ip9-object-storage.test.ts`'s new "lets a
+second uploader finish without deleting the stored object" test runs two real
+`ExportStorageWorker` instances against real PostgreSQL, holds worker A's `put` open with a
+controllable double, lets worker B claim (after force-expiring A's lease) and finish, then
+releases A — and asserts A's late finalize leaves the object and export in place. This is a
+genuine two-actor race exercised end-to-end, not a unit-level assertion on the return type alone.
+
+**2. Deletion/upload crash orphan (no inventory or GC).**
+**Real, and mitigated to the extent the audit's own framing allows** — this was never going to
+be "solved" by a bounded-lease fix alone, and the implementer does not claim it is. Before this
+commit, `confirmDeletion` cleared `storage_available_at` on revocation but held no lease at all,
+so an upload already in flight (API or worker) had nothing telling it a delete was pending, and
+nothing telling the delete queue an upload might still land — the exact gap the audit named.
+`d7430e3` keeps the upload's `storage_lease_until` intact across revocation (the SQL comment at
+the revocation query says so explicitly) and requires *both* the backoff and the lease to have
+expired before `claimExportStorageWork` will hand out `DELETE_PENDING` work — so a delete can
+never run concurrently with a lease-holding upload, closing the specific race described. What it
+does not do, and does not claim to do, is add an object-store inventory or reconciliation sweep
+for a case outside a lease's bound (e.g. a store with no request timeout, or a worker that holds
+a lease and then hangs forever without crashing cleanly enough to let the lease expire naturally
+— though a plain process crash is exactly what the lease's fixed 30s expiry is designed to
+survive). This ceiling is called out in-code:
+`// ponytail: lease-based exclusion, no object-store inventory; add an orphan sweep if a store
+without request timeouts is ever used` (`packages/database/src/index.ts`, next to
+`exportStorageLeaseMs`). I verified the specific crash sequence the audit described is closed and
+self-healing: the "never deletes under a running upload, and removes what a crashed upload left"
+test holds an upload open, confirms a deletion while it is in flight, asserts the delete is
+**not** claimable yet (`expect(await worker.processNext(...)).toBeNull()`), releases the upload
+with its own best-effort cleanup delete forced to fail (simulating a crash right after the object
+landed), confirms the object is still there, force-expires the lease (standing in for the real
+30s), and confirms the *next* poll of the same `DELETE_PENDING` queue removes it. I traced the
+non-test code path for the "crash between a real `delete()` succeeding and the DB being told
+so" case (unchanged by this commit, already correct): `ExportStorageWorker.processNext`'s DELETE
+branch calls `artifacts.delete()` **before** `markExportObjectDeleted` writes `DELETED`, and
+deleting an absent key is defined as success on every adapter, so a crash there just means the
+next poll's delete-of-an-already-gone-object is a harmless no-op. Accepted as correctly and
+honestly scoped, not a BLOCKER.
+
+**3. S3 presigned URLs bypass PostgreSQL checksum verification and stay usable until deletion
+completes.**
+**Real, and fully fixed by removal.** In `a59a58a`, `createExportDownloadLink` preferred a
+presigned S3 URL whenever the store supported one; once issued, that URL was independently
+usable directly against the object store for its whole TTL, bypassing `GovernanceService`
+entirely — no checksum re-verification, and (as the S3-suite test at the time literally showed by
+asserting a 404 only *after* the drain loop ran) it stays valid for as long as the object exists,
+without re-checking whether the export had meanwhile been revoked. `d7430e3` removes the
+mechanism outright: `ExportArtifactStore`/`ObjectStoragePort` no longer declare
+`signedDownloadUrl`, `S3ObjectStorage`'s implementation and the `@aws-sdk/s3-request-presigner`
+dependency are deleted from `packages/storage`, and `ExportDownloadLink.method` is now the
+literal `"API_SIGNED"` (`packages/contracts/src/index.ts`) — there is no other code path left
+that can produce a different value. Every download now goes through `readSignedExport`, which
+re-verifies the checksum against PostgreSQL on every single use (`#loadVerified`) and re-resolves
+ownership/revocation via `readExportArtifactLocation` on every use, not just at mint time. I
+checked this against the frozen contract text the coordinator flagged
+(`API_SECURITY_AND_OPERATIONS.md` §6.4: "Signed, short-lived object download/upload URLs scoped
+to one object/action"; `IMPLEMENTATION_PLAN.md` §5's object-store row only commits to "exercises
+S3 contracts," naming no specific download mechanism) — neither document mandates that the
+signed link be an S3-native presigned URL specifically; both care about the security property
+(signed, short-lived, single-object/action scope), which an HMAC-signed, 120-second, single
+export+account-bound API link satisfies at least as well, and which the audit's own finding shows
+a raw presigned URL satisfies *worse* (no post-mint checksum or revocation re-check). I do not
+read this as a frozen-contract conflict; if anything it closes a gap the frozen text's intent
+implies. The updated S3-suite test in `tests/integration/ip9-object-storage.test.ts` confirms
+`link.url` never contains the raw S3 endpoint, that a revoked export's link is refused
+immediately (`InvalidDownloadLinkError`) even before the object itself is physically deleted, and
+that the underlying object is genuinely stored/retrieved/deleted against a real S3-compatible
+endpoint throughout.
+
+**4. Live evaluation false pass (a provider that always errors yields `passed: true`).**
+**Real, and fixed.** In `a59a58a`, live-mode `passed` was `hardGateFailures.length === 0 &&
+unmetExpectations.length === 0`; `unmetExpectations` is unconditionally `[]` in live mode (only
+computed in replay), and every hard gate in `evaluateModelOutput` is written as `!parsed || ...`,
+so a case that ends in an `Error` (including `ProviderUnavailableError` for every single case)
+trivially satisfies every gate. I confirmed by inspection that a provider erroring on all 13
+cases would indeed have produced `passed: true` under the prior logic — this was a real,
+reachable false-pass, not a contrived edge case. `d7430e3` adds `liveFailures` (live mode only):
+any `benign`-category case whose outcome isn't `ACCEPTED`, or any case at all that ends in
+`ProviderUnavailableError`, and folds `liveFailures.length === 0` into `passed`
+(`scripts/evaluate-model-profile.ts`). The new
+`tests/integration/ip9-model-evaluation.test.ts` test constructs exactly the failure mode the
+audit named — a `ModelGatewayPort` whose `generateWorldTurn` always rejects with
+`ProviderUnavailableError` — runs it through `runModelEvaluation("live", ...)`, and asserts
+`hardGateFailures` stays empty (proving the vacuous-gate behavior is still there, as expected)
+while `liveFailures` has one entry per case and `passed` is `false`. This is a real regression
+test for the exact scenario, not a rewording.
+
+**5. Provider response fully buffered before the 64 KB check; password-only URL credentials
+accepted.**
+**Both real, both fixed.** For buffering: `a59a58a`'s `generateWorldTurn` called `await
+response.json()`, which reads and materializes the entire HTTP body in memory before any size
+check runs; the `content.length > 64_000` check only ran on the already-fully-buffered, already
+JSON-parsed inner string, so nothing bounded the outer envelope's size during the read itself — a
+provider (or anything on that network path) returning an arbitrarily large body would be fully
+buffered regardless. `d7430e3` adds `readBoundedBody` (`packages/model-gateway/src/index.ts`),
+which checks `content-length` up front and then streams the body via
+`response.body.getReader()`, accumulating a running total and calling `reader.cancel()` and
+throwing the moment the total exceeds `maxEnvelopeBytes` (320 KiB, sized to comfortably hold
+64,000 UTF-8 characters plus envelope) — before `JSON.parse` is ever reached, and without ever
+holding more than `limit` bytes. The pre-existing `content.length > 64_000` check on the
+extracted inner candidate string is untouched and still runs afterward, so the two limits are
+complementary, not a regression of the tighter one. For credentials: `assertProviderEndpoint`
+previously rejected only `url.username`; a `https://:secret@host/...` URL has an empty username
+and a non-empty password and would have passed. It now rejects `url.username || url.password`.
+Both are covered by new unit tests in `packages/model-gateway/src/index.test.ts`: an
+"oversized body" case (`"<html>".repeat(60_000)`, ~360 KB, over the 320 KB limit) asserts
+`ProviderResponseError`, and a loop over `https://:hunter2@provider.example/...` and
+`https://user@provider.example/...` asserts both throw `/URL credentials/`.
+
+**6. Minor findings.**
+- *Misleading UI for REVOKED/FAILED exports* — real (the UI previously fell through to an
+  "else" branch that rendered nothing distinct once `exported.status` was `REVOKED`/`FAILED`
+  after being `PENDING`). Fixed: `apps/web/src/pages.tsx` adds an explicit branch rendering
+  "Export not available" with status-specific copy and no download control, exercised end-to-end
+  by a new `tests/e2e/ip8-trust-lifecycle.spec.ts` test that drives a PENDING→REVOKED transition
+  through mocked routes and asserts no "Export ready" text and no "Download ZIP" link ever
+  appear, plus a passing `expectAccessible(page)` call on the new UI state.
+- *Integrity failures reported as availability failures* — real (both `OBJECT_STORE_UNAVAILABLE`
+  and a checksum mismatch on write shared one delay reason and one message, telling the person
+  "storage is delayed" for what is actually a corrupted write). Fixed: `OBJECT_INTEGRITY_FAILED`
+  is now its own `ExportStorageDelayReason` and its own branch in the export-response mapping
+  (`packages/database/src/index.ts`), with contract support
+  (`exportResponseSchema`'s `delay.reasonCode` is now an enum of both reasons in
+  `packages/contracts/src/index.ts`) and a dedicated PostgreSQL-backed test that forces a put to
+  throw `ObjectIntegrityError` and asserts the export surfaces `OBJECT_INTEGRITY_FAILED`.
+- *Legacy inline reservation edge* — real, and distinct from I1's original fix. `a59a58a` settled
+  reservations only through `markExportStored` (new exports going forward) and released
+  reservations only for exports revoked while `PENDING`; a `READY` row whose reservation was
+  never settled at all — e.g. a genuinely legacy row inserted directly (as the "migrates a
+  pre-IP-9 inline artifact" fixture does) without ever passing through `markExportStored` — had
+  no path to ever leave `RESERVED`. `d7430e3` adds a second `closeExportReservations` call in the
+  deletion path for rows whose `prior_status === "READY"`, settling (not releasing) them, since a
+  `READY` export did deliver its artifact. The new "settles a delivered legacy export's open
+  reservation when its World is deleted" test inserts exactly this shape of row directly via SQL
+  and confirms deletion moves its reservation from `RESERVED` to `SETTLED` with one `SETTLEMENT`
+  ledger entry.
+- *Fallback or endpoint profile changes without material notices* — real. `isMaterialProfileChange`
+  previously compared `id`/`adapter`/`model`/`promptVersion` only; neither a same-model
+  provider-endpoint change (e.g. moving to a different backend serving an identically-named
+  model) nor a fallback-declaration change (e.g. `none` → `deterministic`) would have been
+  flagged material, so people would not be told about either. Fixed: `CapabilityProfile` gains
+  `provider` (the endpoint's origin, derived in `OpenAICompatibleModelGateway`'s constructor,
+  never supplied separately — so it cannot drift from the real endpoint), which participates in
+  `isMaterialProfileChange`, `profileDigest`, and the new `model_profile_activations.provider`
+  column (migration `0047`); and `createWorkerComposition`'s `isMaterialChange` closure now also
+  returns `true` when `previous.fallbackProfile !== fallbackProfile` for any non-first
+  activation. Covered by unit tests (materiality, digest) and a real-PostgreSQL integration test
+  that activates a profile, moves it to a different `provider` value, and confirms both the
+  returned activation and the persisted row reflect it.
+- *Incomplete effect corpus (no movement cases)* — real. The corpus previously only exercised
+  `FACT_REWRITE` and `NO_WORLD_EFFECT`; `ROUTINE_EFFECT`/`MOVE_CHARACTER` (the RE-3 closed-policy
+  movement mechanism) was never evaluated at all. Fixed: three new cases
+  (`benign.routine-move`, `authority.route-outside-policy`,
+  `authority.moves-unauthorized-character`) exercise an authorized move, a move to a location
+  outside the closed routine policy, and a move of an unauthorized character, plus a new
+  `ACCEPTED_MOVE_WITHIN_POLICY` hard gate that independently re-checks any accepted move against
+  the corpus's own declared policy. I confirmed the two new rejection cases' expected-message
+  regexes (`/outside the authorized closed policy/`, `/explicitly authorized NPC/`) match
+  verbatim strings still present in the **unchanged** `packages/domain/src/index.ts` (this commit
+  does not touch the domain package at all) — these cases exercise the real, already-hardened
+  RE-3 production validator, they do not add new authority logic.
+- *No human assistive-technology review* — correctly left open and disclosed; this is an external
+  dependency the implementer cannot close by writing code, and nothing in this commit claims
+  otherwise.
+
+### Additional checks the coordinator asked for specifically
+
+- **Lease/backoff interplay — can a delete be starved, and can an upload land after its lease
+  expires?** A delete cannot run while a lease is held, but the lease is fixed-duration
+  (`exportStorageLeaseMs = 30_000`) and is set once at claim time — it is never renewed or
+  extended by a long-running upload, so worst case a delete waits one lease duration, not
+  indefinitely, even if the uploader never returns at all (crash, hang, or otherwise). An upload
+  cannot "land after its lease" in a way that causes harm: if its lease has already expired when
+  it finally calls `markExportStored`, the row may by then be `STORED` (another uploader won —
+  returns `ALREADY_STORED`, no deletion) or `DELETE_PENDING`/`DELETED` (revoked and possibly
+  already cleaned up — returns `REVOKED`, triggers the same best-effort delete that would have
+  run anyway). Neither outcome corrupts state or double-charges a reservation, because
+  `closeExportReservations`'s guard (`where status = 'RESERVED'`) makes every settlement/release
+  idempotent regardless of ordering.
+- **The assumption that S3 request time is bounded below the 30 s lease.** Verified in
+  `packages/storage/src/index.ts`: `S3ObjectStorage`'s constructor sets
+  `requestHandler: { connectionTimeout: timeout, requestTimeout: timeout }` with `timeout =
+  options.requestTimeoutMs ?? 5000` and `maxAttempts: 2`, giving a worst case of ~10 s for any
+  single put/get/delete — comfortably under the 30 s lease, matching the code's own comment ("two
+  attempts of five seconds for S3"). I checked every call site that constructs an
+  `S3ObjectStorageOptions` in production composition (`createObjectStorage`/`selectObjectStorage`
+  in `packages/config/src/index.ts`) and confirmed none of them pass a custom
+  `requestTimeoutMs` — only test code does. **This holds today but is an untested, implicit
+  coupling** between two independently hardcoded constants in two different files/packages
+  (storage's `5000 ms × 2` and the database package's `30_000 ms`); nothing would fail loudly if
+  a future change raised the S3 timeout (or `maxAttempts`) without also raising the lease. I am
+  not treating this as a defect — the assumption is correct as the code stands, and both values
+  are currently hardcoded, not configurable in production — but I flag it below as a MINOR
+  observation worth a cross-referencing comment or a shared constant.
+- **Do the new integration tests really exercise the races, or just assert the type change?**
+  Verified above per finding — the two new `ip9-object-storage.test.ts` tests use a real
+  `ControlledStorage` double (`holdNextPut`/`releasePut`/`failNextPut`/`failNextDelete`) against
+  two real `ExportStorageWorker` instances and real PostgreSQL, genuinely creating and resolving
+  the race windows rather than asserting on `markExportStored`'s return value in isolation.
+- **Migration `0047` against the append-only activation trigger and the export identity
+  trigger.** Read `0047` in full: it only adds two nullable columns
+  (`export_jobs.storage_lease_until`, `model_profile_activations.provider`) with no `UPDATE`
+  statement touching existing rows. `simulora.model_profile_activations_immutable` (from `0045`)
+  fires `before update or delete` and blocks any row mutation — since `0047` issues no `UPDATE`
+  against that table, it never fires, and the trigger's own definition is untouched, so
+  append-only history for every prior activation is intact. `simulora.protect_export_artifact_identity`
+  (from `0044`) checks specific named fields (`account_id`, `world_id`, `idempotency_key`,
+  `selected_scopes`, `omitted_scopes`, `manifest`, `created_at`, `checksum`, `artifact_key`,
+  `artifact_bytes`, `storage_state`); it does not reference `storage_lease_until` at all, so
+  writes to the new column (by `claimStagedExport`, `claimExportStorageWork`, `markExportStored`,
+  `recordExportStorageDelay`, `markExportObjectDeleted`, and the revocation path) are unaffected
+  by and do not need to satisfy that trigger's checks. Both triggers' own `CREATE TRIGGER`/
+  `CREATE OR REPLACE FUNCTION` statements are unchanged in this diff — confirmed via
+  `git diff a59a58a d7430e3 -- db/migrations`, which shows only `0047` as a new, added file with
+  no other migration touched.
+- **Whether removing presigned URLs conflicts with a frozen contract.** Addressed under finding 3
+  above — no conflict found; the frozen text specifies security properties, not a specific
+  transport mechanism, and the properties are met (arguably better) by the API-signed
+  replacement.
+- **Action, authority, confirmation semantics and migrations 0001–0046 untouched.** Confirmed.
+  `git diff a59a58a d7430e3 --stat` touches only: `AGENTS.md`, `apps/web/src/pages.tsx`,
+  `apps/worker/src/worker.ts`, `db/migrations/0047_ip9_review_repairs.sql`, `docs/README.md`,
+  `docs/implementation-planning/IMPLEMENTATION_STATUS_HANDOFF.md`,
+  `docs/implementation-planning/IP-9-IMPLEMENTATION-REPORT.md`,
+  `docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`, `packages/application/src/index.ts`,
+  `packages/contracts/src/index.ts`, `packages/database/src/index.ts`,
+  `packages/model-gateway/src/index.test.ts`, `packages/model-gateway/src/index.ts`,
+  `packages/storage/package.json`, `packages/storage/src/index.test.ts`,
+  `packages/storage/src/index.ts`, `packages/testkit/src/model-evaluation.ts`, `pnpm-lock.yaml`,
+  `scripts/evaluate-model-profile.ts`, and five test files. None of these are Action/proposal/
+  confirmation/participation code; `packages/domain/src/index.ts` (home of the SQL evidence
+  functions and `validateActionCandidate`) is untouched by this commit. `db/migrations` shows
+  only `0047` as `A` (added); `0001`–`0046` are absent from the diff entirely.
+  (`pnpm-lock.yaml`'s 4674-line diff is routine dependency-tree re-resolution churn from removing
+  `@aws-sdk/s3-request-presigner` — I scanned it for any of the explicitly-banned technologies
+  from Implementation Plan §5 — WebSockets, Redis, Kafka, a vector database — and found none.)
+
+### CI evidence (run `35961891632`)
+
+Same shape as both prior runs, with counts up by exactly the new test cases: unit `14 passed
+(14)` / `153 passed` (was 149), PostgreSQL integration `31 passed (31)` / `250 passed` (was 245),
+migration check now `47 migration` (was 46), restore drill's full check set still `"passed":
+true` throughout, `perf:ack` p95 `427.1 ms` (target 1000 ms, even lower than the prior run),
+production CSP smoke still `26 elements` with no violations, and Playwright `185 passed` (was
+180) across the same five projects, including the new "an export revoked while delayed is never
+offered for download" title. The only `ECONNREFUSED`/error-looking lines in the log belong to
+`authoritative-world.spec.ts`'s own deliberate API-outage test, which is designed to produce them
+and passes. No failures, no new skips.
+
+### New findings from this re-review
+
+**N1 (IMPORTANT — documentation currency).** `AGENTS.md`, `docs/README.md`,
+`IMPLEMENTATION_STATUS_HANDOFF.md` and `IP-9-IMPLEMENTATION-REPORT.md` were updated only in
+`711e1f9` (which recorded my *first* re-review's `G9 PASS` against `a59a58a`/`35955102973`) and
+were **not** touched again by `d7430e3`. Right now, `AGENTS.md`'s IP-9 paragraph still names
+`a59a58a38f338426cad757977b0dc657fe512a90` and CI `35955102973` as the approved behavior/evidence,
+with no mention anywhere in tracked docs of the second, separate audit, its six findings, the
+repair commit `d7430e3ede0ace1ef64df4d35899fa39b63e2fcf`, or CI run `35961891632` — I grepped all
+four files and found zero matches for `d7430e3`, `35961891632` or any mention of a second audit.
+A future agent reading `AGENTS.md` first (as the file itself instructs) would not learn that a
+second review happened or that the approved baseline moved. This should be closed by updating
+those documents to point at `d7430e3`/`35961891632` and record the second audit's six findings
+and their resolution, the same way `711e1f9` recorded the first round. Not a BLOCKER — the code
+fix itself is verified correct — but it is the same class of gap as the original I2 finding,
+recurring.
+
+**N2 (MINOR — fragile implicit coupling, not a defect).** The 30 s export-storage lease's safety
+margin over S3's worst-case request time is correct as configured today but rests on two
+hardcoded constants in different files/packages with nothing tying them together (see "The
+assumption that S3 request time is bounded below the 30 s lease" above). Suggest a code comment
+cross-reference (or deriving one bound from the other) so a future change to either cannot
+silently reopen the original race. No test or behavior change requested.
+
+No BLOCKER. No other new findings — the six audited items were each real and each is now fixed
+completely and correctly, including the two sub-parts of findings 2 and 6 that go beyond what a
+first reading of the audit's one-line summaries might suggest (the API-path lease gap inside
+finding 1; the legacy-`READY`-row settlement gap inside finding 6, which is distinct from and
+additional to the original I1 fix).
+
+### Final verdict
+
+**G9 PASS.**
+
+Every finding from the second, independent audit was real, and every one is now fixed completely
+and correctly, verified against the actual code and a genuinely green exact-SHA CI run
+(`35961891632`, `headSha` confirmed, `success`) rather than accepted on the implementer's word.
+The new concurrency tests exercise the actual races, not just the type signatures; the presigned-
+URL removal strengthens rather than weakens the relevant frozen security contract; migration
+`0047` is additive-only and does not disturb either append-only trigger; and Action, authority,
+confirmation and all previously-applied migrations remain untouched. The one outstanding item is
+documentation currency (N1), which I recommend closing before treating this Gate as fully
+recorded, and N2 is an accepted, low-severity structural observation for the future.
+
+---
+
+## Closure — N1 and N2 — 2026-09-24
+
+**N2 behavior fix reviewed:** `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626` (`git show e1fa0a6`, on
+top of `d7430e3`). **CI reviewed:** run `35964085085` — confirmed via `gh run view 35964085085
+--json headSha,conclusion`: `headSha` is exactly `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`,
+`conclusion` is `success`. Downloaded the full log and cross-checked every figure the implementer
+reported: PostgreSQL suite `14 files / 154 tests` (was 153 — exactly the one new test added),
+`pnpm check` `31 files / 251 tests` (was 250), `Migration check passed (47 migration)`, restore
+drill `"rows": 172` with every named check still `"passed": true`, `perf:ack` acknowledgement
+`p95: 508.8`, and Playwright `185 passed`. All match exactly. No failures in the log.
+
+**N2 disposition: fixed correctly.** The prior 30 s lease vs. S3 worst-case-time coupling was
+untested and implicit; `e1fa0a6` closes it two ways, not just one:
+1. `packages/storage/src/index.ts` now exports `s3RequestTimeoutMs` (5000), `s3MaxAttempts` (2)
+   and `s3WorstCaseCallMs` (`2 attempts × 2 (connection + request) × 5000 ms = 20000 ms`) — a more
+   conservative bound than the original comment's "two attempts of five seconds" (10 s), since it
+   now also accounts for the connection-timeout phase of each attempt, not just the request phase.
+2. Critically, `S3ObjectStorage`'s constructor now clamps any caller-supplied
+   `options.requestTimeoutMs` with `Math.min(options.requestTimeoutMs ?? s3RequestTimeoutMs,
+   s3RequestTimeoutMs)`, and `maxAttempts` is no longer a bare literal but the same
+   `s3MaxAttempts` constant, which `S3ObjectStorageOptions` does not even expose as configurable.
+   This means the runtime S3 client's actual timeouts can **never** exceed the bound
+   `s3WorstCaseCallMs` is computed from, regardless of what any future caller configures — this is
+   an enforced invariant, not just a documented one. I checked the existing "unreachable store"
+   test's explicit `requestTimeoutMs: 2000` still behaves as before (`Math.min(2000, 5000) =
+   2000`, unaffected, since it was already below the cap).
+3. `tests/integration/ip9-object-storage.test.ts` adds a `describe("IP-9 export storage lease",
+   ...)` block containing `expect(exportStorageLeaseMs).toBeGreaterThan(s3WorstCaseCallMs)`,
+   placed outside the `connectionString`-gated `suite(...)`, so it runs unconditionally on every
+   CI invocation of this file (not only when a database is available) — a fast, always-on
+   regression guard. `30000 > 20000` holds today, and the test now fails immediately if a future
+   change to either constant, or to `exportStorageLeaseMs` in `packages/database/src/index.ts`,
+   ever closes the margin. This fully addresses what I flagged N2 as: the coupling is no longer
+   implicit or untested.
+
+**N1 disposition: closed.** Reviewed the uncommitted working-tree diffs to `AGENTS.md`,
+`IMPLEMENTATION_STATUS_HANDOFF.md` (header plus new §44), `IP-9-IMPLEMENTATION-REPORT.md`,
+`IP-9-THREAT-MODEL.md`, `IP-9-RUNBOOKS.md` and `IP-9-FAULT-MATRIX.md` (`git diff -- AGENTS.md
+docs`). All six are accurate against everything I independently verified across both re-reviews:
+- `AGENTS.md` now names the second audit, both repair commits (`d7430e3`, `e1fa0a6`), the current
+  approved SHA `e1fa0a6...` and CI `35964085085`, and correctly changes the export-storage
+  description to "仅 API 签名的下载链接" (API-signed only, presigned removed) — matching finding 3's
+  fix. It does not touch the existing, still-accurate sentences disclaiming a real provider call
+  or production live enablement.
+- `IMPLEMENTATION_STATUS_HANDOFF.md`'s header points at `e1fa0a6.../35964085085` as the current
+  approved behavior and at new §44 for detail; §43 is kept as history rather than rewritten,
+  exactly as this project's own documentation rule requires. §44 lists both repair commits with
+  correct CI run numbers and lists the same figures I independently pulled from the raw log
+  (154, 251, 47, p95 508.8 ms, 185); it explicitly states "What remains not proven is unchanged
+  from §43," which is correct — I found no new claim of a real provider evaluation or a human
+  assistive-technology review anywhere.
+- `IP-9-IMPLEMENTATION-REPORT.md`'s new status line and §4.8 accurately walk through all three
+  review rounds and each of the second audit's findings; §5's new evidence bullets for `d7430e3`
+  (run `35961891632`: 47 migrations, ack p95 427.1 ms, 185 e2e) and `e1fa0a6` (run `35964085085`:
+  154/251 tests, 47 migrations, 172 restore rows, ack p95 508.8 ms, ack-to-proposal p95 35.2 s,
+  185 e2e) match the raw CI logs exactly, including a figure I had not previously spot-checked
+  (`a59a58a`'s own ack p95 of 398.6 ms, run `35955102973` — verified now against my saved log:
+  `"p95": 398.6` at line 1837, and `"p95": 35679` i.e. 35.7 s, both matching the report verbatim).
+- `IP-9-THREAT-MODEL.md`'s updated "Signed download links…" row accurately reflects the
+  API-signed-only design and explicitly credits `d7430e3` for removing presigned URLs "because
+  they skipped both checks" — consistent with my finding-3 analysis in the prior section.
+- `IP-9-RUNBOOKS.md` and `IP-9-FAULT-MATRIX.md`'s small additions (leave `storage_lease_until`
+  alone during a manual retry; the two new race-test rows) are technically accurate against the
+  code.
+I grepped all six files (plus `IMPLEMENTATION_STATUS_HANDOFF.md`) for any claim of a real
+provider evaluation or a human/screen-reader assistive-technology review having been performed:
+every match is an explicit *disclaimer* ("No real provider was called," "No human
+assistive-technology review," "has not been drilled against a real provider") — none was
+softened, removed, or contradicted by the new material. No overstatement found.
+
+### Final verdict
+
+**G9 PASS.**
+
+**Approved behavior SHA accepted by this review: `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`**
+(exact-SHA CI `35964085085`, `success`, `headSha` confirmed).
+
+Both closure items are resolved: N2 is fixed with an enforced runtime invariant plus an
+always-on regression test, not merely documented; N1's six affected documents now accurately
+record the full history — original review, first repair, second independent audit, its repair,
+and this closure — without rewriting or deleting any prior section, and without overstating real
+provider evaluation or human assistive-technology review, both of which remain correctly
+disclosed as open. No BLOCKER has been found across any round of this review.

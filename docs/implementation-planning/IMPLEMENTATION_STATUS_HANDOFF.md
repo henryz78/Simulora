@@ -2,9 +2,10 @@
 
 **Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS`
 
-**Latest Gate:** G9 passed. See §43 and the
-[IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
-behavior is `a59a58a38f338426cad757977b0dc657fe512a90`. IP-10 has not started.
+**Latest Gate:** G9 passed. See §43–§44 and the
+[IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The current
+approved IP-9 behavior is `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626` (CI
+`35964085085`), after a second audit's repair. IP-10 has not started.
 The IP-8 text below is kept as history; where it says "IP-9 not started", §43
 supersedes it.
 
@@ -1224,3 +1225,40 @@ implementer, and the review records that limitation.
 - The external decisions in Implementation Plan §20 are still open.
 
 IP-10 has not started and is not authorized by this handoff.
+
+## 44. Second G9 audit and repair
+
+After §43, a separate read-only auditor reviewed G9 and returned `PASS WITH
+ISSUES` with no blocker. Before changing anything, every finding was checked
+against the code, and all were real. §43's approved SHA `a59a58a` is kept as
+history and is superseded below.
+
+**Repair.**
+
+- `d7430e3` (CI `35961891632`) fixes:
+  - the export finalize race, which could delete a stored artifact;
+  - deletion racing an in-flight upload: successor `0047` adds an upload
+    lease;
+  - presigned S3 URLs that skipped checksum and revocation: they are removed,
+    and downloads are API-signed only;
+  - a live evaluation that passed a provider that only failed;
+  - unbounded provider body reads and password-only endpoint URLs;
+  - the provider missing from the capability profile and its notices;
+  - several minor export UI and reservation edges;
+  - missing movement cases in the evaluation corpus.
+- `e1fa0a6` (CI `35964085085`) ties the upload lease to the object store's
+  worst-case call time. This was review finding N2.
+
+**Review.** The same independent Sonnet 5 reviewer confirmed each finding was
+real and correctly fixed, and that Action, authority, confirmation semantics
+and migrations 0001–0046 are untouched. Its verdict is `G9 PASS`, with N1
+(these documents) and N2 raised and now closed. See
+[IP-9 Independent Review](IP-9-INDEPENDENT-REVIEW.md).
+
+**Current approved behavior:** `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`.
+Exact-SHA CI `35964085085` ran the PostgreSQL suites (154 tests), the quality
+checks (251 tests), 47 migrations, the restore drill, the API and worker
+containers (acknowledgement p95 508.8 ms), and 185 browser tests.
+
+What remains not proven is unchanged from §43. IP-10 has not started and is
+not authorized.

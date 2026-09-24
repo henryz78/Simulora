@@ -1,9 +1,18 @@
 # IP-9 Implementation Report — Model, Accessibility and Reliability Hardening
 
-**Status:** `G9 PASS` — the [independent review](IP-9-INDEPENDENT-REVIEW.md)
-first returned `PASS WITH ISSUES` (0 BLOCKER / 2 IMPORTANT / 1 MINOR) on
-`b0f12ab`. Its focused re-review of the repair returned `PASS` on the approved
-behavior SHA `a59a58a38f338426cad757977b0dc657fe512a90`.
+**Status:** `G9 PASS`. Current approved behavior:
+`e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`.
+
+The [independent review](IP-9-INDEPENDENT-REVIEW.md) went through three
+rounds:
+
+1. The first review, on `b0f12ab`, returned `PASS WITH ISSUES` (0 BLOCKER /
+   2 IMPORTANT / 1 MINOR).
+2. The same reviewer re-reviewed the repair and returned `PASS` on `a59a58a`.
+3. A second, separate audit then found further defects (§4.8). The reviewer
+   independently confirmed the repair `d7430e3` and returned `PASS`. It raised
+   one IMPORTANT documentation finding (N1) and one MINOR finding (N2).
+   `e1fa0a6` closes N2; this documentation closes N1.
 
 **Phase goal (frozen):** move from deterministic correctness to production-shaped
 quality without weakening contracts ([Roadmap §12](ROADMAP_AND_WORK_BREAKDOWN.md)).
@@ -25,7 +34,7 @@ PostgreSQL, no signed object URLs, no purge worker).
 
 | Work package | Roadmap item | Commit |
 |---|---|---|
-| Export artifacts in S3-compatible storage: staged → stored lifecycle (successor `0044`), visible delay on outage, worker retry with bounded backoff, deletion propagation to objects, single-export signed links (S3 presigned or HMAC API links), legacy inline migration, checksum/key immutability, MinIO in CI | IP-8 obligation; IP-9.5 prerequisite | `2395366`, `5354f08` |
+| Export artifacts in S3-compatible storage: staged → stored lifecycle (successor `0044`), visible delay on outage, worker retry with bounded backoff, deletion propagation to objects, single-export API-signed links (S3 presigned links were built, then removed in `d7430e3`, see §4.8), legacy inline migration, checksum/key immutability, MinIO in CI | IP-8 obligation; IP-9.5 prerequisite | `2395366`, `5354f08` |
 | Provider-neutral OpenAI-compatible live adapter, capability profiles, declared fallback for outages only, fallback disclosed on the Action, routed profile on every attempt and append-only profile activations with MODEL notices (`0045`), live-profile confinement to local/test without a retention approval | IP-9.1, IP-9.2 | `eec1286` |
 | Fixed original evaluation corpus (13 cases across benign, authority, privacy, structure, injection) with per-case hard gates, never averaged; replay in CI; live mode gated on an approval reference | IP-9.3 | `eec1286` |
 | Live attempts admitted as SQL evidence by successor `0046` (see §4) | IP-9.1 | `77f4ee8` |
@@ -35,6 +44,8 @@ PostgreSQL, no signed object URLs, no purge worker).
 | Runtime profiled on its own migrated database, and a drain gate on the queue | IP-9.4 | `9e8099c` |
 | WebKit 320 px reflow: `7d452fa` addressed the wrong cause; `b0f12ab` is the real fix (see §4.5) | IP-9.7 | `7d452fa`, `b0f12ab` |
 | G9 review repair: the server settles a delayed export's reservation (I1), and a corrected worker comment (M1) | IP-9 obligation | `a59a58a` |
+| Second audit repair: export finalize race and upload lease (`0047`), API-signed links only, live-evaluation verdict, movement cases, bounded provider body, provider in the profile, integrity reason, export status UI, legacy reservation | IP-9.1–9.5 | `d7430e3` |
+| Upload lease tied to the object store's worst-case call time (review N2) | IP-9.5 | `e1fa0a6` |
 
 Supporting documents: [Fault Matrix](IP-9-FAULT-MATRIX.md) ·
 [Threat Model](IP-9-THREAT-MODEL.md) · [Runbooks](IP-9-RUNBOOKS.md).
@@ -87,6 +98,33 @@ Supporting documents: [Fault Matrix](IP-9-FAULT-MATRIX.md) ·
    tab closed during an object-store outage left it `RESERVED` for good.
    `a59a58a` settles the reservation in the transaction that stores the
    object, and releases it when an export is revoked before it was stored.
+8. **Second audit (a separate, read-only auditor).** Every finding was checked
+   against the code before any change; all were real. `d7430e3` repairs them:
+   - **Finalize race.** An uploader whose finalize failed deleted the object
+     unconditionally, even when another uploader had just stored it. The
+     API's synchronous upload took no lease, so an API/worker race was
+     enough. Finalize now reports `STORED`, `ALREADY_STORED` or `REVOKED`,
+     and only `REVOKED` deletes. The API leases like the worker.
+   - **Deletion during an upload.** Successor `0047` adds
+     `storage_lease_until`, separate from the retry backoff. A delete waits
+     for a running upload and removes what a crashed upload left behind.
+   - **Presigned S3 URLs** skipped the checksum and outlived revocation. They
+     are removed; every download is an API-signed link.
+   - **Live evaluation** passed a provider that only failed. Live mode now
+     requires every benign case to be accepted.
+   - **Provider response** was fully buffered before its size check, and a
+     password-only URL was accepted. Both are fixed.
+   - **The provider endpoint was not part of the profile**, so switching
+     providers recorded nothing. The profile now carries the provider origin,
+     and a change of provider or fallback is material.
+   - **Minor:** integrity failures have their own reason; revoked and failed
+     exports no longer show "Export ready"; deleting a World settles a
+     delivered legacy export's open reservation; the corpus gains movement
+     cases.
+
+   `e1fa0a6` closes review finding N2: a test now fails unless the 30 s upload
+   lease outlasts the storage package's worst-case S3 call, and configured
+   timeouts are capped at that bound.
 
 ## 5. Evidence
 
@@ -119,6 +157,14 @@ CI runs on `main` (real PostgreSQL 17, MinIO, containers, browser matrix):
   - `perf:ack`: acknowledgement p95 398.6 ms; acknowledgement to proposal p95
     35.7 s.
   - Browser and device matrix: 180 passed.
+- **`d7430e3` second audit repair — run `35961891632` passed in full.** 47
+  migrations; acknowledgement p95 427.1 ms; 185 browser tests.
+- **`e1fa0a6` (approved behavior) — run `35964085085` passed in full.**
+  - PostgreSQL suites: 154 tests. `pnpm check`: 251 tests; 47 migrations.
+  - Restore drill: 172 rows identical; every check passed.
+  - `perf:ack`: acknowledgement p95 508.8 ms; acknowledgement to proposal p95
+    35.2 s.
+  - Browser and device matrix: 185 passed.
 
 Local checks on each commit: format, ESLint (0 problems), typecheck,
 architecture, migrations (46), unit tests, build and worker runtime. Local

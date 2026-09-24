@@ -76,6 +76,8 @@ downloads.
    exponential backoff (up to five minutes); no manual resubmission is needed.
 3. To retry at once, clear `storage_available_at` for the affected rows; the
    staged bytes and checksum are immutable, so a retry cannot change an export.
+   Leave `storage_lease_until` alone: it marks an upload that may still be
+   running, and a deletion waits for it.
 4. Verify that the rows reach `STORED` and that `artifact_bytes` is cleared.
 
 **Evidence:** `ip9-object-storage` › outage drill (in-memory) and the
