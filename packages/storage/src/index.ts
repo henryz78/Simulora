@@ -179,6 +179,15 @@ function unavailable(error: unknown): ObjectStoreUnavailableError {
   return new ObjectStoreUnavailableError(`Object store request failed (${name})`);
 }
 
+/**
+ * Upper bounds on one S3 call: each attempt may spend a connection and a request
+ * timeout. The export upload lease must outlast them, because an expired lease is
+ * taken to mean its upload can no longer land (see `exportStorageLeaseMs`).
+ */
+export const s3RequestTimeoutMs = 5000;
+export const s3MaxAttempts = 2;
+export const s3WorstCaseCallMs = s3MaxAttempts * 2 * s3RequestTimeoutMs;
+
 export class S3ObjectStorage implements ObjectStoragePort {
   readonly kind = "s3" as const;
   readonly #client: S3Client;
@@ -186,7 +195,8 @@ export class S3ObjectStorage implements ObjectStoragePort {
 
   constructor(options: S3ObjectStorageOptions) {
     this.#bucket = options.bucket;
-    const timeout = options.requestTimeoutMs ?? 5000;
+    // Never longer than the bound the upload lease is sized against.
+    const timeout = Math.min(options.requestTimeoutMs ?? s3RequestTimeoutMs, s3RequestTimeoutMs);
     this.#client = new S3Client({
       region: options.region,
       ...(options.endpoint ? { endpoint: options.endpoint } : {}),
@@ -201,7 +211,7 @@ export class S3ObjectStorage implements ObjectStoragePort {
         : {}),
       // An outage has to surface as a bounded, visible delay rather than a hung request.
       requestHandler: { connectionTimeout: timeout, requestTimeout: timeout },
-      maxAttempts: 2,
+      maxAttempts: s3MaxAttempts,
     });
   }
 

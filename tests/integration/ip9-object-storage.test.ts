@@ -9,6 +9,7 @@ import {
 import {
   AuthoritativeWorldRepository,
   createDatabasePool,
+  exportStorageLeaseMs,
 } from "../../packages/database/src/index.js";
 import { lanternReachSeed } from "../../packages/domain/src/index.js";
 import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
@@ -17,6 +18,7 @@ import {
   ObjectIntegrityError,
   ObjectStoreUnavailableError,
   S3ObjectStorage,
+  s3WorstCaseCallMs,
   sha256Hex,
   type ObjectMetadata,
   type ObjectStoragePort,
@@ -140,6 +142,13 @@ async function drain(worker: ExportStorageWorker, worldId: string): Promise<void
   }
   throw new Error("Export storage work did not drain");
 }
+
+describe("IP-9 export storage lease", () => {
+  it("outlasts the slowest possible object-store call", () => {
+    // Deletion trusts an expired lease to mean its upload can no longer land.
+    expect(exportStorageLeaseMs).toBeGreaterThan(s3WorstCaseCallMs);
+  });
+});
 
 suite("IP-9 export object storage against PostgreSQL", () => {
   it("keeps core play usable and makes an object-store outage a visible, recoverable delay", async () => {

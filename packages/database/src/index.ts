@@ -561,7 +561,7 @@ export type ExportArtifactLocation = {
 
 /**
  * How long one upload or delete may hold an export. It must exceed the object
- * store's worst-case request time (two attempts of five seconds for S3), so a
+ * store's worst-case call time (`s3WorstCaseCallMs`, checked by a test), so a
  * lease that has expired means its upload can no longer land.
  */
 // ponytail: lease-based exclusion, no object-store inventory; add an orphan sweep if a store without request timeouts is ever used
