@@ -61,6 +61,24 @@ async function exportRequestFor(
   };
 }
 
+async function reservationState(
+  pool: ReturnType<typeof createDatabasePool>,
+  reservationId: string,
+): Promise<{ status: string; entries: string[] }> {
+  const reservation = await pool.query<{ status: string }>(
+    `select status from simulora.usage_reservations where id = $1`,
+    [reservationId],
+  );
+  const ledger = await pool.query<{ entry_type: string }>(
+    `select entry_type from simulora.usage_ledger where reservation_id = $1 order by entry_type`,
+    [reservationId],
+  );
+  return {
+    status: reservation.rows[0]!.status,
+    entries: ledger.rows.map((row) => row.entry_type),
+  };
+}
+
 // Scoped to one World: the queue is shared with every other suite on this database.
 async function drain(worker: ExportStorageWorker, worldId: string): Promise<void> {
   for (let step = 0; step < 50; step += 1) {
@@ -87,6 +105,10 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       expect(delayed.status).toBe("PENDING");
       expect(delayed.delay?.reasonCode).toBe("OBJECT_STORE_UNAVAILABLE");
       expect(delayed.checksum).toMatch(/^[0-9a-f]{64}$/);
+      expect(await reservationState(pool, request.reservationId)).toEqual({
+        status: "RESERVED",
+        entries: [],
+      });
       await expect(governance.readExportArtifact(owner, delayed.exportId)).rejects.toThrow(
         "Export artifact not found",
       );
@@ -139,6 +161,14 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       );
       expect(cleared.rows[0]).toEqual({ has_bytes: false, storage_state: "STORED" });
 
+      // Storing settles the reservation server-side, whether or not anyone is watching.
+      expect(await reservationState(pool, request.reservationId)).toEqual({
+        status: "SETTLED",
+        entries: ["SETTLEMENT"],
+      });
+      await repository.settleUsage(owner, request.reservationId);
+      expect((await reservationState(pool, request.reservationId)).entries).toEqual(["SETTLEMENT"]);
+
       // Retrying the same export request returns the stored job, not a second one.
       expect((await governance.createExport(owner, request)).exportId).toBe(delayed.exportId);
     } finally {
@@ -156,16 +186,12 @@ suite("IP-9 export object storage against PostgreSQL", () => {
     const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
     try {
       const { world } = await playableWorld(repository, owner);
-      const stored = await governance.createExport(
-        owner,
-        await exportRequestFor(repository, owner, world.worldId),
-      );
+      const storedRequest = await exportRequestFor(repository, owner, world.worldId);
+      const stored = await governance.createExport(owner, storedRequest);
       expect(stored.status).toBe("READY");
       storage.setAvailable(false);
-      const staged = await governance.createExport(
-        owner,
-        await exportRequestFor(repository, owner, world.worldId),
-      );
+      const stagedRequest = await exportRequestFor(repository, owner, world.worldId);
+      const staged = await governance.createExport(owner, stagedRequest);
       expect(staged.status).toBe("PENDING");
       storage.setAvailable(true);
 
@@ -194,6 +220,15 @@ suite("IP-9 export object storage against PostgreSQL", () => {
         { status: "REVOKED", has_bytes: false },
       ]);
       expect(storage.has(stored.artifactKey!)).toBe(true);
+      // The export that was never stored delivered nothing, so its reservation is released.
+      expect(await reservationState(pool, stagedRequest.reservationId)).toEqual({
+        status: "RELEASED",
+        entries: ["RELEASE"],
+      });
+      expect(await reservationState(pool, storedRequest.reservationId)).toEqual({
+        status: "SETTLED",
+        entries: ["SETTLEMENT"],
+      });
 
       await drain(worker, world.worldId);
       expect(storage.keys()).toEqual([]);

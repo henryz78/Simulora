@@ -71,7 +71,6 @@ import {
   releaseUsage,
   reserveUsage,
   setConsent,
-  settleUsage,
   type TrustLoad,
 } from "./ip8-api.js";
 
@@ -3107,7 +3106,6 @@ export function TrustLifecyclePage(): ReactElement {
   const [exported, setExported] = useState<ExportResponse | null>(null);
   // A delayed export keeps its reservation open until the artifact is stored, so
   // settlement never runs ahead of a downloadable result.
-  const [pendingReservationId, setPendingReservationId] = useState<string | null>(null);
   const [include, setInclude] = useState({
     world: true,
     characters: true,
@@ -3155,9 +3153,8 @@ export function TrustLifecyclePage(): ReactElement {
     if (!exported || exported.status !== "PENDING") return;
     const result = await readExport(exported.exportId);
     if (!result.data) return;
-    if (result.data.status === "READY" && pendingReservationId) {
-      await settleUsage(pendingReservationId);
-      setPendingReservationId(null);
+    // Storing the export settles its reservation on the server.
+    if (result.data.status === "READY") {
       setMessage("Export ready. The in-product World remains unchanged.");
     }
     setExported(result.data);
@@ -3366,7 +3363,6 @@ export function TrustLifecyclePage(): ReactElement {
                       });
                       if (result.data?.status === "PENDING") {
                         setExported(result.data);
-                        setPendingReservationId(reserved.data.reservationId);
                         setQuote(null);
                         return setMessage(
                           "Export built and checksummed. Storage is delayed, so it is not downloadable yet; it will finish automatically. The in-product World remains unchanged.",
@@ -3378,7 +3374,6 @@ export function TrustLifecyclePage(): ReactElement {
                           "The export artifact was not created; its zero-unit reservation was released. Retry creates a separate reviewed job.",
                         );
                       }
-                      await settleUsage(reserved.data.reservationId);
                       setExported(result.data);
                       setQuote(null);
                       setMessage("Export ready. The in-product World remains unchanged.");

@@ -6367,16 +6367,50 @@ export class AuthoritativeWorldRepository {
    * row is then DELETE_PENDING and the object the upload wrote must be removed.
    */
   async markExportStored(exportId: string): Promise<boolean> {
-    const result = await this.pool.query(
-      `update simulora.export_jobs
-       set status = 'READY', storage_state = 'STORED', artifact_bytes = null,
-           object_stored_at = now(), completed_at = coalesce(completed_at, now()),
-           storage_last_error = null, storage_available_at = null
-       where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE')
-         and status in ('PENDING', 'READY')`,
-      [exportId],
-    );
-    return result.rowCount === 1;
+    return transaction(this.pool, async (client) => {
+      const result = await client.query<{ reservation_id: string | null }>(
+        `update simulora.export_jobs
+         set status = 'READY', storage_state = 'STORED', artifact_bytes = null,
+             object_stored_at = now(), completed_at = coalesce(completed_at, now()),
+             storage_last_error = null, storage_available_at = null
+         where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE')
+           and status in ('PENDING', 'READY')
+         returning reservation_id`,
+        [exportId],
+      );
+      if (!result.rows[0]) return false;
+      await this.closeExportReservations(
+        client,
+        [result.rows[0].reservation_id],
+        "SETTLED",
+        "SETTLEMENT",
+      );
+      return true;
+    });
+  }
+
+  // The export closes its own reservation once its outcome is known, so
+  // settlement never depends on the page that asked for it staying open.
+  private async closeExportReservations(
+    client: PoolClient,
+    reservationIds: (string | null)[],
+    status: "SETTLED" | "RELEASED",
+    entryType: "SETTLEMENT" | "RELEASE",
+  ): Promise<void> {
+    for (const reservationId of reservationIds) {
+      if (!reservationId) continue;
+      const closed = await client.query<{ account_id: string }>(
+        `update simulora.usage_reservations set status = $2
+         where id = $1 and status = 'RESERVED' returning account_id`,
+        [reservationId, status],
+      );
+      if (!closed.rows[0]) continue;
+      await client.query(
+        `insert into simulora.usage_ledger (id, reservation_id, account_id, entry_type, units)
+         values ($1, $2, $3, $4, 0) on conflict (reservation_id, entry_type) do nothing`,
+        [randomUUID(), reservationId, closed.rows[0].account_id, entryType],
+      );
+    }
   }
 
   async recordExportStorageDelay(
@@ -6722,12 +6756,29 @@ export class AuthoritativeWorldRepository {
         );
         // Revocation clears staged bytes at once and queues the stored object for
         // removal, so deletion propagates to object artifacts and not just status.
-        await client.query(
-          `update simulora.export_jobs
+        const revoked = await client.query<{
+          prior_status: "PENDING" | "READY";
+          reservation_id: string | null;
+        }>(
+          `with target as (
+             select id, status from simulora.export_jobs
+             where world_id = $1 and status in ('PENDING', 'READY') for update
+           )
+           update simulora.export_jobs job
            set status = 'REVOKED', storage_state = 'DELETE_PENDING', artifact_bytes = null,
                storage_available_at = null
-           where world_id = $1 and status in ('PENDING', 'READY')`,
+           from target where job.id = target.id
+           returning target.status as prior_status, job.reservation_id`,
           [proposal.target_id],
+        );
+        // An export revoked before it was ever stored delivered nothing.
+        await this.closeExportReservations(
+          client,
+          revoked.rows
+            .filter((row) => row.prior_status === "PENDING")
+            .map((row) => row.reservation_id),
+          "RELEASED",
+          "RELEASE",
         );
         await client.query(
           `update simulora.continuities set status = 'TOMBSTONED'

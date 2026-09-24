@@ -231,7 +231,7 @@ test("owner can inspect trust, export selected data, appeal, and review deletion
   await expectAccessible(page);
 });
 
-test("a delayed export stays reviewable and settles only once it is stored", async ({ page }) => {
+test("a delayed export stays reviewable and leaves settlement to the server", async ({ page }) => {
   await routeTrustBasics(page);
   let settled = false;
   let released = false;
@@ -304,6 +304,7 @@ test("a delayed export stays reviewable and settles only once it is stored", asy
   await page.keyboard.press("Enter");
   // Either the explicit check or the page's own background check completes it.
   await expect(page.getByRole("link", { name: "Download ZIP" })).toBeVisible({ timeout: 12_000 });
-  expect(settled).toBe(true);
+  // Storing the export settles its reservation, so a closed tab cannot strand it.
+  expect(settled).toBe(false);
   expect(released).toBe(false);
 });

@@ -82,8 +82,9 @@ if (composition.actionRepository) {
     poll_ms: config.SIMULORA_WORKER_POLL_MS,
     model_profile: `${composition.modelGateway.profile.id}@${composition.modelGateway.profile.version}`,
   });
-  // A failure here must not stop Action processing; it is logged and retried at
-  // the next start, and the attempt rows still carry the routed profile.
+  // Logging only: the gate is in processNextAction, which awaits the same
+  // activation and generates nothing until it is recorded. A failure is retried
+  // on the next poll.
   void composition
     .recordModelProfile()
     .then((activation) => {
