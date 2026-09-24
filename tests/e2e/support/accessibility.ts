@@ -13,6 +13,13 @@ export async function expectAccessible(page: Page): Promise<void> {
 
   const original = page.viewportSize();
   await page.setViewportSize({ width: 320, height: 640 });
+  // Let the resize lay out and paint before measuring.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   const reflow = await page.evaluate(() => {
     const limit = document.documentElement.clientWidth;
     // Name the innermost elements that cross the edge, so a failure says where.
@@ -27,6 +34,28 @@ export async function expectAccessible(page: Page): Promise<void> {
         (element) =>
           `${element.tagName.toLowerCase()}${element.className ? `.${String(element.className)}` : ""} (${Math.round(element.getBoundingClientRect().right)}px)`,
       );
+    // Text can spill out of a correctly sized box, so check text runs too.
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    for (let node = walker.nextNode(); node && culprits.length < 8; node = walker.nextNode()) {
+      range.selectNodeContents(node);
+      if (range.getBoundingClientRect().right > limit + 1) {
+        const parent = node.parentElement;
+        culprits.push(
+          `text in ${parent?.tagName.toLowerCase() ?? "?"}${parent?.className ? `.${String(parent.className)}` : ""}: "${(node.textContent ?? "").trim().slice(0, 40)}"`,
+        );
+      }
+    }
+    const scrollers = [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((element) => element.scrollWidth > element.clientWidth + 1)
+      .slice(-3)
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()}.${String(element.className)} ${element.scrollWidth}/${element.clientWidth}px`,
+      );
+    // A native control can push its ancestors' overflow past its own box, so
+    // name the innermost scrolling containers as well.
+    if (scrollers.length) culprits.push(`overflowing containers: ${scrollers.join("; ")}`);
     return { overflow: document.documentElement.scrollWidth - limit, culprits };
   });
   expect(
