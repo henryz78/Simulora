@@ -1,6 +1,9 @@
 # IP-9 Implementation Report — Model, Accessibility and Reliability Hardening
 
-**Status:** `IMPLEMENTED — AWAITING INDEPENDENT REVIEW`
+**Status:** `G9 PASS` — the [independent review](IP-9-INDEPENDENT-REVIEW.md)
+first returned `PASS WITH ISSUES` (0 BLOCKER / 2 IMPORTANT / 1 MINOR) on
+`b0f12ab`. Its focused re-review of the repair returned `PASS` on the approved
+behavior SHA `a59a58a38f338426cad757977b0dc657fe512a90`.
 
 **Phase goal (frozen):** move from deterministic correctness to production-shaped
 quality without weakening contracts ([Roadmap §12](ROADMAP_AND_WORK_BREAKDOWN.md)).
@@ -28,7 +31,10 @@ PostgreSQL, no signed object URLs, no purge worker).
 | Live attempts admitted as SQL evidence by successor `0046` (see §4) | IP-9.1 | `77f4ee8` |
 | Explicit fault-matrix tests, `projections:rebuild` operator procedure, `restore:drill` with CI dump/restore/verify/tamper | IP-9.5, IP-9.6, IP-9.10 | `fd4f9df` |
 | `perf:ack` profiling against the API and worker containers; accessibility gate extended with reflow at 320 CSS px, visible focus and reduced motion; keyboard-only Action journey; Firefox, WebKit and tablet projects; security headers and a production CSP render smoke | IP-9.4, IP-9.7, IP-9.8, IP-9.9 | `7247264` |
-| Fault matrix, threat model and runbook documents | IP-9.5, IP-9.9, G9 | documentation commit |
+| Fault matrix, threat model and runbook documents | IP-9.5, IP-9.9, G9 | `6deb446` (documentation) |
+| Runtime profiled on its own migrated database, and a drain gate on the queue | IP-9.4 | `9e8099c` |
+| WebKit 320 px reflow: `7d452fa` addressed the wrong cause; `b0f12ab` is the real fix (see §4.5) | IP-9.7 | `7d452fa`, `b0f12ab` |
+| G9 review repair: the server settles a delayed export's reservation (I1), and a corrected worker comment (M1) | IP-9 obligation | `a59a58a` |
 
 Supporting documents: [Fault Matrix](IP-9-FAULT-MATRIX.md) ·
 [Threat Model](IP-9-THREAT-MODEL.md) · [Runbooks](IP-9-RUNBOOKS.md).
@@ -64,6 +70,23 @@ Supporting documents: [Fault Matrix](IP-9-FAULT-MATRIX.md) ·
    widened from `tests/` to `scripts/` and shown to catch the case.
 4. **Pool starvation risk.** A schema probe inside the attempt transaction used
    a second pooled connection. It now runs on the transaction's own client.
+5. **WebKit reflow at 320 CSS px (found by CI on mobile WebKit).** The Recovery
+   view scrolled sideways at 320 px. The first fix (`7d452fa`, `min-width: 0`
+   on the select) addressed the wrong cause. WebKit counts a native select's
+   longest option label as overflow of the whole page. `b0f12ab` renders the
+   field select as a plain box with a drawn arrow. It is still a real
+   `<select>`, so keyboard use and screen-reader semantics are unchanged. The
+   reflow check now waits for the resize to paint, and a failure names the
+   overflowing text runs.
+6. **Shared-database backlog in the first profile run.** The first `perf:ack`
+   run reported 200 undrained Actions, left behind by the integration suites.
+   `9e8099c` gives the runtime its own migrated database and makes the profile
+   fail unless the queue drains.
+7. **Orphaned export reservation (independent review finding I1).** A delayed
+   export's usage reservation was settled only by the browser's poll, so a
+   tab closed during an object-store outage left it `RESERVED` for good.
+   `a59a58a` settles the reservation in the transaction that stores the
+   object, and releases it when an export is revoked before it was stored.
 
 ## 5. Evidence
 
@@ -73,7 +96,29 @@ CI runs on `main` (real PostgreSQL 17, MinIO, containers, browser matrix):
 - `eec1286` live adapter — run `35930110554` failed on the defect in §4.1.
 - `fd4f9df` drills — run `35931753434`: all PostgreSQL suites passed; `pnpm
   check` failed on the lint defect in §4.3.
-- `7247264` profiling, accessibility and headers — figures below once green.
+- `7247264` profiling, accessibility and headers, then `9e8099c` — run
+  `35934442173` failed only on mobile WebKit reflow (§4.5).
+- **`b0f12ab` — run `35936816813` passed in full.** This is the exact SHA
+  the independent review examined:
+  - PostgreSQL suites: 14 files, 149 tests.
+  - `pnpm check`: 31 files, 245 tests; migration check covers 46 migrations.
+  - Restore drill: 39 tables and 171 rows identical, 3 stored objects, every
+    check passed. The restored ledger re-applied nothing, and a tampered copy
+    failed the drill.
+  - `perf:ack`: 200 Actions, concurrency 10, against the API and worker
+    containers on PostgreSQL 17.
+    - Acknowledgement: p50 76.7 ms, p95 524.6 ms (target 1000 ms), p99 724 ms.
+    - Acknowledgement to proposal: p50 18.3 s, p95 35.3 s, p99 36.8 s
+      (reported, not gated).
+    - Errors 0, undrained 0.
+  - Production CSP render smoke: 26 elements, no violations.
+  - Browser and device matrix: 180 passed across the five projects.
+- **`a59a58a` review repair (approved behavior) — run `35955102973` passed
+  in full.**
+  - PostgreSQL suites: 14 files. `pnpm check`: 31 files.
+  - `perf:ack`: acknowledgement p95 398.6 ms; acknowledgement to proposal p95
+    35.7 s.
+  - Browser and device matrix: 180 passed.
 
 Local checks on each commit: format, ESLint (0 problems), typecheck,
 architecture, migrations (46), unit tests, build and worker runtime. Local

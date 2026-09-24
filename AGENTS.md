@@ -123,6 +123,14 @@ IP-7 仍未开始。
 最终状态与新会话阅读顺序见 `docs/implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md`；
 IP-7 仍未开始。
 
+IP-9 已实施，G9 独立 Review PASS（首轮 `PASS WITH ISSUES` 0B/2I/1M，修复后同一 Reviewer
+focused 复审 PASS）。批准行为 SHA `a59a58a38f338426cad757977b0dc657fe512a90`，
+exact-SHA CI `35955102973` PASS。报告见 `docs/implementation-planning/IP-9-IMPLEMENTATION-REPORT.md`，
+Review 见 `docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43。
+S3 兼容导出对象存储、签名链接与删除传播已完成。live adapter 只针对 provider double 验证：
+没有调用真实 provider，也没有 provider 获得 retention 批准，所以 production live 仍未启用。
+PostgreSQL retention purge 仍是 release 义务。IP-10 未开始、未授权。
+
 ## Long-Term Product Direction
 
 用户明确的最终目标见 `docs/implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md`：

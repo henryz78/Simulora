@@ -1,6 +1,12 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS`
+
+**Latest Gate:** G9 passed. See §43 and the
+[IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
+behavior is `a59a58a38f338426cad757977b0dc657fe512a90`. IP-10 has not started.
+The IP-8 text below is kept as history; where it says "IP-9 not started", §43
+supersedes it.
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -1156,3 +1162,65 @@ IP-9 has not started. Production live-model enablement, autonomous scheduling,
 full long-term memory, broad autonomous simulation and human long-session play
 remain unqualified. This section is a status report for external review and
 does not request a new source review or product decision.
+
+## 43. IP-9 implementation and G9 closure
+
+IP-9 (Model, Accessibility and Reliability Hardening) is implemented and G9 has
+passed. The full account is in the
+[IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). Supporting
+documents: [Fault Matrix](IP-9-FAULT-MATRIX.md),
+[Threat Model](IP-9-THREAT-MODEL.md), [Runbooks](IP-9-RUNBOOKS.md) and the
+[Independent Review](IP-9-INDEPENDENT-REVIEW.md).
+
+**Approved behavior:** `a59a58a38f338426cad757977b0dc657fe512a90`. Its
+exact-SHA CI is [run 35955102973](https://github.com/henryz78/Simulora/actions/runs/35955102973).
+The CI job used real PostgreSQL 17, MinIO, and the API and worker containers.
+It ran:
+
+- migrations 0044–0046;
+- the PostgreSQL and quality suites;
+- the backup restore drill;
+- `perf:ack`, with acknowledgement p95 398.6 ms against a 1000 ms target;
+- the production CSP render;
+- 180 browser tests across five browser and device projects.
+
+**Review chain.** An independent Sonnet 5 subagent reviewed the work with a
+fresh context. It did not write the code. It shares vendor tooling with the
+implementer, and the review records that limitation.
+
+1. The first review, on `b0f12ab` (CI `35936816813`), returned
+   `G9 PASS WITH ISSUES` with 0 BLOCKER, 2 IMPORTANT and 1 MINOR findings.
+2. The repair `a59a58a` fixed these:
+   - **I1.** The server now settles a delayed export's usage reservation, so a
+     closed tab cannot strand it.
+   - **I2.** The report evidence was stale; it now matches CI.
+   - **M1.** A misleading worker comment was corrected.
+3. The same reviewer's focused re-review returned `G9 PASS`. The original
+   findings are preserved in the review document.
+
+**Scope decisions recovered before implementation:**
+
+- **IP-8 export obligation:** object storage, single-export signed links and
+  deletion propagation to objects are IP-9 work, and they are done.
+  Retention-driven purge of PostgreSQL data depends on the retention, purge
+  and DR SLO decision, so it remains a release obligation.
+- **Live model:** IP-9 built the provider-neutral live adapter, capability
+  profiles, declared fallback, profile activations with MODEL notices, and the
+  evaluation corpus with hard gates. These were proven against provider
+  doubles. No real provider was called, and none has an approved retention
+  and training decision. A live profile without an approval reference is
+  confined to local and test.
+- **Not built in IP-9:** long-term memory, autonomous scheduling, broad
+  simulation, IP-8.7 staged import, IP-8.8 bounded sharing, and IP-10.
+
+**Still not proven:**
+
+- No real provider evaluation.
+- No human assistive-technology review.
+- PERF-ACK is proven for the CI profile only.
+- Worker death is simulated by lease expiry, not by killing a container.
+- The threat model's six open items remain, and specialist security and
+  privacy review is a G10 gate.
+- The external decisions in Implementation Plan §20 are still open.
+
+IP-10 has not started and is not authorized by this handoff.
