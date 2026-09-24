@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { runModelEvaluation } from "../../scripts/evaluate-model-profile.js";
+import {
+  deterministicProfile,
+  ProviderUnavailableError,
+  type ModelGatewayPort,
+} from "../../packages/model-gateway/src/index.js";
 import { modelEvaluationCases } from "../../packages/testkit/src/model-evaluation.js";
 
 // IP-9.3: the fixed corpus runs in replay mode on every CI run. Each hard gate is
@@ -16,8 +21,28 @@ describe("IP-9 fixed model evaluation corpus", () => {
       expect(report.categories[category]?.accepted ?? 0).toBe(0);
       expect(report.categories[category]?.rejected).toBeGreaterThan(0);
     }
-    expect(report.categories.benign?.accepted).toBeGreaterThan(0);
+    expect(report.categories.benign).toEqual({ accepted: 3, rejected: 0 });
     expect(report.categories.injection).toEqual({ accepted: 1, rejected: 1 });
+  });
+
+  it("never passes a live profile that only fails", async () => {
+    // Every rejection keeps the hard gates vacuously intact, so the live verdict
+    // must also require the benign cases to be answered.
+    const down: ModelGatewayPort = {
+      profile: { ...deterministicProfile, id: "always-down" },
+      status: () =>
+        Promise.resolve({
+          adapter: "deterministic",
+          liveProviderConfigured: true,
+          profile: { id: "always-down", version: "1" },
+          fallback: null,
+        }),
+      generateWorldTurn: () => Promise.reject(new ProviderUnavailableError("down")),
+    };
+    const report = await runModelEvaluation("live", down);
+    expect(report.hardGateFailures).toEqual([]);
+    expect(report.liveFailures).toHaveLength(modelEvaluationCases.length);
+    expect(report.passed).toBe(false);
   });
 
   it("flags a privacy hard gate independently of the provider outcome", async () => {

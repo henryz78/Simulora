@@ -398,17 +398,22 @@ suite("IP-9 live provider path against PostgreSQL", () => {
     try {
       const gateway = liveGateway(provider, "deterministic");
       const profile = { ...gateway.profile, version: `eval-${randomUUID().slice(0, 8)}` };
-      const activate = () =>
+      const seen: unknown[] = [];
+      const activate = (provider = profile.provider) =>
         repository.recordModelProfileActivation({
           profileId: profile.id,
           profileVersion: profile.version,
           adapter: profile.adapter,
           model: profile.model,
+          provider,
           promptVersion: profile.promptVersion,
-          profileDigest: profileDigest(profile),
+          profileDigest: profileDigest({ ...profile, provider }),
           fallbackProfile: "deterministic@1",
           // The gateway unit tests cover the classifier; this test covers recording.
-          isMaterialChange: () => true,
+          isMaterialChange: (previous) => {
+            seen.push(previous);
+            return true;
+          },
         });
       const first = await activate();
       expect(first.changed).toBe(true);
@@ -422,6 +427,20 @@ suite("IP-9 live provider path against PostgreSQL", () => {
       const again = await activate();
       expect(again.changed).toBe(false);
       expect(again.id).toBe(first.id);
+
+      // The same profile at another provider is a new activation, and the
+      // classifier sees which provider and fallback it replaces.
+      const moved = await activate("https://other-provider.example");
+      expect(moved.changed).toBe(true);
+      expect(seen.at(-1)).toMatchObject({
+        provider: profile.provider,
+        fallbackProfile: "deterministic@1",
+      });
+      const recorded = await pool.query<{ provider: string | null }>(
+        `select provider from simulora.model_profile_activations where id = $1`,
+        [moved.id],
+      );
+      expect(recorded.rows[0]?.provider).toBe("https://other-provider.example");
       await expect(
         pool.query(`update simulora.model_profile_activations set material = false where id = $1`, [
           first.id,

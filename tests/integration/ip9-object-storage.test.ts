@@ -14,8 +14,11 @@ import { lanternReachSeed } from "../../packages/domain/src/index.js";
 import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
 import {
   InMemoryObjectStorage,
+  ObjectIntegrityError,
+  ObjectStoreUnavailableError,
   S3ObjectStorage,
   sha256Hex,
+  type ObjectMetadata,
   type ObjectStoragePort,
 } from "../../packages/storage/src/index.js";
 
@@ -59,6 +62,57 @@ async function exportRequestFor(
     worldId,
     include: { world: true, characters: true, continuity: true, history: true },
   };
+}
+
+/** An in-memory store whose next upload can be held open or failed, and whose next delete can fail. */
+class ControlledStorage extends InMemoryObjectStorage {
+  puts = 0;
+  #heldPut: Promise<void> | null = null;
+  #releasePut: () => void = () => undefined;
+  #nextPutError: Error | null = null;
+  #failNextDelete = false;
+
+  holdNextPut(): void {
+    this.#heldPut = new Promise((resolve) => {
+      this.#releasePut = resolve;
+    });
+  }
+  releasePut(): void {
+    this.#releasePut();
+  }
+  failNextPut(error: Error): void {
+    this.#nextPutError = error;
+  }
+  failNextDelete(): void {
+    this.#failNextDelete = true;
+  }
+
+  override async put(metadata: ObjectMetadata, body: Uint8Array): Promise<void> {
+    this.puts += 1;
+    const held = this.#heldPut;
+    this.#heldPut = null;
+    if (held) await held;
+    const failure = this.#nextPutError;
+    this.#nextPutError = null;
+    if (failure) throw failure;
+    return super.put(metadata, body);
+  }
+
+  override async delete(key: string): Promise<void> {
+    if (this.#failNextDelete) {
+      this.#failNextDelete = false;
+      throw new ObjectStoreUnavailableError("Object store is unavailable");
+    }
+    return super.delete(key);
+  }
+}
+
+async function until(condition: () => boolean): Promise<void> {
+  for (let step = 0; step < 200; step += 1) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Condition was not reached");
 }
 
 async function reservationState(
@@ -246,6 +300,141 @@ suite("IP-9 export object storage against PostgreSQL", () => {
     }
   });
 
+  it("lets a second uploader finish without deleting the stored object", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const storage = new ControlledStorage();
+    const governance = new GovernanceService(repository, { artifacts: storage });
+    const workerA = new ExportStorageWorker(repository, storage);
+    const workerB = new ExportStorageWorker(repository, storage);
+    const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
+    try {
+      const { world } = await playableWorld(repository, owner);
+      storage.setAvailable(false);
+      const delayed = await governance.createExport(
+        owner,
+        await exportRequestFor(repository, owner, world.worldId),
+      );
+      expect(delayed.status).toBe("PENDING");
+      storage.setAvailable(true);
+      await pool.query(
+        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        [delayed.exportId],
+      );
+
+      // Worker A stalls past its lease; worker B takes over and finishes.
+      storage.holdNextPut();
+      const puts = storage.puts;
+      const stalled = workerA.processNext({ worldId: world.worldId });
+      await until(() => storage.puts === puts + 1);
+      await pool.query(
+        `update simulora.export_jobs set storage_lease_until = now() where id = $1`,
+        [delayed.exportId],
+      );
+      expect(await workerB.processNext({ worldId: world.worldId })).toMatchObject({
+        outcome: "STORED",
+      });
+
+      // A's late finalize finds the same immutable object already stored and leaves it.
+      storage.releasePut();
+      expect(await stalled).toMatchObject({ outcome: "STORED" });
+      expect(storage.has(delayed.artifactKey!)).toBe(true);
+      const ready = await governance.readExport(owner, delayed.exportId);
+      expect(ready.status).toBe("READY");
+      expect(sha256Hex(await governance.readExportArtifact(owner, delayed.exportId))).toBe(
+        ready.checksum,
+      );
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("never deletes under a running upload, and removes what a crashed upload left", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const storage = new ControlledStorage();
+    const governance = new GovernanceService(repository, { artifacts: storage });
+    const worker = new ExportStorageWorker(repository, storage);
+    const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
+    try {
+      const { world } = await playableWorld(repository, owner);
+      storage.setAvailable(false);
+      const delayed = await governance.createExport(
+        owner,
+        await exportRequestFor(repository, owner, world.worldId),
+      );
+      storage.setAvailable(true);
+      await pool.query(
+        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        [delayed.exportId],
+      );
+
+      storage.holdNextPut();
+      const puts = storage.puts;
+      const uploading = worker.processNext({ worldId: world.worldId });
+      await until(() => storage.puts === puts + 1);
+
+      const proposal = await repository.proposeDeletion(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `deletion-${randomUUID()}`,
+        targetType: "WORLD",
+        targetId: world.worldId,
+      });
+      await repository.confirmDeletion(owner, {
+        schemaVersion: 1,
+        proposalId: proposal.proposalId,
+        digest: proposal.digest,
+        idempotencyKey: randomUUID(),
+      });
+      // The upload still holds its lease, so the delete is not claimable yet.
+      expect(await worker.processNext({ worldId: world.worldId })).toBeNull();
+
+      // The upload lands, then its own cleanup fails, as if it crashed there.
+      storage.failNextDelete();
+      storage.releasePut();
+      expect(await uploading).toMatchObject({ outcome: "REVOKED" });
+      expect(storage.has(delayed.artifactKey!)).toBe(true);
+
+      // Once the lease has run out, the worker removes the object it left.
+      await pool.query(
+        `update simulora.export_jobs set storage_lease_until = now() where id = $1`,
+        [delayed.exportId],
+      );
+      await drain(worker, world.worldId);
+      expect(storage.has(delayed.artifactKey!)).toBe(false);
+      const deleted = await pool.query<{ storage_state: string }>(
+        `select storage_state from simulora.export_jobs where id = $1`,
+        [delayed.exportId],
+      );
+      expect(deleted.rows[0]?.storage_state).toBe("DELETED");
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("reports a stored copy that fails its checksum as an integrity failure", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const storage = new ControlledStorage();
+    const governance = new GovernanceService(repository, { artifacts: storage });
+    const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
+    try {
+      const { world } = await playableWorld(repository, owner);
+      storage.failNextPut(new ObjectIntegrityError("Stored object does not match its checksum"));
+      const delayed = await governance.createExport(
+        owner,
+        await exportRequestFor(repository, owner, world.worldId),
+      );
+      expect(delayed.status).toBe("PENDING");
+      expect(delayed.delay?.reasonCode).toBe("OBJECT_INTEGRITY_FAILED");
+    } finally {
+      await pool.end();
+    }
+  });
+
   it("verifies bytes against PostgreSQL's checksum and refuses forged or stale links", async () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const pool = createDatabasePool(connectionString);
@@ -363,6 +552,55 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       await pool.end();
     }
   });
+  it("settles a delivered legacy export's open reservation when its World is deleted", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
+    try {
+      const { world } = await playableWorld(repository, owner);
+      const { reservationId } = await exportRequestFor(repository, owner, world.worldId);
+      const exportId = randomUUID();
+      const bytes = Buffer.from(`legacy export ${exportId}`);
+      // IP-8 delivered this READY export, but the page closed before it settled.
+      await pool.query(
+        `insert into simulora.export_jobs
+         (id, account_id, world_id, reservation_id, idempotency_key, selected_scopes,
+          omitted_scopes, status, schema_version, manifest, artifact_key, checksum,
+          artifact_bytes, completed_at)
+         values ($1, $2, $3, $4, $5, '["world"]', '[]', 'READY', 1, '{}'::jsonb, $6, $7, $8, now())`,
+        [
+          exportId,
+          owner.accountId,
+          world.worldId,
+          reservationId,
+          `legacy-${exportId}`,
+          `exports/${owner.accountId}/${exportId}.zip`,
+          createHash("sha256").update(bytes).digest("hex"),
+          bytes,
+        ],
+      );
+      expect((await reservationState(pool, reservationId)).status).toBe("RESERVED");
+      const proposal = await repository.proposeDeletion(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `deletion-${randomUUID()}`,
+        targetType: "WORLD",
+        targetId: world.worldId,
+      });
+      await repository.confirmDeletion(owner, {
+        schemaVersion: 1,
+        proposalId: proposal.proposalId,
+        digest: proposal.digest,
+        idempotencyKey: randomUUID(),
+      });
+      expect(await reservationState(pool, reservationId)).toEqual({
+        status: "SETTLED",
+        entries: ["SETTLEMENT"],
+      });
+    } finally {
+      await pool.end();
+    }
+  });
 });
 
 s3Suite("IP-9 export object storage against an S3-compatible store", () => {
@@ -377,13 +615,16 @@ s3Suite("IP-9 export object storage against an S3-compatible store", () => {
     });
   }
 
-  it("stores, signs, verifies and deletes a real object", async () => {
+  it("stores, serves through a verified link, and deletes a real object", async () => {
     if (!connectionString || !s3Endpoint) throw new Error("PostgreSQL and S3 are required");
     const pool = createDatabasePool(connectionString);
     const repository = new AuthoritativeWorldRepository(pool);
     const storage = s3Storage(s3Endpoint);
     await storage.ensureBucket();
-    const governance = new GovernanceService(repository, { artifacts: storage });
+    const governance = new GovernanceService(repository, {
+      artifacts: storage,
+      downloadSigningKey: "s3-suite-signing-key",
+    });
     const worker = new ExportStorageWorker(repository, storage);
     const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
     try {
@@ -396,20 +637,14 @@ s3Suite("IP-9 export object storage against an S3-compatible store", () => {
       const key = exported.artifactKey!;
       expect(sha256Hex((await storage.get(key))!)).toBe(exported.checksum);
 
+      // Downloads never bypass the API: the link re-checks revocation and the
+      // checksum on every use, so it is never a presigned object URL.
       const link = await governance.createExportDownloadLink(owner, exported.exportId);
-      expect(link.method).toBe("OBJECT_STORE_SIGNED");
-      const response = await fetch(link.url);
-      expect(response.status).toBe(200);
-      expect(sha256Hex(new Uint8Array(await response.arrayBuffer()))).toBe(exported.checksum);
-      const unsigned = await fetch(link.url.split("?")[0]!);
-      expect(unsigned.status).toBe(403);
-
-      const shortLived = await storage.signedDownloadUrl(key, {
-        expiresInSeconds: 1,
-        filename: "expiring.zip",
-      });
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      expect((await fetch(shortLived)).status).toBe(403);
+      expect(link.method).toBe("API_SIGNED");
+      expect(link.url).not.toContain(s3Endpoint);
+      const token = link.url.split("/").at(-1)!;
+      const served = await governance.readSignedExport(token);
+      expect(sha256Hex(served.bytes)).toBe(exported.checksum);
 
       const proposal = await repository.proposeDeletion(owner, {
         schemaVersion: 1,
@@ -423,9 +658,13 @@ s3Suite("IP-9 export object storage against an S3-compatible store", () => {
         digest: proposal.digest,
         idempotencyKey: randomUUID(),
       });
+      // Revocation takes effect at once, before the object itself is removed.
+      expect(await storage.get(key)).not.toBeNull();
+      await expect(governance.readSignedExport(token)).rejects.toBeInstanceOf(
+        InvalidDownloadLinkError,
+      );
       await drain(worker, world.worldId);
       expect(await storage.get(key)).toBeNull();
-      expect((await fetch(link.url)).status).toBe(404);
     } finally {
       storage.destroy();
       await pool.end();

@@ -11,6 +11,12 @@ export type CapabilityProfile = {
   adapter: "deterministic" | "openai-compatible";
   /** Provider model identifier; `null` for the deterministic adapter. */
   model: string | null;
+  /**
+   * Origin of the provider endpoint, derived from it; `null` for the
+   * deterministic adapter. The same model name at another provider is a
+   * different data flow, so it is part of the profile.
+   */
+  provider: string | null;
   promptVersion: number;
   timeoutMs: number;
   maxOutputTokens: number;
@@ -26,6 +32,7 @@ export const deterministicProfile: CapabilityProfile = {
   version: "1",
   adapter: "deterministic",
   model: null,
+  provider: null,
   promptVersion: 0,
   timeoutMs: 0,
   maxOutputTokens: 0,
@@ -294,7 +301,8 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
 }
 
 export type OpenAICompatibleGatewayOptions = {
-  profile: CapabilityProfile;
+  /** The provider is taken from `endpoint`, never supplied separately. */
+  profile: Omit<CapabilityProfile, "provider">;
   /** Full chat-completions URL. */
   endpoint: string;
   apiKey: string;
@@ -305,9 +313,39 @@ export function assertProviderEndpoint(endpoint: string): void {
   const url = new URL(endpoint);
   const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
   // Credentials never travel over plain HTTP except to a local test double.
-  if ((url.protocol !== "https:" && !(loopback && url.protocol === "http:")) || url.username) {
+  if (
+    (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) ||
+    url.username ||
+    url.password
+  ) {
     throw new Error("Model provider endpoint must use HTTPS without URL credentials");
   }
+}
+
+/** Room for 64,000 characters of content in the widest UTF-8, plus the envelope. */
+const maxEnvelopeBytes = 320 * 1024;
+
+/** Reads a provider body, refusing it as soon as it outgrows the limit. */
+async function readBoundedBody(response: Response, limit: number): Promise<string> {
+  if (Number(response.headers.get("content-length") ?? 0) > limit) {
+    await response.body?.cancel();
+    throw new ProviderResponseError("Provider response exceeds the size limit");
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      throw new ProviderResponseError("Provider response exceeds the size limit");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 /**
@@ -327,7 +365,7 @@ export class OpenAICompatibleModelGateway implements ModelGatewayPort {
     }
     assertProviderEndpoint(options.endpoint);
     if (!options.apiKey.trim()) throw new Error("Model provider key is required");
-    this.profile = options.profile;
+    this.profile = { ...options.profile, provider: new URL(options.endpoint).origin };
     this.#endpoint = options.endpoint;
     this.#apiKey = options.apiKey;
     this.#fetch = options.fetch ?? fetch;
@@ -377,9 +415,10 @@ export class OpenAICompatibleModelGateway implements ModelGatewayPort {
       throw new ProviderUnavailableError(`Provider HTTP ${response.status}`);
     }
     if (!response.ok) throw new ProviderResponseError(`Provider HTTP ${response.status}`);
+    const envelope = await readBoundedBody(response, maxEnvelopeBytes);
     let body: { model?: unknown; choices?: Array<{ message?: { content?: unknown } }> };
     try {
-      body = (await response.json()) as typeof body;
+      body = JSON.parse(envelope) as typeof body;
     } catch {
       throw new ProviderResponseError("Provider returned a non-JSON envelope");
     }
@@ -470,6 +509,7 @@ export function isMaterialProfileChange(
   return (
     previous.id !== next.id ||
     previous.adapter !== next.adapter ||
+    previous.provider !== next.provider ||
     previous.model !== next.model ||
     previous.promptVersion !== next.promptVersion
   );
@@ -516,12 +556,13 @@ export function createModelGateway(
     : live;
 }
 
-/** The fields of a profile that identify it; never the key or endpoint secret. */
+/** The fields of a profile that identify it; never the key or the full endpoint. */
 export function profileDigest(profile: CapabilityProfile): string {
   const canonical = JSON.stringify([
     profile.id,
     profile.version,
     profile.adapter,
+    profile.provider,
     profile.model,
     profile.promptVersion,
     profile.timeoutMs,

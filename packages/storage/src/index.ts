@@ -9,7 +9,6 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export type ObjectMetadata = {
   key: string;
@@ -18,19 +17,12 @@ export type ObjectMetadata = {
   contentType: string;
 };
 
-export type SignedDownloadOptions = {
-  expiresInSeconds: number;
-  filename: string;
-};
-
 export interface ObjectStoragePort {
   readonly kind: "memory" | "filesystem" | "s3";
   put(metadata: ObjectMetadata, body: Uint8Array): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
   /** Deleting an absent key succeeds, so a retried purge is safe. */
   delete(key: string): Promise<void>;
-  /** Only stores that can sign their own URLs implement this. */
-  signedDownloadUrl?(key: string, options: SignedDownloadOptions): Promise<string>;
 }
 
 /**
@@ -264,20 +256,6 @@ export class S3ObjectStorage implements ObjectStoragePort {
       if (isNotFound(error)) return;
       throw unavailable(error);
     }
-  }
-
-  async signedDownloadUrl(key: string, options: SignedDownloadOptions): Promise<string> {
-    assertObjectKey(key);
-    const filename = options.filename.replace(/[^A-Za-z0-9._-]/g, "_");
-    return getSignedUrl(
-      this.#client,
-      new GetObjectCommand({
-        Bucket: this.#bucket,
-        Key: key,
-        ResponseContentDisposition: `attachment; filename="${filename}"`,
-      }),
-      { expiresIn: options.expiresInSeconds },
-    );
   }
 
   destroy(): void {

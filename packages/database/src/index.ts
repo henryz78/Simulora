@@ -543,7 +543,10 @@ type GovernanceExportResponse = {
   manifest: Record<string, unknown> | null;
   createdAt: string;
   completedAt: string | null;
-  delay: { reasonCode: "OBJECT_STORE_UNAVAILABLE"; message: string } | null;
+  delay: {
+    reasonCode: "OBJECT_STORE_UNAVAILABLE" | "OBJECT_INTEGRITY_FAILED";
+    message: string;
+  } | null;
 };
 
 /** Where an export's bytes live. Only a READY export has one. */
@@ -555,6 +558,16 @@ export type ExportArtifactLocation = {
   /** Present only for artifacts written before object storage existed. */
   inlineBytes: Uint8Array | null;
 };
+
+/**
+ * How long one upload or delete may hold an export. It must exceed the object
+ * store's worst-case request time (two attempts of five seconds for S3), so a
+ * lease that has expired means its upload can no longer land.
+ */
+// ponytail: lease-based exclusion, no object-store inventory; add an orphan sweep if a store without request timeouts is ever used
+export const exportStorageLeaseMs = 30_000;
+
+export type ExportStoredOutcome = "STORED" | "ALREADY_STORED" | "REVOKED";
 
 export type ExportStorageWork =
   | {
@@ -637,6 +650,8 @@ export type ModelProfileActivationInput = {
   profileVersion: string;
   adapter: "deterministic" | "openai-compatible";
   model: string | null;
+  /** Origin of the provider endpoint; null for the deterministic adapter. */
+  provider: string | null;
   promptVersion: number;
   profileDigest: string;
   /** `id@version` of the declared fallback, or null when there is none. */
@@ -647,7 +662,9 @@ export type ModelProfileActivationInput = {
       id: string;
       adapter: "deterministic" | "openai-compatible";
       model: string | null;
+      provider: string | null;
       promptVersion: number;
+      fallbackProfile: string | null;
     } | null,
   ): boolean;
 };
@@ -5088,6 +5105,7 @@ export class AuthoritativeWorldRepository {
         profile_version: string;
         adapter: ModelProfileActivationInput["adapter"];
         model: string | null;
+        provider: string | null;
         prompt_version: number;
         profile_digest: string;
         fallback_profile: string | null;
@@ -5095,8 +5113,8 @@ export class AuthoritativeWorldRepository {
         product_change_id: string | null;
         activated_at: Date;
       }>(
-        `select id, profile_id, profile_version, adapter, model, prompt_version, profile_digest,
-                fallback_profile, material, product_change_id, activated_at
+        `select id, profile_id, profile_version, adapter, model, provider, prompt_version,
+                profile_digest, fallback_profile, material, product_change_id, activated_at
          from simulora.model_profile_activations order by sequence desc limit 1`,
       );
       const previous = latest.rows[0];
@@ -5113,7 +5131,9 @@ export class AuthoritativeWorldRepository {
               id: previous.profile_id,
               adapter: previous.adapter,
               model: previous.model,
+              provider: previous.provider,
               promptVersion: previous.prompt_version,
+              fallbackProfile: previous.fallback_profile,
             }
           : null,
       );
@@ -5140,8 +5160,8 @@ export class AuthoritativeWorldRepository {
       const inserted = await client.query<{ activated_at: Date }>(
         `insert into simulora.model_profile_activations
          (id, profile_id, profile_version, adapter, model, prompt_version, profile_digest,
-          fallback_profile, material, previous_activation_id, product_change_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          fallback_profile, material, previous_activation_id, product_change_id, provider)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          returning activated_at`,
         [
           id,
@@ -5155,6 +5175,7 @@ export class AuthoritativeWorldRepository {
           material,
           previous?.id ?? null,
           productChangeId,
+          activation.provider,
         ],
       );
       return {
@@ -6276,18 +6297,30 @@ export class AuthoritativeWorldRepository {
   }
 
   /** The staged bytes of one export, for the upload that follows its creation. */
-  async readStagedExport(exportId: string): Promise<ExportStorageWork | null> {
+  /**
+   * Leases one staged export for an immediate upload, exactly as the worker does,
+   * so a deletion waits for this upload instead of racing it. Returns null while
+   * another uploader holds the lease or the export is in its retry backoff.
+   */
+  async claimStagedExport(
+    exportId: string,
+    leaseMs = exportStorageLeaseMs,
+  ): Promise<ExportStorageWork | null> {
     const result = await this.pool.query<{
       id: string;
       artifact_key: string;
       checksum: string;
       artifact_bytes: Buffer;
     }>(
-      `select id, artifact_key, checksum, artifact_bytes from simulora.export_jobs
+      `update simulora.export_jobs
+       set storage_lease_until = clock_timestamp() + $2 * interval '1 millisecond'
        where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE')
          and status in ('PENDING', 'READY') and artifact_bytes is not null
-         and artifact_key is not null and checksum is not null`,
-      [exportId],
+         and artifact_key is not null and checksum is not null
+         and (storage_available_at is null or storage_available_at <= clock_timestamp())
+         and (storage_lease_until is null or storage_lease_until <= clock_timestamp())
+       returning id, artifact_key, checksum, artifact_bytes`,
+      [exportId, leaseMs],
     );
     const row = result.rows[0];
     return row
@@ -6302,12 +6335,14 @@ export class AuthoritativeWorldRepository {
   }
 
   /**
-   * Claims one unit of object-store work with a short lease. Two workers can race
-   * on an upload safely: the bytes are immutable and only one finalize succeeds.
+   * Claims one unit of object-store work with a short lease. Two uploaders can
+   * race safely: the bytes and key are immutable, the first finalize wins and
+   * the other sees ALREADY_STORED. A delete is claimable only once any upload
+   * lease has expired, so it cannot run under an upload still in flight.
    */
   async claimExportStorageWork(
     scope: { worldId?: string } = {},
-    leaseMs = 30_000,
+    leaseMs = exportStorageLeaseMs,
   ): Promise<ExportStorageWork | null> {
     return transaction(this.pool, async (client) => {
       const result = await client.query<{
@@ -6320,6 +6355,7 @@ export class AuthoritativeWorldRepository {
         `select id, storage_state, artifact_key, checksum, artifact_bytes
          from simulora.export_jobs
          where (storage_available_at is null or storage_available_at <= clock_timestamp())
+           and (storage_lease_until is null or storage_lease_until <= clock_timestamp())
            and ($1::uuid is null or world_id = $1::uuid)
            and (
              storage_state = 'DELETE_PENDING'
@@ -6336,7 +6372,7 @@ export class AuthoritativeWorldRepository {
       if (!row) return null;
       await client.query(
         `update simulora.export_jobs
-         set storage_available_at = clock_timestamp() + $2 * interval '1 millisecond'
+         set storage_lease_until = clock_timestamp() + $2 * interval '1 millisecond'
          where id = $1`,
         [row.id, leaseMs],
       );
@@ -6363,29 +6399,36 @@ export class AuthoritativeWorldRepository {
   }
 
   /**
-   * Returns false when the export was revoked while its upload was in flight; the
-   * row is then DELETE_PENDING and the object the upload wrote must be removed.
+   * Finalizes an upload. ALREADY_STORED means another uploader finalized the same
+   * immutable object first, which must be left alone. REVOKED means the export
+   * was revoked while this upload was in flight, so its object must be removed.
    */
-  async markExportStored(exportId: string): Promise<boolean> {
+  async markExportStored(exportId: string): Promise<ExportStoredOutcome> {
     return transaction(this.pool, async (client) => {
       const result = await client.query<{ reservation_id: string | null }>(
         `update simulora.export_jobs
          set status = 'READY', storage_state = 'STORED', artifact_bytes = null,
              object_stored_at = now(), completed_at = coalesce(completed_at, now()),
-             storage_last_error = null, storage_available_at = null
+             storage_last_error = null, storage_available_at = null, storage_lease_until = null
          where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE')
            and status in ('PENDING', 'READY')
          returning reservation_id`,
         [exportId],
       );
-      if (!result.rows[0]) return false;
+      if (!result.rows[0]) {
+        const current = await client.query<{ storage_state: string }>(
+          `select storage_state from simulora.export_jobs where id = $1`,
+          [exportId],
+        );
+        return current.rows[0]?.storage_state === "STORED" ? "ALREADY_STORED" : "REVOKED";
+      }
       await this.closeExportReservations(
         client,
         [result.rows[0].reservation_id],
         "SETTLED",
         "SETTLEMENT",
       );
-      return true;
+      return "STORED";
     });
   }
 
@@ -6421,6 +6464,7 @@ export class AuthoritativeWorldRepository {
     await this.pool.query(
       `update simulora.export_jobs
        set storage_attempts = storage_attempts + 1, storage_last_error = $2,
+           storage_lease_until = null,
            storage_available_at = clock_timestamp()
              + least(300000, 1000 * power(2, least(storage_attempts, 8)))
                * interval '1 millisecond'
@@ -6433,7 +6477,7 @@ export class AuthoritativeWorldRepository {
     await this.pool.query(
       `update simulora.export_jobs
        set storage_state = 'DELETED', object_deleted_at = now(),
-           storage_last_error = null, storage_available_at = null
+           storage_last_error = null, storage_available_at = null, storage_lease_until = null
        where id = $1 and storage_state = 'DELETE_PENDING'`,
       [exportId],
     );
@@ -6489,11 +6533,17 @@ export class AuthoritativeWorldRepository {
       completedAt: row.completed_at?.toISOString() ?? null,
       delay:
         row.status === "PENDING" && row.storage_state === "STAGED" && row.storage_last_error
-          ? {
-              reasonCode: "OBJECT_STORE_UNAVAILABLE",
-              message:
-                "The export is built and checksummed but storage is delayed. It becomes downloadable automatically; the World is unaffected.",
-            }
+          ? row.storage_last_error === "OBJECT_INTEGRITY_FAILED"
+            ? {
+                reasonCode: "OBJECT_INTEGRITY_FAILED",
+                message:
+                  "The export is built and checksummed, but the stored copy did not match its checksum, so it is not offered. Storage is retried automatically; the World is unaffected.",
+              }
+            : {
+                reasonCode: "OBJECT_STORE_UNAVAILABLE",
+                message:
+                  "The export is built and checksummed but storage is delayed. It becomes downloadable automatically; the World is unaffected.",
+              }
           : null,
     };
   }
@@ -6766,12 +6816,16 @@ export class AuthoritativeWorldRepository {
            )
            update simulora.export_jobs job
            set status = 'REVOKED', storage_state = 'DELETE_PENDING', artifact_bytes = null,
+               -- The backoff is cleared; a running upload lease is kept, so the
+               -- delete waits for that upload rather than racing it.
                storage_available_at = null
            from target where job.id = target.id
            returning target.status as prior_status, job.reservation_id`,
           [proposal.target_id],
         );
-        // An export revoked before it was ever stored delivered nothing.
+        // An export revoked before it was ever stored delivered nothing. One that
+        // was READY was delivered; a legacy row whose page never settled it is
+        // settled here, so no reservation outlives its export.
         await this.closeExportReservations(
           client,
           revoked.rows
@@ -6779,6 +6833,14 @@ export class AuthoritativeWorldRepository {
             .map((row) => row.reservation_id),
           "RELEASED",
           "RELEASE",
+        );
+        await this.closeExportReservations(
+          client,
+          revoked.rows
+            .filter((row) => row.prior_status === "READY")
+            .map((row) => row.reservation_id),
+          "SETTLED",
+          "SETTLEMENT",
         );
         await client.query(
           `update simulora.continuities set status = 'TOMBSTONED'

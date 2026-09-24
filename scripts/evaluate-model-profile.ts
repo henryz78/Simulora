@@ -17,6 +17,7 @@ import {
 } from "../packages/model-gateway/src/index.js";
 import {
   evaluateModelOutput,
+  evaluationRoutinePolicy,
   modelEvaluationCases,
   modelEvaluationWorld,
   type CaseEvaluation,
@@ -31,6 +32,11 @@ export type ModelEvaluationReport = {
   categories: Record<string, { accepted: number; rejected: number }>;
   hardGateFailures: Array<{ caseId: string; gate: string }>;
   unmetExpectations: string[];
+  /**
+   * Live mode only: benign cases the provider did not answer acceptably, and any
+   * case lost to an outage. Rejections alone cannot pass a live profile.
+   */
+  liveFailures: string[];
   passed: boolean;
 };
 
@@ -45,6 +51,9 @@ function requestFor(evaluationCase: ModelEvaluationCase): WorldTurnRequest {
     expectedHeadCommitId: randomUUID(),
     intent: evaluationCase.intent,
     requestedEffect: evaluationCase.requestedEffect,
+    ...(evaluationCase.requestedEffect === "ROUTINE_EFFECT"
+      ? { routineRoutes: evaluationRoutinePolicy.routes.map((route) => ({ ...route })) }
+      : {}),
     participation: context.participation,
     character: context.character,
     targetFact: context.targetFact,
@@ -145,6 +154,16 @@ export async function runModelEvaluation(
   );
   const unmetExpectations =
     mode === "replay" ? cases.filter((result) => !result.expectationMet).map((r) => r.caseId) : [];
+  const liveFailures =
+    mode === "live"
+      ? cases
+          .filter(
+            (result) =>
+              (result.category === "benign" && result.outcome !== "ACCEPTED") ||
+              result.rejection === "ProviderUnavailableError",
+          )
+          .map((result) => result.caseId)
+      : [];
   const profile = mode === "live" ? liveGateway!.profile : { id: "replay", version: "1" };
   return {
     mode,
@@ -153,7 +172,9 @@ export async function runModelEvaluation(
     categories,
     hardGateFailures,
     unmetExpectations,
-    passed: hardGateFailures.length === 0 && unmetExpectations.length === 0,
+    liveFailures,
+    passed:
+      hardGateFailures.length === 0 && unmetExpectations.length === 0 && liveFailures.length === 0,
   };
 }
 

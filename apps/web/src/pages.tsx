@@ -3405,6 +3405,15 @@ export function TrustLifecyclePage(): ReactElement {
                 {busy === "export-check" ? "Checking…" : "Check export again"}
               </button>
             </div>
+          ) : exported && exported.status !== "READY" ? (
+            <div className="trust-result">
+              <strong>Export not available</strong>
+              <span>
+                {exported.status === "REVOKED"
+                  ? "This export was revoked, so it can no longer be downloaded. The in-product World is unaffected."
+                  : "This export could not be completed and cannot be downloaded. Create a new export to try again; the in-product World is unaffected."}
+              </span>
+            </div>
           ) : exported ? (
             <div className="trust-result">
               <strong>Export ready</strong>

@@ -183,8 +183,8 @@ export interface GovernancePort {
   createExport(account: EligibleAccount, request: ExportRequest): Promise<ExportResponse>;
   readExport(account: EligibleAccount, exportId: string): Promise<ExportResponse>;
   readExportArtifactLocation(exportId: string, accountId?: string): Promise<ExportArtifactLocation>;
-  readStagedExport(exportId: string): Promise<ExportStorageWork | null>;
-  markExportStored(exportId: string): Promise<boolean>;
+  claimStagedExport(exportId: string): Promise<ExportStorageWork | null>;
+  markExportStored(exportId: string): Promise<"STORED" | "ALREADY_STORED" | "REVOKED">;
   recordExportStorageDelay(exportId: string, reasonCode: ExportStorageDelayReason): Promise<void>;
   proposeDeletion(
     account: EligibleAccount,
@@ -209,10 +209,6 @@ export interface ExportArtifactStore {
   ): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
   delete(key: string): Promise<void>;
-  signedDownloadUrl?(
-    key: string,
-    options: { expiresInSeconds: number; filename: string },
-  ): Promise<string>;
 }
 
 export type ExportArtifactLocation = {
@@ -232,7 +228,7 @@ export type ExportStorageDelayReason = "OBJECT_STORE_UNAVAILABLE" | "OBJECT_INTE
 export type ExportDownloadLink = {
   url: string;
   expiresAt: string;
-  method: "OBJECT_STORE_SIGNED" | "API_SIGNED";
+  method: "API_SIGNED";
 };
 
 /** A dependency outside PostgreSQL is down; the request may be retried later. */
@@ -271,7 +267,7 @@ const downloadLinkTtlSeconds = 120;
 
 export type GovernanceServiceOptions = {
   artifacts?: ExportArtifactStore;
-  /** HMAC key for API-signed download links. Required when the store cannot sign. */
+  /** HMAC key for API-signed download links; without it links last one process. */
   downloadSigningKey?: string;
   now?: () => number;
 };
@@ -347,7 +343,7 @@ export class GovernanceService {
    * and left for the worker; it never fails the request that created the export.
    */
   async storeExport(exportId: string): Promise<"STORED" | "DELAYED" | "REVOKED" | "NOTHING"> {
-    const work = await this.port.readStagedExport(exportId);
+    const work = await this.port.claimStagedExport(exportId);
     if (!work || work.operation !== "STORE") return "NOTHING";
     if (!this.#artifacts) {
       await this.port.recordExportStorageDelay(exportId, "OBJECT_STORE_UNAVAILABLE");
@@ -368,20 +364,8 @@ export class GovernanceService {
     const location = await this.port.readExportArtifactLocation(exportId, account.accountId);
     const expiresAtSeconds = Math.floor(this.#now() / 1000) + downloadLinkTtlSeconds;
     const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
-    if (!location.inlineBytes && this.#artifacts?.signedDownloadUrl) {
-      try {
-        const url = await this.#artifacts.signedDownloadUrl(location.objectKey, {
-          expiresInSeconds: downloadLinkTtlSeconds,
-          filename: `simulora-export-${exportId}.zip`,
-        });
-        return { url, expiresAt, method: "OBJECT_STORE_SIGNED" };
-      } catch (error) {
-        if (isObjectStoreUnavailable(error)) {
-          throw new DependencyUnavailableError("OBJECT_STORE_UNAVAILABLE", "Storage is delayed");
-        }
-        throw error;
-      }
-    }
+    // Always an API link, never a presigned object URL: each use re-checks
+    // revocation and verifies the bytes against PostgreSQL's checksum.
     const signature = this.#sign(location.exportId, location.accountId, expiresAtSeconds);
     return {
       url: `/v1/export-downloads/${location.exportId}.${expiresAtSeconds}.${signature}`,
@@ -481,9 +465,11 @@ async function storeExportWork(
     }
     throw error;
   }
-  if (await port.markExportStored(work.exportId)) return "STORED";
-  // Revoked while the upload was in flight. The row is DELETE_PENDING, so the
-  // worker removes the object even if this best-effort delete fails.
+  const finalized = await port.markExportStored(work.exportId);
+  // Another uploader stored the same immutable object first; it is the artifact.
+  if (finalized !== "REVOKED") return "STORED";
+  // Revoked while the upload was in flight. The delete waits for this upload's
+  // lease, so the worker removes the object even if this best-effort delete fails.
   await artifacts.delete(work.objectKey).catch(() => undefined);
   return "REVOKED";
 }

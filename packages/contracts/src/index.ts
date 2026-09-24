@@ -395,7 +395,7 @@ export const exportResponseSchema = z.object({
   // storage failure is surfaced here so the delay is visible, not silent.
   delay: z
     .object({
-      reasonCode: z.literal("OBJECT_STORE_UNAVAILABLE"),
+      reasonCode: z.enum(["OBJECT_STORE_UNAVAILABLE", "OBJECT_INTEGRITY_FAILED"]),
       message: z.string().min(1),
     })
     .nullable()
@@ -405,7 +405,7 @@ export const exportResponseSchema = z.object({
 export const exportDownloadLinkSchema = z.object({
   url: z.string().min(1),
   expiresAt: z.string().datetime(),
-  method: z.enum(["OBJECT_STORE_SIGNED", "API_SIGNED"]),
+  method: z.literal("API_SIGNED"),
 });
 
 export const deletionProposalRequestSchema = z

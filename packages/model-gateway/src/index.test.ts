@@ -69,6 +69,7 @@ const liveProfile: CapabilityProfile = {
   version: "1",
   adapter: "openai-compatible",
   model: "synthetic-model",
+  provider: "http://127.0.0.1:9",
   promptVersion: livePromptVersion,
   timeoutMs: 2000,
   maxOutputTokens: 1024,
@@ -173,6 +174,7 @@ describe("IP-9 live capability profile adapter", () => {
     ["a candidate without narrative", () => completion({ operation: {} }), ProviderResponseError],
     ["another model", () => completion(candidateFor(base), "other-model"), ModelRouteChangedError],
     ["an echoed key", () => completion(`{"narrative":"${apiKey}"}`), UnsafeModelContextError],
+    ["an oversized body", () => new Response("<html>".repeat(60_000)), ProviderResponseError],
   ])("classifies %s without copying the provider body", async (_label, respond, type) => {
     const failure = gateway(providerReturning(respond)).generateWorldTurn(base);
     await expect(failure).rejects.toBeInstanceOf(type);
@@ -206,6 +208,15 @@ describe("IP-9 live capability profile adapter", () => {
           apiKey,
         }),
     ).toThrow(/HTTPS/);
+    // A password alone is still a credential in the URL.
+    for (const endpoint of [
+      "https://:hunter2@provider.example/v1/chat/completions",
+      "https://user@provider.example/v1/chat/completions",
+    ]) {
+      expect(
+        () => new OpenAICompatibleModelGateway({ profile: liveProfile, endpoint, apiKey }),
+      ).toThrow(/URL credentials/);
+    }
   });
 
   it("falls back only for an outage, and says so", async () => {
@@ -239,6 +250,13 @@ describe("IP-9 live capability profile adapter", () => {
       true,
     );
     expect(isMaterialProfileChange(liveProfile, { ...liveProfile, promptVersion: 6 })).toBe(true);
+    // The same model name served by another provider is a different data flow.
+    expect(
+      isMaterialProfileChange(liveProfile, {
+        ...liveProfile,
+        provider: "https://other-provider.example",
+      }),
+    ).toBe(true);
   });
 
   it("builds the configured routing and digests the profile without its key", () => {
@@ -260,8 +278,12 @@ describe("IP-9 live capability profile adapter", () => {
     expect(routed).toBeInstanceOf(FallbackModelGateway);
     expect(routed.profile.promptVersion).toBe(livePromptVersion);
     expect(profileDigest(routed.profile)).toMatch(/^[0-9a-f]{64}$/);
+    expect(routed.profile.provider).toBe("http://127.0.0.1:9");
     expect(profileDigest(routed.profile)).not.toBe(
       profileDigest({ ...routed.profile, model: "next-model" }),
+    );
+    expect(profileDigest(routed.profile)).not.toBe(
+      profileDigest({ ...routed.profile, provider: "https://other-provider.example" }),
     );
   });
 });

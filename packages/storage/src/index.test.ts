@@ -89,25 +89,4 @@ describe("object storage factory", () => {
     expect(s3).toBeInstanceOf(S3ObjectStorage);
     (s3 as S3ObjectStorage).destroy();
   });
-
-  it("signs a short-lived, single-object S3 download URL without network access", async () => {
-    const storage = new S3ObjectStorage({
-      endpoint: "http://127.0.0.1:9000",
-      region: "us-east-1",
-      bucket: "simulora-test",
-      accessKeyId: "key",
-      secretAccessKey: "secret",
-    });
-    const url = new URL(
-      await storage.signedDownloadUrl("exports/account/one.zip", {
-        expiresInSeconds: 120,
-        filename: "one.zip",
-      }),
-    );
-    expect(url.pathname).toBe("/simulora-test/exports/account/one.zip");
-    expect(url.searchParams.get("X-Amz-Expires")).toBe("120");
-    expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
-    expect(url.toString()).not.toContain("secret");
-    storage.destroy();
-  });
 });

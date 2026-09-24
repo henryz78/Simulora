@@ -308,3 +308,48 @@ test("a delayed export stays reviewable and leaves settlement to the server", as
   expect(settled).toBe(false);
   expect(released).toBe(false);
 });
+
+test("an export revoked while delayed is never offered for download", async ({ page }) => {
+  await routeTrustBasics(page);
+  const exportBody = (status: "PENDING" | "REVOKED") => ({
+    exportId,
+    status,
+    schemaVersion: 1,
+    worldId,
+    selectedScopes: ["world", "characters", "continuity", "history"],
+    omittedScopes: [],
+    checksum: "c".repeat(64),
+    artifactKey: `exports/${exportId}.zip`,
+    manifest: { schemaVersion: 1, worldId },
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    delay:
+      status === "PENDING"
+        ? {
+            reasonCode: "OBJECT_STORE_UNAVAILABLE",
+            message: "The export is built and checksummed but storage is delayed.",
+          }
+        : null,
+  });
+  await page.route("**/v1/exports", (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify(exportBody("PENDING")),
+    }),
+  );
+  await page.route(`**/v1/exports/${exportId}`, (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify(exportBody("REVOKED")) }),
+  );
+
+  await page.goto(`/worlds/${worldId}/trust`);
+  await page.getByRole("button", { name: "Review export usage" }).click();
+  await page.getByRole("button", { name: "Create selected export" }).click();
+  await expect(page.getByText("Export storage delayed")).toBeVisible();
+  await page.getByRole("button", { name: "Check export again" }).click();
+  await expect(page.getByText("Export not available")).toBeVisible();
+  await expect(page.getByText("This export was revoked")).toBeVisible();
+  await expect(page.getByText("Export ready")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Download ZIP" })).toHaveCount(0);
+  await expectAccessible(page);
+});

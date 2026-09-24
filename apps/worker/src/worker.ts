@@ -90,14 +90,18 @@ export function createWorkerComposition(
   ): Promise<ModelProfileActivationRecord> {
     const status = await modelGateway.status();
     const profile = modelGateway.profile;
+    const fallbackProfile = status.fallback
+      ? `${status.fallback.id}@${status.fallback.version}`
+      : null;
     return repository.recordModelProfileActivation({
       profileId: profile.id,
       profileVersion: profile.version,
       adapter: profile.adapter,
       model: profile.model,
+      provider: profile.provider,
       promptVersion: profile.promptVersion,
       profileDigest: profileDigest(profile),
-      fallbackProfile: status.fallback ? `${status.fallback.id}@${status.fallback.version}` : null,
+      fallbackProfile,
       isMaterialChange: (previous) =>
         isMaterialProfileChange(
           previous
@@ -106,11 +110,14 @@ export function createWorkerComposition(
                 id: previous.id,
                 adapter: previous.adapter,
                 model: previous.model,
+                provider: previous.provider,
                 promptVersion: previous.promptVersion,
               }
             : null,
           profile,
-        ),
+        ) ||
+        // Which profile answers during an outage is part of what people receive.
+        (previous !== null && previous.fallbackProfile !== fallbackProfile),
     });
   }
 
