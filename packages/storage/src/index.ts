@@ -195,8 +195,12 @@ export class S3ObjectStorage implements ObjectStoragePort {
 
   constructor(options: S3ObjectStorageOptions) {
     this.#bucket = options.bucket;
+    const requestedTimeout = options.requestTimeoutMs ?? s3RequestTimeoutMs;
+    if (!Number.isFinite(requestedTimeout) || requestedTimeout <= 0) {
+      throw new Error("requestTimeoutMs must be a positive finite number");
+    }
     // Never longer than the bound the upload lease is sized against.
-    const timeout = Math.min(options.requestTimeoutMs ?? s3RequestTimeoutMs, s3RequestTimeoutMs);
+    const timeout = Math.min(requestedTimeout, s3RequestTimeoutMs);
     this.#client = new S3Client({
       region: options.region,
       ...(options.endpoint ? { endpoint: options.endpoint } : {}),
@@ -210,7 +214,12 @@ export class S3ObjectStorage implements ObjectStoragePort {
           }
         : {}),
       // An outage has to surface as a bounded, visible delay rather than a hung request.
-      requestHandler: { connectionTimeout: timeout, requestTimeout: timeout },
+      requestHandler: {
+        connectionTimeout: timeout,
+        requestTimeout: timeout,
+        socketTimeout: timeout,
+        throwOnRequestTimeout: true,
+      },
       maxAttempts: s3MaxAttempts,
     });
   }

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readdir } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -89,4 +90,48 @@ describe("object storage factory", () => {
     expect(s3).toBeInstanceOf(S3ObjectStorage);
     (s3 as S3ObjectStorage).destroy();
   });
+});
+
+describe("S3 request bounds", () => {
+  it("aborts a stalled request instead of outliving its upload lease", async () => {
+    const server = createServer(() => undefined);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP test server");
+    const storage = new S3ObjectStorage({
+      endpoint: `http://127.0.0.1:${address.port}`,
+      region: "local",
+      bucket: "simulora-test",
+      accessKeyId: "key",
+      secretAccessKey: "secret",
+      requestTimeoutMs: 50,
+    });
+    const startedAt = Date.now();
+    try {
+      await expect(storage.put(metadata("exports/stalled.zip"), body)).rejects.toBeInstanceOf(
+        ObjectStoreUnavailableError,
+      );
+      expect(Date.now() - startedAt).toBeLessThan(1000);
+    } finally {
+      storage.destroy();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects an invalid request timeout (%s)",
+    (requestTimeoutMs) => {
+      expect(
+        () =>
+          new S3ObjectStorage({
+            endpoint: "http://127.0.0.1:9000",
+            region: "local",
+            bucket: "simulora-test",
+            requestTimeoutMs,
+          }),
+      ).toThrow("requestTimeoutMs must be a positive finite number");
+    },
+  );
 });
