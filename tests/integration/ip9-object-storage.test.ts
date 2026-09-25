@@ -218,7 +218,9 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       expect(staged.rows[0]).toEqual({ storage_state: "STAGED", storage_attempts: 1 });
       storage.setAvailable(true);
       await pool.query(
-        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        `update simulora.export_jobs
+         set storage_available_at = now(), storage_lease_until = now()
+         where id = $1`,
         [delayed.exportId],
       );
       await drain(worker, world.worldId);
@@ -269,6 +271,12 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       const staged = await governance.createExport(owner, stagedRequest);
       expect(staged.status).toBe("PENDING");
       storage.setAvailable(true);
+      await pool.query(
+        `update simulora.export_jobs
+         set storage_available_at = now(), storage_lease_until = now()
+         where id = $1`,
+        [staged.exportId],
+      );
 
       const proposal = await repository.proposeDeletion(owner, {
         schemaVersion: 1,
@@ -340,7 +348,9 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       expect(delayed.status).toBe("PENDING");
       storage.setAvailable(true);
       await pool.query(
-        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        `update simulora.export_jobs
+         set storage_available_at = now(), storage_lease_until = now()
+         where id = $1`,
         [delayed.exportId],
       );
 
@@ -388,7 +398,9 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       );
       storage.setAvailable(true);
       await pool.query(
-        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        `update simulora.export_jobs
+         set storage_available_at = now(), storage_lease_until = now()
+         where id = $1`,
         [delayed.exportId],
       );
 
@@ -409,8 +421,10 @@ suite("IP-9 export object storage against PostgreSQL", () => {
         digest: proposal.digest,
         idempotencyKey: randomUUID(),
       });
-      // The upload still holds its lease, so the delete is not claimable yet.
-      expect(await worker.processNext({ worldId: world.worldId })).toBeNull();
+      // The upload still holds its lease, so another worker cannot claim the delete yet.
+      // (The same worker would just join its own in-flight upload.)
+      const otherWorker = new ExportStorageWorker(repository, storage);
+      expect(await otherWorker.processNext({ worldId: world.worldId })).toBeNull();
 
       // The upload lands, then its own cleanup fails, as if it crashed there.
       storage.failNextDelete();
@@ -452,7 +466,9 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       );
       storage.setAvailable(true);
       await pool.query(
-        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        `update simulora.export_jobs
+         set storage_available_at = now(), storage_lease_until = now()
+         where id = $1`,
         [delayed.exportId],
       );
 
