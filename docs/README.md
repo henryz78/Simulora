@@ -46,6 +46,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [IP-9 Independent Review (G9)](implementation-planning/IP-9-INDEPENDENT-REVIEW.md)
 - [IP-10 Requirement → Evidence Matrix (IP-10.8 draft)](implementation-planning/IP-10-REQUIREMENT-EVIDENCE-MATRIX.md)
 - [MUST-Gap Closure Contract (MGC-1)](implementation-planning/MUST-GAP-CLOSURE-CONTRACT.md)
+- [MGC-1 Implementation and Review](implementation-planning/MGC-1-IMPLEMENTATION-AND-REVIEW.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)

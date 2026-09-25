@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 STARTED`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 IN PROGRESS / MGC-1 PASS`
 
 **Latest Gate:** G9 is `PASS` and closed. See §43–§47 and the
 [IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
@@ -8,8 +8,10 @@ behavior is `c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI
 `36096978257` succeeded; the user verified it, not the reviewer (§47). IP-10
 was authorized and started on 2026-09-24; its first output is the
 [IP-10 Requirement → Evidence Matrix](IP-10-REQUIREMENT-EVIDENCE-MATRIX.md).
-The IP-8 text below is kept as history; where it says "IP-9 not started", §43
-supersedes it.
+The bounded MUST-gap closure track MGC-1 passed independent re-review on
+2026-09-25. Its approved behavior is `f68addd`, with exact-SHA CI `36103979617`
+`success` (§49). The IP-8 text below is kept as history; where it says "IP-9 not
+started", §43 supersedes it.
 
 **Purpose:** This is the current review handoff for an approval agent. It distinguishes completed implementation from frozen design, verified evidence from local-only checks, and readiness for the next phase from authorization to start it.
 
@@ -1381,4 +1383,58 @@ On 2026-09-24 the product owner made three decisions:
   this release.
 
 The external G10 decisions and the human and specialist reviews remain pending.
+No beta or launch is authorized.
+
+## 49. MGC-1 PASS and IP-10 validation progress
+
+**MGC-1** went through the process the product owner set: implementation →
+real PostgreSQL, browser and migration regression → independent review →
+repair → re-review. The full record is in
+[MGC-1 Implementation and Review](MGC-1-IMPLEMENTATION-AND-REVIEW.md).
+
+- **Round 1** (`30e9d85`): `PASS WITH ISSUES` (0B / 0I / 2M), conditional on CI.
+  Exact-SHA CI `36102392020` then succeeded.
+- **Repair:**
+  - Minor 1: the live-prompt skeleton tests were added in `18320b4`.
+  - Minor 2: an inert `protection` without a `scale` is accepted as is, with
+    the rationale recorded.
+  - IP-10.2 findings: raw identifiers in the proposal review, a 320 px reflow
+    break and deterministic text naming a place that does not exist. These
+    were fixed in `38672ee`.
+- **Round 2** (through `f68addd`): **`PASS`** (0B / 0I / 1M, accepted with no
+  action). The reviewer itself verified CI `36102392020`, `36103467010` and
+  `36103979617`, each `success` on its exact SHA.
+- **Approved behavior:** MGC-1 at `f68addd`, with CI `36103979617`. The
+  implementer checked the logs: real-PostgreSQL `test:postgres` 169/169
+  (including `mgc1-closure` 8/8), full vitest 292/292, real-stack journeys 4/4
+  and the browser matrix 195 passed.
+
+MGC-1 is a bounded track, not a Gate.
+
+**IP-10 test-only progress** (details in the
+[IP-10 matrix](IP-10-REQUIREMENT-EVIDENCE-MATRIX.md), update 1):
+
+- **IP-10.1:** the INV-07, INV-08, INV-09 and INV-12 tests landed in `3f84328`,
+  CI `36100042739`.
+- **IP-10.2:** real-stack browser journeys run in CI against the API and worker
+  containers:
+  - premise → "Begin play" → first Action → Return;
+  - Action → Correction → Branch/Restore → export.
+
+  `E2E-CONTINUITY-IMPACT` remains to do.
+- **IP-10.5:** the SEC-ACCESS horizontal sweep over 43 owner-scoped route probes
+  landed in `f68addd`. The only reads that answer do so exactly as for an
+  unknown identifier.
+- **IP-10.4:** a CI rehearsal of upgrade from the approved G9 release, with
+  rollback by restoring the pre-upgrade backup, was added in `2ac96bc`. Its
+  first result is pending.
+
+**Still open:**
+
+- IP-10.3 `LONG-01` is now unblocked, but it has not been built or run.
+- IP-10.6 capacity and killed-worker drill.
+- The IP-10.4 matrix document.
+- The IP-10.7 alert definitions.
+- All external G10 decisions and the human and specialist reviews.
+
 No beta or launch is authorized.

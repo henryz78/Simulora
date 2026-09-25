@@ -1,8 +1,18 @@
 # IP-10 Requirement → Evidence Matrix
 
-**Status:** `IP-10 STARTED — FIRST MAPPING (IP-10.8 draft)`. This is the first
-IP-10 work item. It records what current `main` proves today and where the
-gaps are. It closes nothing and passes no Gate.
+**Status:** `IP-10 IN PROGRESS — MATRIX UPDATE 1 (2026-09-25)`. This is a
+living IP-10.8 document. It records what `main` proves and where the gaps are.
+It passes no Gate.
+
+**Update 1 (2026-09-25):**
+
+- MGC-1 passed independent re-review. Its approved behavior is `f68addd`, with
+  exact-SHA CI `36103979617` `success`
+  ([MGC-1 Implementation and Review](MGC-1-IMPLEMENTATION-AND-REVIEW.md)).
+- The IP-10.1 invariant tests, IP-10.2 real-stack journeys and IP-10.5
+  SEC-ACCESS sweep landed with CI success.
+- Rows are updated in place. The first mapping at `7bbb889` is in git history.
+- `LONG-01` has not run yet.
 
 **Baseline mapped:** approved IP-9 behavior
 `c812d6c6d29be86be3557a00b4866b5d01f0499f`, exact-SHA CI `36096978257`
@@ -30,24 +40,24 @@ Evidence paths are relative to the repository root. Test names are quoted.
 | Req | Validation IDs | Evidence today | Status | Gap to close |
 |---|---|---|---|---|
 | PR-001 | INV-04, INV-05, E2E-AGENCY, E2E-CONTRACT-TRANSITION | `ip6-participation-character`: "commits all six independent contracts through direct user Actions only", "rejects stale/mismatched expectations…", "rejects any non-direct Commit that changes participation"; `packages/domain`: "round-trips all six…", "rejects model candidates that attempt to smuggle protected authority fields"; `e2e/ip6-participation`: "changes the two independent axes…", "stale review writes nothing…" | `EVIDENCED` | — |
-| PR-002 | E2E-START | `e2e/ip7-world-studio` creates a Draft and a Revision in the browser; `ip7-world-studio` (PG) starts a Continuity from a Revision | `PARTIAL — TEST GAP` | No browser test goes from a new premise through "Begin play" to the first playable scene and a first Action (IP-10.2). |
+| PR-002 | E2E-START | `tests/stack/first-action.spec.ts` "a new World reaches its first confirmed Action and Return on the real stack": premise → Revision → "Begin play" → first Action → exact confirmation → Return, through the real API, worker and PostgreSQL on desktop and 390×844 (CI `36103979617`); `e2e/ip7-world-studio` | `EVIDENCED` | — |
 | PR-003 | E2E-RETURN, LONG-01 | `e2e/ip4-continuity` Return tests (freshness, authoritative fallback, no false "no change"); `ip4-return-continuity` routes | `PARTIAL — TEST GAP` | Only single-session scenarios. A multi-session return after interruption needs `LONG-01` (IP-10.3). |
-| PR-004 | INV-07, INV-08, INV-13, E2E-CORRECT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `e2e/ip4-continuity` "Continuity fact Lens leads to exact Correction review…"; `ip4-adversarial` correction/removal and cross-account hiding; `ip4-return-continuity` Explanation routes; `ip6` "filters character knowledge before the generator…" | `PARTIAL — TEST GAP` | `E2E-CONTINUITY-IMPACT` has no single end-to-end scenario. The L3 cases for relationship redefinition and scope widening are covered only by closed schemas, because no operation for them exists (see PR-005). |
-| PR-005 | E2E-CAUSE | `re3-routine-effects` "binds policy, L2 proposal, causal Event…"; fact update with a Commit Event (`action-truth`) | `NOT MET — IMPLEMENTATION GAP` | A causal change is evidenced only for fact updates and NPC movement. **No transformed-failure mechanism exists**: no code, contract or test produces a new playable state from a failed attempt. |
+| PR-004 | INV-07, INV-08, INV-13, E2E-CORRECT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `e2e/ip4-continuity` "Continuity fact Lens leads to exact Correction review…"; `tests/stack` real-stack Correction; `ip4-adversarial` correction/removal and cross-account hiding; `ip4-return-continuity` Explanation routes; `ip10-invariants` INV-07/INV-08; MGC-1 L3 relationship redefinition | `PARTIAL — TEST GAP` | `E2E-CONTINUITY-IMPACT` still has no single end-to-end scenario. Scope widening has no operation. |
+| PR-005 | E2E-CAUSE | MGC-1: `mgc1-closure` (PG) causal relationship shift with its Event; transformed failure proposed, rejected with no change, then confirmed into a new open thread; "a provider failure never becomes a transformed failure"; `e2e/mgc1-closure` composer journey; `re3-routine-effects` and `action-truth` for movement and fact updates | `EVIDENCED` (deterministic) / `EXTERNAL` (model quality) | Closed by MGC-1 (`f68addd`). The quality of transformed failure on a real model needs an approved provider. |
 | PR-006 | INV-05, INV-07, MODEL-CHAR | `packages/domain` "keeps two characters' identity, knowledge and stance distinct", "binds Character attribution and rejects generated user commitments"; `ip6` authority guards | `EVIDENCED` (deterministic) / `EXTERNAL` (model quality) | The structural proof holds. A character-quality rubric on a real model needs an approved provider (Plan §20). |
 | PR-007 | INV-05, INV-08, INV-13, E2E-AUDIT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `ip4-return-continuity` Trace/Explanation; `re3` causal Event; `ip8` audit and appeal | `EVIDENCED` | Shares the PR-004 `E2E-CONTINUITY-IMPACT` gap. |
-| PR-008 | INV-09, E2E-RECOVERY | `ip5-recovery` (20 tests); `e2e/ip5-recovery` "Safe Point, Branch and exact append-only Restore share one Recovery model" | `PARTIAL — TEST GAP` | INV-09 also requires that account grants, usage and exports are not rolled back by Restore. No test asserts it (see INV-09). |
-| PR-009 | INV-12, E2E-EXIT | `ip8-trust-lifecycle`, `ip9-object-storage`, `e2e/ip8-trust-lifecycle` "owner can inspect trust, export selected data, appeal, and review deletion" | `PARTIAL — TEST GAP` | See INV-12. |
+| PR-008 | INV-09, E2E-RECOVERY | `ip5-recovery` (20 tests); `e2e/ip5-recovery` "Safe Point, Branch and exact append-only Restore share one Recovery model"; `ip10-invariants` INV-09; `tests/stack` "Action, Correction, Branch, Restore and export compose on one World" | `EVIDENCED` | — |
+| PR-009 | INV-12, E2E-EXIT | `ip8-trust-lifecycle`, `ip9-object-storage`, `e2e/ip8-trust-lifecycle` "owner can inspect trust, export selected data, appeal, and review deletion"; `ip10-invariants` INV-12; real-stack export in `tests/stack` | `EVIDENCED` | — |
 | PR-010 | INV-06, MODEL-FALLBACK, FAULT-PROVIDER | `ip9-model-provider` out-of-envelope rejection, outage fallback, material profile change | `EVIDENCED` (provider doubles) / `EXTERNAL` (real provider) | No real provider has been evaluated or approved. |
 | PR-011 | E2E-START, AUTHOR-DEPTH | `e2e/ip7-world-studio` "creator can make a Draft…" reaches facts, routes, relationships and boundaries | `EVIDENCED` | — |
-| PR-013 | SEC-ACCESS, GOV-CONSENT, GOV-APPEAL | `ip8-trust-lifecycle` consent, appeal and live-consent gating; `packages/auth` synthetic adult account; cross-account checks spread across `ip4`/`ip5`/`ip6`/`ip8`/`ip9` | `PARTIAL — TEST GAP` + `EXTERNAL` | No single sweep proves horizontal access for every resource type (Validation §8). OIDC, adult eligibility, safety taxonomy and appeal policy are Plan §20 decisions. |
+| PR-013 | SEC-ACCESS, GOV-CONSENT, GOV-APPEAL | `ip10-access-sweep` (§6.1); `ip8-trust-lifecycle` consent, appeal and live-consent gating; `packages/auth` synthetic adult account | `EVIDENCED` (automated) + `EXTERNAL` | OIDC, adult eligibility, safety taxonomy and appeal policy are Plan §20 decisions. |
 | PR-014 | INV-01, USAGE-QUOTE, USAGE-FAILURE | `ip8` quote/reservation idempotency; `ip9-fault-matrix` "releases a reservation exactly once…" | `EVIDENCED` (zero-cost adapter) / `EXTERNAL` (pricing) | Pricing and allowance are a Plan §20 decision. |
-| NFR-001 | INV-01–INV-03, FAULT-COMMIT | `action-truth`, `action-lease`, `ip9-fault-matrix`, `e2e/action-truth` lost-ACK and refresh recovery | `EVIDENCED` | Worker death is simulated by lease expiry. A killed-process drill belongs to IP-10.6. |
+| NFR-001 | INV-01–INV-03, FAULT-COMMIT | `action-truth`, `action-lease`, `ip9-fault-matrix`, `e2e/action-truth` lost-ACK and refresh recovery | `EVIDENCED` | Worker death is simulated by lease expiry. The killed-process drill (IP-10.6) is still to do. |
 | NFR-002 | A11Y-CORE | `tests/e2e/support/accessibility.ts` (axe, 320 px reflow, focus, reduced motion) across five browser/device projects; keyboard-only Action journey | `EVIDENCED` (automated) / `EXTERNAL` (screen reader) | The required "supported screen reader path" has had no human review (IP-10.5). |
 | NFR-003 | A11Y-NO-SENSORY, FAULT-OPTIONAL | No optional sensory layer exists; states are text; the reduced-motion check removes all motion; mobile projects | `EVIDENCED` | Evidenced by absence of optional layers. It must be re-proven if a layer is ever selected. |
 | NFR-004 | CHANGE-NOTICE, MODEL-FALLBACK | `ip9-model-provider` "records a material profile change once and publishes its notice"; `ip8` material-change records | `EVIDENCED` | — |
-| NFR-005 | INV-07, INV-13, SEC-ACCESS, E2E-EXPLANATION | Explanation and scope tests (PR-004); `e2e/ip8-trust-lifecycle` visibility | `PARTIAL — TEST GAP` + `EXTERNAL` | Shares the SEC-ACCESS sweep gap. Operator visibility and audited operator access are open threat-model items. |
-| NFR-006 | LONG-01 | None | `NOT MET — IMPLEMENTATION GAP` | See §5. `LONG-01` has never run. Three of its pass conditions need behavior that does not exist. |
+| NFR-005 | INV-07, INV-13, SEC-ACCESS, E2E-EXPLANATION | Explanation and scope tests (PR-004); `ip10-invariants` INV-07; `ip10-access-sweep`; `e2e/ip8-trust-lifecycle` visibility | `EVIDENCED` (automated) + `EXTERNAL` | Operator visibility and audited operator access are open threat-model items. |
+| NFR-006 | LONG-01 | MGC-1 supplies the three missing mechanisms (§5) | `PENDING — LONG-01 NOT YET RUN` | The implementation gap is closed by MGC-1. `LONG-01` itself has not run (IP-10.3). |
 | NFR-007 | PERF-ACK, FAULT-SLOW, INV-01 | CI `perf:ack`: p95 427.9 ms at `69228ef` (200 Actions, concurrency 10); `ip9-model-provider` "shows the ten-second wait state…" | `EVIDENCED` (CI profile) / `EXTERNAL` (supported-device profile) | The CI profile is server-side. The supported-device and normal-network profile depends on the launch environment decision. |
 
 ## 3. SHOULD and conditional requirements
@@ -74,14 +84,14 @@ support for these requirements.
 | INV-02 | `ip9-fault-matrix` (every frozen injection point); `action-lease`; `e2e/action-truth` | `EVIDENCED` | — |
 | INV-03 | `action-truth` "allows only one unresolved ordinary Action against a Branch head"; `ip6` "allows at most one concurrent direct change…" | `EVIDENCED` | — |
 | INV-04 | See PR-001 | `EVIDENCED` | — |
-| INV-05 | `ip6` protected-authority guards; `packages/domain` closed impact classification for fact rewrite (L3) and movement (L2) | `PARTIAL` | The closed decision table's relationship, scope-widening and Memory Candidate rows have no operation. The table can only be exercised for rows the product implements. |
+| INV-05 | `ip6` protected-authority guards; `packages/domain` closed impact classification for fact rewrite (L3) and movement (L2); MGC-1 relationship rows (routine adjacent step L2; protected change or jump L3; forged L2 refused in SQL) | `EVIDENCED` for the implemented rows | The scope-widening and Memory Candidate rows have no operation. The table can only be exercised for rows the product implements. |
 | INV-06 | `ip9-model-provider` out-of-envelope rejection; `ip6`/`re3` SQL rejection of forged proposals | `EVIDENCED` | — |
-| INV-07 | `ip6` "filters character knowledge before the generator and records the scoped manifest"; `ip4-adversarial` private IDs; disclosure-boundary tests | `PARTIAL — TEST GAP` | No test inspects logs and traces for private content (Validation §3 names logs and summaries). |
-| INV-08 | `ip4-adversarial` corrected facts stay out of later state; `ip6` "does not resurrect pre-correction dialogue…"; `re3` correction boundary | `PARTIAL — TEST GAP` | No test changes the model profile after a correction and checks that the next compiled context still uses the correction. |
-| INV-09 | `ip5-recovery` source Branch unchanged, append-only Restore, destructive rewind rejected | `PARTIAL — TEST GAP` | No test asserts that Restore leaves account grants, usage ledger and exports unchanged. |
+| INV-07 | `ip10-invariants` "INV-07: keeps private facts and user text out of every API log line" (debug level, success and error paths); `ip6` scoped manifest; `ip4-adversarial` private IDs | `EVIDENCED` (CI `36100042739`) | — |
+| INV-08 | `ip10-invariants` "INV-08: a correction still governs the next context after a model-profile change"; `ip4-adversarial`; `ip6`; `re3` correction boundary | `EVIDENCED` (CI `36100042739`) | — |
+| INV-09 | `ip10-invariants` INV-09: Restore leaves consents, usage ledger, exports and grants unchanged; `ip5-recovery` | `EVIDENCED` (CI `36100042739`) | — |
 | INV-10 | `authoritative-spine` "keeps an existing Continuity pinned…"; `ip7-world-studio`; `e2e/ip7-world-studio` | `EVIDENCED` | — |
 | INV-11 | `ip4-adversarial` "marks a delayed projection stale while keeping the authoritative fallback readable…"; `ip9-fault-matrix` rebuild | `EVIDENCED` | — |
-| INV-12 | `ip8` manifest, `checksums.sha256`, readable artifact, foreign Continuity absent; `ip9-object-storage` checksum verification | `PARTIAL — TEST GAP` | No test asserts that private facts outside the selected scope and provider data (prompts, raw attempts) are absent from the package. |
+| INV-12 | `ip10-invariants` "INV-12: an export carries no provider data and nothing from other accounts" (and only the selected scope); `ip8`; `ip9-object-storage` | `EVIDENCED` (CI `36100042739`) | — |
 | INV-13 | `ip4-return-continuity` Explanation routes with freshness; `ip4-adversarial` cross-account hiding | `EVIDENCED` | — |
 
 ## 5. `LONG-01` feasibility (IP-10.3)
@@ -96,23 +106,46 @@ migrations.
 | Twenty sessions over a simulated thirty days, with one real wall-clock interruption | Harness work only |
 | Deliberate L3 correction; participation transition and stale check; Branch; Restore; interrupted Action; model-profile change and outage fallback; return orientation | Yes. Each exists and is tested alone. |
 | Character disagreement | Yes (deterministic stance and refusal attribution) |
-| **Five relationship changes that keep their cause links** | **No.** Relationships are state data, but no Action operation changes one. The operation set is `UPDATE_CANONICAL_FACT`, `MOVE_CHARACTER`, `NO_WORLD_EFFECT`, `CORRECT_CONTINUITY`, `REMOVE_CONTINUITY`, participation change and Restore. |
-| **Three threads correctly open or resolved at the end** | **No.** `openThreads` is an append-only list of narrative strings, with no open/resolved lifecycle and no resolve operation. |
-| **At least one transformed failure** | **No.** There is no failure-to-new-state mechanism (PR-005). |
+| **Five relationship changes that keep their cause links** | Yes since MGC-1: `SHIFT_RELATIONSHIP` with a causal Event. |
+| **Three threads correctly open or resolved at the end** | Yes since MGC-1: authoritative `threads` with `OPEN_THREAD` / `RESOLVE_THREAD` Events. |
+| **At least one transformed failure** | Yes since MGC-1: `TRANSFORM_FAILURE` against a declared constraint, with exact confirmation. |
 
-IP-10 can build and run the `LONG-01` harness for every supported element. The
-three unsupported elements will fail honestly, and those pass conditions stay
-`NOT MET`. Closing them needs new domain behavior, which IP-10 does not include.
-It needs a separate product decision.
+At first mapping the last three elements were unsupported. The product owner
+chose a separate bounded track (MGC-1) to close them, and MGC-1 passed
+independent review on 2026-09-25. Every element is now supported. The `LONG-01`
+harness has still not been built or run; it is the next IP-10.3 step.
 
 ## 6. Other IP-10 work items at a glance
 
 | Item | State today | Engineering can do now | Needs outside input |
 |---|---|---|---|
-| IP-10.4 compatibility | `migration-contract`, `migration-upgrade` prove upgrade from earlier schemas; contracts accept the prior phase | A compatibility matrix and a rehearsed roll-forward and rollback procedure. Migrations are forward-only, so rollback means restoring from backup, then rolling forward again. | — |
-| IP-10.5 privacy/security/a11y | Automated a11y and threat-model tests; six open threat-model items | The SEC-ACCESS sweep, plus the INV-07 and INV-12 absence tests | Specialist penetration, privacy/legal review and human screen-reader review |
+| IP-10.4 compatibility | `migration-contract` and `migration-upgrade` prove upgrade from earlier schemas; contracts accept the prior phase. `2ac96bc` adds a CI rehearsal: the approved G9 release seeds its own schema, its backup restores identically under its own drill (the rollback path), and both copies upgrade and agree under the current drill. | The compatibility matrix document, and the rehearsal's first CI result | — |
+| IP-10.5 privacy/security/a11y | The SEC-ACCESS sweep, INV-07 and INV-12 are done (§6.1); automated a11y; six open threat-model items | — | Specialist penetration, privacy/legal review and human screen-reader review |
 | IP-10.6 performance/capacity/fault | CI `perf:ack`, fault matrix, restore drill | A capacity run above the `LONG-01` fixture, and a killed-worker drill | The production device and network profile |
 | IP-10.7 operations | Runbooks exist | Alert definitions tied to the existing metrics | Named owners and a tested escalation path |
+
+### 6.1 SEC-ACCESS sweep result (IP-10.5)
+
+`tests/integration/ip10-access-sweep.test.ts` passed on real PostgreSQL in CI
+`36103979617`. A second account presents one owner's identifiers to 43
+owner-scoped route probes. The route list is read from the API source, so a
+new route that the sweep does not cover fails the test.
+
+- Every mutation and most reads are refused with 403 or 404.
+- No response contains the owner's content, and nothing the owner holds
+  changes.
+- Three reads answer instead of refusing. Each answers exactly as for an
+  identifier that does not exist, so neither content nor existence leaks:
+  - the access explanation (both resource types) returns `accessLevel: NONE`
+    and `reasonCode: NOT_FOUND`, by design;
+  - `GET /v1/branches/:branchId/actions` returns an empty list with 200.
+- **Observation, not a violation:** the empty-list read meets the frozen rule
+  ("without leaking existence"), but it differs from sibling Branch routes,
+  which return 404. Aligning them would be a behavior change and is not made
+  in IP-10.
+- An appeal may name a resource the caller cannot reach, for example to appeal
+  an access denial. The appeal is the caller's own record and never looks the
+  subject up, so an unknown identifier is answered the same way.
 
 ## 7. G10 external decisions (Plan §20), all still open
 
@@ -154,3 +187,15 @@ stays validation only.
 Steps 1–5 above do not depend on the new behavior and proceed now. Step 6
 (`LONG-01`) and the matrix rows for PR-005, `E2E-CONTINUITY-IMPACT`, INV-05
 and NFR-006 wait for MGC-1 to pass independent review.
+
+**Progress at update 1 (2026-09-25):**
+
+| Step | State |
+|---|---|
+| 1 | Done (`3f84328`, CI `36100042739`) |
+| 2 | "Begin play" and cross-capability journeys done (`38672ee`); `E2E-CONTINUITY-IMPACT` remains |
+| 3 | Done (`f68addd`) |
+| 4 | CI rehearsal added (`2ac96bc`); the result and the matrix document remain |
+| 5 | Not started |
+| 6 | Unblocked by MGC-1 `PASS`; not started |
+| 7 | This update |

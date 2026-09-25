@@ -143,7 +143,7 @@ engineering track 推进、不加新功能；首个产出是
 transformed failure 与 LONG-01 的关系变化、thread open/resolve 无现有机制，属
 IP-10 无法用测试关闭的实现缺口；用户已决定以独立 bounded track 闭合，契约见
 `docs/implementation-planning/MUST-GAP-CLOSURE-CONTRACT.md`（MGC-1，须单独独立 Review），
-IP-10 本身仍只验证。SHOULD 选择：PR-012/015/016/017 均不选。外部决策与专家/真人验证仍未完成，
+IP-10 本身仍只验证。MGC-1 已完成：同一独立 Reviewer 复审 `PASS`（0B/0I/1M，已接受），批准行为 SHA `f68addd`，exact-SHA CI `36103979617` 成功；记录见 `docs/implementation-planning/MGC-1-IMPLEMENTATION-AND-REVIEW.md`，状态见交接 §49。`LONG-01` 已解除阻塞但尚未运行。SHOULD 选择：PR-012/015/016/017 均不选。外部决策与专家/真人验证仍未完成，
 不自动进入 beta/launch。
 
 ## Long-Term Product Direction
