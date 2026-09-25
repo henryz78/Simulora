@@ -417,8 +417,17 @@ suite("IP-10.3 LONG-01 long-horizon scenario against PostgreSQL", () => {
       log(21, "ordinary Action with Sella");
 
       // The longest gap (nine days), then return orientation.
-      const orientation = await repository.readOrientation(account, continuityId);
+      // A stale projection labels itself; the worker's rebuild brings it to the head.
       const final = await head();
+      const before = await repository.readOrientation(account, continuityId);
+      if (before.freshness.sourceHeadCommitId !== final.headCommitId)
+        expect(before.freshness.status).not.toBe("FRESH");
+      await repository.rebuildReturnOrientation(account, final.branchId);
+      const orientation = await repository.readOrientation(account, continuityId);
+      expect(orientation.freshness).toMatchObject({
+        status: "FRESH",
+        sourceHeadCommitId: final.headCommitId,
+      });
       expect(orientation.nextParticipation.expectedHeadCommitId).toBe(final.headCommitId);
       expect(orientation.pendingActions).toEqual([]);
       expect(orientation.current.situation).toBe(
