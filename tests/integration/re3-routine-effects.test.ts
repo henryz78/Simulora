@@ -261,6 +261,37 @@ suite("RE-3 bounded routine effects against real PostgreSQL", () => {
     ).toBe("COMPLETED_NO_EFFECT");
     expect((await repository.cancelAction(account, output.id)).status).toBe("COMPLETED_NO_EFFECT");
   });
+  it("a response-only Action does not block a Branch switch; an unresolved one still does in SQL", async () => {
+    const continuity = await fixture();
+    expect((await propose(continuity, "NO_WORLD_EFFECT")).status).toBe("COMPLETED_NO_EFFECT");
+    const fork = await repository.forkBranch(account, continuity.continuityId, {
+      idempotencyKey: randomUUID(),
+      name: "After a response",
+      sourceCommitId: continuity.headCommitId,
+      expectedHeadCommitId: continuity.headCommitId,
+    });
+    expect(
+      (await repository.selectBranch(account, continuity.continuityId, fork.id)).currentBranchId,
+    ).toBe(fork.id);
+    const pending = await repository.submitAction(account, fork.id, {
+      schemaVersion: 1,
+      idempotencyKey: randomUUID(),
+      expectedHeadCommitId: fork.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Wait at the fork.",
+    });
+    await expect(
+      pool.query("update simulora.continuities set active_branch_id = $2 where id = $1", [
+        continuity.continuityId,
+        continuity.branchId,
+      ]),
+    ).rejects.toThrow("Cannot switch Branch while an unresolved Action remains");
+    await repository.cancelAction(account, pending.id);
+    expect(
+      (await repository.selectBranch(account, continuity.continuityId, continuity.branchId))
+        .currentBranchId,
+    ).toBe(continuity.branchId);
+  });
   it("passes only same-path completed dialogue into the next authorized generation", async () => {
     const continuity = await fixture(false);
     const first = await propose(continuity, "NO_WORLD_EFFECT");
