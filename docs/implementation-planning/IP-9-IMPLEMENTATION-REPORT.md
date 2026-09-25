@@ -1,7 +1,11 @@
 # IP-9 Implementation Report — Model, Accessibility and Reliability Hardening
 
-**Status:** `G9 PASS`. Current approved behavior:
-`e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`.
+**Status:** `G9 PASS WITH ISSUES` pending exact-SHA CI and documentation
+closure. Current candidate behavior:
+`f5949ac6e4eac509ce5422b130c0c630c8e15206`.
+
+The last CI-approved behavior remains `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`
+(`35964085085`).
 
 The [independent review](IP-9-INDEPENDENT-REVIEW.md) went through three
 rounds:
@@ -13,6 +17,10 @@ rounds:
    independently confirmed the repair `d7430e3` and returned `PASS`. It raised
    one IMPORTANT documentation finding (N1) and one MINOR finding (N2).
    `e1fa0a6` closes N2; this documentation closes N1.
+4. The same reviewer re-reviewed `f5949ac` after the export-worker and endpoint
+   hardening repairs: `PASS WITH ISSUES` (0 BLOCKER / 1 IMPORTANT / 0 MINOR).
+   The remaining Important is the missing exact-SHA CI and stale evidence,
+   which this report now records.
 
 **Phase goal (frozen):** move from deterministic correctness to production-shaped
 quality without weakening contracts ([Roadmap §12](ROADMAP_AND_WORK_BREAKDOWN.md)).
@@ -165,6 +173,14 @@ CI runs on `main` (real PostgreSQL 17, MinIO, containers, browser matrix):
   - `perf:ack`: acknowledgement p95 508.8 ms; acknowledgement to proposal p95
     35.2 s.
   - Browser and device matrix: 185 passed.
+
+- **`f5949ac` candidate — exact-SHA CI pending.** The focused repair adds
+  claim-first, paced best-effort reconciliation with an idle force sweep after
+  DELETE, and rejects/redacts endpoint URL secrets. Local targeted tests are
+  55 passed / 11 skipped; the full local run is 114 passed / 154 skipped.
+  Real PostgreSQL, MinIO/S3, provider, human assistive-technology review and
+  exact-SHA CI are not yet evidence for this candidate; local build remains
+  blocked by the Windows sandbox's esbuild parent-directory access denial.
 
 Local checks on each commit: format, ESLint (0 problems), typecheck,
 architecture, migrations (46), unit tests, build and worker runtime. Local

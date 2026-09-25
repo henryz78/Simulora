@@ -1,11 +1,14 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 CANDIDATE / G9 PASS WITH ISSUES`
 
-**Latest Gate:** G9 passed. See §43–§44 and the
+**Latest Gate:** G9 code review is `PASS WITH ISSUES` pending exact-SHA CI and
+documentation closure. See §43–§45 and the
 [IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The current
-approved IP-9 behavior is `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626` (CI
-`35964085085`), after a second audit's repair. IP-10 has not started.
+IP-9 candidate behavior is `f5949ac6e4eac509ce5422b130c0c630c8e15206`, after
+the export-worker and endpoint-hardening repairs. Exact-SHA CI is pending;
+the last CI-approved baseline remains `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`
+(`35964085085`). IP-10 has not started.
 The IP-8 text below is kept as history; where it says "IP-9 not started", §43
 supersedes it.
 
@@ -1262,3 +1265,26 @@ containers (acknowledgement p95 508.8 ms), and 185 browser tests.
 
 What remains not proven is unchanged from §43. IP-10 has not started and is
 not authorized.
+
+## 45. Current G9 candidate repair and evidence status
+
+The same independent GPT-6 Luna max reviewer re-reviewed exact behavior
+`f5949ac6e4eac509ce5422b130c0c630c8e15206` and returned **G9 PASS WITH ISSUES —
+0 BLOCKER / 1 IMPORTANT / 0 MINOR**. The code findings from the previous
+audit are closed:
+
+- the worker claims queue work before inventory and makes due reconciliation
+  best-effort, so LIST/DB inventory failure cannot starve STORE/DELETE;
+- reconciliation is paced at 30 seconds during sustained work, while a
+  successful DELETE forces the next idle poll to sweep late objects;
+- provider and object endpoints reject URL credentials, query parameters and
+  fragments, and startup configuration redacts both endpoint values.
+
+The remaining Important is evidence currency: this SHA has not yet had an
+exact-SHA GitHub Action run, and the handoff/report/review documents had not
+yet recorded the candidate. Local evidence is 55 targeted tests passed / 11
+skipped and 114 full tests passed / 154 skipped; format, lint, typecheck,
+architecture, migration and runtime checks pass. Real PostgreSQL, MinIO/S3,
+provider, human assistive-technology review and exact-SHA CI remain unverified;
+the local build is blocked by the Windows sandbox's esbuild parent-directory
+access denial. The last CI-approved baseline remains the SHA recorded in §44.

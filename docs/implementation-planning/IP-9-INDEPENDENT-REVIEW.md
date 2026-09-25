@@ -806,6 +806,32 @@ softened, removed, or contradicted by the new material. No overstatement found.
 **Approved behavior SHA accepted by this review: `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`**
 (exact-SHA CI `35964085085`, `success`, `headSha` confirmed).
 
+## 10. Follow-up review of the reconciliation and endpoint repair
+
+The same independent GPT-6 Luna max reviewer re-reviewed exact behavior SHA
+`f5949ac6e4eac509ce5422b130c0c630c8e15206`. The code-level findings from the
+second audit are closed:
+
+- queue claim precedes inventory, so an inventory outage cannot starve durable
+  STORE/DELETE work;
+- due reconciliation is best-effort during work, paced at 30 seconds, and a
+  successful DELETE forces the next idle poll to sweep late remote objects;
+- provider and object endpoints reject URL userinfo/query/fragment secrets, and
+  `redactConfig` hides endpoint values.
+
+The formal result is **G9 PASS WITH ISSUES — 0 BLOCKER / 1 IMPORTANT / 0 MINOR**.
+The sole Important is evidence currency: the candidate has no exact-SHA CI run
+yet and the status/report documents had still named `e1fa0a6` as the approved
+baseline. This follow-up updates those documents; exact-SHA CI remains pending.
+
+Evidence for the candidate: targeted 55 passed / 11 skipped; full local 114
+passed / 154 skipped; format, lint, typecheck, architecture, migration and
+runtime checks passed. Real PostgreSQL, MinIO/S3, model provider, human
+assistive-technology review and exact-SHA CI were not run; local build remains
+blocked by the Windows sandbox's esbuild parent-directory access denial. The
+last CI-approved behavior remains `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`
+with CI run `35964085085`.
+
 Both closure items are resolved: N2 is fixed with an enforced runtime invariant plus an
 always-on regression test, not merely documented; N1's six affected documents now accurately
 record the full history — original review, first repair, second independent audit, its repair,
