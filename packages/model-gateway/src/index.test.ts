@@ -151,6 +151,67 @@ describe("IP-9 live capability profile adapter", () => {
     ).toThrow(UnsafeModelContextError);
   });
 
+  it("offers only the closed MGC-1 skeleton for each requested closure effect", () => {
+    const effectContext = {
+      relationships: [
+        {
+          id: "relationship.iora-tavi",
+          fromCharacterId: "character.iora",
+          toCharacterId: "character.tavi",
+          protection: "ROUTINE" as const,
+          scale: ["wary", "cordial", "trusting"],
+          state: "wary",
+        },
+      ],
+      openThreads: [{ id: "thread.vessel", title: "The vessel's cargo" }],
+      constraints: [{ id: "constraint.flood", statement: "The causeway floods." }],
+    };
+    const operationOf = (request: WorldTurnRequest) => {
+      const lines = compileWorldTurnPrompt(request).system.split("\n");
+      const at = lines.indexOf(
+        "Return ONE JSON candidate object, no markdown. Only these keys/values are permitted:",
+      );
+      return {
+        operation: (JSON.parse(lines[at + 1]!) as { operation: Record<string, unknown> }).operation,
+        failure: lines.find((line) => line.includes('"TRANSFORM_FAILURE"')) ?? null,
+      };
+    };
+    const shift = operationOf({ ...base, requestedEffect: "RELATIONSHIP_EFFECT", effectContext });
+    expect(shift.operation).toMatchObject({
+      type: "SHIFT_RELATIONSHIP",
+      relationshipId: "relationship.iora-tavi",
+      beforeState: "wary",
+    });
+    // The failure alternative is offered only beside a real effect, never as the ask.
+    expect(shift.failure).toContain("constraint");
+    const open = operationOf({ ...base, requestedEffect: "THREAD_EFFECT", effectContext });
+    expect(open.operation).toMatchObject({ type: "OPEN_THREAD" });
+    const resolve = operationOf({
+      ...base,
+      requestedEffect: "THREAD_EFFECT",
+      targetThreadId: "thread.vessel",
+      effectContext,
+    });
+    expect(resolve.operation).toMatchObject({ type: "RESOLVE_THREAD", threadId: "thread.vessel" });
+    // An impossible relationship change can only fail against the declared constraint.
+    const blocked = operationOf({
+      ...base,
+      requestedEffect: "RELATIONSHIP_EFFECT",
+      effectContext: { ...effectContext, relationships: [] },
+    });
+    expect(blocked.operation).toMatchObject({ type: "TRANSFORM_FAILURE" });
+    expect(() =>
+      compileWorldTurnPrompt({
+        ...base,
+        requestedEffect: "RELATIONSHIP_EFFECT",
+        effectContext: { ...effectContext, relationships: [], constraints: [] },
+      }),
+    ).toThrow(UnsafeModelContextError);
+    // Without a constraint there is nothing a failure could be transformed against.
+    const plain = operationOf({ ...base, requestedEffect: "THREAD_EFFECT" });
+    expect(plain.failure).toBeNull();
+  });
+
   it("sends rules and data as separate messages and returns an untrusted draft", async () => {
     const seen: SentRequest[] = [];
     const draft = await gateway(
