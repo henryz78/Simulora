@@ -91,4 +91,43 @@ describe("ExportStorageWorker reconciliation", () => {
     await Promise.all([worker.processNext(), worker.processNext()]);
     expect(maxActive).toBe(1);
   });
+
+  it("keeps reconciliation alive during a sustained queue", async () => {
+    let claims = 0;
+    let lists = 0;
+    const storage: ExportArtifactStore = {
+      kind: "test",
+      put: () => Promise.resolve(),
+      get: () => Promise.resolve(null),
+      list: () => {
+        lists += 1;
+        return Promise.resolve(["exports/orphan.zip"]);
+      },
+      delete: () => Promise.resolve(),
+    };
+    const port = {
+      claimExportStorageWork: () => {
+        claims += 1;
+        return Promise.resolve<{
+          operation: "DELETE";
+          exportId: string;
+          objectKey: string;
+        } | null>({
+          operation: "DELETE",
+          exportId: `export-${claims}`,
+          objectKey: "exports/live.zip",
+        });
+      },
+      listExportObjectKeys: () => Promise.resolve([]),
+      markExportStored: () => Promise.resolve("STORED" as const),
+      recordExportStorageDelay: () => Promise.resolve(),
+      markExportObjectDeleted: () => Promise.resolve(),
+    };
+    const worker = new ExportStorageWorker(port, storage);
+    await worker.processNext();
+    await worker.processNext();
+    await worker.processNext();
+    expect(claims).toBe(3);
+    expect(lists).toBeGreaterThan(0);
+  });
 });

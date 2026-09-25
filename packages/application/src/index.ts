@@ -493,6 +493,8 @@ export type ExportStorageOutcome = {
  */
 export class ExportStorageWorker {
   #inFlight: Promise<ExportStorageOutcome | null> | undefined;
+  #nextReconciliationAt = 0;
+  #reconcileOnIdle = false;
 
   constructor(
     private readonly port: ExportStorageWorkPort,
@@ -511,6 +513,17 @@ export class ExportStorageWorker {
     );
   }
 
+  private async reconcileWhenDue(force = false): Promise<void> {
+    if (!force && Date.now() < this.#nextReconciliationAt) return;
+    try {
+      await this.reconcileOrphanObjects();
+      this.#nextReconciliationAt = Date.now() + 30_000;
+    } catch (error) {
+      this.#nextReconciliationAt = 0;
+      throw error;
+    }
+  }
+
   /** `scope` narrows the queue to one World; drills and tests use it for isolation. */
   async processNext(scope: { worldId?: string } = {}): Promise<ExportStorageOutcome | null> {
     if (this.#inFlight) return this.#inFlight;
@@ -523,9 +536,14 @@ export class ExportStorageWorker {
   async #processNext(scope: { worldId?: string }): Promise<ExportStorageOutcome | null> {
     const work = await this.port.claimExportStorageWork(scope);
     if (!work) {
-      await this.reconcileOrphanObjects();
+      const force = this.#reconcileOnIdle;
+      this.#reconcileOnIdle = false;
+      await this.reconcileWhenDue(force);
       return null;
     }
+    // Claim first so inventory outages cannot starve durable queue work. A due
+    // sweep still runs during a sustained backlog, but is only attempted best-effort.
+    await this.reconcileWhenDue().catch(() => undefined);
     if (work.operation === "STORE") {
       const outcome = await storeExportWork(this.port, this.artifacts, work);
       return { exportId: work.exportId, operation: work.operation, outcome };
@@ -538,6 +556,7 @@ export class ExportStorageWorker {
       return { exportId: work.exportId, operation: work.operation, outcome: "DELAYED" };
     }
     await this.port.markExportObjectDeleted(work.exportId);
+    this.#reconcileOnIdle = true;
     return { exportId: work.exportId, operation: work.operation, outcome: "DELETED" };
   }
 }
