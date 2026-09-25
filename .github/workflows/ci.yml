@@ -136,14 +136,23 @@ jobs:
           # Rollback: the pre-upgrade backup is identical under the release's own drill.
           (
             cd "$RUNNER_TEMP/prior"
-            SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source               SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm restore:drill > /dev/null
+            SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source               SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm -s restore:drill > "$RUNNER_TEMP/rollback.json"               || { cat "$RUNNER_TEMP/rollback.json"; exit 1; }
           )
           # Forward: both copies take this schema's successor migrations and agree.
           for db in simulora_upgrade_source simulora_upgrade_backup; do
             SIMULORA_DATABASE_URL=$BASE/$db pnpm db:migrate
             SIMULORA_DATABASE_URL=$BASE/$db SIMULORA_MIGRATION_VERIFY=1 pnpm db:verify
           done
-          SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source             SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm restore:drill > /dev/null
+          # Each copy applied the successor migrations at its own moment, so only
+          # those ledger timestamps may differ; names and checksums must match.
+          SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source             SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm -s restore:drill > upgraded.json || true
+          if ! jq -e '[.checks[] | select(.passed | not) | .detail] == ["differs: app_meta.schema_migrations"]' upgraded.json; then
+            cat upgraded.json; exit 1
+          fi
+          for db in simulora_upgrade_source simulora_upgrade_backup; do
+            $PG psql -At -h 127.0.0.1 -U simulora -d $db               -c "select name, checksum from app_meta.schema_migrations order by name" > "ledger-$db.txt"
+          done
+          diff ledger-simulora_upgrade_source.txt ledger-simulora_upgrade_backup.txt
           # This code can keep writing to the upgraded database.
           SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source pnpm restore:drill --seed > /dev/null
           git worktree remove --force "$RUNNER_TEMP/prior"
