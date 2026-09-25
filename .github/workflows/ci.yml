@@ -196,6 +196,28 @@ jobs:
           # IP-10.2: the start and cross-capability journeys in a browser through this
           # API, worker, PostgreSQL and object store, not a transport fixture.
           pnpm exec playwright test -c playwright.stack.config.ts
+          # IP-10.6 capacity and killed-worker drill: 300 Actions at concurrency 20,
+          # well above the LONG-01 fixture. The worker container is SIGKILLed
+          # mid-drain and replaced; every acknowledged Action must still reach
+          # one proposal, with none generated twice and none left in flight.
+          trap 'docker rm -f simulora-api-g5 simulora-worker-g5 simulora-worker-g5b >/dev/null 2>&1 || true' EXIT
+          processed() { docker logs simulora-worker-g5 2>&1 | grep -c '"message":"action.processed"' || true; }
+          BEFORE=$(processed)
+          SIMULORA_PROFILE_ACTIONS=300 SIMULORA_PROFILE_CONCURRENCY=20 pnpm -s perf:ack > drill.json &
+          PROFILE=$!
+          for attempt in $(seq 1 600); do
+            if [ "$(processed)" -gt $((BEFORE + 20)) ]; then break; fi
+            if [ "$attempt" = 600 ]; then echo "the worker never started draining"; exit 1; fi
+            sleep 0.2
+          done
+          docker kill --signal KILL simulora-worker-g5
+          docker run -d --network host --name simulora-worker-g5b -e SIMULORA_ENV=test -e SIMULORA_WORKER_POLL_MS=200 -e SIMULORA_DATABASE_URL="$SIMULORA_DATABASE_URL" $OBJECT_ENV simulora-worker:g5
+          if ! wait $PROFILE; then cat drill.json; docker logs simulora-worker-g5b 2>&1 | tail -40; exit 1; fi
+          cat drill.json
+          PSQL="docker run --rm --network host -e PGPASSWORD=simulora postgres:17-alpine psql -At -h 127.0.0.1 -U simulora -d simulora_runtime -c"
+          test "$($PSQL "select count(*) from simulora.actions where status in ('ACKNOWLEDGED','GENERATING')")" = 0
+          test "$($PSQL "select count(*) from (select action_id from simulora.generation_attempts where status = 'SUCCEEDED' group by action_id having count(*) > 1) twice")" = 0
+          echo "attempts closed by lease expiry after the kill: $($PSQL "select count(*) from simulora.generation_attempts where error_class = 'LEASE_EXPIRED'")"
 
       - name: Render the production web build under its security headers
         run: |
