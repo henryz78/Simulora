@@ -335,22 +335,39 @@ export function ReturnPage(): ReactElement {
         <div>
           <section className="surface-card" aria-labelledby="orientation-matters">
             <p className="card-label">Still matters</p>
-            <h2 id="orientation-matters">Open threads and relationships</h2>
-            {orientation.openThreads.length > 0 ? (
-              <ul className="plain-list">
-                {orientation.openThreads.map((thread) => (
-                  <li key={thread}>{thread}</li>
+            <h2 id="orientation-matters">Story threads and relationships</h2>
+            {orientation.threads?.length ? (
+              <ul className="plain-list thread-list" aria-label="Story threads">
+                {orientation.threads.map((thread) => (
+                  <li key={thread.id}>
+                    <strong>{thread.status === "OPEN" ? "Open" : "Resolved"}</strong> ·{" "}
+                    {thread.title}
+                    {thread.resolution ? <span> — {thread.resolution}</span> : null}
+                  </li>
                 ))}
               </ul>
             ) : (
-              <p className="empty-state">No open thread is currently recorded.</p>
+              <p className="empty-state">No story thread is recorded in this world.</p>
             )}
             {orientation.relationships.length > 0 ? (
-              <ul className="plain-list relationship-list">
+              <ul className="plain-list relationship-list" aria-label="Relationships">
                 {orientation.relationships.map((relationship) => (
-                  <li key={relationship.id}>{relationship.description}</li>
+                  <li key={relationship.id}>
+                    {relationship.description}
+                    {relationship.state ? <strong> · now {relationship.state}</strong> : null}
+                  </li>
                 ))}
               </ul>
+            ) : null}
+            {orientation.openThreads.length > 0 ? (
+              <details>
+                <summary>Recent developments</summary>
+                <ul className="plain-list">
+                  {orientation.openThreads.map((entry, index) => (
+                    <li key={`${index}:${entry}`}>{entry}</li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
           </section>
           <section
@@ -1857,13 +1874,16 @@ function fallbackOrientation(
     relationships: data.state.relationships.map((item, index) => {
       const record =
         typeof item === "object" && item !== null ? (item as Record<string, unknown>) : null;
+      const current = readText(record, "state");
       return {
         id: readText(record, "id") ?? `relationship-${index}`,
         description:
           readText(record, "description") ?? "A relationship is present in current state.",
+        ...(current ? { state: current } : {}),
       };
     }),
     openThreads: data.state.openThreads,
+    ...(data.state.threads ? { threads: data.state.threads } : {}),
     nextParticipation: {
       expectedHeadCommitId: data.continuity.headCommitId,
       label: "Continue from the current world state with your next Action.",

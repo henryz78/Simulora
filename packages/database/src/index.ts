@@ -7,10 +7,14 @@ import {
   applyValidatedDirectCorrectionCandidate,
   characterAssetDefinitionSchema,
   compileCharacterContext,
+  compileEffectContext,
   contentHash,
   createInitialState,
   participationContractSchema,
-  restorableStateSections,
+  relationshipPoliciesFor,
+  requestedEffectSchema,
+  restoreSectionsFor,
+  threadIdForAction,
   routinePolicySchema,
   stateRevisionDocumentSchema,
   validateDirectCorrectionCandidate,
@@ -24,6 +28,8 @@ import {
   type ParticipationContract,
   type StateRevisionDocument,
   type WorldDocument,
+  type EffectContext,
+  type RequestedEffect,
 } from "@simulora/domain";
 import { Kysely, PostgresDialect, type ColumnType, type Generated } from "kysely";
 import { Pool, type PoolClient, type PoolConfig } from "pg";
@@ -278,9 +284,11 @@ export type SubmitActionDatabaseInput = {
   expectedHeadCommitId: string;
   participationExpectation: ParticipationContract;
   intent: string;
-  requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+  requestedEffect?: RequestedEffect;
   correlationId?: string;
   targetCharacterId?: string;
+  /** MGC-1: the open thread a THREAD_EFFECT Action works toward. */
+  targetThreadId?: string;
 };
 
 export type ActionProposalRecord = {
@@ -633,7 +641,9 @@ export type ActionGenerator = (request: {
   actionId: string;
   expectedHeadCommitId: string;
   intent: string;
-  requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+  requestedEffect?: RequestedEffect;
+  targetThreadId?: string;
+  effectContext?: EffectContext;
   routineRoutes?: Array<{ fromLocationId: string; toLocationId: string; label: string }>;
   participation: ActionGenerationContext["participation"];
   character: ActionGenerationContext["character"];
@@ -783,6 +793,60 @@ function isGeneratorEligibleFact(fact: StateRevisionDocument["facts"][number]): 
   return fact.lifecycle === "ACTIVE" && fact.scope === "SHARED";
 }
 
+/** MGC-1: the one typed Domain Event each closure operation commits with. */
+function closureEventFor(
+  actionId: string,
+  operation: ValidatedActionCandidate["candidate"]["operation"],
+): { type: string; payload: Record<string, unknown> } | null {
+  if (operation.type === "SHIFT_RELATIONSHIP") {
+    return {
+      type: "RELATIONSHIP_SHIFTED",
+      payload: {
+        actionId,
+        relationshipId: operation.relationshipId,
+        before: operation.beforeState,
+        after: operation.afterState,
+        causalFactIds: operation.causalFactIds,
+      },
+    };
+  }
+  if (operation.type === "OPEN_THREAD") {
+    return {
+      type: "THREAD_OPENED",
+      payload: {
+        actionId,
+        threadId: threadIdForAction(actionId),
+        title: operation.title,
+        causalFactIds: operation.causalFactIds,
+      },
+    };
+  }
+  if (operation.type === "RESOLVE_THREAD") {
+    return {
+      type: "THREAD_RESOLVED",
+      payload: {
+        actionId,
+        threadId: operation.threadId,
+        resolution: operation.resolution,
+        causalFactIds: operation.causalFactIds,
+      },
+    };
+  }
+  if (operation.type === "TRANSFORM_FAILURE") {
+    return {
+      type: "ATTEMPT_TRANSFORMED",
+      payload: {
+        actionId,
+        constraintId: operation.constraintId,
+        outcome: operation.outcome,
+        threadId: threadIdForAction(actionId),
+        causalFactIds: operation.causalFactIds,
+      },
+    };
+  }
+  return null;
+}
+
 export function compileActionGenerationContext(
   world: WorldDocument,
   state: StateRevisionDocument,
@@ -840,8 +904,13 @@ function orientationPayload(
     // The initial projection has no meaningful change; later commits add
     // trace entries when the projection is rebuilt from authoritative rows.
     recentChanges: [],
-    relationships: state.relationships.map(({ id, description }) => ({ id, description })),
+    relationships: state.relationships.map(({ id, description, state: current }) => ({
+      id,
+      description,
+      ...(current !== undefined ? { state: current } : {}),
+    })),
     openThreads: state.openThreads,
+    ...(state.threads ? { threads: state.threads } : {}),
     nextParticipation: {
       expectedHeadCommitId: headCommitId,
       label: "Continue from the current situation",
@@ -1633,8 +1702,18 @@ export class AuthoritativeWorldRepository {
     const intent = input.intent.trim();
     const targetCharacterId = input.targetCharacterId;
     const requestedEffect = input.requestedEffect ?? "FACT_REWRITE";
-    if (requestedEffect === "ROUTINE_EFFECT" && !targetCharacterId) {
-      throw new ValidationError("Routine effects require a selected Character");
+    const targetThreadId = input.targetThreadId;
+    if (
+      (requestedEffect === "ROUTINE_EFFECT" || requestedEffect === "RELATIONSHIP_EFFECT") &&
+      !targetCharacterId
+    ) {
+      throw new ValidationError("This effect requires a selected Character");
+    }
+    if (
+      targetThreadId !== undefined &&
+      (requestedEffect !== "THREAD_EFFECT" || !/^[a-z0-9][a-z0-9._-]{0,119}$/.test(targetThreadId))
+    ) {
+      throw new ValidationError("A thread target needs a thread effect and a valid identity");
     }
     if (
       targetCharacterId !== undefined &&
@@ -1651,6 +1730,7 @@ export class AuthoritativeWorldRepository {
       intent,
       ...(requestedEffect !== "FACT_REWRITE" ? { requestedEffect } : {}),
       ...(targetCharacterId ? { targetCharacterId } : {}),
+      ...(targetThreadId ? { targetThreadId } : {}),
     });
     return transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
@@ -1661,7 +1741,11 @@ export class AuthoritativeWorldRepository {
         expected_head_commit_id: string;
         participation_expectation: ParticipationContract;
         intent: string;
-        operation_payload: { targetCharacterId?: string; requestedEffect?: string };
+        operation_payload: {
+          targetCharacterId?: string;
+          requestedEffect?: string;
+          targetThreadId?: string;
+        };
       }>(
         `select id, idempotency_request_digest, operation_type,
                 expected_head_commit_id, participation_expectation, intent, operation_payload
@@ -1680,6 +1764,7 @@ export class AuthoritativeWorldRepository {
               contentHash(input.participationExpectation) &&
             prior.intent === intent &&
             prior.operation_payload.targetCharacterId === targetCharacterId &&
+            prior.operation_payload.targetThreadId === targetThreadId &&
             (prior.operation_payload.requestedEffect ?? "FACT_REWRITE") === requestedEffect,
         );
         return this.readActionWithClient(client, account, prior.id);
@@ -1716,6 +1801,12 @@ export class AuthoritativeWorldRepository {
       const state = stateRevisionDocumentSchema.parse(row.state_document);
       if (!state.facts.some((fact) => isGeneratorEligibleFact(fact))) {
         throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
+      }
+      if (
+        targetThreadId &&
+        !state.threads?.some((thread) => thread.id === targetThreadId && thread.status === "OPEN")
+      ) {
+        throw new ValidationError("The targeted thread is not open at this head");
       }
       if (targetCharacterId) {
         const worldResult = await client.query<{ document: unknown }>(
@@ -1777,6 +1868,7 @@ export class AuthoritativeWorldRepository {
           JSON.stringify({
             ...(targetCharacterId ? { targetCharacterId } : {}),
             ...(requestedEffect !== "FACT_REWRITE" ? { requestedEffect } : {}),
+            ...(targetThreadId ? { targetThreadId } : {}),
           }),
         ],
       );
@@ -1788,7 +1880,11 @@ export class AuthoritativeWorldRepository {
           expected_head_commit_id: string;
           participation_expectation: ParticipationContract;
           intent: string;
-          operation_payload: { targetCharacterId?: string; requestedEffect?: string };
+          operation_payload: {
+            targetCharacterId?: string;
+            requestedEffect?: string;
+            targetThreadId?: string;
+          };
         }>(
           `select id, idempotency_request_digest, operation_type,
                   expected_head_commit_id, participation_expectation, intent, operation_payload
@@ -1821,6 +1917,7 @@ export class AuthoritativeWorldRepository {
               contentHash(input.participationExpectation) &&
             prior.intent === intent &&
             prior.operation_payload.targetCharacterId === targetCharacterId &&
+            prior.operation_payload.targetThreadId === targetThreadId &&
             (prior.operation_payload.requestedEffect ?? "FACT_REWRITE") === requestedEffect,
         );
         return this.readActionWithClient(client, account, prior.id);
@@ -2448,6 +2545,7 @@ export class AuthoritativeWorldRepository {
         { type: "MOVE_CHARACTER" }
       > | null = null;
       let responseSource: ActionResponseSource | null = null;
+      let closureEvent: { type: string; payload: Record<string, unknown> } | null = null;
       if (action.operation_type === "CHANGE_PARTICIPATION_CONTRACT") {
         throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
       }
@@ -2488,12 +2586,18 @@ export class AuthoritativeWorldRepository {
           ],
           responseSource: expectedResponseSource,
           userRoleName: world.userRole.name,
-          requestedEffect: (action.operation_payload.requestedEffect ?? "FACT_REWRITE") as
-            "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT",
+          requestedEffect: requestedEffectSchema.parse(
+            action.operation_payload.requestedEffect ?? "FACT_REWRITE",
+          ),
           authorizedRoutineNpcIds: routinePolicy?.npcIds ?? [],
           authorizedRoutineRoutes: (routinePolicy?.routes ?? []).map(
             (route) => `${route.fromLocationId}->${route.toLocationId}`,
           ),
+          ...(typeof action.operation_payload.targetThreadId === "string"
+            ? { targetThreadId: action.operation_payload.targetThreadId }
+            : {}),
+          relationshipPolicies: relationshipPoliciesFor(world),
+          constraintIds: (world.constraints ?? []).map((constraint) => constraint.id),
         });
         nextState = applyValidatedActionCandidate(expectedState, validated);
         if (!validated.displayEffect)
@@ -2502,6 +2606,7 @@ export class AuthoritativeWorldRepository {
         candidateNarrative = validated.candidate.narrative;
         if (validated.candidate.operation.type === "MOVE_CHARACTER")
           movement = validated.candidate.operation;
+        closureEvent = closureEventFor(actionId, validated.candidate.operation);
         responseSource = validated.candidate.responseSource;
       } else {
         const validated = validateDirectCorrectionCandidate(proposal.candidate_transition, {
@@ -2573,23 +2678,27 @@ export class AuthoritativeWorldRepository {
           action.branch_id,
           commitId,
           action.operation_type === "PARTICIPATE"
-            ? movement
-              ? "CHARACTER_MOVED"
-              : "ACTION_RECORDED"
+            ? closureEvent
+              ? closureEvent.type
+              : movement
+                ? "CHARACTER_MOVED"
+                : "ACTION_RECORDED"
             : action.operation_type === "CORRECT_CONTINUITY"
               ? "CONTINUITY_ITEM_CORRECTED"
               : "CONTINUITY_ITEM_REMOVED",
           JSON.stringify(
             action.operation_type === "PARTICIPATE"
-              ? movement
-                ? {
-                    actionId,
-                    characterId: movement.characterId,
-                    beforeLocationId: movement.beforeLocationId,
-                    afterLocationId: movement.afterLocationId,
-                    causalFactIds: movement.causalFactIds,
-                  }
-                : { actionId, target: displayEffect.target }
+              ? closureEvent
+                ? closureEvent.payload
+                : movement
+                  ? {
+                      actionId,
+                      characterId: movement.characterId,
+                      beforeLocationId: movement.beforeLocationId,
+                      afterLocationId: movement.afterLocationId,
+                      causalFactIds: movement.causalFactIds,
+                    }
+                  : { actionId, target: displayEffect.target }
               : {
                   actionId,
                   targetFactId: displayEffect.target,
@@ -3282,7 +3391,7 @@ export class AuthoritativeWorldRepository {
       if (!row) throw new NotFoundError("Restore source or Branch not found");
       const current = stateRevisionDocumentSchema.parse(row.current_document);
       const source = stateRevisionDocumentSchema.parse(row.source_document);
-      const includedSections = [...restorableStateSections];
+      const includedSections = restoreSectionsFor(current, source);
       const excludedSections = [
         "participation",
         "interactionBoundaries",
@@ -3292,9 +3401,7 @@ export class AuthoritativeWorldRepository {
         "other Branches",
       ];
       const changedSections = includedSections.filter(
-        (key) =>
-          JSON.stringify(current[key as keyof StateRevisionDocument]) !==
-          JSON.stringify(source[key as keyof StateRevisionDocument]),
+        (key) => JSON.stringify(current[key]) !== JSON.stringify(source[key]),
       );
       if (changedSections.length === 0) {
         throw new ConflictError("RESTORE_HAS_NO_CHANGES");
@@ -3591,7 +3698,7 @@ export class AuthoritativeWorldRepository {
             JSON.stringify({
               restoreProposalId: proposal.id,
               sourceCommitId: proposal.source_commit_id,
-              includedSections: restorableStateSections,
+              includedSections: restoreSectionsFor(current, source),
             }),
           ],
         );
@@ -4512,7 +4619,11 @@ export class AuthoritativeWorldRepository {
         source_state_revision_id: string;
         state_document: unknown;
         world_document: unknown;
-        operation_payload: { targetCharacterId?: string; requestedEffect?: string };
+        operation_payload: {
+          targetCharacterId?: string;
+          requestedEffect?: string;
+          targetThreadId?: string;
+        };
         supports_re2_context: boolean;
         supports_re3_policy: boolean;
       }>(
@@ -4716,6 +4827,16 @@ export class AuthoritativeWorldRepository {
           priorDialogueDigest: contentHash(priorDialogue),
         });
       }
+      // MGC-1: bind the declared effect context only when this Action can use it.
+      const effectContext = compileEffectContext(
+        world,
+        state,
+        generationContext.character?.id ?? null,
+        requestedEffectSchema.parse(action.operation_payload.requestedEffect ?? "FACT_REWRITE"),
+      );
+      if (effectContext) {
+        Object.assign(contextManifest, { effectContextDigest: contentHash(effectContext) });
+      }
       // Prior-schema databases in the upgrade rehearsal predate the profile
       // columns; there the routed profile is recorded by `adapter` alone.
       const attemptColumns = [
@@ -4760,6 +4881,7 @@ export class AuthoritativeWorldRepository {
         intent: action.intent,
         operationPayload: action.operation_payload,
         world,
+        effectContext,
         routinePolicy,
         state,
         generationContext,
@@ -4879,13 +5001,17 @@ export class AuthoritativeWorldRepository {
     }, this.actionLease.heartbeatMs);
     heartbeat.unref();
     try {
-      const requestedEffect = (prepared.operationPayload.requestedEffect ?? "FACT_REWRITE") as
-        "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+      const requestedEffect = requestedEffectSchema.parse(
+        prepared.operationPayload.requestedEffect ?? "FACT_REWRITE",
+      );
+      const targetThreadId = prepared.operationPayload.targetThreadId;
       const generated = await generator({
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         intent: prepared.intent,
         requestedEffect,
+        ...(targetThreadId ? { targetThreadId } : {}),
+        ...(prepared.effectContext ? { effectContext: prepared.effectContext } : {}),
         routineRoutes: prepared.routinePolicy?.routes ?? [],
         participation: prepared.generationContext.participation,
         character: prepared.generationContext.character,
@@ -4922,6 +5048,9 @@ export class AuthoritativeWorldRepository {
         authorizedRoutineRoutes: (prepared.routinePolicy?.routes ?? []).map(
           (route) => `${route.fromLocationId}->${route.toLocationId}`,
         ),
+        ...(targetThreadId ? { targetThreadId } : {}),
+        relationshipPolicies: relationshipPoliciesFor(prepared.world),
+        constraintIds: (prepared.world.constraints ?? []).map((constraint) => constraint.id),
       });
       if (generated.narrative !== candidate.candidate.narrative) {
         throw new Error("Generated narrative does not match the candidate narrative");
@@ -5234,7 +5363,11 @@ export class AuthoritativeWorldRepository {
       operation_type: ActionOperationType;
       status: ActionStatus;
       intent: string;
-      operation_payload: { targetCharacterId?: string; requestedEffect?: string };
+      operation_payload: {
+        targetCharacterId?: string;
+        requestedEffect?: string;
+        targetThreadId?: string;
+      };
       participation_expectation: ParticipationContract;
       acknowledged_at: Date;
       terminal_at: Date | null;

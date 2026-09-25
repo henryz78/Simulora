@@ -977,7 +977,8 @@ h1 {
 
 .field-label textarea,
 .field-label input,
-.field-label select {
+.field-label select,
+.action-zone select {
   width: 100%;
   border: 1px solid #4e736c;
   border-radius: 14px;
@@ -993,8 +994,11 @@ h1 {
 
 /* The native control lets WebKit count a long option label as overflow of the
    whole page, breaking 320px reflow on the Recovery view. A plain box clips the
-   label; the arrow keeps the control recognisable as a choice. */
-.field-label select {
+   label; the arrow keeps the control recognisable as a choice. The Action
+   Composer's outcome list can name long story threads, so it shares the rule. */
+.field-label select,
+.action-zone select {
+  min-width: 0;
   appearance: none;
   overflow: hidden;
   text-overflow: ellipsis;

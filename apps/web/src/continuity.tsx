@@ -43,7 +43,20 @@ export type ActionResult = {
   error: string | null;
 };
 
-type RequestedEffect = "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+type RequestedEffect =
+  "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "RELATIONSHIP_EFFECT" | "THREAD_EFFECT";
+
+/** A scaled relationship the selected Character is part of, read from current state. */
+function scaledRelationshipsOf(state: AuthoritativeStateResponse["state"], characterId: string) {
+  return state.relationships.filter((item) => {
+    const record =
+      typeof item === "object" && item !== null ? (item as Record<string, unknown>) : null;
+    return (
+      typeof record?.state === "string" &&
+      (record.fromCharacterId === characterId || record.toCharacterId === characterId)
+    );
+  });
+}
 
 export type CorrectionResult = {
   action: ActionResponse | null;
@@ -68,6 +81,7 @@ export type ContinuityContextValue = {
     intent: string,
     targetCharacterId?: string,
     requestedEffect?: RequestedEffect,
+    targetThreadId?: string,
   ) => Promise<ActionResult>;
   submitCorrection: (request: CorrectionRequest) => Promise<CorrectionResult>;
   confirmAction: (action: ActionResponse) => Promise<ActionResult>;
@@ -427,6 +441,7 @@ export function ContinuityProvider({
       rawIntent: string,
       targetCharacterId?: string,
       requestedEffect: RequestedEffect = "FACT_REWRITE",
+      targetThreadId?: string,
     ): Promise<ActionResult> => {
       const normalizedIntent = rawIntent.trim();
       if (!normalizedIntent || loadState.status !== "ready") {
@@ -440,6 +455,7 @@ export function ContinuityProvider({
         normalizedIntent,
         targetCharacterId ?? null,
         requestedEffect,
+        targetThreadId ?? null,
       ]);
       const existingAttempt = pendingSubmission.current.get(submissionKey);
       const submission = existingAttempt ?? {
@@ -460,6 +476,7 @@ export function ContinuityProvider({
             intent: normalizedIntent,
             ...(targetCharacterId ? { targetCharacterId } : {}),
             ...(requestedEffect !== "FACT_REWRITE" ? { requestedEffect } : {}),
+            ...(targetThreadId ? { targetThreadId } : {}),
           }),
         });
         if (!response.ok) {
@@ -765,7 +782,12 @@ function PendingActionRibbon({
   pendingActionRefs: BranchAction[];
 }): ReactElement {
   return (
-    <aside className="pending-ribbon" aria-label="Pending Actions" role="region" aria-live="polite">
+    <aside
+      className="pending-ribbon"
+      aria-label="Pending Action notice"
+      role="region"
+      aria-live="polite"
+    >
       <div>
         <strong>
           {pendingActionRefs.length === 1
@@ -896,12 +918,32 @@ export function ActionStatusCard({
           <p>{action.proposal.narrative}</p>
           <dl>
             <div>
-              <dt>Current</dt>
+              <dt>Affects</dt>
+              <dd>{describeTarget(action.proposal.displayEffect.target)}</dd>
+            </div>
+            <div>
+              <dt>
+                {action.proposal.displayEffect.target.startsWith("constraint.")
+                  ? "The attempt fails"
+                  : "Current"}
+              </dt>
               <dd>{action.proposal.displayEffect.before}</dd>
             </div>
             <div>
-              <dt>If confirmed</dt>
+              <dt>
+                {action.proposal.displayEffect.target.startsWith("constraint.")
+                  ? "New open thread"
+                  : "If confirmed"}
+              </dt>
               <dd>{action.proposal.displayEffect.after}</dd>
+            </div>
+            <div>
+              <dt>Review level</dt>
+              <dd>
+                {action.proposal.impact === "L3"
+                  ? "L3 — protected or high-consequence change"
+                  : "L2 — bounded routine change"}
+              </dd>
             </div>
             <div>
               <dt>Scope</dt>
@@ -1031,6 +1073,35 @@ export function WorldContextSummary(): ReactElement {
           );
         })}
       </section>
+      {data.state.threads?.length ? (
+        <section>
+          <h2>Story threads</h2>
+          <ul className="truth-list" aria-label="Story threads">
+            {data.state.threads.map((thread) => (
+              <li key={thread.id}>
+                <strong>{thread.status === "OPEN" ? "Open" : "Resolved"}</strong> · {thread.title}
+                {thread.resolution ? <small> — {thread.resolution}</small> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {data.state.relationships.some((item) => readText(asRecord(item), "state")) ? (
+        <section>
+          <h2>Relationships</h2>
+          <ul className="truth-list" aria-label="Relationships">
+            {data.state.relationships.map((relationship, index) => {
+              const item = asRecord(relationship);
+              const current = readText(item, "state");
+              return current ? (
+                <li key={readText(item, "id") ?? index}>
+                  {readText(item, "description") ?? "A relationship"} · <strong>{current}</strong>
+                </li>
+              ) : null;
+            })}
+          </ul>
+        </section>
+      ) : null}
       <section className="authority-note">
         <h2>Participation</h2>
         <p>
@@ -1128,11 +1199,35 @@ function snapshotEventSources(actions: ActionResponse[], onEvent: () => void): E
   });
 }
 
+/** Plain words for what a proposal would change; never a raw identifier alone. */
+function describeTarget(target: string): string {
+  const [kind] = target.split(".");
+  const label = labelMode((target.split(".").slice(1).join(" ") || target).replaceAll("-", " "));
+  if (kind === "relationship") return `Relationship · ${label}`;
+  if (kind === "thread") return "Story thread";
+  if (kind === "constraint") return `World constraint · ${label}`;
+  if (kind === "character") return `Character · ${label}`;
+  return `World fact · ${label}`;
+}
+
 export function ActionComposer(): ReactElement {
   const { historyState, loadState, pendingActionRefs, submitAction } = useContinuity();
   const [intent, setIntent] = useState("");
   const [targetCharacterId, setTargetCharacterId] = useState("");
-  const [requestedEffect, setRequestedEffect] = useState<RequestedEffect>("FACT_REWRITE");
+  // "THREAD_EFFECT:<id>" asks to work toward resolving that open thread.
+  const [effectChoice, setEffectChoice] = useState<string>("FACT_REWRITE");
+  const [requestedEffect, targetThreadId] = effectChoice.startsWith("THREAD_EFFECT:")
+    ? (["THREAD_EFFECT", effectChoice.slice("THREAD_EFFECT:".length)] as const)
+    : ([effectChoice as RequestedEffect, undefined] as const);
+  const setRequestedEffect = setEffectChoice;
+  const openThreads =
+    loadState.status === "ready"
+      ? (loadState.data.state.threads ?? []).filter((thread) => thread.status === "OPEN")
+      : [];
+  const canShiftRelationship =
+    loadState.status === "ready" &&
+    Boolean(targetCharacterId) &&
+    scaledRelationshipsOf(loadState.data.state, targetCharacterId).length > 0;
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const hasUnresolvedAction = pendingActionRefs.length > 0;
@@ -1141,13 +1236,21 @@ export function ActionComposer(): ReactElement {
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (working || !intent.trim() || hasUnresolvedAction || historyState !== "ready") return;
-    if (requestedEffect === "ROUTINE_EFFECT" && !targetCharacterId) {
-      setError("Choose a character before asking them to move.");
+    if (
+      (requestedEffect === "ROUTINE_EFFECT" || requestedEffect === "RELATIONSHIP_EFFECT") &&
+      !targetCharacterId
+    ) {
+      setError("Choose a character first.");
       return;
     }
     setWorking(true);
     setError(null);
-    const result = await submitAction(intent, targetCharacterId || undefined, requestedEffect);
+    const result = await submitAction(
+      intent,
+      targetCharacterId || undefined,
+      requestedEffect,
+      targetThreadId,
+    );
     setWorking(false);
     if (result.error) {
       setError(result.error);
@@ -1174,7 +1277,8 @@ export function ActionComposer(): ReactElement {
           onChange={(event) => {
             const nextCharacterId = event.target.value;
             setTargetCharacterId(nextCharacterId);
-            if (!nextCharacterId && requestedEffect === "ROUTINE_EFFECT") {
+            if (requestedEffect === "ROUTINE_EFFECT" || requestedEffect === "RELATIONSHIP_EFFECT") {
+              // A character-bound outcome never carries over to another character.
               setRequestedEffect("FACT_REWRITE");
             }
           }}
@@ -1209,8 +1313,8 @@ export function ActionComposer(): ReactElement {
         <label htmlFor="action-effect">Desired outcome</label>
         <select
           id="action-effect"
-          value={requestedEffect}
-          onChange={(event) => setRequestedEffect(event.target.value as RequestedEffect)}
+          value={effectChoice}
+          onChange={(event) => setRequestedEffect(event.target.value)}
           disabled={
             working ||
             hasUnresolvedAction ||
@@ -1222,6 +1326,15 @@ export function ActionComposer(): ReactElement {
           <option value="ROUTINE_EFFECT" disabled={!targetCharacterId}>
             Have this character move
           </option>
+          <option value="RELATIONSHIP_EFFECT" disabled={!canShiftRelationship}>
+            Change a relationship of this character
+          </option>
+          <option value="THREAD_EFFECT">Open a new story thread</option>
+          {openThreads.map((thread) => (
+            <option key={thread.id} value={`THREAD_EFFECT:${thread.id}`}>
+              Work toward resolving: {thread.title}
+            </option>
+          ))}
           <option value="NO_WORLD_EFFECT">Ask for a response only</option>
         </select>
         <p className="field-help">

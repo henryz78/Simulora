@@ -241,4 +241,87 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       await rm(directory, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("keeps a pending proposal and an active Restore review valid across 0047 to 0048", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const databaseName = `simulora_mgc_upgrade_${randomUUID().replaceAll("-", "")}`;
+    const admin = createDatabasePool(connectionString);
+    const directory = await mkdtemp(path.join(tmpdir(), "simulora-mgc-prior-"));
+    const url = new URL(connectionString);
+    url.pathname = `/${databaseName}`;
+    let pool: ReturnType<typeof createDatabasePool> | undefined;
+    try {
+      await admin.query(`create database ${databaseName} template template0 encoding 'UTF8'`);
+      const migrations = path.resolve("db/migrations");
+      const files = (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort();
+      expect(files[47]).toBe("0048_mgc1_must_gap_closure.sql");
+      for (const file of files.slice(0, 47))
+        await copyFile(path.join(migrations, file), path.join(directory, file));
+      await runMigrations(url.toString(), directory);
+      pool = createDatabasePool(url.toString());
+      const repository = new AuthoritativeWorldRepository(pool);
+      const gateway = new DeterministicModelGateway();
+      const account = { accountId: randomUUID(), eligibility: "adult" as const };
+      const world = await repository.createWorld(account, lanternReachSeed);
+      const revision = await repository.createRevision(account, world.worldId, world.rowVersion);
+      const start = () =>
+        repository.startContinuity(account, revision.revisionId, {
+          initiativeMode: "GUIDED",
+          structureMode: "OPEN_ENDED",
+        });
+      const propose = async (continuity: Awaited<ReturnType<typeof start>>, head: string) => {
+        const action = await repository.submitAction(account, continuity.branchId, {
+          schemaVersion: 1,
+          idempotencyKey: randomUUID(),
+          expectedHeadCommitId: head,
+          participationExpectation: continuity.state.participation,
+          intent: "Steady the western signal.",
+        });
+        const proposed = await repository.processAction(
+          action.id,
+          (request) => gateway.generateWorldTurn(request),
+          "prior47",
+        );
+        if (!proposed?.proposal) throw new Error("Expected a 0047 proposal");
+        return proposed;
+      };
+      const confirm = (proposed: Awaited<ReturnType<typeof propose>>) =>
+        repository.confirmAction(account, proposed.id, {
+          proposalId: proposed.proposal!.id,
+          proposalDigest: proposed.proposal!.digest,
+          expectedHeadCommitId: proposed.proposal!.expectedHeadCommitId,
+        });
+
+      // Before 0048: one Continuity with a Restore review, one with a pending proposal.
+      const restored = await start();
+      const point = await repository.createRecoveryPoint(account, restored.branchId, {
+        idempotencyKey: randomUUID(),
+        label: "Opening",
+      });
+      await confirm(await propose(restored, restored.headCommitId));
+      const review = await repository.prepareRestore(account, restored.branchId, point.commitId);
+      const pending = await start();
+      const proposal = await propose(pending, pending.headCommitId);
+
+      await runMigrations(url.toString(), migrations);
+
+      const confirmedRestore = await repository.confirmRestore(account, restored.branchId, {
+        proposalId: review.id,
+        digest: review.digest,
+        expectedHeadCommitId: review.expectedHeadCommitId,
+      });
+      expect(confirmedRestore).toBeTruthy();
+      expect(
+        (await repository.readCurrentState(account, restored.continuityId)).state.facts,
+      ).toEqual(restored.state.facts);
+      expect((await confirm(proposal)).status).toBe("COMMITTED");
+      const state = (await repository.readCurrentState(account, pending.continuityId)).state;
+      expect("threads" in state).toBe(false);
+    } finally {
+      await pool?.end();
+      await dropDatabaseAfterDisconnect(admin, databaseName);
+      await admin.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

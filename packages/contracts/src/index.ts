@@ -109,8 +109,17 @@ export const worldDocumentInputSchema = z.object({
       fromCharacterId: z.string().min(1),
       toCharacterId: z.string().min(1),
       description: nonEmptyTextSchema,
+      protection: z.enum(["PROTECTED", "ROUTINE"]).optional(),
+      scale: z.array(z.string().trim().min(1).max(60)).min(2).max(7).optional(),
+      initialState: z.string().trim().min(1).max(60).optional(),
     }),
   ),
+  threads: z
+    .array(z.object({ id: z.string().min(1), title: z.string().trim().min(1).max(200) }))
+    .optional(),
+  constraints: z
+    .array(z.object({ id: z.string().min(1), statement: nonEmptyTextSchema }))
+    .optional(),
   interactionPaths: z.array(nonEmptyTextSchema).min(1),
   interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
   objectives: z.array(nonEmptyTextSchema).default([]),
@@ -481,6 +490,16 @@ export type DeletionProposal = z.infer<typeof deletionProposalSchema>;
 export type DeletionConfirmRequest = z.infer<typeof deletionConfirmRequestSchema>;
 export type DeletionStatus = z.infer<typeof deletionStatusSchema>;
 
+/** MGC-1 authoritative story thread. `openThreads` is only a narrative trail. */
+export const structuredThreadSchema = z
+  .object({
+    id: z.string().min(1).max(120),
+    title: nonEmptyTextSchema,
+    status: z.enum(["OPEN", "RESOLVED"]),
+    resolution: nonEmptyTextSchema.optional(),
+  })
+  .strict();
+
 export const authoritativeStateResponseSchema = z.object({
   continuity: z.object({
     id: stableIdSchema,
@@ -501,6 +520,7 @@ export const authoritativeStateResponseSchema = z.object({
     facts: z.array(z.unknown()),
     relationships: z.array(z.unknown()),
     openThreads: z.array(nonEmptyTextSchema),
+    threads: z.array(structuredThreadSchema).optional(),
     objectives: z.array(nonEmptyTextSchema),
     resources: z.record(z.string(), z.number()),
     interactionBoundaries: z.array(nonEmptyTextSchema),
@@ -604,7 +624,21 @@ export const submitActionRequestSchema = z.object({
     .max(120)
     .regex(/^[a-z0-9][a-z0-9._-]*$/)
     .optional(),
-  requestedEffect: z.enum(["FACT_REWRITE", "ROUTINE_EFFECT", "NO_WORLD_EFFECT"]).optional(),
+  requestedEffect: z
+    .enum([
+      "FACT_REWRITE",
+      "ROUTINE_EFFECT",
+      "NO_WORLD_EFFECT",
+      "RELATIONSHIP_EFFECT",
+      "THREAD_EFFECT",
+    ])
+    .optional(),
+  targetThreadId: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9][a-z0-9._-]*$/)
+    .optional(),
 });
 
 export const actionProposalSchema = z.object({
@@ -830,9 +864,16 @@ export const orientationResponseSchema = z
       .strict(),
     recentChanges: z.array(orientationChangeSchema),
     relationships: z.array(
-      z.object({ id: z.string().min(1).max(120), description: nonEmptyTextSchema }).strict(),
+      z
+        .object({
+          id: z.string().min(1).max(120),
+          description: nonEmptyTextSchema,
+          state: z.string().min(1).max(60).optional(),
+        })
+        .strict(),
     ),
     openThreads: z.array(nonEmptyTextSchema),
+    threads: z.array(structuredThreadSchema).optional(),
     nextParticipation: z
       .object({ expectedHeadCommitId: stableIdSchema, label: nonEmptyTextSchema })
       .strict(),

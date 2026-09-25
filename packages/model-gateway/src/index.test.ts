@@ -251,7 +251,12 @@ describe("IP-9 live capability profile adapter", () => {
     expect(isMaterialProfileChange(liveProfile, { ...liveProfile, model: "next-model" })).toBe(
       true,
     );
-    expect(isMaterialProfileChange(liveProfile, { ...liveProfile, promptVersion: 6 })).toBe(true);
+    expect(
+      isMaterialProfileChange(liveProfile, {
+        ...liveProfile,
+        promptVersion: livePromptVersion + 1,
+      }),
+    ).toBe(true);
     // The same model name served by another provider is a different data flow.
     expect(
       isMaterialProfileChange(liveProfile, {

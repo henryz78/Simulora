@@ -10,6 +10,13 @@ const stableIdSchema = z
   .regex(/^[a-z0-9][a-z0-9._-]*$/);
 const nonEmptyTextSchema = z.string().trim().min(1).max(4_000);
 
+// MGC-1: declared relationship bounds, structured threads and causal constraints.
+export const relationshipProtectionSchema = z.enum(["PROTECTED", "ROUTINE"]);
+const relationshipStateLabelSchema = z.string().trim().min(1).max(60);
+const threadTitleSchema = z.string().trim().min(1).max(200);
+const boundedTextSchema = z.string().trim().min(1).max(1_000);
+export const threadStatusSchema = z.enum(["OPEN", "RESOLVED"]);
+
 export const initiativeModeSchema = z.enum(["DIRECT", "GUIDED", "WORLD_ACTIVE"]);
 export const structureModeSchema = z.enum(["OPEN_ENDED", "GOAL_FRAMED"]);
 export const participationContractSchema = z.object({
@@ -100,8 +107,16 @@ export const worldDocumentSchema = z
         fromCharacterId: stableIdSchema,
         toCharacterId: stableIdSchema,
         description: nonEmptyTextSchema,
+        // Undeclared protection is PROTECTED; without a scale the state is fixed.
+        protection: relationshipProtectionSchema.optional(),
+        scale: z.array(relationshipStateLabelSchema).min(2).max(7).optional(),
+        initialState: relationshipStateLabelSchema.optional(),
       }),
     ),
+    threads: z.array(z.object({ id: stableIdSchema, title: threadTitleSchema })).optional(),
+    constraints: z
+      .array(z.object({ id: stableIdSchema, statement: nonEmptyTextSchema }))
+      .optional(),
     interactionPaths: z.array(nonEmptyTextSchema).min(1),
     interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
     objectives: z.array(nonEmptyTextSchema).default([]),
@@ -114,6 +129,8 @@ export const worldDocumentSchema = z
       ...world.characters.map((item) => item.id),
       ...world.facts.map((item) => item.id),
       ...world.relationships.map((item) => item.id),
+      ...(world.threads ?? []).map((item) => item.id),
+      ...(world.constraints ?? []).map((item) => item.id),
     ];
 
     if (new Set(allIds).size !== allIds.length) {
@@ -145,6 +162,19 @@ export const worldDocumentSchema = z
     });
 
     world.relationships.forEach((relationship, index) => {
+      const scale = relationship.scale;
+      if (
+        (scale === undefined) !== (relationship.initialState === undefined) ||
+        (scale &&
+          (new Set(scale).size !== scale.length ||
+            !scale.includes(relationship.initialState ?? "")))
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "A relationship scale needs distinct labels and an initial state from it",
+          path: ["relationships", index, "scale"],
+        });
+      }
       if (!characterIds.has(relationship.fromCharacterId)) {
         context.addIssue({
           code: "custom",
@@ -200,15 +230,40 @@ export const stateRevisionDocumentSchema = z
         fromCharacterId: stableIdSchema,
         toCharacterId: stableIdSchema,
         description: nonEmptyTextSchema,
+        // Present only for a relationship whose World declaration has a scale.
+        state: relationshipStateLabelSchema.optional(),
       }),
     ),
+    // Legacy narrative trail. It is not thread state; see `threads`.
     openThreads: z.array(nonEmptyTextSchema),
+    // MGC-1 authoritative story threads; absent when none were ever declared or opened.
+    threads: z
+      .array(
+        z
+          .object({
+            id: stableIdSchema,
+            title: threadTitleSchema,
+            status: threadStatusSchema,
+            resolution: boundedTextSchema.optional(),
+          })
+          .refine(
+            (thread) => (thread.status === "RESOLVED") === (thread.resolution !== undefined),
+            {
+              message: "Only a resolved thread carries a resolution",
+            },
+          ),
+      )
+      .optional(),
     objectives: z.array(nonEmptyTextSchema),
     resources: z.record(z.string(), z.number().finite()),
     interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
     customState: z.record(z.string(), z.unknown()),
   })
   .superRefine((state, context) => {
+    const threadIds = (state.threads ?? []).map((thread) => thread.id);
+    if (new Set(threadIds).size !== threadIds.length) {
+      context.addIssue({ code: "custom", path: ["threads"], message: "Thread IDs must be unique" });
+    }
     const factIds = new Set(state.facts.map((fact) => fact.id));
     const characterIds = state.characters.map((character) => character.id);
     if (new Set(characterIds).size !== characterIds.length) {
@@ -345,6 +400,19 @@ export const restorableStateSections = [
 ] as const satisfies readonly (keyof StateRevisionDocument)[];
 
 /**
+ * MGC-1: `threads` joins the Restore allow-list only when either snapshot has
+ * structured threads, so a Restore between two pre-MGC snapshots stays exact.
+ */
+export function restoreSectionsFor(
+  current: StateRevisionDocument,
+  source: StateRevisionDocument,
+): (keyof StateRevisionDocument)[] {
+  return current.threads !== undefined || source.threads !== undefined
+    ? [...restorableStateSections, "threads"]
+    : [...restorableStateSections];
+}
+
+/**
  * Restore only the frozen world-state allow-list. Participation,
  * interaction boundaries and custom/account-owned state always come from the
  * current head, never from the historical source.
@@ -364,6 +432,7 @@ export function applyRestorableState(
     facts: source.facts,
     relationships: source.relationships,
     openThreads: source.openThreads,
+    threads: source.threads,
     objectives: source.objectives,
     resources: source.resources,
   });
@@ -420,9 +489,133 @@ export const actionCandidateSchema = z
           causalFactIds: z.array(stableIdSchema).min(1).max(4),
         })
         .strict(),
+      z
+        .object({
+          type: z.literal("SHIFT_RELATIONSHIP"),
+          relationshipId: stableIdSchema,
+          beforeState: relationshipStateLabelSchema,
+          afterState: relationshipStateLabelSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal("OPEN_THREAD"),
+          title: threadTitleSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal("RESOLVE_THREAD"),
+          threadId: stableIdSchema,
+          resolution: boundedTextSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
+      z
+        .object({
+          type: z.literal("TRANSFORM_FAILURE"),
+          constraintId: stableIdSchema,
+          outcome: boundedTextSchema,
+          newThreadTitle: threadTitleSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
     ]),
   })
   .strict();
+
+/** The closed effect envelopes a user may request for an ordinary Action. */
+export const requestedEffectSchema = z.enum([
+  "FACT_REWRITE",
+  "ROUTINE_EFFECT",
+  "NO_WORLD_EFFECT",
+  "RELATIONSHIP_EFFECT",
+  "THREAD_EFFECT",
+]);
+export type RequestedEffect = z.infer<typeof requestedEffectSchema>;
+
+/** The server-derived identity of a thread opened by an Action. */
+export function threadIdForAction(actionId: string): string {
+  return `thread.${actionId}`;
+}
+
+/** Declared relationship bounds the validator reads from the pinned World Revision. */
+export type RelationshipPolicy = {
+  id: string;
+  protection: "PROTECTED" | "ROUTINE";
+  scale: string[];
+};
+
+/**
+ * MGC-1 effect context for one Action: the responding Character's scaled
+ * relationships, open threads and declared constraints. It exists only when
+ * the Action can use it, so every earlier Action keeps its exact evidence.
+ * PostgreSQL re-derives the same object (`simulora.mgc_effect_context`).
+ */
+export function compileEffectContext(
+  world: WorldDocument,
+  state: StateRevisionDocument,
+  characterId: string | null,
+  requestedEffect: RequestedEffect,
+): {
+  relationships: Array<
+    RelationshipPolicy & { fromCharacterId: string; toCharacterId: string; state: string }
+  >;
+  openThreads: Array<{ id: string; title: string }>;
+  constraints: Array<{ id: string; statement: string }>;
+} | null {
+  const constraints = world.constraints ?? [];
+  const applies =
+    requestedEffect === "RELATIONSHIP_EFFECT" ||
+    requestedEffect === "THREAD_EFFECT" ||
+    (requestedEffect !== "NO_WORLD_EFFECT" && constraints.length > 0);
+  if (!applies) return null;
+  const policies = relationshipPoliciesFor(world);
+  return {
+    relationships: characterId
+      ? state.relationships.flatMap((relationship) => {
+          const policy = policies.find((item) => item.id === relationship.id);
+          return policy &&
+            relationship.state !== undefined &&
+            (relationship.fromCharacterId === characterId ||
+              relationship.toCharacterId === characterId)
+            ? [
+                {
+                  id: relationship.id,
+                  fromCharacterId: relationship.fromCharacterId,
+                  toCharacterId: relationship.toCharacterId,
+                  protection: policy.protection,
+                  scale: policy.scale,
+                  state: relationship.state,
+                },
+              ]
+            : [];
+        })
+      : [],
+    openThreads: (state.threads ?? [])
+      .filter((thread) => thread.status === "OPEN")
+      .map(({ id, title }) => ({ id, title })),
+    constraints: constraints.map(({ id, statement }) => ({ id, statement })),
+  };
+}
+
+export type EffectContext = NonNullable<ReturnType<typeof compileEffectContext>>;
+
+export function relationshipPoliciesFor(world: WorldDocument): RelationshipPolicy[] {
+  return world.relationships.flatMap((relationship) =>
+    relationship.scale
+      ? [
+          {
+            id: relationship.id,
+            protection: relationship.protection ?? "PROTECTED",
+            scale: relationship.scale,
+          },
+        ]
+      : [],
+  );
+}
 
 export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type ActionCandidate = z.infer<typeof actionCandidateSchema>;
@@ -505,9 +698,15 @@ export function validateActionCandidate(
     authorizedContextFactIds: ReadonlySet<string> | readonly string[];
     responseSource?: ActionResponseSource;
     userRoleName?: string;
-    requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+    requestedEffect?: RequestedEffect;
     authorizedRoutineRoutes?: ReadonlySet<string> | readonly string[];
     authorizedRoutineNpcIds?: ReadonlySet<string> | readonly string[];
+    /** MGC-1: the thread the user asked this Action to work toward. */
+    targetThreadId?: string;
+    /** MGC-1: scaled relationships declared by the pinned World Revision. */
+    relationshipPolicies?: readonly RelationshipPolicy[];
+    /** MGC-1: causal constraints declared by the pinned World Revision. */
+    constraintIds?: readonly string[];
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -538,11 +737,17 @@ export function validateActionCandidate(
   );
   const requestedEffect = expected.requestedEffect ?? "FACT_REWRITE";
   const operation = candidate.operation;
-  if (
-    (requestedEffect === "FACT_REWRITE" && operation.type !== "UPDATE_CANONICAL_FACT") ||
-    (requestedEffect === "ROUTINE_EFFECT" && operation.type !== "MOVE_CHARACTER") ||
-    (requestedEffect === "NO_WORLD_EFFECT" && operation.type !== "NO_WORLD_EFFECT")
-  ) {
+  const envelopeOperation = {
+    FACT_REWRITE: "UPDATE_CANONICAL_FACT",
+    ROUTINE_EFFECT: "MOVE_CHARACTER",
+    NO_WORLD_EFFECT: "NO_WORLD_EFFECT",
+    RELATIONSHIP_EFFECT: "SHIFT_RELATIONSHIP",
+    THREAD_EFFECT: expected.targetThreadId ? "RESOLVE_THREAD" : "OPEN_THREAD",
+  }[requestedEffect];
+  // A world-changing attempt may instead fail against a declared constraint.
+  const transformedFailure =
+    operation.type === "TRANSFORM_FAILURE" && requestedEffect !== "NO_WORLD_EFFECT";
+  if (operation.type !== envelopeOperation && !transformedFailure) {
     throw new Error("Candidate effect does not match the requested closed effect envelope");
   }
   const allowedContext = new Set(expected.authorizedContextFactIds);
@@ -556,6 +761,14 @@ export function validateActionCandidate(
     expected.state,
     expected.authorizedContextFactIds,
   );
+  if (
+    operation.type === "SHIFT_RELATIONSHIP" ||
+    operation.type === "OPEN_THREAD" ||
+    operation.type === "RESOLVE_THREAD" ||
+    operation.type === "TRANSFORM_FAILURE"
+  ) {
+    return validateClosureOperation(candidate, operation, expected, eligibleCausalFact);
+  }
   if (operation.type === "NO_WORLD_EFFECT") {
     assertGeneratedNarrativeDoesNotAuthorUser(
       operation.reason,
@@ -652,6 +865,131 @@ export function validateActionCandidate(
       before: target.statement,
       after: factOperation.afterStatement,
       scope: target.scope,
+    },
+  };
+}
+
+type ClosureOperation = Extract<
+  ActionCandidate["operation"],
+  { type: "SHIFT_RELATIONSHIP" | "OPEN_THREAD" | "RESOLVE_THREAD" | "TRANSFORM_FAILURE" }
+>;
+
+/** The generated text fields of an MGC-1 operation, in a fixed order. */
+export function closureOperationTexts(operation: ActionCandidate["operation"]): string[] {
+  if (operation.type === "OPEN_THREAD") return [operation.title];
+  if (operation.type === "RESOLVE_THREAD") return [operation.resolution];
+  if (operation.type === "TRANSFORM_FAILURE") return [operation.outcome, operation.newThreadTitle];
+  return [];
+}
+
+/**
+ * MGC-1 closed operations. The impact is derived here from the declared World
+ * policy and the exact before/after; the model never supplies it.
+ */
+function validateClosureOperation(
+  candidate: ActionCandidate,
+  operation: ClosureOperation,
+  expected: Parameters<typeof validateActionCandidate>[1],
+  eligibleCausalFact: (id: string) => boolean,
+): ValidatedActionCandidate {
+  if (operation.causalFactIds.some((id) => !eligibleCausalFact(id))) {
+    throw new Error("Closure effect source is outside the authorized context");
+  }
+  const source = candidate.responseSource;
+  const speaker =
+    source.type === "CHARACTER"
+      ? expected.state.characters.find((item) => item.id === source.characterId)?.name
+      : undefined;
+  const texts = closureOperationTexts(operation);
+  for (const text of texts) {
+    assertGeneratedNarrativeDoesNotAuthorUser(text, expected.userRoleName, speaker);
+  }
+  assertGeneratedTextDoesNotLeakExcludedFacts(
+    texts,
+    expected.state,
+    expected.authorizedContextFactIds,
+  );
+  const newThreadId = threadIdForAction(candidate.actionId);
+
+  if (operation.type === "SHIFT_RELATIONSHIP") {
+    const relationship = expected.state.relationships.find(
+      (item) => item.id === operation.relationshipId,
+    );
+    const policy = expected.relationshipPolicies?.find(
+      (item) => item.id === operation.relationshipId,
+    );
+    if (!relationship || !policy || relationship.state === undefined) {
+      throw new Error("Relationship has no declared scale at the expected head");
+    }
+    if (
+      source.type !== "CHARACTER" ||
+      (relationship.fromCharacterId !== source.characterId &&
+        relationship.toCharacterId !== source.characterId)
+    ) {
+      throw new Error("Relationship change must come from a Character in that relationship");
+    }
+    if (relationship.state !== operation.beforeState) {
+      throw new Error("Relationship before-state does not match the expected head");
+    }
+    const before = policy.scale.indexOf(operation.beforeState);
+    const after = policy.scale.indexOf(operation.afterState);
+    if (after < 0 || after === before) {
+      throw new Error("Relationship after-state must be another value of its declared scale");
+    }
+    // Domain §5.5: only an adjacent step on a declared ROUTINE relationship is L2.
+    const impact = policy.protection === "ROUTINE" && Math.abs(after - before) === 1 ? "L2" : "L3";
+    return {
+      candidate,
+      impact,
+      requiresExactConfirmation: true,
+      displayEffect: {
+        target: relationship.id,
+        before: operation.beforeState,
+        after: operation.afterState,
+        scope: "SHARED",
+      },
+    };
+  }
+  if (operation.type === "RESOLVE_THREAD") {
+    const thread = expected.state.threads?.find((item) => item.id === operation.threadId);
+    if (!thread || operation.threadId !== expected.targetThreadId || thread.status !== "OPEN") {
+      throw new Error("Only the open thread the user targeted can be resolved");
+    }
+    return {
+      candidate,
+      impact: "L2",
+      requiresExactConfirmation: true,
+      displayEffect: { target: thread.id, before: "OPEN", after: "RESOLVED", scope: "SHARED" },
+    };
+  }
+  if (expected.state.threads?.some((thread) => thread.id === newThreadId)) {
+    throw new Error("Thread already exists at the expected head");
+  }
+  if (operation.type === "OPEN_THREAD") {
+    return {
+      candidate,
+      impact: "L2",
+      requiresExactConfirmation: true,
+      displayEffect: {
+        target: newThreadId,
+        before: "No thread",
+        after: operation.title,
+        scope: "SHARED",
+      },
+    };
+  }
+  if (!expected.constraintIds?.includes(operation.constraintId)) {
+    throw new Error("Transformed failure must cite a constraint declared by the World Revision");
+  }
+  return {
+    candidate,
+    impact: "L2",
+    requiresExactConfirmation: true,
+    displayEffect: {
+      target: operation.constraintId,
+      before: operation.outcome,
+      after: operation.newThreadTitle,
+      scope: "SHARED",
     },
   };
 }
@@ -1194,6 +1532,53 @@ export function applyValidatedActionCandidate(
   if (operation.type === "NO_WORLD_EFFECT") {
     throw new Error("A no-world-effect candidate cannot mutate World state");
   }
+  if (
+    operation.type === "SHIFT_RELATIONSHIP" ||
+    operation.type === "OPEN_THREAD" ||
+    operation.type === "RESOLVE_THREAD" ||
+    operation.type === "TRANSFORM_FAILURE"
+  ) {
+    const turn = state.worldClock.turn + 1;
+    const next = {
+      ...state,
+      worldClock: { turn, label: `After action ${turn}` },
+      openThreads: [...state.openThreads, validated.candidate.narrative],
+    };
+    const threads = state.threads ?? [];
+    if (operation.type === "SHIFT_RELATIONSHIP") {
+      const current = state.relationships.find((item) => item.id === operation.relationshipId);
+      if (current?.state !== operation.beforeState) {
+        throw new Error("Validated relationship state is no longer current");
+      }
+      return stateRevisionDocumentSchema.parse({
+        ...next,
+        relationships: state.relationships.map((item) =>
+          item.id === operation.relationshipId ? { ...item, state: operation.afterState } : item,
+        ),
+      });
+    }
+    if (operation.type === "RESOLVE_THREAD") {
+      if (!threads.some((item) => item.id === operation.threadId && item.status === "OPEN")) {
+        throw new Error("Validated thread is no longer open");
+      }
+      return stateRevisionDocumentSchema.parse({
+        ...next,
+        threads: threads.map((item) =>
+          item.id === operation.threadId
+            ? { ...item, status: "RESOLVED" as const, resolution: operation.resolution }
+            : item,
+        ),
+      });
+    }
+    const title = operation.type === "OPEN_THREAD" ? operation.title : operation.newThreadTitle;
+    return stateRevisionDocumentSchema.parse({
+      ...next,
+      threads: [
+        ...threads,
+        { id: threadIdForAction(validated.candidate.actionId), title, status: "OPEN" as const },
+      ],
+    });
+  }
   if (operation.type === "MOVE_CHARACTER") {
     const character = state.characters.find((item) => item.id === operation.characterId);
     if (!character || character.locationId !== operation.beforeLocationId) {
@@ -1312,8 +1697,17 @@ export function createInitialState(
       knownFactIds: character.knowledgeFactIds,
     })),
     facts: world.facts.map((fact) => ({ ...fact, lifecycle: "ACTIVE" as const })),
-    relationships: world.relationships,
+    relationships: world.relationships.map((relationship) => ({
+      id: relationship.id,
+      fromCharacterId: relationship.fromCharacterId,
+      toCharacterId: relationship.toCharacterId,
+      description: relationship.description,
+      ...(relationship.scale ? { state: relationship.initialState } : {}),
+    })),
     openThreads: [world.startingSituation],
+    ...(world.threads?.length
+      ? { threads: world.threads.map((thread) => ({ ...thread, status: "OPEN" as const })) }
+      : {}),
     objectives: participation.structureMode === "GOAL_FRAMED" ? world.objectives : [],
     resources: {},
     interactionBoundaries: world.interactionBoundaries,

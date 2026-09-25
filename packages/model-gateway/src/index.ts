@@ -46,11 +46,33 @@ export type ModelGatewayStatus = {
   fallback: { id: string; version: string } | null;
 };
 
+/**
+ * MGC-1 declared effect context: the selected Character's scaled relationships,
+ * open threads and World constraints. Present only when an Action can use them;
+ * its digest is bound into the Generation Attempt evidence.
+ */
+export type EffectContext = {
+  relationships: Array<{
+    id: string;
+    fromCharacterId: string;
+    toCharacterId: string;
+    protection: "PROTECTED" | "ROUTINE";
+    scale: string[];
+    state: string;
+  }>;
+  openThreads: Array<{ id: string; title: string }>;
+  constraints: Array<{ id: string; statement: string }>;
+};
+
 export type WorldTurnRequest = {
   actionId: string;
   expectedHeadCommitId: string;
   intent: string;
-  requestedEffect?: "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT";
+  requestedEffect?:
+    "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "RELATIONSHIP_EFFECT" | "THREAD_EFFECT";
+  /** MGC-1: the open thread the user asked this Action to resolve. */
+  targetThreadId?: string;
+  effectContext?: EffectContext;
   routineRoutes?: Array<{ fromLocationId: string; toLocationId: string; label: string }>;
   context?: Readonly<Record<string, unknown>>;
   priorDialogue?: ReadonlyArray<{
@@ -157,6 +179,72 @@ export class DeterministicModelGateway implements ModelGatewayPort {
         },
       });
     }
+    const draft = (operation: Record<string, unknown>, text = narrative) =>
+      Promise.resolve({
+        narrative: text,
+        responseSource,
+        candidate: {
+          schemaVersion: 1,
+          actionId: request.actionId,
+          expectedHeadCommitId: request.expectedHeadCommitId,
+          narrative: text,
+          responseSource,
+          operation,
+        },
+      });
+    const causalFactIds = [request.targetFact.id];
+    const effects = request.effectContext;
+    const constraint = effects?.constraints[0];
+    // MGC-1: a requested effect that cannot happen at this head fails against a
+    // declared constraint. A technical failure never takes this path.
+    const transformFailure = () =>
+      constraint
+        ? draft(
+            {
+              type: "TRANSFORM_FAILURE",
+              constraintId: constraint.id,
+              outcome: `The attempt is held back: ${constraint.statement}`,
+              newThreadTitle: boundedTitle(`Find another way: ${intent}`),
+              causalFactIds,
+            },
+            `${actor?.name ?? "The world"} meets a limit that holds: ${constraint.statement}`,
+          )
+        : null;
+    if (requestedEffect === "RELATIONSHIP_EFFECT") {
+      const relationship = effects?.relationships[0];
+      if (actor && relationship) {
+        const index = relationship.scale.indexOf(relationship.state);
+        const afterState =
+          relationship.scale[index + 1 < relationship.scale.length ? index + 1 : index - 1]!;
+        return draft({
+          type: "SHIFT_RELATIONSHIP",
+          relationshipId: relationship.id,
+          beforeState: relationship.state,
+          afterState,
+          causalFactIds,
+        });
+      }
+      const failed = transformFailure();
+      if (failed) return failed;
+    }
+    if (requestedEffect === "THREAD_EFFECT") {
+      return request.targetThreadId
+        ? draft({
+            type: "RESOLVE_THREAD",
+            threadId: request.targetThreadId,
+            resolution: boundedTitle(`Resolved through: ${intent}`),
+            causalFactIds,
+          })
+        : draft({
+            type: "OPEN_THREAD",
+            title: boundedTitle(`Follow-up: ${intent}`),
+            causalFactIds,
+          });
+    }
+    if (requestedEffect === "ROUTINE_EFFECT" && !(actor && route)) {
+      const failed = transformFailure();
+      if (failed) return failed;
+    }
     if (requestedEffect === "ROUTINE_EFFECT" && actor && route) {
       return Promise.resolve({
         narrative: `${actor.name} moves along the familiar route toward ${route.label}.`,
@@ -199,6 +287,10 @@ export class DeterministicModelGateway implements ModelGatewayPort {
   }
 }
 
+function boundedTitle(text: string): string {
+  return text.trim().slice(0, 200).trim();
+}
+
 /** The provider could not be reached, timed out, throttled or failed server-side. */
 export class ProviderUnavailableError extends Error {
   override readonly name = "ProviderUnavailableError";
@@ -219,7 +311,7 @@ export class UnsafeModelContextError extends Error {
   override readonly name = "UnsafeModelContextError";
 }
 
-export const livePromptVersion = 5;
+export const livePromptVersion = 6;
 const maxPromptCharacters = 48_000;
 
 // System rules travel separately from the compiled request. Creator-authored text
@@ -247,12 +339,55 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
       item.fromLocationId === request.character?.locationId &&
       item.toLocationId !== request.character?.locationId,
   );
-  if (effect === "ROUTINE_EFFECT" && !(request.character && route)) {
+  const constraint = request.effectContext?.constraints[0];
+  if (effect === "ROUTINE_EFFECT" && !(request.character && route) && !constraint) {
     // Never ask a provider for a movement the policy has not authorized.
     throw new UnsafeModelContextError("No authorized route at the Character's location");
   }
+  const relationship = request.effectContext?.relationships[0];
+  if (effect === "RELATIONSHIP_EFFECT" && !(request.character && relationship) && !constraint) {
+    throw new UnsafeModelContextError("No declared relationship scale for the selected Character");
+  }
+  const causalFactIds = [request.targetFact.id];
+  const failure = constraint
+    ? {
+        type: "TRANSFORM_FAILURE",
+        constraintId: "One declared constraint id from effectContext.constraints.",
+        outcome: "How the attempt fails against that constraint, in world terms.",
+        newThreadTitle: "The new open situation this failure creates.",
+        causalFactIds,
+      }
+    : null;
+  const primary =
+    effect === "RELATIONSHIP_EFFECT" && relationship
+      ? {
+          type: "SHIFT_RELATIONSHIP",
+          relationshipId: relationship.id,
+          beforeState: relationship.state,
+          afterState: "Another value from that relationship's declared scale.",
+          causalFactIds,
+        }
+      : effect === "THREAD_EFFECT"
+        ? request.targetThreadId
+          ? {
+              type: "RESOLVE_THREAD",
+              threadId: request.targetThreadId,
+              resolution: "How this thread is resolved, in world terms.",
+              causalFactIds,
+            }
+          : {
+              type: "OPEN_THREAD",
+              title: "A short title for the new open thread.",
+              causalFactIds,
+            }
+        : null;
   const operation =
-    effect === "NO_WORLD_EFFECT"
+    primary ??
+    ((effect === "ROUTINE_EFFECT" && !(request.character && route)) ||
+    effect === "RELATIONSHIP_EFFECT"
+      ? failure
+      : null) ??
+    (effect === "NO_WORLD_EFFECT"
       ? {
           type: "NO_WORLD_EFFECT",
           reason: "Explain briefly why this response has no world-state effect.",
@@ -274,7 +409,7 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
               "The complete resulting statement of this same fact, not a user commitment.",
             scope: request.targetFact.scope,
             provenance: `Confirmed Action ${request.actionId}`,
-          };
+          });
   const skeleton = {
     schemaVersion: 1,
     actionId: request.actionId,
@@ -293,9 +428,19 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
     "and the supplied afterStatement or no-effect reason. Do not add fields or effects.",
     "Use supplied causal IDs; never infer private facts or location permissions.",
     "The server decides validity; movement and canonical changes still need exact confirmation.",
-    `The requested effect is ${effect}; operation.type must be ${operation.type}.`,
+    `The requested effect is ${effect}; operation.type must be ${String(operation.type)}` +
+      (failure && effect !== "NO_WORLD_EFFECT" && operation !== failure
+        ? " unless the constraint alternative below applies."
+        : "."),
     "If the selected effect permits advice or refusal, put it in the narrative/reason while",
     "retaining the required operation envelope.",
+    ...(failure && effect !== "NO_WORLD_EFFECT" && operation !== failure
+      ? [
+          "If the attempt collides with a declared constraint, you may instead return this",
+          "operation; the user will confirm or reject it:",
+          JSON.stringify(failure),
+        ]
+      : []),
   ].join("\n");
   return { system, data: JSON.stringify({ compiledGenerationRequest: request }) };
 }
