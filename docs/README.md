@@ -44,6 +44,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [IP-9 Threat Model and Specialist Review Preparation](implementation-planning/IP-9-THREAT-MODEL.md)
 - [IP-9 Operational Runbooks](implementation-planning/IP-9-RUNBOOKS.md)
 - [IP-9 Independent Review (G9)](implementation-planning/IP-9-INDEPENDENT-REVIEW.md)
+- [IP-10 Requirement → Evidence Matrix (IP-10.8 draft)](implementation-planning/IP-10-REQUIREMENT-EVIDENCE-MATRIX.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)

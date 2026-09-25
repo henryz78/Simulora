@@ -1,12 +1,13 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS (CI to be verified by the user)`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 STARTED`
 
-**Latest Gate:** G9 is `PASS` on code review. See §43–§46 and the
+**Latest Gate:** G9 is `PASS` and closed. See §43–§47 and the
 [IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
-behavior is `c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI `36096978257` was not checked by the
-reviewer, and the user will verify it. The last behavior with CI verified by
-the reviewer is `69228ef` (`36094446366`). IP-10 has not started.
+behavior is `c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI
+`36096978257` succeeded; the user verified it, not the reviewer (§47). IP-10
+was authorized and started on 2026-09-24; its first output is the
+[IP-10 Requirement → Evidence Matrix](IP-10-REQUIREMENT-EVIDENCE-MATRIX.md).
 The IP-8 text below is kept as history; where it says "IP-9 not started", §43
 supersedes it.
 
@@ -1318,3 +1319,40 @@ the latest behavior with CI verified by the reviewer is `69228ef`.
 What remains not proven is unchanged from §43: no real provider was
 evaluated, and there has been no human assistive-technology review. IP-10 has
 not started and is not authorized.
+
+## 47. G9 CI verified and IP-10 started
+
+**G9 CI.** Exact-SHA CI `36096978257` for the approved behavior
+`c812d6c6d29be86be3557a00b4866b5d01f0499f` completed with success. The
+documentation head `7bbb889` (`36097216665`) also succeeded. The user verified
+these runs, and the implementer confirmed them with `gh run view`. As agreed
+in §46, the reviewer did not check this CI. The review document is left as it
+was written. G9 is closed.
+
+**IP-10 authorization.** The user authorized IP-10 on 2026-09-24 and asked for
+the original Roadmap engineering track to be followed:
+
+- no Roadmap redesign;
+- no new features;
+- no external item presented as PASS;
+- requirement → evidence mapping first, then the gaps.
+
+**First output:** the
+[IP-10 Requirement → Evidence Matrix](IP-10-REQUIREMENT-EVIDENCE-MATRIX.md),
+which is a draft of IP-10.8.
+
+- **Test-closable gaps:** INV-07, INV-08, INV-09 and INV-12; the start and
+  cross-capability browser journeys; the SEC-ACCESS sweep; the compatibility
+  and rollback rehearsal; capacity and killed-worker drills; the `LONG-01`
+  harness.
+- **Implementation gaps IP-10 cannot close:**
+  - PR-005 transformed failure has no mechanism.
+  - `LONG-01` (NFR-006) needs relationship-change and thread open/resolve
+    operations that do not exist.
+
+  G10 cannot pass while these remain. Closing them is a product-owner
+  decision.
+- **External:** every Plan §20 decision, the `SHOULD` selection, specialist
+  and human accessibility review, and named operations owners.
+
+No behavior has changed in IP-10 yet.

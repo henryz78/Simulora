@@ -133,10 +133,15 @@ IP-9 已实施，G9 独立 Review 首轮 `PASS WITH ISSUES`（0B/2I/1M），修�
 当前批准行为 SHA `c812d6c6d29be86be3557a00b4866b5d01f0499f`；其 exact-SHA CI `36096978257` 按用户要求未由
 Reviewer 核对，由用户自行核验（见交接 §46、Review §11）。报告见
 `docs/implementation-planning/IP-9-IMPLEMENTATION-REPORT.md`，Review 见
-`docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43–§46。
+`docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43–§47。
+用户与实现者其后核实该 CI 成功，G9 closed（交接 §47）。
 S3 兼容导出对象存储、仅 API 签名的下载链接与删除传播已完成（presigned URL 已移除）。live adapter 只针对 provider double 验证：
 没有调用真实 provider，也没有 provider 获得 retention 批准，所以 production live 仍未启用。
-PostgreSQL retention purge 仍是 release 义务。IP-10 未开始、未授权。
+PostgreSQL retention purge 仍是 release 义务。用户于 2026-09-24 授权 IP-10，按原 roadmap
+engineering track 推进、不加新功能；首个产出是
+`docs/implementation-planning/IP-10-REQUIREMENT-EVIDENCE-MATRIX.md`。其中 PR-005
+transformed failure 与 LONG-01 的关系变化、thread open/resolve 无现有机制，属
+IP-10 无法用测试关闭的实现缺口，需产品负责人决定；外部决策与专家/真人验证仍未完成。
 
 ## Long-Term Product Direction
 

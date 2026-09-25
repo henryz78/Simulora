@@ -1,8 +1,8 @@
 # IP-9 Implementation Report — Model, Accessibility and Reliability Hardening
 
 **Status:** `G9 PASS` on code review. Current approved behavior:
-`c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI `36096978257` was not checked by the reviewer, and
-the user will verify it.
+`c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI `36096978257`
+succeeded. The user verified it, not the reviewer (handoff §47).
 
 The last behavior with CI verified by the reviewer is `69228ef` (`36094446366`,
 PASS WITH ISSUES). The one before that is `e1fa0a6` (`35964085085`).
