@@ -92,6 +92,39 @@ describe("ExportStorageWorker reconciliation", () => {
     expect(maxActive).toBe(1);
   });
 
+  it("never answers one World's call with another World's outcome", async () => {
+    const claimed: (string | undefined)[] = [];
+    const storage: ExportArtifactStore = {
+      kind: "test",
+      put: () => Promise.resolve(),
+      get: () => Promise.resolve(null),
+      list: () => Promise.resolve([]),
+      delete: () => new Promise((resolve) => setTimeout(resolve, 10)),
+    };
+    const port = {
+      claimExportStorageWork: (scope?: { worldId?: string }) => {
+        claimed.push(scope?.worldId);
+        return Promise.resolve({
+          operation: "DELETE" as const,
+          exportId: `export-${scope?.worldId}`,
+          objectKey: `exports/${scope?.worldId}.zip`,
+        });
+      },
+      listExportObjectKeys: () => Promise.resolve([]),
+      markExportStored: () => Promise.resolve("STORED" as const),
+      recordExportStorageDelay: () => Promise.resolve(),
+      markExportObjectDeleted: () => Promise.resolve(),
+    };
+    const worker = new ExportStorageWorker(port, storage);
+    const [a, b] = await Promise.all([
+      worker.processNext({ worldId: "a" }),
+      worker.processNext({ worldId: "b" }),
+    ]);
+    expect(a?.exportId).toBe("export-a");
+    expect(b?.exportId).toBe("export-b");
+    expect(claimed).toEqual(["a", "b"]);
+  });
+
   it("keeps reconciliation alive during a sustained queue", async () => {
     let claims = 0;
     let lists = 0;

@@ -492,7 +492,7 @@ export type ExportStorageOutcome = {
  * completion. Every step is idempotent, so a crash at any point is retried safely.
  */
 export class ExportStorageWorker {
-  #inFlight: Promise<ExportStorageOutcome | null> | undefined;
+  #inFlight: { worldId: string | undefined; run: Promise<ExportStorageOutcome | null> } | undefined;
   #nextReconciliationAt = 0;
   #reconcileOnIdle = false;
 
@@ -526,11 +526,17 @@ export class ExportStorageWorker {
 
   /** `scope` narrows the queue to one World; drills and tests use it for isolation. */
   async processNext(scope: { worldId?: string } = {}): Promise<ExportStorageOutcome | null> {
-    if (this.#inFlight) return this.#inFlight;
-    this.#inFlight = this.#processNext(scope).finally(() => {
+    // One step at a time per worker: a call for the same scope joins the running
+    // step, and a call for another scope waits for it and then runs its own.
+    while (this.#inFlight) {
+      if (this.#inFlight.worldId === scope.worldId) return this.#inFlight.run;
+      await this.#inFlight.run.catch(() => undefined);
+    }
+    const run = this.#processNext(scope).finally(() => {
       this.#inFlight = undefined;
     });
-    return this.#inFlight;
+    this.#inFlight = { worldId: scope.worldId, run };
+    return run;
   }
 
   async #processNext(scope: { worldId?: string }): Promise<ExportStorageOutcome | null> {

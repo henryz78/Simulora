@@ -217,10 +217,15 @@ suite("IP-9 export object storage against PostgreSQL", () => {
       );
       expect(staged.rows[0]).toEqual({ storage_state: "STAGED", storage_attempts: 1 });
       storage.setAvailable(true);
+      // The failed write may still land, so its renewed lease blocks a retry even
+      // once the backoff has passed.
       await pool.query(
-        `update simulora.export_jobs
-         set storage_available_at = now(), storage_lease_until = now()
-         where id = $1`,
+        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        [delayed.exportId],
+      );
+      expect(await worker.processNext({ worldId: world.worldId })).toBeNull();
+      await pool.query(
+        `update simulora.export_jobs set storage_lease_until = now() where id = $1`,
         [delayed.exportId],
       );
       await drain(worker, world.worldId);
