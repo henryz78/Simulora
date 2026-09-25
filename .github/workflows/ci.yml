@@ -31,7 +31,7 @@ jobs:
       SIMULORA_DATABASE_URL: postgres://simulora:simulora@127.0.0.1:5432/simulora
       SIMULORA_AUTH_ADAPTER: development
       SIMULORA_MODEL_ADAPTER: deterministic
-      # IP-9: a real S3-compatible store for export artifacts and outage drills.
+      # IP-9: a real S3-compatible API server for export artifacts and outage drills.
       SIMULORA_TEST_S3_ENDPOINT: http://127.0.0.1:9000
       SIMULORA_TEST_S3_BUCKET: simulora-ci
       SIMULORA_TEST_S3_ACCESS_KEY: simulora
@@ -54,15 +54,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # A service container cannot pass MinIO its `server` arguments, so start it here.
+      # S3Mock is the public, reproducible S3-compatible CI service.
       - name: Start S3-compatible object store
         run: |
-          docker run -d --name simulora-minio -p 127.0.0.1:9000:9000 \
-            -e MINIO_ROOT_USER=simulora -e MINIO_ROOT_PASSWORD=change-me-local-only \
-          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          docker run -d --name simulora-s3mock -p 127.0.0.1:9000:9090 \
+            -e COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=simulora-ci \
+            adobe/s3mock:5.2.2
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null; then break; fi
-            if [ "$attempt" = 30 ]; then docker logs simulora-minio; exit 1; fi
+            if curl --fail --silent http://127.0.0.1:9000/favicon.ico >/dev/null; then break; fi
+            if [ "$attempt" = 30 ]; then docker logs simulora-s3mock; exit 1; fi
             sleep 1
           done
           SIMULORA_OBJECT_ENDPOINT=http://127.0.0.1:9000 SIMULORA_OBJECT_BUCKET=simulora-ci \
