@@ -1,11 +1,11 @@
 # IP-9 Implementation Report — Model, Accessibility and Reliability Hardening
 
-**Status:** `G9 PASS WITH ISSUES` pending exact-SHA CI and documentation
-closure. Current candidate behavior:
-`f5949ac6e4eac509ce5422b130c0c630c8e15206`.
+**Status:** `G9 PASS` on code review. Current approved behavior:
+`c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI `36096978257` was not checked by the reviewer, and
+the user will verify it.
 
-The last CI-approved behavior remains `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`
-(`35964085085`).
+The last behavior with CI verified by the reviewer is `69228ef` (`36094446366`,
+PASS WITH ISSUES). The one before that is `e1fa0a6` (`35964085085`).
 
 The [independent review](IP-9-INDEPENDENT-REVIEW.md) went through three
 rounds:
@@ -21,6 +21,9 @@ rounds:
    hardening repairs: `PASS WITH ISSUES` (0 BLOCKER / 1 IMPORTANT / 0 MINOR).
    The remaining Important is the missing exact-SHA CI and stale evidence,
    which this report now records.
+5. CI for that candidate failed, and `69228ef` repaired the tests. The Sonnet 5
+   reviewer returned `PASS WITH ISSUES` (0 / 1 / 1) on `69228ef`; `c812d6c`
+   repaired both findings and it returned `PASS` (0 / 0 / 0). See review §11.
 
 **Phase goal (frozen):** move from deterministic correctness to production-shaped
 quality without weakening contracts ([Roadmap §12](ROADMAP_AND_WORK_BREAKDOWN.md)).
@@ -54,6 +57,9 @@ PostgreSQL, no signed object URLs, no purge worker).
 | G9 review repair: the server settles a delayed export's reservation (I1), and a corrected worker comment (M1) | IP-9 obligation | `a59a58a` |
 | Second audit repair: export finalize race and upload lease (`0047`), API-signed links only, live-evaluation verdict, movement cases, bounded provider body, provider in the profile, integrity reason, export status UI, legacy reservation | IP-9.1–9.5 | `d7430e3` |
 | Upload lease tied to the object store's worst-case call time (review N2) | IP-9.5 | `e1fa0a6` |
+| Bounded S3 timeouts, quarantine of uncertain writes by lease renewal, orphan-object reconciliation (serialized, claim-first, paced), endpoint secret rejection and redaction | IP-9.5 | `b6f1978`–`f5949ac` |
+| Tests aligned with the renewed lease and the in-flight join (CI repair) | IP-9.5 | `69228ef` |
+| Export worker calls stay scoped to their own World; a test proves the renewed lease (review §11) | IP-9.5 | `c812d6c` |
 
 Supporting documents: [Fault Matrix](IP-9-FAULT-MATRIX.md) ·
 [Threat Model](IP-9-THREAT-MODEL.md) · [Runbooks](IP-9-RUNBOOKS.md).
@@ -181,6 +187,16 @@ CI runs on `main` (real PostgreSQL 17, MinIO, containers, browser matrix):
   Real PostgreSQL, MinIO/S3, provider, human assistive-technology review and
   exact-SHA CI are not yet evidence for this candidate; local build remains
   blocked by the Windows sandbox's esbuild parent-directory access denial.
+  Its CI (`36092785927`) and `716deba`'s (`36093084620`) failed at the MinIO
+  start step. With S3Mock, `dab139c` (`36093434199`) ran the suites and failed 5
+  object-storage tests (review §11).
+- **`69228ef` test repair — run `36094446366` passed in full.**
+  - PostgreSQL suites: 155 tests. `pnpm check`: 268 tests; 47 migrations.
+  - Restore drill: 172 rows.
+  - Acknowledgement p95: 427.9 ms.
+  - Browser matrix: 185 passed.
+- **`c812d6c` (approved behavior) — run `36096978257`, not checked by the
+  reviewer; the user will verify it.**
 
 Local checks on each commit: format, ESLint (0 problems), typecheck,
 architecture, migrations (46), unit tests, build and worker runtime. Local

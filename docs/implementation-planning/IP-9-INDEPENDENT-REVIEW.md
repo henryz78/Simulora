@@ -838,3 +838,83 @@ record the full history — original review, first repair, second independent au
 and this closure — without rewriting or deleting any prior section, and without overstating real
 provider evaluation or human assistive-technology review, both of which remain correctly
 disclosed as open. No BLOCKER has been found across any round of this review.
+
+## 11. CI repair and focused re-review of `e1fa0a6..c812d6c` — 2026-09-25
+
+**Reviewer:** the same independent Sonnet 5 subagent that reviewed the first
+three G9 rounds, resumed with its context. §10 was reviewed by a different
+reviewer and is kept as it was written.
+
+**Why CI failed after §10.** The runs for `f5949ac` (`36092785927`) and
+`716deba` (`36093084620`) stopped at the MinIO start step, before any test ran.
+After `dab139c` moved CI to `adobe/s3mock:5.2.2`, run `36093434199` reached the
+PostgreSQL suites, and 5 tests in `ip9-object-storage` failed. There were two
+test-side causes:
+
+- `297e83f` makes a delayed upload renew `storage_lease_until`. Tests that
+  retried at once reset only the backoff, so the row stayed leased.
+- `25912d4` makes one worker join its own in-flight `processNext`. The
+  concurrent-claim test used that same worker, so it waited on its own held
+  upload.
+
+`69228ef` (test-only) expires the lease in those tests and uses a second worker
+for the concurrent claim. Exact-SHA CI `36094446366` passed in full:
+
+- PostgreSQL suites: 155 tests.
+- `pnpm check`: 268 tests; 47 migrations.
+- Restore drill: 172 rows.
+- Acknowledgement p95: 427.9 ms.
+- Browser matrix: 185 passed.
+
+### Round A — range `e1fa0a6..69228ef`
+
+The reviewer verified the CI run and read the whole diff. It confirmed that
+`69228ef` is test-only and that each change keeps the test's intent; the
+second worker is a more faithful model of two worker replicas. It also
+confirmed:
+
+- orphan reconciliation cannot delete a live object;
+- the TOCTOU race in `cf7ab8d` was closed by `25912d4`;
+- endpoint rejection and redaction are symmetric;
+- lease renewal delays a deletion for a bounded time, not indefinitely;
+- migrations 0001–0047 and the Action/authority/confirmation code are
+  untouched.
+
+Findings:
+
+- **IMPORTANT-1:** `ExportStorageWorker.processNext` coalesced on any in-flight
+  call regardless of `scope`. A call for World B could return World A's
+  outcome. The path was dormant: no current caller mixes scopes on one worker.
+- **MINOR-1:** no test isolated the renewed lease. Every retry reset both
+  columns, so reverting `297e83f`'s renewal would not have failed a test.
+
+Verdict: `G9 PASS WITH ISSUES — 0 BLOCKER / 1 IMPORTANT / 1 MINOR — approved
+behavior SHA 69228ef5cf26797473f1a5b5fc898514ae9b06b2 (exact-SHA CI
+36094446366)`.
+
+### Round B — repair `c812d6c`
+
+`c812d6c` fixes both findings:
+
+- **IMPORTANT-1:** a call for the same scope still joins the running step; a
+  call for another scope waits for it and then runs its own claim. A new unit
+  test runs two Worlds concurrently and checks each gets its own outcome and
+  claim.
+- **MINOR-1:** the outage test now resets only the backoff and asserts the
+  renewed lease still blocks the retry. It then expires the lease and drains.
+
+The reviewer traced the async semantics and found:
+
+- same-scope coalescing is unchanged;
+- there is no deadlock or reentrancy, because `run` settles only after its
+  `finally` clears the slot;
+- another World's failure is swallowed only while waiting, and each caller's
+  own error still reaches it.
+
+It found no new findings.
+
+**At the user's instruction, the reviewer did not check CI for this round.**
+The user will verify exact-SHA CI `36096978257` themselves.
+
+Verdict: `G9 PASS — 0 BLOCKER / 0 IMPORTANT / 0 MINOR — approved behavior SHA
+c812d6c6d29be86be3557a00b4866b5d01f0499f (exact-SHA CI 36096978257 — not checked by reviewer (user to verify))`.

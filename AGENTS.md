@@ -127,11 +127,13 @@ IP-9 已实施，G9 独立 Review 首轮 `PASS WITH ISSUES`（0B/2I/1M），修�
 复审 PASS。第二轮审计及其修复（`d7430e3`、`e1fa0a6`）见交接 §44；随后
 `f5949ac6e4eac509ce5422b130c0c630c8e15206` 又关闭了 export-worker reconciliation
 和 endpoint secret findings。同一 Reviewer 对该 exact SHA 返回 `PASS WITH ISSUES`
-（0B/1I/0M），剩余项是 exact-SHA CI 与证据文档收尾；因此它是当前 IP-9
-候选而非最终批准基线。最后 CI-approved behavior 仍是
-`e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626` / `35964085085`。报告见
+（0B/1I/0M），剩余项是 exact-SHA CI 与证据文档收尾。其后 CI 失败由 `69228ef`
+（仅测试）修复，exact-SHA CI `36094446366` 全部通过；Sonnet 5 Reviewer 复审
+`PASS WITH ISSUES`（0B/1I/1M），`c812d6c` 修复后复审 `G9 PASS`（0/0/0）。
+当前批准行为 SHA `c812d6c6d29be86be3557a00b4866b5d01f0499f`；其 exact-SHA CI `36096978257` 按用户要求未由
+Reviewer 核对，由用户自行核验（见交接 §46、Review §11）。报告见
 `docs/implementation-planning/IP-9-IMPLEMENTATION-REPORT.md`，Review 见
-`docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43–§45。
+`docs/implementation-planning/IP-9-INDEPENDENT-REVIEW.md`，状态见交接 §43–§46。
 S3 兼容导出对象存储、仅 API 签名的下载链接与删除传播已完成（presigned URL 已移除）。live adapter 只针对 provider double 验证：
 没有调用真实 provider，也没有 provider 获得 retention 批准，所以 production live 仍未启用。
 PostgreSQL retention purge 仍是 release 义务。IP-10 未开始、未授权。

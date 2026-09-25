@@ -1,14 +1,12 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 CANDIDATE / G9 PASS WITH ISSUES`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS (CI to be verified by the user)`
 
-**Latest Gate:** G9 code review is `PASS WITH ISSUES` pending exact-SHA CI and
-documentation closure. See §43–§45 and the
-[IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The current
-IP-9 candidate behavior is `f5949ac6e4eac509ce5422b130c0c630c8e15206`, after
-the export-worker and endpoint-hardening repairs. Exact-SHA CI is pending;
-the last CI-approved baseline remains `e1fa0a6498fb2f3b3af54db5cd9354d3b0dec626`
-(`35964085085`). IP-10 has not started.
+**Latest Gate:** G9 is `PASS` on code review. See §43–§46 and the
+[IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
+behavior is `c812d6c6d29be86be3557a00b4866b5d01f0499f`. Its exact-SHA CI `36096978257` was not checked by the
+reviewer, and the user will verify it. The last behavior with CI verified by
+the reviewer is `69228ef` (`36094446366`). IP-10 has not started.
 The IP-8 text below is kept as history; where it says "IP-9 not started", §43
 supersedes it.
 
@@ -1288,3 +1286,35 @@ architecture, migration and runtime checks pass. Real PostgreSQL, MinIO/S3,
 provider, human assistive-technology review and exact-SHA CI remain unverified;
 the local build is blocked by the Windows sandbox's esbuild parent-directory
 access denial. The last CI-approved baseline remains the SHA recorded in §44.
+
+## 46. G9 CI repair and final Sonnet 5 re-review
+
+After §45, CI stayed red. The runs for `f5949ac` and `716deba` failed to start
+MinIO. After `dab139c` switched to S3Mock, 5 object-storage tests failed,
+because the tests had not followed two behavior changes:
+
+- a delayed upload now renews its lease;
+- one worker now joins its own in-flight step.
+
+`69228ef` (test-only) fixed them, and its exact-SHA CI `36094446366` passed in
+full: PostgreSQL 155, `pnpm check` 268, 47 migrations, restore 172 rows,
+acknowledgement p95 427.9 ms, browser 185.
+
+The user named Sonnet 5 as the reviewer for this round. The same Sonnet 5
+reviewer that closed the earlier G9 rounds reviewed `e1fa0a6..69228ef` and
+returned `PASS WITH ISSUES` (0 / 1 / 1):
+
+- **IMPORTANT:** a worker call for one World could return another World's
+  outcome.
+- **MINOR:** no test isolated the renewed lease.
+
+`c812d6c` repairs both, and the re-review returned `G9 PASS` (0 / 0 / 0).
+See [IP-9 Independent Review](IP-9-INDEPENDENT-REVIEW.md) §11.
+
+**Approved behavior:** `c812d6c6d29be86be3557a00b4866b5d01f0499f`. At the user's instruction, the reviewer did
+not check its exact-SHA CI `36096978257`; the user will verify it. Until then,
+the latest behavior with CI verified by the reviewer is `69228ef`.
+
+What remains not proven is unchanged from §43: no real provider was
+evaluated, and there has been no human assistive-technology review. IP-10 has
+not started and is not authorized.
