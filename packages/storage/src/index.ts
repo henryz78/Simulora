@@ -239,6 +239,8 @@ export class S3ObjectStorage implements ObjectStoragePort {
   async put(metadata: ObjectMetadata, body: Uint8Array): Promise<void> {
     assertObjectKey(metadata.key);
     assertChecksum(metadata, body);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.#timeoutMs);
     try {
       await this.#client.send(
         new PutObjectCommand({
@@ -250,9 +252,12 @@ export class S3ObjectStorage implements ObjectStoragePort {
           ChecksumSHA256: Buffer.from(metadata.checksum, "hex").toString("base64"),
           Metadata: { sha256: metadata.checksum },
         }),
+        { abortSignal: controller.signal },
       );
     } catch (error) {
       throw unavailable(error);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
