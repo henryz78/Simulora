@@ -485,6 +485,19 @@ suite("IP-9 export object storage against PostgreSQL", () => {
         outcome: "DELETED",
       });
       expect(storage.has(delayed.artifactKey!)).toBe(false);
+
+      const lateBody = new TextEncoder().encode("late remote object");
+      await storage.put(
+        {
+          key: delayed.artifactKey!,
+          checksum: sha256Hex(lateBody),
+          contentType: "application/zip",
+        },
+        lateBody,
+      );
+      expect(storage.has(delayed.artifactKey!)).toBe(true);
+      expect(await worker.processNext({ worldId: world.worldId })).toBeNull();
+      expect(storage.has(delayed.artifactKey!)).toBe(false);
     } finally {
       await pool.end();
     }

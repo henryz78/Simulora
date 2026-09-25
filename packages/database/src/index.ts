@@ -6400,6 +6400,16 @@ export class AuthoritativeWorldRepository {
     });
   }
 
+  async listExportObjectKeys(): Promise<string[]> {
+    const result = await this.pool.query<{ artifact_key: string }>(
+      `select artifact_key
+       from simulora.export_jobs
+       where artifact_key is not null
+         and storage_state in ('LEGACY_INLINE', 'STAGED', 'STORED', 'DELETE_PENDING')`,
+    );
+    return result.rows.map((row) => row.artifact_key);
+  }
+
   /**
    * Finalizes an upload. ALREADY_STORED means another uploader finalized the same
    * immutable object first, which must be left alone. REVOKED means the export

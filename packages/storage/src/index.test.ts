@@ -32,6 +32,13 @@ describe("in-memory object storage", () => {
     expect(await storage.get("health.txt")).toBeNull();
   });
 
+  it("lists only objects under the requested export prefix", async () => {
+    const storage = new InMemoryObjectStorage();
+    await storage.put(metadata("exports/a.zip"), body);
+    await storage.put(metadata("other.zip"), body);
+    expect(await storage.list("exports/")).toEqual(["exports/a.zip"]);
+  });
+
   it("refuses a body that does not match its declared checksum", async () => {
     const storage = new InMemoryObjectStorage();
     await expect(

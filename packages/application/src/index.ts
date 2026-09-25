@@ -208,6 +208,7 @@ export interface ExportArtifactStore {
     body: Uint8Array,
   ): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
+  list(prefix: string): Promise<string[]>;
   delete(key: string): Promise<void>;
 }
 
@@ -476,6 +477,7 @@ async function storeExportWork(
 
 export interface ExportStorageWorkPort extends ExportStorageRecorder {
   claimExportStorageWork(scope?: { worldId?: string }): Promise<ExportStorageWork | null>;
+  listExportObjectKeys(): Promise<string[]>;
   markExportObjectDeleted(exportId: string): Promise<void>;
 }
 
@@ -495,10 +497,25 @@ export class ExportStorageWorker {
     private readonly artifacts: ExportArtifactStore,
   ) {}
 
+  /** Removes objects that arrived after their export row was tombstoned. */
+  private async reconcileOrphanObjects(): Promise<void> {
+    const [actualKeys, liveKeys] = await Promise.all([
+      this.artifacts.list("exports/"),
+      this.port.listExportObjectKeys(),
+    ]);
+    const live = new Set(liveKeys);
+    await Promise.all(
+      actualKeys.filter((key) => !live.has(key)).map((key) => this.artifacts.delete(key)),
+    );
+  }
+
   /** `scope` narrows the queue to one World; drills and tests use it for isolation. */
   async processNext(scope: { worldId?: string } = {}): Promise<ExportStorageOutcome | null> {
     const work = await this.port.claimExportStorageWork(scope);
-    if (!work) return null;
+    if (!work) {
+      await this.reconcileOrphanObjects();
+      return null;
+    }
     if (work.operation === "STORE") {
       const outcome = await storeExportWork(this.port, this.artifacts, work);
       return { exportId: work.exportId, operation: work.operation, outcome };

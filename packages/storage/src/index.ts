@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -21,6 +22,7 @@ export interface ObjectStoragePort {
   readonly kind: "memory" | "filesystem" | "s3";
   put(metadata: ObjectMetadata, body: Uint8Array): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
+  list(prefix: string): Promise<string[]>;
   /** Deleting an absent key succeeds, so a retried purge is safe. */
   delete(key: string): Promise<void>;
 }
@@ -39,6 +41,12 @@ export class ObjectIntegrityError extends Error {
 }
 
 const objectKeyPattern = /^[A-Za-z0-9][A-Za-z0-9/_.-]{0,1023}$/;
+
+function assertObjectPrefix(prefix: string): void {
+  if (!prefix.startsWith("exports/") || prefix.includes("..") || prefix.includes("\\")) {
+    throw new Error("Invalid object prefix");
+  }
+}
 
 // Keys are always composed server-side, but the port still refuses anything that
 // could escape a prefix or a filesystem root if a caller ever regresses.
@@ -98,6 +106,14 @@ export class InMemoryObjectStorage implements ObjectStoragePort {
     });
   }
 
+  list(prefix: string): Promise<string[]> {
+    assertObjectPrefix(prefix);
+    return this.#settle(() => {
+      this.#assertAvailable();
+      return this.keys().filter((key) => key.startsWith(prefix));
+    });
+  }
+
   delete(key: string): Promise<void> {
     return this.#settle(() => {
       assertObjectKey(key);
@@ -150,6 +166,31 @@ export class FileSystemObjectStorage implements ObjectStoragePort {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
     }
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    assertObjectPrefix(prefix);
+    const root = path.resolve(this.root);
+    const base = path.resolve(root, ...prefix.split("/").filter(Boolean));
+    if (!base.startsWith(`${root}${path.sep}`)) throw new Error("Invalid object prefix");
+    const keys: string[] = [];
+    const visit = async (directory: string, relative: string): Promise<void> => {
+      let entries;
+      try {
+        entries = await readdir(directory, { withFileTypes: true });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+        throw error;
+      }
+      for (const entry of entries) {
+        const next = path.join(directory, entry.name);
+        const key = `${relative}${entry.name}`;
+        if (entry.isDirectory()) await visit(next, `${key}/`);
+        else keys.push(key.replaceAll(path.sep, "/"));
+      }
+    };
+    await visit(base, prefix);
+    return keys.sort();
   }
 
   async delete(key: string): Promise<void> {
@@ -276,6 +317,28 @@ export class S3ObjectStorage implements ObjectStoragePort {
       throw unavailable(error);
     } finally {
       clearTimeout(timeoutId);
+    }
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    assertObjectPrefix(prefix);
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+    try {
+      do {
+        const result = await this.#client.send(
+          new ListObjectsV2Command({
+            Bucket: this.#bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          }),
+        );
+        keys.push(...(result.Contents ?? []).flatMap((entry) => (entry.Key ? [entry.Key] : [])));
+        continuationToken = result.NextContinuationToken;
+      } while (continuationToken);
+      return keys.sort();
+    } catch (error) {
+      throw unavailable(error);
     }
   }
 
