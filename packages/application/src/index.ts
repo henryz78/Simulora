@@ -492,6 +492,9 @@ export type ExportStorageOutcome = {
  * completion. Every step is idempotent, so a crash at any point is retried safely.
  */
 export class ExportStorageWorker {
+  #inFlight: Promise<ExportStorageOutcome | null> | undefined;
+  #nextReconciliationAt = 0;
+
   constructor(
     private readonly port: ExportStorageWorkPort,
     private readonly artifacts: ExportArtifactStore,
@@ -499,23 +502,40 @@ export class ExportStorageWorker {
 
   /** Removes objects that arrived after their export row was tombstoned. */
   private async reconcileOrphanObjects(): Promise<void> {
-    const [actualKeys, liveKeys] = await Promise.all([
-      this.artifacts.list("exports/"),
-      this.port.listExportObjectKeys(),
-    ]);
+    const actualKeys = await this.artifacts.list("exports/");
+    const liveKeys = await this.port.listExportObjectKeys();
     const live = new Set(liveKeys);
     await Promise.all(
-      actualKeys.filter((key) => !live.has(key)).map((key) => this.artifacts.delete(key)),
+      actualKeys
+        .filter((key) => key.endsWith(".zip") && !live.has(key))
+        .map((key) => this.artifacts.delete(key)),
     );
+  }
+
+  private async reconcileWhenDue(): Promise<void> {
+    if (Date.now() < this.#nextReconciliationAt) return;
+    this.#nextReconciliationAt = Date.now() + 30_000;
+    try {
+      await this.reconcileOrphanObjects();
+    } catch (error) {
+      this.#nextReconciliationAt = 0;
+      throw error;
+    }
   }
 
   /** `scope` narrows the queue to one World; drills and tests use it for isolation. */
   async processNext(scope: { worldId?: string } = {}): Promise<ExportStorageOutcome | null> {
+    if (this.#inFlight) return this.#inFlight;
+    this.#inFlight = this.#processNext(scope).finally(() => {
+      this.#inFlight = undefined;
+    });
+    return this.#inFlight;
+  }
+
+  async #processNext(scope: { worldId?: string }): Promise<ExportStorageOutcome | null> {
+    await this.reconcileWhenDue();
     const work = await this.port.claimExportStorageWork(scope);
-    if (!work) {
-      await this.reconcileOrphanObjects();
-      return null;
-    }
+    if (!work) return null;
     if (work.operation === "STORE") {
       const outcome = await storeExportWork(this.port, this.artifacts, work);
       return { exportId: work.exportId, operation: work.operation, outcome };

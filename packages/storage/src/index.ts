@@ -324,6 +324,8 @@ export class S3ObjectStorage implements ObjectStoragePort {
     assertObjectPrefix(prefix);
     const keys: string[] = [];
     let continuationToken: string | undefined;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.#timeoutMs);
     try {
       do {
         const result = await this.#client.send(
@@ -332,6 +334,7 @@ export class S3ObjectStorage implements ObjectStoragePort {
             Prefix: prefix,
             ContinuationToken: continuationToken,
           }),
+          { abortSignal: controller.signal },
         );
         keys.push(...(result.Contents ?? []).flatMap((entry) => (entry.Key ? [entry.Key] : [])));
         continuationToken = result.NextContinuationToken;
@@ -339,6 +342,8 @@ export class S3ObjectStorage implements ObjectStoragePort {
       return keys.sort();
     } catch (error) {
       throw unavailable(error);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
