@@ -298,6 +298,12 @@ suite("IP-10.3 LONG-01 long-horizon scenario against PostgreSQL", () => {
           throw new Error(`${String(error)}; unresolved: ${JSON.stringify(open.rows)}`);
         });
       await select(fork.id);
+      // The fork starts before the participation change, so it keeps GUIDED.
+      expect((await head()).state.participation).toEqual({
+        initiativeMode: "GUIDED",
+        structureMode: "OPEN_ENDED",
+      });
+      participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" };
       await act("FACT_REWRITE", "Ask Mara to post an early crossing.", {
         targetCharacterId: "character.mara",
       });
@@ -319,6 +325,7 @@ suite("IP-10.3 LONG-01 long-horizon scenario against PostgreSQL", () => {
       expect(await repository.listUsageLedger(account)).toEqual(ledgerBefore);
       expect(await repository.listConsents(account)).toEqual(consentsBefore);
       await select(mainBranchId);
+      participation = { ...direct };
       const mainAfterBranch = await head();
       expect(mainAfterBranch.headCommitId).toBe(mainBeforeBranch.headCommitId);
       expect(mainAfterBranch.state).toEqual(mainBeforeBranch.state);
