@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 IN PROGRESS / MGC-1 PASS`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 IN PROGRESS / MGC-1 PASS / LONG-01 PASS`
 
 **Latest Gate:** G9 is `PASS` and closed. See §43–§47 and the
 [IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
@@ -1438,3 +1438,46 @@ MGC-1 is a bounded track, not a Gate.
 - All external G10 decisions and the human and specialist reviews.
 
 No beta or launch is authorized.
+
+## 50. LONG-01, rehearsal, drill and the Branch-switch repair
+
+All three items passed in CI `36198101564` on `7964e7c`, `success`. The full
+record is in [IP-10 LONG-01, Upgrade Rehearsal and Killed-Worker Drill](IP-10-LONG-01-AND-DRILLS-REPORT.md).
+
+- **IP-10.3 `LONG-01`:** 20 sessions over 30 simulated days on real
+  PostgreSQL. Every schedule element and pass condition of Validation §5 is
+  asserted, including:
+  - a real process kill with real lease expiry;
+  - five caused relationship changes;
+  - the final thread states;
+  - a transformed failure;
+  - Return after the longest gap.
+- **IP-10.4 rehearsal:** after upgrade from the approved G9 release, and
+  rollback by restoring its backup, the only difference is the migration
+  ledger timestamps.
+- **IP-10.6 drill:**
+  - 300 Actions at concurrency 20, with the worker SIGKILLed and replaced.
+  - Acknowledgement p95 569 ms; none stuck; none duplicated.
+  - The kill landed between claims. In-flight takeover is proven by `LONG-01`.
+- **Defect found by `LONG-01`:** the SQL trigger
+  `prevent_pending_active_branch_switch` (0028) ignored `COMPLETED_NO_EFFECT`.
+  After one response-only Action, every Branch switch failed.
+  - The product owner authorized a separate minimal repair.
+  - Repair `28b0d8a`: successor migration 0049 plus a regression test.
+  - The independent Sonnet 5 Reviewer returned **`PASS`** (0B / 0I / 1M). The
+    Minor is the existing unmapped-500 path for a raw trigger exception. It
+    cannot be reached in the normal path, and it is not changed in IP-10.
+  - **Approved behavior:** `28b0d8a`, verified by the Reviewer on exact-SHA CI
+    `36197080077` and head CI `36198101564`.
+- Three test-only harness corrections (`80491d1`, `e55179a`, `7964e7c`)
+  relaxed no product rule.
+
+**Still open:**
+
+- `E2E-CONTINUITY-IMPACT`.
+- The IP-10.4 compatibility matrix document.
+- The IP-10.7 alert definitions.
+- All external G10 decisions and the human and specialist reviews.
+
+No beta or launch is authorized.
+
