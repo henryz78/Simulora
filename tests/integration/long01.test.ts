@@ -136,6 +136,10 @@ suite("IP-10.3 LONG-01 long-horizon scenario against PostgreSQL", () => {
         targetThreadId: "thread.bell",
       });
       log(2, "resolve thread.bell");
+      await act("FACT_REWRITE", "Ask Duvan whether the sluice gates were open last night.", {
+        targetCharacterId: "character.duvan",
+      });
+      log(3, "ordinary Action with Duvan");
       await act("RELATIONSHIP_EFFECT", "Ask Sella to check Duvan's tallies with him.", {
         targetCharacterId: "character.sella",
       });
