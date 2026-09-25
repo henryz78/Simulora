@@ -192,6 +192,7 @@ export class S3ObjectStorage implements ObjectStoragePort {
   readonly kind = "s3" as const;
   readonly #client: S3Client;
   readonly #bucket: string;
+  readonly #timeoutMs: number;
 
   constructor(options: S3ObjectStorageOptions) {
     this.#bucket = options.bucket;
@@ -201,6 +202,7 @@ export class S3ObjectStorage implements ObjectStoragePort {
     }
     // Never longer than the bound the upload lease is sized against.
     const timeout = Math.min(requestedTimeout, s3RequestTimeoutMs);
+    this.#timeoutMs = timeout;
     this.#client = new S3Client({
       region: options.region,
       ...(options.endpoint ? { endpoint: options.endpoint } : {}),
@@ -256,14 +258,19 @@ export class S3ObjectStorage implements ObjectStoragePort {
 
   async get(key: string): Promise<Uint8Array | null> {
     assertObjectKey(key);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.#timeoutMs);
     try {
       const result = await this.#client.send(
         new GetObjectCommand({ Bucket: this.#bucket, Key: key }),
+        { abortSignal: controller.signal },
       );
       return result.Body ? await result.Body.transformToByteArray() : null;
     } catch (error) {
       if (isNotFound(error)) return null;
       throw unavailable(error);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

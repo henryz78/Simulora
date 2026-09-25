@@ -120,6 +120,37 @@ describe("S3 request bounds", () => {
     }
   });
 
+  it("aborts a slow-trickle response while its body is still streaming", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "application/octet-stream" });
+      const interval = setInterval(() => response.write(Buffer.from([1])), 5);
+      response.on("close", () => clearInterval(interval));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Expected a TCP test server");
+    const storage = new S3ObjectStorage({
+      endpoint: `http://127.0.0.1:${address.port}`,
+      region: "local",
+      bucket: "simulora-test",
+      accessKeyId: "key",
+      secretAccessKey: "secret",
+      requestTimeoutMs: 50,
+    });
+    const startedAt = Date.now();
+    try {
+      await expect(storage.get("exports/trickle.zip")).rejects.toBeInstanceOf(
+        ObjectStoreUnavailableError,
+      );
+      expect(Date.now() - startedAt).toBeLessThan(1000);
+    } finally {
+      storage.destroy();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
     "rejects an invalid request timeout (%s)",
     (requestTimeoutMs) => {

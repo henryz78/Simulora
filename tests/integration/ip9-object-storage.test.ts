@@ -72,6 +72,7 @@ class ControlledStorage extends InMemoryObjectStorage {
   #heldPut: Promise<void> | null = null;
   #releasePut: () => void = () => undefined;
   #nextPutError: Error | null = null;
+  #latePutDelayMs: number | null = null;
   #failNextDelete = false;
 
   holdNextPut(): void {
@@ -85,6 +86,9 @@ class ControlledStorage extends InMemoryObjectStorage {
   failNextPut(error: Error): void {
     this.#nextPutError = error;
   }
+  failPutAfterRemoteCommit(delayMs: number): void {
+    this.#latePutDelayMs = delayMs;
+  }
   failNextDelete(): void {
     this.#failNextDelete = true;
   }
@@ -94,6 +98,14 @@ class ControlledStorage extends InMemoryObjectStorage {
     const held = this.#heldPut;
     this.#heldPut = null;
     if (held) await held;
+    const latePutDelayMs = this.#latePutDelayMs;
+    this.#latePutDelayMs = null;
+    if (latePutDelayMs !== null) {
+      setTimeout(() => {
+        void super.put(metadata, body).catch(() => undefined);
+      }, latePutDelayMs);
+      throw new ObjectStoreUnavailableError("Object store request timed out");
+    }
     const failure = this.#nextPutError;
     this.#nextPutError = null;
     if (failure) throw failure;
@@ -418,6 +430,61 @@ suite("IP-9 export object storage against PostgreSQL", () => {
         [delayed.exportId],
       );
       expect(deleted.rows[0]?.storage_state).toBe("DELETED");
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("keeps deletion behind an uncertain upload lease until a late write can be removed", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const pool = createDatabasePool(connectionString);
+    const repository = new AuthoritativeWorldRepository(pool);
+    const storage = new ControlledStorage();
+    const governance = new GovernanceService(repository, { artifacts: storage });
+    const worker = new ExportStorageWorker(repository, storage);
+    const owner: Owner = { accountId: randomUUID(), eligibility: "adult" };
+    try {
+      const { world } = await playableWorld(repository, owner);
+      storage.setAvailable(false);
+      const delayed = await governance.createExport(
+        owner,
+        await exportRequestFor(repository, owner, world.worldId),
+      );
+      storage.setAvailable(true);
+      await pool.query(
+        `update simulora.export_jobs set storage_available_at = now() where id = $1`,
+        [delayed.exportId],
+      );
+
+      storage.failPutAfterRemoteCommit(100);
+      expect(await worker.processNext({ worldId: world.worldId })).toMatchObject({
+        outcome: "DELAYED",
+      });
+      const proposal = await repository.proposeDeletion(owner, {
+        schemaVersion: 1,
+        idempotencyKey: `deletion-${randomUUID()}`,
+        targetType: "WORLD",
+        targetId: world.worldId,
+      });
+      await repository.confirmDeletion(owner, {
+        schemaVersion: 1,
+        proposalId: proposal.proposalId,
+        digest: proposal.digest,
+        idempotencyKey: randomUUID(),
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      expect(storage.has(delayed.artifactKey!)).toBe(true);
+      expect(await worker.processNext({ worldId: world.worldId })).toBeNull();
+
+      await pool.query(
+        `update simulora.export_jobs set storage_lease_until = now() where id = $1`,
+        [delayed.exportId],
+      );
+      expect(await worker.processNext({ worldId: world.worldId })).toMatchObject({
+        outcome: "DELETED",
+      });
+      expect(storage.has(delayed.artifactKey!)).toBe(false);
     } finally {
       await pool.end();
     }

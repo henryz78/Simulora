@@ -561,8 +561,10 @@ export type ExportArtifactLocation = {
 
 /**
  * How long one upload or delete may hold an export. It must exceed the object
- * store's worst-case call time (`s3WorstCaseCallMs`, checked by a test), so a
- * lease that has expired means its upload can no longer land.
+ * store's worst-case call time (`s3WorstCaseCallMs`, checked by a test). An
+ * ambiguous store failure renews the lease for another full window before a
+ * deletion can claim the row, so a local timeout is never treated as proof
+ * that a remote write cannot still land.
  */
 // ponytail: lease-based exclusion, no object-store inventory; add an orphan sweep if a store without request timeouts is ever used
 export const exportStorageLeaseMs = 30_000;
@@ -6464,12 +6466,15 @@ export class AuthoritativeWorldRepository {
     await this.pool.query(
       `update simulora.export_jobs
        set storage_attempts = storage_attempts + 1, storage_last_error = $2,
-           storage_lease_until = null,
+           storage_lease_until = greatest(
+             coalesce(storage_lease_until, clock_timestamp()),
+             clock_timestamp() + $3 * interval '1 millisecond'
+           ),
            storage_available_at = clock_timestamp()
              + least(300000, 1000 * power(2, least(storage_attempts, 8)))
                * interval '1 millisecond'
        where id = $1 and storage_state in ('STAGED', 'LEGACY_INLINE', 'DELETE_PENDING')`,
-      [exportId, reasonCode],
+      [exportId, reasonCode, exportStorageLeaseMs],
     );
   }
 
