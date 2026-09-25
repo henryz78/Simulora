@@ -109,6 +109,45 @@ jobs:
           fi
           grep -q '"TABLE_CONTENT_IDENTICAL"' tampered.json
 
+      # IP-10.4: the approved release's own code seeds its own schema; its backup
+      # must restore faithfully (the rollback path, since migrations are
+      # successor-only), and both copies must upgrade to this schema and still
+      # pass this code's drill.
+      - name: Rehearse upgrade from the approved release and rollback by restore
+        env:
+          PRIOR_RELEASE: c812d6c6d29be86be3557a00b4866b5d01f0499f
+        run: |
+          BASE=postgres://simulora:simulora@127.0.0.1:5432
+          PG="docker run --rm --network host -e PGPASSWORD=simulora postgres:17-alpine"
+          export SIMULORA_OBJECT_ENDPOINT=http://127.0.0.1:9000 SIMULORA_OBJECT_BUCKET=simulora-ci
+          export SIMULORA_OBJECT_ACCESS_KEY=simulora SIMULORA_OBJECT_SECRET_KEY=change-me-local-only
+          git fetch --no-tags --depth 1 origin "$PRIOR_RELEASE"
+          GIT_LFS_SKIP_SMUDGE=1 git worktree add --detach "$RUNNER_TEMP/prior" "$PRIOR_RELEASE"
+          (cd "$RUNNER_TEMP/prior" && pnpm install --frozen-lockfile > /dev/null)
+          $PG createdb -h 127.0.0.1 -U simulora simulora_upgrade_source
+          $PG createdb -h 127.0.0.1 -U simulora simulora_upgrade_backup
+          (
+            cd "$RUNNER_TEMP/prior"
+            export SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source
+            pnpm db:migrate > /dev/null
+            pnpm restore:drill --seed
+          )
+          $PG sh -c "pg_dump -h 127.0.0.1 -U simulora -Fc simulora_upgrade_source | pg_restore -h 127.0.0.1 -U simulora -d simulora_upgrade_backup --no-owner --exit-on-error"
+          # Rollback: the pre-upgrade backup is identical under the release's own drill.
+          (
+            cd "$RUNNER_TEMP/prior"
+            SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source               SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm restore:drill > /dev/null
+          )
+          # Forward: both copies take this schema's successor migrations and agree.
+          for db in simulora_upgrade_source simulora_upgrade_backup; do
+            SIMULORA_DATABASE_URL=$BASE/$db pnpm db:migrate
+            SIMULORA_DATABASE_URL=$BASE/$db SIMULORA_MIGRATION_VERIFY=1 pnpm db:verify
+          done
+          SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source             SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm restore:drill > /dev/null
+          # This code can keep writing to the upgraded database.
+          SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source pnpm restore:drill --seed > /dev/null
+          git worktree remove --force "$RUNNER_TEMP/prior"
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
