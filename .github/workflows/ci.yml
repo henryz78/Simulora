@@ -145,7 +145,7 @@ jobs:
           done
           # Each copy applied the successor migrations at its own moment, so only
           # those ledger timestamps may differ; names and checksums must match.
-          SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source             SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm -s restore:drill > upgraded.json || true
+          SIMULORA_DATABASE_URL=$BASE/simulora_upgrade_source             SIMULORA_RESTORE_DATABASE_URL=$BASE/simulora_upgrade_backup pnpm exec tsx scripts/restore-drill.ts > upgraded.json || true
           if ! jq -e '[.checks[] | select(.passed | not) | .detail] == ["differs: app_meta.schema_migrations"]' upgraded.json; then
             cat upgraded.json; exit 1
           fi

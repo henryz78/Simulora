@@ -286,7 +286,18 @@ suite("IP-10.3 LONG-01 long-horizon scenario against PostgreSQL", () => {
         sourceCommitId: midCommit,
         expectedHeadCommitId: mainBeforeBranch.headCommitId,
       });
-      await repository.selectBranch(account, continuityId, fork.id);
+      // A refused switch names the unresolved Actions, so a failure is diagnosable.
+      const select = async (branchId: string) =>
+        repository.selectBranch(account, continuityId, branchId).catch(async (error: unknown) => {
+          const open = await pool.query(
+            `select id, status, operation_type, intent from simulora.actions a
+            where a.branch_id in (select id from simulora.branches where continuity_id = $1)
+              and status not in ('COMMITTED', 'COMPLETED_NO_EFFECT', 'CANCELLED', 'SUPERSEDED')`,
+            [continuityId],
+          );
+          throw new Error(`${String(error)}; unresolved: ${JSON.stringify(open.rows)}`);
+        });
+      await select(fork.id);
       await act("FACT_REWRITE", "Ask Mara to post an early crossing.", {
         targetCharacterId: "character.mara",
       });
@@ -307,7 +318,7 @@ suite("IP-10.3 LONG-01 long-horizon scenario against PostgreSQL", () => {
       );
       expect(await repository.listUsageLedger(account)).toEqual(ledgerBefore);
       expect(await repository.listConsents(account)).toEqual(consentsBefore);
-      await repository.selectBranch(account, continuityId, mainBranchId);
+      await select(mainBranchId);
       const mainAfterBranch = await head();
       expect(mainAfterBranch.headCommitId).toBe(mainBeforeBranch.headCommitId);
       expect(mainAfterBranch.state).toEqual(mainBeforeBranch.state);
