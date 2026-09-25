@@ -278,7 +278,7 @@ export class DeterministicModelGateway implements ModelGatewayPort {
           type: "UPDATE_CANONICAL_FACT",
           targetFactId: request.targetFact.id,
           beforeStatement: request.targetFact.statement,
-          afterStatement: `The observatory now bears the consequence of: ${intent}`,
+          afterStatement: `Changed by the Action: ${intent}`,
           scope: request.targetFact.scope,
           provenance: `Confirmed Action ${request.actionId}`,
         },

@@ -854,6 +854,8 @@ export function ActionStatusCard({
 }): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const loadState = useContext(ContinuityContext)?.loadState;
+  const world = loadState?.status === "ready" ? loadState.data : null;
   const copy: Record<ActionResponse["status"], string> = {
     ACKNOWLEDGED: "Received and durably recorded. The world has not changed yet.",
     GENERATING: action.recoverableWait
@@ -911,7 +913,7 @@ export function ActionStatusCard({
           {action.proposal.responseSource ? (
             <p className="card-label">
               {action.proposal.responseSource.type === "CHARACTER"
-                ? `Character response · ${labelMode(action.proposal.responseSource.characterId.split(".").at(-1) ?? "Character")}`
+                ? `Character response · ${characterName(action.proposal.responseSource.characterId, world)}`
                 : "World response"}
             </p>
           ) : null}
@@ -919,7 +921,7 @@ export function ActionStatusCard({
           <dl>
             <div>
               <dt>Affects</dt>
-              <dd>{describeTarget(action.proposal.displayEffect.target)}</dd>
+              <dd>{describeTarget(action.proposal.displayEffect.target, world)}</dd>
             </div>
             <div>
               <dt>
@@ -957,7 +959,7 @@ export function ActionStatusCard({
           <p className="proposal-label">Recorded response · no World change</p>
           <p className="card-label">
             {action.dialogue.responseSource.type === "CHARACTER"
-              ? `Character response · ${labelMode(action.dialogue.responseSource.characterId.split(".").at(-1) ?? "Character")}`
+              ? `Character response · ${characterName(action.dialogue.responseSource.characterId, world)}`
               : "World response"}
           </p>
           <p>{action.dialogue.narrative}</p>
@@ -1199,15 +1201,24 @@ function snapshotEventSources(actions: ActionResponse[], onEvent: () => void): E
   });
 }
 
-/** Plain words for what a proposal would change; never a raw identifier alone. */
-function describeTarget(target: string): string {
+/** A Character's declared name; identifiers are never shown as if they were names. */
+function characterName(id: string, world: AuthoritativeStateResponse | null): string {
+  return world?.world.characters.find((character) => character.id === id)?.name ?? "Character";
+}
+
+/** Plain words for what a proposal would change; never a raw identifier. */
+function describeTarget(target: string, world: AuthoritativeStateResponse | null): string {
   const [kind] = target.split(".");
-  const label = labelMode((target.split(".").slice(1).join(" ") || target).replaceAll("-", " "));
-  if (kind === "relationship") return `Relationship · ${label}`;
   if (kind === "thread") return "Story thread";
-  if (kind === "constraint") return `World constraint · ${label}`;
-  if (kind === "character") return `Character · ${label}`;
-  return `World fact · ${label}`;
+  if (kind === "character") return `Character · ${characterName(target, world)}`;
+  const relationship = world?.world.relationships.find((item) => item.id === target);
+  if (relationship)
+    return `Relationship · ${characterName(relationship.fromCharacterId, world)} and ${characterName(relationship.toCharacterId, world)}`;
+  const constraint = world?.world.constraints?.find((item) => item.id === target);
+  if (constraint) return `World constraint · ${constraint.statement}`;
+  if (kind === "relationship") return "Relationship";
+  if (kind === "constraint") return "World constraint";
+  return "World fact";
 }
 
 export function ActionComposer(): ReactElement {

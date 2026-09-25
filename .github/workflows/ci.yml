@@ -109,6 +109,9 @@ jobs:
           fi
           grep -q '"TABLE_CONTENT_IDENTICAL"' tampered.json
 
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
       - name: Build and smoke API and worker containers
         run: |
           docker build -f deploy/containers/api.Dockerfile -t simulora-api:g5 .
@@ -142,9 +145,9 @@ jobs:
           fi
           # A summary of what the worker actually did, as evidence and for diagnosis.
           docker logs simulora-worker-g5 2>&1 | grep -o '"message":"[a-z_.]*"' | sort | uniq -c
-
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
+          # IP-10.2: the start and cross-capability journeys in a browser through this
+          # API, worker, PostgreSQL and object store, not a transport fixture.
+          pnpm exec playwright test -c playwright.stack.config.ts
 
       - name: Render the production web build under its security headers
         run: |

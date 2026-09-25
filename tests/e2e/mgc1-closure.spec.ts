@@ -323,7 +323,7 @@ test("relationship, thread and transformed-failure outcomes are reviewed exactly
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
   const review = page.locator(".proposal-review");
-  await expect(review).toContainText("Relationship · Iora tavi");
+  await expect(review).toContainText("Relationship · Iora and Tavi");
   await expect(review).toContainText("wary");
   await expect(review).toContainText("cordial");
   await expect(review).toContainText("L2 — bounded routine change");
@@ -356,7 +356,7 @@ test("relationship, thread and transformed-failure outcomes are reviewed exactly
   await outcome.selectOption("ROUTINE_EFFECT");
   await page.getByLabel("Your Action").fill("Send Tavi across the causeway.");
   await page.getByRole("button", { name: "Send Action" }).click();
-  await expect(review).toContainText("World constraint · Flood");
+  await expect(review).toContainText("World constraint · The causeway floods at high tide");
   await expect(review).toContainText("The attempt fails");
   await expect(review).toContainText("New open thread");
   await page.getByRole("button", { name: "Cancel Action" }).click();

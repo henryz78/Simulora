@@ -100,6 +100,8 @@ a {
 }
 
 h1 {
+  /* A user-authored title can hold a long unbroken token. */
+  overflow-wrap: anywhere;
   max-width: 18ch;
   margin: 16px 0 24px;
   font-family: Georgia, "Times New Roman", serif;
@@ -249,6 +251,8 @@ h1 {
   margin-top: 20px;
   border-left: 3px solid #7ea79f;
   padding: 4px 0 4px 18px;
+  /* User text and generated effects can hold long unbroken tokens. */
+  overflow-wrap: anywhere;
 }
 .action-status h3 {
   margin: 4px 0 8px;
@@ -302,6 +306,7 @@ h1 {
   font-size: 0.8rem;
 }
 .proposal-review dd {
+  min-width: 0;
   margin: 0;
   color: #edf4f2;
 }
