@@ -316,9 +316,13 @@ export function assertProviderEndpoint(endpoint: string): void {
   if (
     (url.protocol !== "https:" && !(loopback && url.protocol === "http:")) ||
     url.username ||
-    url.password
+    url.password ||
+    url.search ||
+    url.hash
   ) {
-    throw new Error("Model provider endpoint must use HTTPS without URL credentials");
+    throw new Error(
+      "Model provider endpoint must use HTTPS without URL credentials, query parameters, or fragments",
+    );
   }
 }
 

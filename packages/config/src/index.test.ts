@@ -20,12 +20,16 @@ describe("server config", () => {
   it("redacts secrets and connection strings", () => {
     const config = loadServerConfig({
       SIMULORA_DATABASE_URL: "postgres://user:secret@localhost:5432/simulora",
+      SIMULORA_MODEL_ENDPOINT: "https://provider.example/v1/chat?api_key=secret",
+      SIMULORA_OBJECT_ENDPOINT: "https://objects.example/bucket?token=secret",
       SIMULORA_OBJECT_ACCESS_KEY: "access",
       SIMULORA_OBJECT_SECRET_KEY: "secret",
     });
     const redacted = redactConfig(config);
     expect(JSON.stringify(redacted)).not.toContain("secret");
     expect(redacted.SIMULORA_DATABASE_URL).toBe("[configured]");
+    expect(redacted.SIMULORA_MODEL_ENDPOINT).toBe("[configured]");
+    expect(redacted.SIMULORA_OBJECT_ENDPOINT).toBe("[configured]");
   });
 
   it("loads .env.local from a parent without replacing explicit environment values", async () => {

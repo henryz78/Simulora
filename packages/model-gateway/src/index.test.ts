@@ -212,6 +212,8 @@ describe("IP-9 live capability profile adapter", () => {
     for (const endpoint of [
       "https://:hunter2@provider.example/v1/chat/completions",
       "https://user@provider.example/v1/chat/completions",
+      "https://provider.example/v1/chat/completions?api_key=hunter2",
+      "https://provider.example/v1/chat/completions#api_key=hunter2",
     ]) {
       expect(
         () => new OpenAICompatibleModelGateway({ profile: liveProfile, endpoint, apiKey }),

@@ -100,6 +100,21 @@ describe("object storage factory", () => {
 });
 
 describe("S3 request bounds", () => {
+  it.each([
+    "https://user:secret@objects.example",
+    "https://objects.example?token=secret",
+    "https://objects.example#token=secret",
+  ])("rejects endpoint secrets in %s", (endpoint) => {
+    expect(
+      () =>
+        new S3ObjectStorage({
+          endpoint,
+          region: "local",
+          bucket: "simulora-test",
+        }),
+    ).toThrow(/endpoint must not contain URL credentials/);
+  });
+
   it("aborts a stalled request instead of outliving its upload lease", async () => {
     const server = createServer(() => undefined);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

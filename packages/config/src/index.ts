@@ -195,7 +195,9 @@ export function redactConfig(config: ServerConfig): Record<string, unknown> {
     SIMULORA_DATABASE_URL: config.SIMULORA_DATABASE_URL ? "[configured]" : undefined,
     SIMULORA_OBJECT_ACCESS_KEY: config.SIMULORA_OBJECT_ACCESS_KEY ? "[redacted]" : undefined,
     SIMULORA_OBJECT_SECRET_KEY: config.SIMULORA_OBJECT_SECRET_KEY ? "[redacted]" : undefined,
+    SIMULORA_OBJECT_ENDPOINT: config.SIMULORA_OBJECT_ENDPOINT ? "[configured]" : undefined,
     SIMULORA_DOWNLOAD_SIGNING_KEY: config.SIMULORA_DOWNLOAD_SIGNING_KEY ? "[redacted]" : undefined,
     SIMULORA_MODEL_API_KEY: config.SIMULORA_MODEL_API_KEY ? "[redacted]" : undefined,
+    SIMULORA_MODEL_ENDPOINT: config.SIMULORA_MODEL_ENDPOINT ? "[configured]" : undefined,
   };
 }

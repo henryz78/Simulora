@@ -237,6 +237,14 @@ export class S3ObjectStorage implements ObjectStoragePort {
 
   constructor(options: S3ObjectStorageOptions) {
     this.#bucket = options.bucket;
+    if (options.endpoint) {
+      const endpoint = new URL(options.endpoint);
+      if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+        throw new Error(
+          "Object storage endpoint must not contain URL credentials, query parameters, or fragments",
+        );
+      }
+    }
     const requestedTimeout = options.requestTimeoutMs ?? s3RequestTimeoutMs;
     if (!Number.isFinite(requestedTimeout) || requestedTimeout <= 0) {
       throw new Error("requestTimeoutMs must be a positive finite number");

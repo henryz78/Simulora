@@ -493,7 +493,6 @@ export type ExportStorageOutcome = {
  */
 export class ExportStorageWorker {
   #inFlight: Promise<ExportStorageOutcome | null> | undefined;
-  #nextReconciliationAt = 0;
 
   constructor(
     private readonly port: ExportStorageWorkPort,
@@ -512,17 +511,6 @@ export class ExportStorageWorker {
     );
   }
 
-  private async reconcileWhenDue(): Promise<void> {
-    if (Date.now() < this.#nextReconciliationAt) return;
-    this.#nextReconciliationAt = Date.now() + 30_000;
-    try {
-      await this.reconcileOrphanObjects();
-    } catch (error) {
-      this.#nextReconciliationAt = 0;
-      throw error;
-    }
-  }
-
   /** `scope` narrows the queue to one World; drills and tests use it for isolation. */
   async processNext(scope: { worldId?: string } = {}): Promise<ExportStorageOutcome | null> {
     if (this.#inFlight) return this.#inFlight;
@@ -533,9 +521,11 @@ export class ExportStorageWorker {
   }
 
   async #processNext(scope: { worldId?: string }): Promise<ExportStorageOutcome | null> {
-    await this.reconcileWhenDue();
     const work = await this.port.claimExportStorageWork(scope);
-    if (!work) return null;
+    if (!work) {
+      await this.reconcileOrphanObjects();
+      return null;
+    }
     if (work.operation === "STORE") {
       const outcome = await storeExportWork(this.port, this.artifacts, work);
       return { exportId: work.exportId, operation: work.operation, outcome };

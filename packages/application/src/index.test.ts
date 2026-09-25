@@ -11,6 +11,31 @@ describe("describeFoundation", () => {
 });
 
 describe("ExportStorageWorker reconciliation", () => {
+  it("claims queue work before an inventory failure can block it", async () => {
+    let claimed = false;
+    const storage: ExportArtifactStore = {
+      kind: "test",
+      put: () => Promise.resolve(),
+      get: () => Promise.resolve(null),
+      list: () => Promise.reject(new Error("inventory unavailable")),
+      delete: () => Promise.resolve(),
+    };
+    const port = {
+      claimExportStorageWork: () => {
+        claimed = true;
+        return Promise.resolve(null);
+      },
+      listExportObjectKeys: () => Promise.resolve([]),
+      markExportStored: () => Promise.resolve("STORED" as const),
+      recordExportStorageDelay: () => Promise.resolve(),
+      markExportObjectDeleted: () => Promise.resolve(),
+    };
+    await expect(new ExportStorageWorker(port, storage).processNext()).rejects.toThrow(
+      "inventory unavailable",
+    );
+    expect(claimed).toBe(true);
+  });
+
   it("takes the object and database snapshots in a safe order", async () => {
     let listed = false;
     const deleted: string[] = [];
