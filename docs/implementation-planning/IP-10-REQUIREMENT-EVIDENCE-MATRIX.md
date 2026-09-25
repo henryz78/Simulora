@@ -53,13 +53,15 @@ Evidence paths are relative to the repository root. Test names are quoted.
 ## 3. SHOULD and conditional requirements
 
 G10 requires that selected `SHOULD` requirements are identified and unselected
-ones are not implied. No selection has been recorded yet, so the product owner
-needs to confirm this table.
+ones are not implied. **The product owner recorded the selection for this
+release on 2026-09-24: PR-012, PR-015, PR-016 and PR-017 are all not
+selected.** The partial surfaces below exist, but they are not claimed as
+support for these requirements.
 
 | Req | Current state | Status |
 |---|---|---|
-| PR-012 Creator preview | IP-7 offers "Check playability" and an inspect-play-effect view (`e2e/ip7-world-studio`). There is no representative preview Continuity. | `UNSELECTED` (partial surface exists; selection needed) |
-| PR-015 Optional goals | `packages/domain` "activates only declared Goal-framed objectives and fabricates none for Open-ended". There is no completion or failure-consequence state. | `UNSELECTED` (partial; selection needed) |
+| PR-012 Creator preview | IP-7 offers "Check playability" and an inspect-play-effect view (`e2e/ip7-world-studio`). There is no representative preview Continuity. | `UNSELECTED` (partial surface; not claimed) |
+| PR-015 Optional goals | `packages/domain` "activates only declared Goal-framed objectives and fabricates none for Open-ended". There is no completion or failure-consequence state. | `UNSELECTED` (partial surface; not claimed) |
 | PR-016 Migration/rehydration | IP-8.7 staged import deferred; not implemented | `UNSELECTED` |
 | PR-017 Bounded sharing | IP-8.8 deferred; not implemented | `UNSELECTED` |
 | PR-018 Sensory layer | `CONDITIONAL — NOT AN MVP FEATURE`; no layer exists | Not applicable |
@@ -122,7 +124,6 @@ It needs a separate product decision.
 - Retention, deletion purge (including PostgreSQL retention purge) and DR SLO
 - Final brand and asset provenance
 - Launch content emphasis
-- The `SHOULD` selection in §3
 
 ## 8. Engineering order from this mapping
 
@@ -145,4 +146,11 @@ features are added.
 7. **IP-10.8:** update this matrix as each item lands.
 
 **G10 cannot pass while PR-005 transformed failure and NFR-006 `LONG-01` stay
-`NOT MET`.** Whether and how to close them is the product owner's decision.
+`NOT MET`.** On 2026-09-24 the product owner chose to close them in a separate
+bounded track. That track is defined by the
+[MUST-Gap Closure Contract (MGC-1)](MUST-GAP-CLOSURE-CONTRACT.md). IP-10 itself
+stays validation only.
+
+Steps 1–5 above do not depend on the new behavior and proceed now. Step 6
+(`LONG-01`) and the matrix rows for PR-005, `E2E-CONTINUITY-IMPACT`, INV-05
+and NFR-006 wait for MGC-1 to pass independent review.

@@ -1356,3 +1356,29 @@ which is a draft of IP-10.8.
   and human accessibility review, and named operations owners.
 
 No behavior has changed in IP-10 yet.
+
+## 48. MUST-gap closure track and SHOULD selection
+
+On 2026-09-24 the product owner made three decisions:
+
+- **MUST-gap closure track.** A separate bounded track will close PR-005
+  transformed failure and the `LONG-01` (NFR-006) relationship-change and
+  thread-lifecycle gaps. The frozen MUST requirements are not relaxed, and the
+  gaps will not be accepted as a permanent deviation. The track is defined by
+  the [MUST-Gap Closure Contract (MGC-1)](MUST-GAP-CLOSURE-CONTRACT.md).
+  - Relationships use a declared closed scale and a protection class. An
+    adjacent step on a `ROUTINE` relationship is L2; everything else is L3.
+  - Threads are an authoritative section with append-only history.
+  - Transformed failure is proposed by the model, cites a declared
+    constraint, and needs exact user confirmation.
+
+  MGC-1 has its own process: implementation → real PostgreSQL, browser and
+  migration regression → independent review → repair → re-review. After it
+  passes, the IP-10 matrix is updated and `LONG-01` is run.
+- **IP-10 continues as validation only.** Its test-only work proceeds in
+  parallel with MGC-1.
+- **SHOULD selection.** PR-012, PR-015, PR-016 and PR-017 are not selected for
+  this release.
+
+The external G10 decisions and the human and specialist reviews remain pending.
+No beta or launch is authorized.

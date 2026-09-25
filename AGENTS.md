@@ -141,7 +141,10 @@ PostgreSQL retention purge 仍是 release 义务。用户于 2026-09-24 授权 I
 engineering track 推进、不加新功能；首个产出是
 `docs/implementation-planning/IP-10-REQUIREMENT-EVIDENCE-MATRIX.md`。其中 PR-005
 transformed failure 与 LONG-01 的关系变化、thread open/resolve 无现有机制，属
-IP-10 无法用测试关闭的实现缺口，需产品负责人决定；外部决策与专家/真人验证仍未完成。
+IP-10 无法用测试关闭的实现缺口；用户已决定以独立 bounded track 闭合，契约见
+`docs/implementation-planning/MUST-GAP-CLOSURE-CONTRACT.md`（MGC-1，须单独独立 Review），
+IP-10 本身仍只验证。SHOULD 选择：PR-012/015/016/017 均不选。外部决策与专家/真人验证仍未完成，
+不自动进入 beta/launch。
 
 ## Long-Term Product Direction
 
