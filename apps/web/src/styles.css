@@ -1301,10 +1301,13 @@ h1 {
   border: 1px solid #27433e;
   border-radius: 12px;
   padding: 12px;
+  min-width: 0;
 }
 
 .studio-repeatable legend,
 .studio-checks legend {
+  max-width: 100%;
+  white-space: normal;
   padding: 0 6px;
   color: #c8dbd6;
   font-weight: 700;
@@ -1313,6 +1316,9 @@ h1 {
 .studio-checks {
   display: grid;
   gap: 8px;
+  /* A fieldset defaults to its min-content width, so a long legend or a nested
+     input grid would push past 320px (WebKit). */
+  min-width: 0;
   border: 1px solid #27433e;
   border-radius: 10px;
   padding: 10px;

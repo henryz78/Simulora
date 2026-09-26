@@ -3047,7 +3047,7 @@ function StudioCoreFields({
               />
             </label>
             <fieldset className="studio-checks">
-              <legend>Can this relationship change during play?</legend>
+              <legend>Changes during play</legend>
               <label>
                 <input
                   type="radio"
