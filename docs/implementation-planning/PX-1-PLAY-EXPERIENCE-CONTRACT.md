@@ -22,7 +22,7 @@ of an exact SHA with green CI.
    "Your worlds", from a new owner-scoped read `GET /v1/me/library`. It lists
    only the account's ACTIVE Continuities and undeleted Worlds.
 5. **Studio.** The back link says "Home". A finding names its area ("Character
-   · Marta") instead of an internal path. The knowledge warning quotes the fact
+   2") instead of an internal path. The knowledge warning quotes the fact
    without doubled punctuation.
 6. **SA-2 follow-ups.**
    - M1: the knowledge message matches the RE-2 refusal message, not the

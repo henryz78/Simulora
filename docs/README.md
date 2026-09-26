@@ -64,6 +64,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [TB-1 Implementation Report](implementation-planning/TB-1-IMPLEMENTATION-REPORT.md)
 - [Play Weight Health Check](implementation-planning/PLAY-WEIGHT-HEALTH-CHECK.md)
 - [PX-1 Play Experience Contract](implementation-planning/PX-1-PLAY-EXPERIENCE-CONTRACT.md)
+- [PX-2 Proposed Decisions](implementation-planning/PX-2-PROPOSED-ADRS.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)
