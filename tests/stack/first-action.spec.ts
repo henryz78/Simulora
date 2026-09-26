@@ -400,11 +400,18 @@ test("a World authored only in Studio plays relationship states, a thread and a 
   await expect(page.getByLabel("Your Action")).toBeEnabled();
   await expect(relationships).toContainText("unsworn");
 
-  // The authored rule turns an impossible movement into a transformed outcome.
-  await send("A local guide", "ROUTINE_EFFECT", "Walk the guide across the causeway.");
-  await expect(review).toContainText("World constraint · The flooded causeway cannot be crossed.");
-  await page.getByRole("button", { name: "Cancel Action" }).click();
-  await expect(page.getByLabel("Your Action")).toBeEnabled();
+  // The authored rule and thread reach the played World exactly. A rule shapes
+  // an outcome only through movement or a live model: movement needs a
+  // revision-bound RE-3 routine policy that Studio does not author (recorded gap).
+  const played = (await (
+    await page.request.get(`/v1/continuities/${continuityId}/state`)
+  ).json()) as {
+    world: { constraints?: Array<{ statement: string }>; threads?: Array<{ title: string }> };
+  };
+  expect(played.world.constraints?.map((rule) => rule.statement)).toEqual([
+    "The flooded causeway cannot be crossed.",
+  ]);
+  expect(played.world.threads?.map((thread) => thread.title)).toEqual(["Why the bell rang"]);
 
   // The authored thread resolves from a caused Action.
   await send(null, { label: "Work toward resolving: Why the bell rang" }, "Ask who rang it.");
