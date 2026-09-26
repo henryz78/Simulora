@@ -1699,3 +1699,19 @@ are that only pre-authored Characters can speak, and that the player's own
 action can be narrated as a Character's. Both touch frozen semantics and need a
 successor ADR and the owner's decision. Presentation findings (defaults, copy,
 the reply that disappears after confirmation, no list of Continuities) do not.
+
+## 58. PX-1 play experience: CLOSED; PX-2 decided
+
+- **PX-1** ([report](PX-1-IMPLEMENTATION-REPORT.md)): the story on the play
+  page, a response-only default, player language, a player home with an
+  owner-scoped library, Studio fixes and the SA-2 follow-ups. No frozen
+  semantics changed.
+  - Behavior SHA `2a860ec`, exact-SHA CI `36261851203` success.
+  - Independent Reviewer (Sonnet 5) `PASS WITH ISSUES` (0B/0I/3M accepted).
+- **PX-2** ([decisions](PX-2-PROPOSED-ADRS.md)): the owner chose D1 A (the
+  world voices unnamed people; the player's own attempt is narrated as
+  theirs) and D2 A (opt-in quick play with Undo).
+  - PX-2a ([contract](PX-2A-QUICK-PLAY-CONTRACT.md)): quick play, Undo and
+    prompt version 8, at `47e2b9e`; CI and Review pending.
+  - PX-2b (world response when no Character is addressed) is handed to a
+    parallel Agent ([handoff](PARALLEL-AGENT-HANDOFF.md)).

@@ -1,6 +1,6 @@
 # PX-1 Play Experience Contract
 
-**Date:** 2026-09-26 · **Status:** `APPROVED 2026-09-26 — IN IMPLEMENTATION`.
+**Date:** 2026-09-26 · **Status:** `CLOSED` at `2a860ec` ([report](PX-1-IMPLEMENTATION-REPORT.md)).
 The owner asked the Agent to do what it judged necessary after the
 [Play Weight Health Check](PLAY-WEIGHT-HEALTH-CHECK.md). This track takes only
 the findings that touch no frozen semantics. It closes on an independent Review

@@ -64,6 +64,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [TB-1 Implementation Report](implementation-planning/TB-1-IMPLEMENTATION-REPORT.md)
 - [Play Weight Health Check](implementation-planning/PLAY-WEIGHT-HEALTH-CHECK.md)
 - [PX-1 Play Experience Contract](implementation-planning/PX-1-PLAY-EXPERIENCE-CONTRACT.md)
+- [PX-1 Implementation Report](implementation-planning/PX-1-IMPLEMENTATION-REPORT.md)
 - [PX-2 Proposed Decisions](implementation-planning/PX-2-PROPOSED-ADRS.md)
 - [PX-2a Quick Play Contract](implementation-planning/PX-2A-QUICK-PLAY-CONTRACT.md)
 - [Parallel Agent Handoff](implementation-planning/PARALLEL-AGENT-HANDOFF.md)
