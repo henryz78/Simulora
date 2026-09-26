@@ -162,6 +162,8 @@ export function WorldPage(): ReactElement {
     confirmAction,
     cancelAction,
     retryAction,
+    undoAction,
+    autoConfirmedIds,
   } = useContinuity();
   if (loadState.status === "loading") {
     return (
@@ -219,6 +221,11 @@ export function WorldPage(): ReactElement {
                 onConfirm={confirmAction}
                 onCancel={cancelAction}
                 onRetry={retryAction}
+                appliedAutomatically={autoConfirmedIds.has(latestAction.id)}
+                // PX-2a: Undo only while this change is still the current head.
+                {...(latestAction.commit?.resultingHeadCommitId === data.continuity.headCommitId
+                  ? { onUndo: undoAction }
+                  : {})}
               />
             </section>
           ) : null}

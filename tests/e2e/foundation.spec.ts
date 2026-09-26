@@ -2,13 +2,14 @@ import { expect, test } from "@playwright/test";
 import { expectAccessible } from "./support/accessibility.js";
 
 test("home is a player's entry, responsive and accessible", async ({ page }) => {
+  await page.route("**/v1/me/library", (route) => route.fulfill({ status: 503, body: "" }));
   await page.goto("/");
   await expect(page).toHaveTitle("Simulora");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "Step into a world that keeps what happened",
   );
   await expect(page.getByRole("link", { name: "Open World Studio" })).toBeVisible();
-  // Without a library (no API here) nothing is invented.
+  // Without a library nothing is invented.
   await expect(page.getByRole("heading", { name: "Continue playing" })).toHaveCount(0);
   await expectAccessible(page);
 });

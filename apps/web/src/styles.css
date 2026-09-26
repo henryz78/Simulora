@@ -1770,3 +1770,12 @@ h1 {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* PX-2a: the quick play setting under the Composer's help text. */
+.quick-play-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  color: #aebfbb;
+}

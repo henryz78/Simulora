@@ -6,11 +6,17 @@ const branchId = "30000000-0000-4000-8000-000000000002";
 const initialHead = "30000000-0000-4000-8000-000000000003";
 const participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const;
 let observedIdempotencyKeys: string[] = [];
+let confirmRequests: Array<Record<string, string>> = [];
+let restoreRequests: Array<Record<string, string>> = [];
 
 test.beforeEach(async ({ page }, testInfo) => {
-  const routine = testInfo.title.startsWith("RE-3 routine movement");
+  // Routine fixtures return L2 proposals; the others return L3.
+  const routine =
+    testInfo.title.startsWith("RE-3 routine movement") || testInfo.title.includes("[L2]");
   let characterLocation = "location.tidal-observatory";
   observedIdempotencyKeys = [];
+  confirmRequests = [];
+  restoreRequests = [];
   let head = initialHead;
   let fact = "The western signal is dim.";
   let actionNumber = 0;
@@ -182,6 +188,48 @@ test.beforeEach(async ({ page }, testInfo) => {
       body: JSON.stringify({ ...base, proposal: null }),
     });
   });
+  // PX-2a Undo: the existing Restore endpoints, with the request bodies kept.
+  await page.route(`**/v1/branches/${branchId}/restore-proposals`, async (route) => {
+    const input = route.request().postDataJSON() as { sourceCommitId: string };
+    restoreRequests.push({ step: "prepare", ...input });
+    return route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "34000000-0000-4000-8000-000000000001",
+        continuityId,
+        branchId,
+        sourceCommitId: input.sourceCommitId,
+        expectedHeadCommitId: head,
+        includedSections: ["characters", "facts"],
+        excludedSections: [],
+        changedSections: ["characters"],
+        sectionChanges: [],
+        beforeHash: "b".repeat(64),
+        sourceHash: "c".repeat(64),
+        digest: "d".repeat(64),
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+        status: "ACTIVE",
+        resultCommitId: null,
+      }),
+    });
+  });
+  await page.route(`**/v1/branches/${branchId}/restores`, async (route) => {
+    const input = route.request().postDataJSON() as Record<string, string>;
+    restoreRequests.push({ step: "confirm", ...input });
+    head = "35000000-0000-4000-8000-000000000001";
+    characterLocation = "location.tidal-observatory";
+    return route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        commitId: head,
+        stateRevisionId: "35000000-0000-4000-8000-000000000002",
+        resultingHeadCommitId: head,
+        committedAt: new Date().toISOString(),
+      }),
+    });
+  });
   await page.route("**/v1/actions/**", async (route) => {
     const url = new URL(route.request().url());
     const segments = url.pathname.split("/");
@@ -195,6 +243,7 @@ test.beforeEach(async ({ page }, testInfo) => {
       });
     }
     if (url.pathname.endsWith("/confirm")) {
+      confirmRequests.push(route.request().postDataJSON() as Record<string, string>);
       const committedHead = `32000000-0000-4000-8000-${String(actionNumber).padStart(12, "0")}`;
       head = committedHead;
       const proposal = action.proposal as { displayEffect: { after: string }; narrative: string };
@@ -334,4 +383,57 @@ test("a keyboard-only person can send, review and confirm an exact Action", asyn
     page.getByLabel("Current world context").getByText("Recorded consequence 1.", { exact: true }),
   ).toBeVisible();
   await expectAccessible(page);
+});
+
+test("PX-2a quick play confirms a small change without a click, and Undo restores [L2]", async ({
+  page,
+}) => {
+  await page.goto(`/continuities/${continuityId}`);
+  const quickPlay = page.getByLabel("Quick play: apply small changes at once");
+  await expect(quickPlay).not.toBeChecked();
+  await quickPlay.check();
+  await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(page.getByText("Applied automatically by quick play.")).toBeVisible();
+  const context = page.getByLabel("Current world context");
+  await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
+  // Exactly the confirmation the button would send, once.
+  expect(confirmRequests).toEqual([
+    {
+      proposalId: "31000000-0000-4000-8000-000000000001",
+      proposalDigest: "1".repeat(64),
+      expectedHeadCommitId: initialHead,
+    },
+  ]);
+  await expectAccessible(page);
+
+  // Undo restores the head before the change, through the Restore endpoints.
+  await page.getByRole("button", { name: "Undo this change" }).click();
+  await expect(context.getByText("Present at the observatory.", { exact: true })).toBeVisible();
+  expect(restoreRequests).toEqual([
+    { step: "prepare", sourceCommitId: initialHead },
+    {
+      step: "confirm",
+      proposalId: "34000000-0000-4000-8000-000000000001",
+      digest: "d".repeat(64),
+      expectedHeadCommitId: "32000000-0000-4000-8000-000000000001",
+    },
+  ]);
+  // The head has moved on, so the change is no longer offered for Undo.
+  await expect(page.getByRole("button", { name: "Undo this change" })).toHaveCount(0);
+
+  // The setting is the player's and survives a reload.
+  await page.reload();
+  await expect(page.getByLabel("Quick play: apply small changes at once")).toBeChecked();
+});
+
+test("PX-2a quick play still leaves an important change to the player", async ({ page }) => {
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Quick play: apply small changes at once").check();
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
+  await page.getByLabel("Your Action").fill("Relight the western signal with Iora.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
+  await expect(page.getByText("An important change — review it carefully")).toBeVisible();
+  expect(confirmRequests).toEqual([]);
 });

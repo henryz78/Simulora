@@ -246,6 +246,10 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       ["Keeper, after a pause, agreed to transfer resources.", "Tavi", true],
       ["'If you wave them through,' Keeper says, 'hold outside.'", "Keeper", true],
       ["'If you wave them through,' User says, 'hold outside.'", "User", true],
+      // PX-2a: the user's own attempt in the second person, in its own sentence.
+      ["You search the benches. Nothing is there. Tavi said nothing.", "Tavi", false],
+      ["You search the benches and agree to pay for the ledger.", "Tavi", true],
+      ["You walk to the fire and promise the merchant your silence.", "Tavi", true],
     ] as const) {
       const result = await pool.query<{ blocked: boolean }>(
         "select simulora.generated_narrative_authors_user($1::text, 'Keeper', $2::text) as blocked",

@@ -22,6 +22,7 @@ import {
   type BranchActionHistory,
 } from "@simulora/contracts";
 import { submitCorrection as sendCorrection } from "./ip4-api.js";
+import { confirmRestore, prepareRestore } from "./ip5-api.js";
 
 export type LoadState =
   | { status: "loading" }
@@ -87,6 +88,12 @@ export type ContinuityContextValue = {
   confirmAction: (action: ActionResponse) => Promise<ActionResult>;
   cancelAction: (action: ActionResponse) => Promise<ActionResult>;
   retryAction: (action: ActionResponse) => Promise<ActionResult>;
+  /** PX-2a: L2 proposals are confirmed by this client as they arrive. */
+  quickPlay: boolean;
+  setQuickPlay: (enabled: boolean) => void;
+  autoConfirmedIds: ReadonlySet<string>;
+  /** Restore the head before this committed Action, as an appended Commit. */
+  undoAction: (action: ActionResponse) => Promise<string | null>;
 };
 
 const TERMINAL_ACTION_STATUSES = new Set<ActionResponse["status"]>([
@@ -292,6 +299,31 @@ export function ContinuityProvider({
     historyRef.current = { branchId: action.branchId, actions: nextHistory };
     setHistory(nextHistory);
   }, []);
+
+  // PX-2a: a per-viewer convenience kept in this browser; it must never be the
+  // only record of anything, so a failed read simply starts with it off.
+  const quickPlayKey = `simulora.quickPlay.${continuityId}`;
+  const [quickPlay, setQuickPlayState] = useState(() => {
+    try {
+      return window.localStorage.getItem(quickPlayKey) === "on";
+    } catch {
+      return false;
+    }
+  });
+  const setQuickPlay = useCallback(
+    (enabled: boolean) => {
+      setQuickPlayState(enabled);
+      try {
+        if (enabled) window.localStorage.setItem(quickPlayKey, "on");
+        else window.localStorage.removeItem(quickPlayKey);
+      } catch {
+        // Storage unavailable: the setting lasts for this page only.
+      }
+    },
+    [quickPlayKey],
+  );
+  const [autoConfirmedIds, setAutoConfirmedIds] = useState<ReadonlySet<string>>(new Set());
+  const autoConfirmAttempted = useRef(new Set<string>());
 
   const load = useCallback(
     async (initial: boolean): Promise<void> => {
@@ -563,6 +595,39 @@ export function ContinuityProvider({
     [readAction, refresh, upsertAction],
   );
 
+  // PX-2a quick play: the same exact confirmation the button sends, for L2 only.
+  useEffect(() => {
+    if (!quickPlay) return;
+    for (const action of pendingActions) {
+      if (
+        action.status !== "AWAITING_CONFIRMATION" ||
+        action.proposal?.impact !== "L2" ||
+        autoConfirmAttempted.current.has(action.id)
+      )
+        continue;
+      autoConfirmAttempted.current.add(action.id);
+      void confirmAction(action).then((result) => {
+        if (!result.error) setAutoConfirmedIds((current) => new Set([...current, action.id]));
+      });
+    }
+  }, [confirmAction, pendingActions, quickPlay]);
+
+  const undoAction = useCallback(
+    async (action: ActionResponse): Promise<string | null> => {
+      if (loadState.status !== "ready" || !action.proposal || !action.commit) {
+        return "This change can no longer be undone here.";
+      }
+      const branchId = loadState.data.continuity.branchId;
+      const prepared = await prepareRestore(branchId, action.proposal.expectedHeadCommitId);
+      const confirmed = prepared.data ? await confirmRestore(branchId, prepared.data) : null;
+      await refresh();
+      return confirmed?.data
+        ? null
+        : "The change could not be undone. The world has changed since; open Recovery to choose a point.";
+    },
+    [loadState, refresh],
+  );
+
   const submitCorrection = useCallback(
     async (request: CorrectionRequest): Promise<CorrectionResult> => {
       if (loadState.status !== "ready") {
@@ -680,8 +745,16 @@ export function ContinuityProvider({
       confirmAction,
       cancelAction,
       retryAction,
+      quickPlay,
+      setQuickPlay,
+      autoConfirmedIds,
+      undoAction,
     }),
     [
+      autoConfirmedIds,
+      quickPlay,
+      setQuickPlay,
+      undoAction,
       actions,
       cancelAction,
       confirmAction,
@@ -860,12 +933,17 @@ export function ActionStatusCard({
   onConfirm,
   onCancel,
   onRetry,
+  onUndo,
+  appliedAutomatically = false,
   compact = false,
 }: {
   action: ActionResponse;
   onConfirm?: (action: ActionResponse) => Promise<ActionResult>;
   onCancel?: (action: ActionResponse) => Promise<ActionResult>;
   onRetry?: (action: ActionResponse) => Promise<ActionResult>;
+  /** PX-2a: offered only while this Action's Commit is still the head. */
+  onUndo?: (action: ActionResponse) => Promise<string | null>;
+  appliedAutomatically?: boolean;
   compact?: boolean;
 }): ReactElement {
   const [error, setError] = useState<string | null>(null);
@@ -968,6 +1046,9 @@ export function ActionStatusCard({
           </dl>
         </div>
       ) : null}
+      {appliedAutomatically && action.status === "COMMITTED" ? (
+        <p className="action-note">Applied automatically by quick play. You can undo it.</p>
+      ) : null}
       {action.proposal && action.status === "COMMITTED" ? (
         <div className="proposal-review">
           {action.proposal.responseSource ? (
@@ -1044,6 +1125,25 @@ export function ActionStatusCard({
             onClick={() => void run(onCancel)}
           >
             Cancel Action
+          </button>
+        </div>
+      ) : null}
+      {onUndo && action.status === "COMMITTED" ? (
+        <div className="action-buttons">
+          <button
+            className="secondary-action"
+            type="button"
+            disabled={working}
+            onClick={() => {
+              setWorking(true);
+              setError(null);
+              void onUndo(action).then((failure) => {
+                setWorking(false);
+                if (failure) setError(failure);
+              });
+            }}
+          >
+            Undo this change
           </button>
         </div>
       ) : null}
@@ -1248,7 +1348,8 @@ export function describeTarget(target: string, world: AuthoritativeStateResponse
 }
 
 export function ActionComposer(): ReactElement {
-  const { historyState, loadState, pendingActionRefs, submitAction } = useContinuity();
+  const { historyState, loadState, pendingActionRefs, submitAction, quickPlay, setQuickPlay } =
+    useContinuity();
   const [intent, setIntent] = useState("");
   const [targetCharacterId, setTargetCharacterId] = useState("");
   // "THREAD_EFFECT:<id>" asks to work toward resolving that open thread.
@@ -1385,8 +1486,18 @@ export function ActionComposer(): ReactElement {
           ))}
         </select>
         <p className="field-help">
-          Talking changes nothing. A change to the world waits for your confirmation.
+          {quickPlay
+            ? "Talking changes nothing. Small changes happen at once and can be undone; important ones wait for your confirmation."
+            : "Talking changes nothing. A change to the world waits for your confirmation."}
         </p>
+        <label className="quick-play-toggle">
+          <input
+            type="checkbox"
+            checked={quickPlay}
+            onChange={(event) => setQuickPlay(event.target.checked)}
+          />
+          Quick play: apply small changes at once
+        </label>
         <label htmlFor="world-action">Your Action</label>
         <textarea
           id="world-action"

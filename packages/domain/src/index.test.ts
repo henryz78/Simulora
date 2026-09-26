@@ -638,6 +638,23 @@ describe("IP-6 participation and character authority", () => {
     ).toThrow();
   });
 
+  it("PX-2a: narrates the user's own attempt in the second person, never their commitments", () => {
+    // The live prompt asks for this shape; the unchanged guard must accept it.
+    const own =
+      "You search behind the counter and under the benches. Ash, a cracked mug, no book. Marta said nothing.";
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser(own, "Witness", "Marta")).not.toThrow();
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser(own, "Witness")).not.toThrow();
+    for (const narrative of [
+      "You search the benches and agree to pay for the ledger.",
+      "You search the benches, then you decide to leave.",
+      "You walk to the fire and promise the merchant your silence.",
+    ]) {
+      expect(() =>
+        assertGeneratedNarrativeDoesNotAuthorUser(narrative, "Witness", "Marta"),
+      ).toThrow();
+    }
+  });
+
   it("permits a nonbinding choice only in bound NPC prose without hiding authority claims", () => {
     for (const narrative of [
       "If the test holds, the keeper can decide; until then, invite nothing.",
