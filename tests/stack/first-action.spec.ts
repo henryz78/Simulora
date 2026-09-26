@@ -34,7 +34,8 @@ async function confirmFirstAction(page: Page, intent: string) {
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
   // Names, never raw identifiers, describe who answers and what would change.
-  await expect(page.getByText("Character response · A local guide")).toBeVisible();
+  // PX-2b: an Action that addresses no Character is answered by the world.
+  await expect(page.getByText("World response", { exact: true })).toBeVisible();
   await expect(page.getByText(/[0-9a-f]{8}-[0-9a-f]{4}-/)).toHaveCount(0);
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
   await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
