@@ -1713,5 +1713,19 @@ the reply that disappears after confirmation, no list of Continuities) do not.
   theirs) and D2 A (opt-in quick play with Undo).
   - PX-2a ([contract](PX-2A-QUICK-PLAY-CONTRACT.md)): quick play, Undo and
     prompt version 8, at `47e2b9e`; CI and Review pending.
-  - PX-2b (world response when no Character is addressed) is handed to a
-    parallel Agent ([handoff](PARALLEL-AGENT-HANDOFF.md)).
+- PX-2b (world response when no Character is addressed) is handed to a
+  parallel Agent ([handoff](PARALLEL-AGENT-HANDOFF.md)).
+
+## 59. PX-2b: WORLD response for unaddressed Actions
+
+The owner asked the main session to take over PX-2b directly. The approved D1 A
+contract is implemented in successor migration `0054` and the application
+compiler. New unaddressed `PARTICIPATE` Actions receive WORLD context; an
+explicit Character target is unchanged; pre-0054 Actions retain the previous
+implicit Character selection. SQL generation and validation functions use the
+same immutable selection epoch. See the [PX-2b contract](PX-2B-WORLD-RESPONSE-CONTRACT.md)
+and [implementation report](PX-2B-IMPLEMENTATION-REPORT.md).
+
+Local migration, test, typecheck, lint, and diff checks pass. Real PostgreSQL
+evidence and the independent exact-SHA Review are still required before PX-2b
+can close. PX-2a files and prompt work remain with the owner.
