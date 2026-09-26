@@ -1,7 +1,8 @@
 # TB-1 Committed Outcome Context
 
-**Date:** 2026-09-25 · **Status:** `APPROVED DIRECTION 2026-09-25 — IN
-IMPLEMENTATION`.
+**Date:** 2026-09-25 · **Status:** `APPROVED DIRECTION 2026-09-25 — IMPLEMENTED,
+REVIEW PENDING` (behavior SHA `fd4b444`, CI `36225725632` success; see the
+[implementation report](TB-1-IMPLEMENTATION-REPORT.md)).
 
 The product owner chose option A in chat on 2026-09-25, after the
 [Track B report](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md) §3.4.

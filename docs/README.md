@@ -61,6 +61,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Track B Local Live Play Report](implementation-planning/TRACK-B-LOCAL-LIVE-PLAY-REPORT.md)
 - [TB-1 Committed Outcome Context Contract](implementation-planning/TB-1-COMMITTED-OUTCOME-CONTEXT-CONTRACT.md)
 - [ADR-TB1 Committed outcomes in the generation context](implementation-planning/TB-1-COMMITTED-OUTCOME-CONTEXT-ADR.md)
+- [TB-1 Implementation Report](implementation-planning/TB-1-IMPLEMENTATION-REPORT.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)

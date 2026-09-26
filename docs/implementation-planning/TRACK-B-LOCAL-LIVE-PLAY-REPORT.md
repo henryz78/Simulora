@@ -83,7 +83,7 @@ defaults (30 s, 2,048 tokens) are too tight for this model; the local run used
 This is a profile setting, not a code change. A shared profile needs its own
 values.
 
-### 3.4 Committed outcomes are not in the model's context (open, needs a decision)
+### 3.4 Committed outcomes are not in the model's context (owner chose option A: TB-1, §3.6)
 
 The compiled request's `history` lists committed turns as event kinds and IDs
 only: `ATTEMPT_TRANSFORMED`, `THREAD_RESOLVED`. The narratives, the
@@ -114,11 +114,31 @@ may know. It is a design decision for the product owner, not a patch here.
 - Facts change only when the user asks for a fact change. After the user
   "puts the letter in my coat", the fact still says it lies on the landing.
 
+### 3.6 Replay after TB-1 (local, before Review)
+
+The owner chose option A for §3.4. TB-1 (`e0c8b9c`, successor 0051 and prompt
+version 7) was applied to the play database, and action 4 was sent again.
+
+- **Context:** the compiled request carried Pell's transformed outcome with his
+  exchange, and the thread resolution. Wren does not know the flood fact, but
+  both texts are SHARED.
+- **Attempt 1:** the reply was consistent ("The planks are dry, then"), but the
+  agency guard refused it: *"Generated narrative cannot author user speech or
+  protected commitments"*. In it, Wren told the clerk what to do next ("You'll
+  copy the morning's soundings before you go"). That is a Character's
+  instruction, not the user's commitment, so this is a possible guard false
+  positive. It is recorded, not changed.
+- **Attempt 2:** a consistent L3 fact change: the letter is handed to Wren,
+  unopened, and set on her desk.
+  - It was confirmed in the UI.
+  - The SQL evidence check accepted the new context.
+  - The fact now reads that way.
+
 ## 4. Usage
 
-There were 21 provider calls:
+There were 23 provider calls:
 
-- 11 in-product attempts over 5 Actions;
+- 13 in-product attempts over 6 Actions (the last two after TB-1);
 - 1 model-name probe;
 - 9 diagnostic replays of one captured request.
 

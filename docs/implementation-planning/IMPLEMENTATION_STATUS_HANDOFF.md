@@ -1671,3 +1671,17 @@ web, API and worker, with a local PGlite database. See the
 - **Profile note:** this model needs a longer timeout and a larger output
   budget than the defaults.
 
+## 56. TB-1: committed outcomes in the generation context; Review pending
+
+The owner chose option A for §55's open finding on 2026-09-25
+([ADR-TB1](TB-1-COMMITTED-OUTCOME-CONTEXT-ADR.md)). Successors 0051 and 0052
+add `committedOutcomes` to the RE-2 context: SHARED outcome text and, when its
+knowledge was visible to the addressed Character, the committed exchange.
+Private knowledge stays limited. Live prompt version 7.
+
+- **Behavior SHA:** `fd4b444`, exact-SHA CI `36225725632` success
+  (`test:postgres` 178/178, IP-5 309/309, rehearsal, stack 10/10, browser 210).
+  `e0c8b9c` alone failed the rehearsal; 0052 fixes it.
+- **Gateway fixes from §55:** CI green on each SHA.
+- **Next:** one new independent Reviewer for TB-1 and the gateway fixes.
+- See the [TB-1 Implementation Report](TB-1-IMPLEMENTATION-REPORT.md).
