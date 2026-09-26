@@ -692,6 +692,8 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       narrative?: string;
       attemptOutput?: unknown;
       expiresInMs?: number;
+      unaddressed?: boolean;
+      responseSource?: { type: "WORLD" } | { type: "CHARACTER"; characterId: string };
     },
   ) {
     const action = await repository.submitAction(account, continuity.branchId, {
@@ -699,7 +701,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       idempotencyKey: `g6-raw-${randomUUID()}`,
       expectedHeadCommitId: continuity.headCommitId,
       participationExpectation: continuity.state.participation,
-      targetCharacterId: "character.iora",
+      ...(options.unaddressed ? {} : { targetCharacterId: "character.iora" }),
       intent: "Ask Iora whether the signal is safe.",
     });
     // PX-2b: a CHARACTER source needs explicit targeting, which binds RE-2
@@ -719,7 +721,10 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       };
     }
     const narrative = options.narrative ?? "Iora refuses to light an unsafe signal.";
-    const responseSource = { type: "CHARACTER" as const, characterId: "character.iora" };
+    const responseSource = options.responseSource ?? {
+      type: "CHARACTER" as const,
+      characterId: "character.iora",
+    };
     const target = continuity.state.facts.find(
       (fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED",
     )!;
@@ -1208,6 +1213,64 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
         manifest: manifestFor(authoredCommitment),
         completeAttempt: true,
         afterStatement: "The keeper agreed to transfer resources.",
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+  });
+
+  it("binds the declared response source to the selected Character or WORLD", async () => {
+    // PX-2b review I-1: attempt output and candidate agree, so only the source
+    // binding can reject these. The evidence check copies the candidate's source;
+    // action_proposal_effect_is_valid binds it to the manifest's selected Character
+    // (fact rewrite), the target (move) or mgc_selected_character (closures).
+    const manifestFor = (
+      fixture: Awaited<ReturnType<typeof createContinuity>>,
+      characterIds: string[],
+    ) => ({
+      compilerVersion: "ip6-context-v1",
+      expectedHeadCommitId: fixture.headCommitId,
+      participation: fixture.state.participation,
+      includedFactIds: ["fact.western-signal-dim"],
+      includedCharacterIds: characterIds,
+      excludedScopeCounts: { unauthorized: fixture.state.facts.length - 1 },
+    });
+    const narrative = "The signal stays dim over the harbor.";
+
+    // An Action addressed to Iora may not be sealed as a WORLD response.
+    const addressed = await createContinuity();
+    await expect(
+      prepareRawParticipateProposal(addressed, {
+        manifest: manifestFor(addressed, ["character.iora"]),
+        completeAttempt: true,
+        narrative,
+        responseSource: { type: "WORLD" },
+      }),
+    ).rejects.toThrow(/Proposal must exactly bind/);
+
+    // An unaddressed post-0054 Action is WORLD: the control seals, and the same
+    // Action claiming Iora does not.
+    const control = await createContinuity();
+    const sealed = await prepareRawParticipateProposal(control, {
+      manifest: manifestFor(control, []),
+      completeAttempt: true,
+      narrative,
+      unaddressed: true,
+      responseSource: { type: "WORLD" },
+    });
+    const evidence = await pool.query<{ valid: boolean }>(
+      "select simulora.action_generation_evidence_is_valid(proposal) as valid from simulora.action_proposals proposal where id = $1",
+      [sealed.proposalId],
+    );
+    expect(evidence.rows[0]?.valid).toBe(true);
+    await repository.cancelAction(account, sealed.action.id);
+
+    const unaddressed = await createContinuity();
+    await expect(
+      prepareRawParticipateProposal(unaddressed, {
+        manifest: manifestFor(unaddressed, []),
+        completeAttempt: true,
+        narrative,
+        unaddressed: true,
+        responseSource: { type: "CHARACTER", characterId: "character.iora" },
       }),
     ).rejects.toThrow(/Proposal must exactly bind/);
   });

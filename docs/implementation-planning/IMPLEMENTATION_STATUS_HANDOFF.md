@@ -1730,6 +1730,13 @@ Local migration, test, typecheck, lint, and diff checks pass. Real PostgreSQL
 evidence and the independent exact-SHA Review are still required before PX-2b
 can close. PX-2a files and prompt work remain with the owner.
 
+Update: the independent Reviewer returned `PASS WITH ISSUES` (0B/2I/2M). I-1
+does not reproduce (the effect validator already binds the response source);
+I-2 adds that negative test; M-1/M-2 are accepted. The last CI failure was a
+stack test still expecting a Character response for an unaddressed Action; it
+now expects the WORLD response. See the report's "CI repairs and independent
+Review" section. Exact-SHA CI and a focused re-review remain.
+
 ## 60. PX-2a quick play and player-owned actions: CLOSED
 
 See the [PX-2a report](PX-2A-IMPLEMENTATION-REPORT.md).
