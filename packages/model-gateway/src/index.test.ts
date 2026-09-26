@@ -242,6 +242,27 @@ describe("IP-9 live capability profile adapter", () => {
     await expect(failure).rejects.not.toThrow(/slow down|boom|<html>|sk-synthetic/);
   });
 
+  it("accepts only the declared answering model when the provider renames the route", async () => {
+    const renamed = (answeringModel: string) =>
+      new OpenAICompatibleModelGateway({
+        profile: { ...liveProfile, model: "Router/synthetic-model", answeringModel },
+        endpoint: "http://127.0.0.1:9/v1/chat/completions",
+        apiKey,
+        fetch: providerReturning(() => completion(candidateFor(base), "synthetic-model")),
+      });
+    const accepted = await renamed("synthetic-model").generateWorldTurn(base);
+    expect(accepted.narrative).toBe(candidateFor(base).narrative);
+    await expect(renamed("other-model").generateWorldTurn(base)).rejects.toBeInstanceOf(
+      ModelRouteChangedError,
+    );
+    expect(profileDigest({ ...liveProfile, answeringModel: "synthetic-model" })).not.toBe(
+      profileDigest(liveProfile),
+    );
+    expect(
+      isMaterialProfileChange(liveProfile, { ...liveProfile, answeringModel: "synthetic-model" }),
+    ).toBe(true);
+  });
+
   it("turns a network failure or timeout into an unavailable provider", async () => {
     const refused: typeof fetch = () => Promise.reject(new TypeError("fetch failed"));
     await expect(gateway(refused).generateWorldTurn(base)).rejects.toBeInstanceOf(

@@ -28,6 +28,7 @@ const serverConfigSchema = z
     // A live profile is one reviewable unit: endpoint, model, prompt and limits.
     SIMULORA_MODEL_ENDPOINT: z.string().url().optional(),
     SIMULORA_MODEL_NAME: z.string().min(1).optional(),
+    SIMULORA_MODEL_ANSWERING_NAME: z.string().min(1).optional(),
     SIMULORA_MODEL_API_KEY: z.string().min(1).optional(),
     SIMULORA_MODEL_PROFILE_ID: z
       .string()
@@ -153,6 +154,7 @@ export type ModelRoutingSelection =
       adapter: "openai-compatible";
       endpoint: string;
       model: string;
+      answeringModel?: string;
       apiKey: string;
       profileId: string;
       profileVersion: string;
@@ -179,6 +181,9 @@ export function selectModelRouting(config: ServerConfig): ModelRoutingSelection 
     adapter: "openai-compatible",
     endpoint: config.SIMULORA_MODEL_ENDPOINT!,
     model: config.SIMULORA_MODEL_NAME!,
+    ...(config.SIMULORA_MODEL_ANSWERING_NAME
+      ? { answeringModel: config.SIMULORA_MODEL_ANSWERING_NAME }
+      : {}),
     apiKey: config.SIMULORA_MODEL_API_KEY!,
     profileId: config.SIMULORA_MODEL_PROFILE_ID,
     profileVersion: config.SIMULORA_MODEL_PROFILE_VERSION,

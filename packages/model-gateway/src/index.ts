@@ -12,6 +12,12 @@ export type CapabilityProfile = {
   /** Provider model identifier; `null` for the deterministic adapter. */
   model: string | null;
   /**
+   * The model name the provider reports, declared when it differs from `model`
+   * (an aggregator that drops its routing prefix). Absent, the answer must name
+   * `model` exactly. Either way, any other name is a changed route.
+   */
+  answeringModel?: string;
+  /**
    * Origin of the provider endpoint, derived from it; `null` for the
    * deterministic adapter. The same model name at another provider is a
    * different data flow, so it is part of the profile.
@@ -571,7 +577,8 @@ export class OpenAICompatibleModelGateway implements ModelGatewayPort {
     } catch {
       throw new ProviderResponseError("Provider returned a non-JSON envelope");
     }
-    if (typeof body.model === "string" && body.model !== this.profile.model) {
+    const expectedModel = this.profile.answeringModel ?? this.profile.model;
+    if (typeof body.model === "string" && body.model !== expectedModel) {
       throw new ModelRouteChangedError("Provider answered with a different model");
     }
     const content = body.choices?.[0]?.message?.content;
@@ -660,6 +667,7 @@ export function isMaterialProfileChange(
     previous.adapter !== next.adapter ||
     previous.provider !== next.provider ||
     previous.model !== next.model ||
+    previous.answeringModel !== next.answeringModel ||
     previous.promptVersion !== next.promptVersion
   );
 }
@@ -670,6 +678,7 @@ export type ModelRoutingInput =
       adapter: "openai-compatible";
       endpoint: string;
       model: string;
+      answeringModel?: string;
       apiKey: string;
       profileId: string;
       profileVersion: string;
@@ -691,6 +700,7 @@ export function createModelGateway(
       version: routing.profileVersion,
       adapter: "openai-compatible",
       model: routing.model,
+      ...(routing.answeringModel ? { answeringModel: routing.answeringModel } : {}),
       promptVersion: livePromptVersion,
       timeoutMs: routing.timeoutMs,
       maxOutputTokens: routing.maxOutputTokens,
@@ -717,6 +727,8 @@ export function profileDigest(profile: CapabilityProfile): string {
     profile.timeoutMs,
     profile.maxOutputTokens,
     profile.retentionApprovalRef,
+    // Appended only when declared, so existing profile digests are unchanged.
+    ...(profile.answeringModel ? [profile.answeringModel] : []),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }
