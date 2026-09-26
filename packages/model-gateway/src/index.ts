@@ -14,7 +14,9 @@ export type CapabilityProfile = {
   /**
    * The model name the provider reports, declared when it differs from `model`
    * (an aggregator that drops its routing prefix). Absent, the answer must name
-   * `model` exactly. Either way, any other name is a changed route.
+   * `model` exactly. Either way, any other name is a changed route. It is in
+   * the profile digest, so a change is recorded, but it is not material: the
+   * requested model, provider and prompt stay the same.
    */
   answeringModel?: string;
   /**
@@ -667,7 +669,6 @@ export function isMaterialProfileChange(
     previous.adapter !== next.adapter ||
     previous.provider !== next.provider ||
     previous.model !== next.model ||
-    previous.answeringModel !== next.answeringModel ||
     previous.promptVersion !== next.promptVersion
   );
 }

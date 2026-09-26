@@ -260,7 +260,7 @@ describe("IP-9 live capability profile adapter", () => {
     );
     expect(
       isMaterialProfileChange(liveProfile, { ...liveProfile, answeringModel: "synthetic-model" }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("turns a network failure or timeout into an unavailable provider", async () => {
