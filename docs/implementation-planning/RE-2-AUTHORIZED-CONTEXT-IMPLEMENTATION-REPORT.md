@@ -1,5 +1,7 @@
 # RE-2 — Authorized Context / Explicit Character Selection
 
+> **Superseded in part (2026-09-25):** [ADR-TB1](TB-1-COMMITTED-OUTCOME-CONTEXT-ADR.md) adds committed outcomes to the context and relaxes the same-Character rule for committed exchanges whose knowledge is the addressed Character's or SHARED. The rest of this report stands.
+
 **State:** `IMPLEMENTED / LOCAL CHECKS PASS / INDEPENDENT REVIEW PASS`.
 **Date:** `2026-09-15`. This is implementation evidence, not independent approval.
 
