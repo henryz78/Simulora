@@ -1729,3 +1729,17 @@ and [implementation report](PX-2B-IMPLEMENTATION-REPORT.md).
 Local migration, test, typecheck, lint, and diff checks pass. Real PostgreSQL
 evidence and the independent exact-SHA Review are still required before PX-2b
 can close. PX-2a files and prompt work remain with the owner.
+
+## 60. PX-2a quick play and player-owned actions: CLOSED
+
+See the [PX-2a report](PX-2A-IMPLEMENTATION-REPORT.md).
+
+- **Behavior SHA:** `275805a`, exact-SHA CI `36265388855` success.
+- **What it does:** opt-in quick play auto-confirms L2 proposals from the
+  player's client. Undo goes through the existing Restore. Live prompt
+  version 8 narrates the player's own attempt as theirs.
+- **Review:** Sonnet 5 `PASS WITH ISSUES` (0B/2I/3M), repaired, re-review
+  `PASS`.
+- **Owner decision on I-2:** quick play stays a per-browser setting.
+- **Next:** PX-2b (§59) awaits its exact-SHA CI, which the owner watches, and
+  an independent Review, which is running.

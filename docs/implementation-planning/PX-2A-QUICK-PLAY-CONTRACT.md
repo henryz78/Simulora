@@ -1,6 +1,6 @@
 # PX-2a Quick Play and Player-Owned Actions Contract
 
-**Date:** 2026-09-26 · **Status:** `APPROVED 2026-09-26 — IN IMPLEMENTATION`.
+**Date:** 2026-09-26 · **Status:** `CLOSED` at `275805a` ([report](PX-2A-IMPLEMENTATION-REPORT.md)).
 Decision: [PX-2](PX-2-PROPOSED-ADRS.md) D1 A and D2 A. This contract covers D2
 and the prompt half of D1. The world voice for untargeted Actions (D1's other
 half) is PX-2b, in the [parallel handoff](PARALLEL-AGENT-HANDOFF.md). The track
