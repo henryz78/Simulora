@@ -14,19 +14,15 @@ For a second coding Agent working alongside the main session. Read
 
 ## Current state
 
-- **Approved behavior:** TB-1 closed at `95a23c5`
-  ([report](TB-1-IMPLEMENTATION-REPORT.md)).
-- **In review by the main session:** PX-1 at `2a860ec`
-  ([contract](PX-1-PLAY-EXPERIENCE-CONTRACT.md)).
-- **In progress by the main session (do not edit these until it lands):**
-  PX-2a, which touches `apps/web/src/continuity.tsx`,
-  `apps/web/src/pages.tsx`, `apps/web/src/styles.css` and the live prompt in
-  `packages/model-gateway/src/index.ts`.
-  - D2 "quick play": an opt-in setting on the play page; L2 proposals are
-    confirmed automatically by the player's client, with one-click Undo through
-    the existing Restore.
-  - D1's second half: the prompt narrates the player's own action in the
-    second person.
+_Updated 2026-09-26 (evening)._
+
+- **Closed:** TB-1 (`95a23c5`), PX-1 (`2a860ec`), PX-2a (`275805a`); see
+  [handoff](IMPLEMENTATION_STATUS_HANDOFF.md) §58–§60.
+- **In progress by the main session:** PX-2b (Task 1 below), implemented on
+  `main`; the exact-SHA CI and the Reviewer's focused re-review are pending
+  (handoff §59). Until it closes, do not edit `db/migrations/`,
+  `packages/database/src/index.ts` or `tests/integration/ip6-participation-character.test.ts`.
+- **Free for a parallel Agent:** Task 4 (front-end design proposal).
 
 ## Task 1 (ready now, decided): PX-2b, the world answers when no Character is addressed
 
@@ -90,3 +86,63 @@ open. Preparation only, no deployment without the owner:
 - the web build for Cloudflare;
 - a staging runbook with backup, restore and point-in-time recovery for the
   1 h RPO.
+
+## Task 4 (approved by the owner 2026-09-26): front-end design proposal
+
+**Goal:** an original front-end design proposal the owner can choose from.
+This is a design step, not an implementation track. What the owner selects
+becomes a later bounded track (PX-3) with its own contract, independent
+Review and exact-SHA CI.
+
+**Work in a new git worktree** on its own branch, for example:
+
+```
+git fetch origin main
+git worktree add ../Simulora-frontend-design -b frontend-design origin/main
+```
+
+Commit and push only that branch; do not push to `main`, and do not modify
+the main checkout. Remove the worktree when the proposal is delivered.
+
+**Deliverable:** `docs/implementation-planning/FRONTEND-DESIGN-PROPOSAL.md`.
+An optional standalone prototype may live under `docs/implementation-planning/frontend-design/`;
+it must not import from or change `apps/web`.
+
+**Start from:**
+
+- the open findings of the [Play Weight Health Check](PLAY-WEIGHT-HEALTH-CHECK.md):
+  two choices before every Action, engineering copy (Branch, Commit, L3,
+  Provisional), feedback while a ~20 s generation runs, a home page that reads
+  as implementation status;
+- what PX-1 and PX-2a already changed ([PX-1 report](PX-1-IMPLEMENTATION-REPORT.md),
+  [PX-2a report](PX-2A-IMPLEMENTATION-REPORT.md)), and PX-2b's WORLD response;
+- both viewpoints in [Product Direction Guardrails](PRODUCT_DIRECTION_GUARDRAILS.md):
+  the world director who shapes the World, and the player who enters as a
+  role and controls only themselves;
+- the current screens in `apps/web/src` (read only).
+
+**The proposal covers:**
+
+- information architecture and navigation (home, library, Studio, play,
+  Return, recovery);
+- the play loop, step by step, at desktop and 390×844;
+- a visual direction (type, colour, spacing, motion), stated as a direction
+  only, since brand is still open (G10 packet item 7);
+- for each change: whether it touches frozen semantics (exact confirmation,
+  authority, participation, Restore). Changes that do need a successor ADR and
+  the owner's decision, and are marked as such;
+- the effect on accessibility (the E2E suites run axe checks) and on the
+  browser tests that locate elements by accessible name and copy;
+- options where there is a real choice, with a recommendation.
+
+**Not allowed:**
+
+- copying WorldOS UI, layout, copy, naming, icons or visual expression;
+- changing APIs, database, confirmation or any frozen semantics;
+- editing `apps/web`, `packages/` or tests in this task;
+- reading, modifying or committing `work/`; reading or printing `.secret.txt`.
+
+**Done when:** the proposal is pushed on its branch and the owner has the
+link. No Review is needed for the proposal itself; its implementation is
+reviewed as PX-3.
+
