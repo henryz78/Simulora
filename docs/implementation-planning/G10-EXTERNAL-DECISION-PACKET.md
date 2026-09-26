@@ -122,6 +122,7 @@ details listed before it takes effect.
 |---|---|---|
 | Model provider | Use an **OpenAI-compatible** provider. The owner will supply new API details for internal play. | The provider's retention and training terms, and an approval reference, before any shared environment. Internal play runs in local or test only. |
 | Cloud | **Cloudflare**. | See *Cloudflare notes* below. |
+| Database | **Supabase** (managed PostgreSQL), recorded 2026-09-25. | See *Supabase notes* below. |
 | Retention and recovery | Account deletion is purged within **30 days**. Daily backups are kept **30 days**. At most **1 hour** of data may be lost, and service recovers within **4 hours**. These are provisional targets. | A 1-hour loss limit needs continuous backup (point-in-time recovery) from the PostgreSQL host; daily backups alone allow up to 24 hours of loss. |
 | Login | **Google** and **email** only. | The email method: a one-time link is suggested, since it stores no password. The identity service. |
 | Adult eligibility | **No verification for now.** | Product Definition V1 stays adult-only (frozen). How adult-only is stated before external users is still to be decided. |
@@ -147,6 +148,23 @@ details listed before it takes effect.
     Cloudflare's container offering (its current limits must be checked) or a
     separate container host.
 - Monitoring and paging for the IP-10.7 alerts also follow from this.
+
+**Supabase notes (engineering facts, not a decision):**
+
+- Supabase answers the PostgreSQL choice above. It does **not** run the API
+  and worker; those still need Cloudflare's containers or another container
+  host.
+- **Recovery targets:** the 1-hour loss limit needs Supabase's point-in-time
+  recovery, which must be enabled on the chosen plan (its plan and price must
+  be checked). Daily backups alone do not meet it.
+- **Connections:** the migration runner holds a session advisory lock
+  (`packages/database/src/migrations.ts`), so migrations must use a direct or
+  session-mode connection, not the transaction-mode pooler. The API and worker
+  use only transaction-scoped locks and `SKIP LOCKED`; they still need a
+  staging check through the pooler before use.
+- **Region:** the database region should sit near the API and worker host.
+- Supabase's own login and storage are not used: login stays Google and email
+  through the chosen identity service, and export objects stay on R2.
 
 Beta, launch and production live model use remain unauthorized.
 
