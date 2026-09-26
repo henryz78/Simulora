@@ -1632,3 +1632,10 @@ immutable RE-3 policy from it.
 
 Enforcement is unchanged. The track closes only after an independent Review.
 
+**SA-2 implemented (2026-09-25):** behavior commit `9e06d52` adds the grant
+fields, successor migration 0050 (validator wrap and policy-deriving trigger),
+`routineMoverIds` in the state response, the Studio controls, Composer mover
+gating, the knowledge warning and the clearer refusal message. Exact-SHA CI
+`36220835359` `success`: real PG 175/175 and 304/304, stack 10/10, browser
+matrix 210. See the [SA-2 Implementation Report](SA-2-IMPLEMENTATION-REPORT.md).
+Independent Review pending.
