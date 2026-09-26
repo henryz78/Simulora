@@ -1062,6 +1062,15 @@ function eventSummary(eventType: string, payload?: Record<string, unknown>): str
       return `${typeof payload?.characterId === "string" ? payload.characterId : "Character"} moved from ${typeof payload?.beforeLocationId === "string" ? payload.beforeLocationId : "the earlier location"} to ${typeof payload?.afterLocationId === "string" ? payload.afterLocationId : "the new location"}; source: ${Array.isArray(payload?.causalFactIds) ? payload.causalFactIds.join(", ") : "recorded Action"}.`;
     case "PARTICIPATION_CONTRACT_CHANGED":
       return "The participant directly changed this path's initiative or structure contract.";
+    // MGC-1 events: what changed, in the payload's own words, caused by the recorded Action.
+    case "RELATIONSHIP_SHIFTED":
+      return `A relationship changed from ${String(payload?.before)} to ${String(payload?.after)}, caused by the recorded Action.`;
+    case "THREAD_OPENED":
+      return `A story thread opened, caused by the recorded Action: ${String(payload?.title)}`;
+    case "THREAD_RESOLVED":
+      return `A story thread was resolved by the recorded Action: ${String(payload?.resolution)}`;
+    case "ATTEMPT_TRANSFORMED":
+      return `The recorded Action met a world constraint and a new thread opened. ${String(payload?.outcome)}`;
     case "CONTINUITY_INITIALIZED":
       return "This continuity began from its pinned World Revision.";
     default:
@@ -4578,12 +4587,13 @@ export class AuthoritativeWorldRepository {
       }
       if (row.event_id && row.event_type) {
         const payload = row.event_payload ?? {};
-        const targetId =
-          typeof payload.targetFactId === "string"
-            ? payload.targetFactId
-            : typeof payload.target === "string"
-              ? payload.target
-              : undefined;
+        const targetId = [
+          payload.targetFactId,
+          payload.target,
+          payload.relationshipId,
+          payload.constraintId,
+          payload.threadId,
+        ].find((value): value is string => typeof value === "string");
         commit.events.push({
           id: row.event_id,
           type: row.event_type,

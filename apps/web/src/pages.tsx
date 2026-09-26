@@ -36,6 +36,7 @@ import {
   StatusPage,
   SurfaceHeader,
   WorldContextSummary,
+  describeTarget,
   labelMode,
   useContinuity,
   readText,
@@ -467,6 +468,27 @@ function PendingOrientationNotice({
 
 export function ContinuityPage(): ReactElement {
   const { loadState, history, actions } = useContinuity();
+  // Action → its Commit on this path, from the trace, so links survive a reload.
+  const [commitByAction, setCommitByAction] = useState<ReadonlyMap<string, string>>(new Map());
+  const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
+  const head = loadState.status === "ready" ? loadState.data.continuity.headCommitId : null;
+  useEffect(() => {
+    if (!branchId || !head) return;
+    let active = true;
+    void readBranchTrace(branchId).then((result) => {
+      if (active && result.data)
+        setCommitByAction(
+          new Map(
+            result.data.commits.flatMap((commit) =>
+              commit.reason ? [[commit.reason, commit.id] as const] : [],
+            ),
+          ),
+        );
+    });
+    return () => {
+      active = false;
+    };
+  }, [branchId, head]);
   if (loadState.status !== "ready") {
     return <StatusPage title="Opening Continuity…" copy="Reading the current Branch head." />;
   }
@@ -540,7 +562,7 @@ export function ContinuityPage(): ReactElement {
                 .reverse()
                 .map((entry) => {
                   const action = actions.get(entry.id);
-                  const commitId = action?.commit?.id;
+                  const commitId = action?.commit?.id ?? commitByAction.get(entry.id);
                   return (
                     <li key={entry.id}>
                       {commitId ? (
@@ -553,7 +575,7 @@ export function ContinuityPage(): ReactElement {
                       ) : (
                         <span>
                           <strong>{entry.intent}</strong>
-                          <small>Historical record retained.</small>
+                          <small>Recorded on this path.</small>
                         </span>
                       )}
                     </li>
@@ -723,7 +745,7 @@ export function FactLensPage(): ReactElement {
 }
 
 export function ContextPage(): ReactElement {
-  const { loadState, continuityId } = useContinuity();
+  const { loadState, continuityId, history } = useContinuity();
   const [trace, setTrace] = useState<BranchTraceResponse | null>(null);
   const [traceState, setTraceState] = useState<"loading" | "ready" | "unavailable">("loading");
   const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
@@ -777,33 +799,40 @@ export function ContextPage(): ReactElement {
                   {shortId(trace.freshness.sourceHeadCommitId)}
                 </div>
                 <ol className="trace-list">
-                  {trace.commits.map((commit) => (
-                    <li key={commit.id}>
-                      <div className="trace-heading">
-                        <strong>{labelMode(commit.kind)}</strong>
-                        <span>
-                          {labelMode(commit.sourceClass)} · {shortId(commit.id)}
-                        </span>
-                      </div>
-                      {commit.reason ? <p>{commit.reason}</p> : null}
-                      {commit.events.length > 0 ? (
-                        <ul>
-                          {commit.events.map((event) => (
-                            <li key={event.id}>
-                              <span>{event.summary}</span>
-                              <small>
-                                {labelMode(event.type)} · {event.scope}
-                              </small>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="muted-copy">
-                          No additional event detail is available in this scope.
-                        </p>
-                      )}
-                    </li>
-                  ))}
+                  {trace.commits.map((commit) => {
+                    // The reason is an opaque Action token; show that Action's own words.
+                    const cause = history.find((action) => action.id === commit.reason);
+                    return (
+                      <li key={commit.id}>
+                        <div className="trace-heading">
+                          <strong>{labelMode(commit.kind)}</strong>
+                          <span>
+                            {labelMode(commit.sourceClass)} · {shortId(commit.id)}
+                          </span>
+                        </div>
+                        {cause ? <p>From your Action: {cause.intent}</p> : null}
+                        {commit.events.length > 0 ? (
+                          <ul>
+                            {commit.events.map((event) => (
+                              <li key={event.id}>
+                                <span>{event.summary}</span>
+                                <small>
+                                  {event.targetId
+                                    ? `${describeTarget(event.targetId, loadState.data)} · `
+                                    : null}
+                                  {labelMode(event.type)} · {event.scope}
+                                </small>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="muted-copy">
+                            No additional event detail is available in this scope.
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ol>
               </>
             ) : (

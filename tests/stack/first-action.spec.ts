@@ -11,6 +11,13 @@ async function beginNewWorld(page: Page, testInfo: TestInfo) {
   await page.getByRole("button", { name: "Create Draft" }).click();
   await expect(page).toHaveURL(/\/worlds\/[0-9a-f-]+\/studio$/);
   const worldId = /\/worlds\/([0-9a-f-]+)\/studio$/.exec(page.url())![1]!;
+  return playFromStudio(page, worldId);
+}
+
+/** Studio → playable Revision → "Begin play" for an existing Draft. */
+async function playFromStudio(page: Page, worldId: string) {
+  if (!page.url().endsWith(`/worlds/${worldId}/studio`))
+    await page.goto(`/worlds/${worldId}/studio`);
   await page.getByRole("button", { name: "Check playability" }).click();
   await expect(page.getByText("Playable shape accepted")).toBeVisible();
   await page.getByRole("button", { name: "Create playable Revision" }).click();
@@ -61,7 +68,10 @@ test("Action, Correction, Branch, Restore and export compose on one World", asyn
 
   // Correction of the fact the Action changed, through its own exact review.
   await page.goto(`/continuities/${continuityId}/continuity`);
-  await page.getByRole("link", { name: /Ask the guide what changed overnight/ }).click();
+  await page
+    .getByRole("region", { name: "Facts that are accessible here" })
+    .getByRole("link", { name: /Ask the guide what changed overnight/ })
+    .click();
   await page.getByRole("link", { name: "Correct this fact" }).click();
   await page.getByLabel("Exact replacement statement").fill("The guide saw nothing change.");
   await page.getByLabel("Reason for this direct correction").fill("The guide was asleep.");
@@ -97,5 +107,216 @@ test("Action, Correction, Branch, Restore and export compose on one World", asyn
   await page.getByRole("button", { name: "Review export usage" }).click();
   await page.getByRole("button", { name: "Create selected export" }).click();
   await expect(page.getByRole("link", { name: "Download ZIP" })).toBeVisible({ timeout: 30000 });
+  await expectAccessible(page);
+});
+
+// E2E-CONTINUITY-IMPACT (Validation §4.1) for the implemented rows. The World is
+// created through the formal API because Studio does not author relationship
+// scales or threads (MGC-1 §8); everything after that is the browser.
+const place = "location.tidal-observatory";
+const signal = "fact.western-signal-dim";
+const person = (id: string, name: string, role: string) => ({
+  id,
+  name,
+  role,
+  locationId: place,
+  motives: ["Keep the harbor safe in the fog."],
+  stance: `${name} will not light an unsafe signal.`,
+  knowledgeFactIds: [signal],
+});
+const impactWorld = (title: string) => ({
+  schemaVersion: 1,
+  title,
+  premise: "A tidal observatory keeps a coastal settlement oriented through persistent fog.",
+  startingSituation: "The western signal has dimmed while an unfamiliar vessel waits.",
+  userRole: {
+    name: "Observatory keeper",
+    authorityBoundary:
+      "The world may respond and develop, but it never authors the keeper's speech or irreversible commitments.",
+  },
+  locations: [{ id: place, name: "Tidal Observatory", description: "A salt-dark tower." }],
+  characters: [
+    person("character.iora", "Iora", "Harbor signaler"),
+    person("character.tavi", "Tavi", "Lamp runner"),
+    person("character.maren", "Maren", "Pilot"),
+  ],
+  facts: [
+    {
+      id: signal,
+      statement: "The western signal is dim.",
+      scope: "SHARED",
+      provenance: "Original World seed",
+      lifecycle: "ACTIVE",
+    },
+  ],
+  // Tavi's first scaled relationship is protected; Iora's is routine.
+  relationships: [
+    {
+      id: "relationship.tavi-maren-oath",
+      fromCharacterId: "character.tavi",
+      toCharacterId: "character.maren",
+      description: "Whether Tavi has sworn to keep Maren's lamp.",
+      protection: "PROTECTED",
+      scale: ["unsworn", "sworn"],
+      initialState: "unsworn",
+    },
+    {
+      id: "relationship.iora-tavi",
+      fromCharacterId: "character.iora",
+      toCharacterId: "character.tavi",
+      description: "Iora is training Tavi to read the markers.",
+      protection: "ROUTINE",
+      scale: ["wary", "cordial", "trusting"],
+      initialState: "wary",
+    },
+  ],
+  threads: [{ id: "thread.vessel", title: "Why the unfamiliar vessel waits" }],
+  interactionPaths: ["Inspect the signal, speak with Iora, or watch the vessel."],
+  interactionBoundaries: ["The world never authors user speech."],
+  objectives: [],
+});
+
+type Trace = {
+  commits: Array<{ id: string; sourceClass: string; events: Array<{ type: string }> }>;
+};
+
+test("a caused change, a protected refusal and a correction agree across review, Trace, Explanation and Return", async ({
+  page,
+}, testInfo) => {
+  const created = await page.request.post("/v1/worlds", {
+    data: { document: impactWorld(`Continuity impact ${testInfo.project.name} ${Date.now()}`) },
+  });
+  expect(created.status()).toBe(201);
+  const { worldId } = (await created.json()) as { worldId: string };
+  const { continuityId } = await playFromStudio(page, worldId);
+  const context = page.getByLabel("Current world context");
+  const relationships = context.getByRole("list", { name: "Relationships" });
+  const review = page.locator(".proposal-review");
+  const send = async (character: string | null, outcome: string, intent: string) => {
+    if (character) await page.getByLabel("Address a character").selectOption(character);
+    await page.getByLabel("Desired outcome").selectOption(outcome);
+    await page.getByLabel("Your Action").fill(intent);
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  };
+
+  // 1. A routine L2 change: exact review, no change before confirmation, then committed.
+  await send("character.iora", "RELATIONSHIP_EFFECT", "Show Tavi how to read the outer markers.");
+  await expect(review).toContainText("Relationship · Iora and Tavi");
+  await expect(review).toContainText("L2 — bounded routine change");
+  await expect(relationships).toContainText("wary");
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(relationships).toContainText("cordial");
+
+  // 2. A protected relationship is never changed as routine: it asks for L3, and cancelling leaves it.
+  await send("character.tavi", "RELATIONSHIP_EFFECT", "Ask Tavi to swear to keep Maren's lamp.");
+  await expect(review).toContainText("Relationship · Tavi and Maren");
+  await expect(review).toContainText("L3 — protected or high-consequence change");
+  await page.getByRole("button", { name: "Cancel Action" }).click();
+  await expect(page.getByLabel("Your Action")).toBeEnabled();
+  await expect(relationships).toContainText("unsworn");
+
+  // 3. A thread resolves from a caused Action.
+  await send(null, "THREAD_EFFECT:thread.vessel", "Ask the vessel what it carries.");
+  await expect(review).toContainText("Story thread");
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(context.getByRole("list", { name: "Story threads" })).toContainText(
+    "Resolved · Why the unfamiliar vessel waits",
+  );
+
+  // 4. A direct correction through the fact's Explanation.
+  await page.goto(`/continuities/${continuityId}/continuity`);
+  await page.getByRole("link", { name: /The western signal is dim/ }).click();
+  await page.getByRole("link", { name: "Correct this fact" }).click();
+  await page
+    .getByLabel("Exact replacement statement")
+    .fill("The western signal was relit at dusk.");
+  await page.getByLabel("Reason for this direct correction").fill("The keeper relit it.");
+  await page.getByRole("button", { name: "Review exact correction" }).click();
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await page.goto(`/continuities/${continuityId}`);
+  await expect(context.getByText("The western signal was relit at dusk.")).toBeVisible();
+
+  // Source, cause and impact agree: one Commit per confirmed change, none for the cancel.
+  const state = (await (
+    await page.request.get(`/v1/continuities/${continuityId}/state`)
+  ).json()) as { continuity: { branchId: string; headCommitId: string } };
+  const branchId = state.continuity.branchId;
+  const trace = (await (
+    await page.request.get(`/v1/branches/${branchId}/commits`)
+  ).json()) as Trace;
+  const withEvent = (type: string) =>
+    trace.commits.filter((commit) => commit.events.some((event) => event.type === type));
+  expect(withEvent("RELATIONSHIP_SHIFTED")).toHaveLength(1);
+  expect(withEvent("THREAD_RESOLVED")).toHaveLength(1);
+  const corrected = withEvent("CONTINUITY_ITEM_CORRECTED");
+  expect(corrected).toHaveLength(1);
+  expect(corrected[0]!.id).toBe(state.continuity.headCommitId);
+  const actions = (await (await page.request.get(`/v1/branches/${branchId}/actions`)).json()) as {
+    actions: Array<{ status: string }>;
+  };
+  expect(actions.actions.map((action) => action.status).sort()).toEqual([
+    "CANCELLED",
+    "COMMITTED",
+    "COMMITTED",
+    "COMMITTED",
+  ]);
+  const shift = withEvent("RELATIONSHIP_SHIFTED")[0]!;
+  const shiftExplanation = (await (
+    await page.request.get(`/v1/branches/${branchId}/explanations/commit/${shift.id}`)
+  ).json()) as { source: { class: string; commitId: string }; target: { current: boolean } };
+  expect(shiftExplanation.source).toEqual({ class: shift.sourceClass, commitId: shift.id });
+  expect(shiftExplanation.target.current).toBe(false);
+
+  // The fact's Explanation names the correction Commit as its source.
+  await page.goto(`/continuities/${continuityId}/continuity`);
+  await page.getByRole("link", { name: /The western signal was relit at dusk/ }).click();
+  const provenance = page.getByRole("region", { name: "Why it is available here" });
+  await expect(provenance).toContainText(corrected[0]!.id.slice(0, 8));
+  await expect(provenance).toContainText("SHARED");
+  await expect(provenance).toContainText("Current projection");
+
+  // The Continuity history links each confirmed Action to its own Commit.
+  await page.goto(`/continuities/${continuityId}/continuity`);
+  await expect(
+    page.getByRole("link", { name: /Show Tavi how to read the outer markers/ }),
+  ).toContainText(shift.id.slice(0, 8));
+  await expect(page.getByText("Ask Tavi to swear to keep Maren's lamp.")).toHaveCount(0);
+
+  // Change Trace says what changed, to what and from which Action, by name.
+  await page.getByRole("link", { name: /Show Tavi how to read the outer markers/ }).click();
+  const traceCard = page.getByRole("region", { name: "Change Trace" });
+  const shiftEntry = traceCard
+    .locator(".trace-list > li")
+    .filter({ hasText: "changed from wary to cordial" });
+  await expect(shiftEntry).toContainText(
+    "From your Action: Show Tavi how to read the outer markers.",
+  );
+  await expect(shiftEntry).toContainText("Relationship · Iora and Tavi");
+  await expect(traceCard).toContainText("A story thread was resolved by the recorded Action");
+  await expect(traceCard.getByText(/[0-9a-f]{8}-[0-9a-f]{4}-/)).toHaveCount(0);
+  const traced = (await (await page.request.get(`/v1/branches/${branchId}/commits`)).json()) as {
+    commits: Array<{ events: Array<{ type: string; targetId?: string; summary: string }> }>;
+  };
+  const events = traced.commits.flatMap((commit) => commit.events);
+  expect(events.find((event) => event.type === "RELATIONSHIP_SHIFTED")).toMatchObject({
+    targetId: "relationship.iora-tavi",
+    summary: "A relationship changed from wary to cordial, caused by the recorded Action.",
+  });
+  expect(events.find((event) => event.type === "THREAD_RESOLVED")?.targetId).toBe("thread.vessel");
+
+  // Return reports the same current truth once its projection catches up.
+  await expect(async () => {
+    await page.goto(`/continuities/${continuityId}/return`);
+    await expect(page.getByText("Current projection")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20000 });
+  await expect(page.getByText("The western signal was relit at dusk.").first()).toBeVisible();
+  const returned = page.getByRole("list", { name: "Relationships" });
+  await expect(returned).toContainText("now cordial");
+  await expect(returned).toContainText("now unsworn");
+  await expect(page.getByRole("list", { name: "Story threads" })).toContainText(
+    "Resolved · Why the unfamiliar vessel waits",
+  );
   await expectAccessible(page);
 });

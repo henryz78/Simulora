@@ -1207,7 +1207,7 @@ function characterName(id: string, world: AuthoritativeStateResponse | null): st
 }
 
 /** Plain words for what a proposal would change; never a raw identifier. */
-function describeTarget(target: string, world: AuthoritativeStateResponse | null): string {
+export function describeTarget(target: string, world: AuthoritativeStateResponse | null): string {
   const [kind] = target.split(".");
   if (kind === "thread") return "Story thread";
   if (kind === "character") return `Character · ${characterName(target, world)}`;
