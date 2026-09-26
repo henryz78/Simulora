@@ -1671,7 +1671,7 @@ web, API and worker, with a local PGlite database. See the
 - **Profile note:** this model needs a longer timeout and a larger output
   budget than the defaults.
 
-## 56. TB-1: committed outcomes in the generation context; Review pending
+## 56. TB-1: committed outcomes in the generation context: CLOSED
 
 The owner chose option A for §55's open finding on 2026-09-25
 ([ADR-TB1](TB-1-COMMITTED-OUTCOME-CONTEXT-ADR.md)). Successors 0051 and 0052
@@ -1682,6 +1682,20 @@ Private knowledge stays limited. Live prompt version 7.
 - **Behavior SHA:** `fd4b444`, exact-SHA CI `36225725632` success
   (`test:postgres` 178/178, IP-5 309/309, rehearsal, stack 10/10, browser 210).
   `e0c8b9c` alone failed the rehearsal; 0052 fixes it.
-- **Gateway fixes from §55:** CI green on each SHA.
-- **Next:** one new independent Reviewer for TB-1 and the gateway fixes.
-- See the [TB-1 Implementation Report](TB-1-IMPLEMENTATION-REPORT.md).
+- **Review:** new independent Reviewer (Sonnet 5) `PASS WITH ISSUES`
+  (0B/2I/2M); repairs in `e3c8917` (successor 0053), re-review `PASS`.
+- **Gateway workarounds from §55 withdrawn:** the owner found the problems
+  upstream; `95a23c5` reverts them, Reviewer `PASS`. Local play uses `grok-4.7`.
+- **Closed:** approved behavior SHA `95a23c5`. CI `e3c8917` success; CI for
+  `95a23c5` is verified by the owner.
+- See the [TB-1 Implementation Report](TB-1-IMPLEMENTATION-REPORT.md) §8.
+
+## 57. Play weight health check
+
+The owner asked whether play is too heavy. The Agent authored a World from an
+empty Studio and played five Actions with `grok-4.7`; see the
+[Play Weight Health Check](PLAY-WEIGHT-HEALTH-CHECK.md). The heaviest findings
+are that only pre-authored Characters can speak, and that the player's own
+action can be narrated as a Character's. Both touch frozen semantics and need a
+successor ADR and the owner's decision. Presentation findings (defaults, copy,
+the reply that disappears after confirmation, no list of Continuities) do not.

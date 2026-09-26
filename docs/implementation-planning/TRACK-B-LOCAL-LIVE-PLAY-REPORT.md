@@ -49,7 +49,12 @@ causal consequence the product aims for.
 
 ## 3. Findings
 
-### 3.1 The provider renames the model in its reply (fixed, `e269364`, `9ca1fdb`)
+### 3.1 The provider renames the model in its reply (worked around, then withdrawn)
+
+*Update 2026-09-26: the owner found §3.1 and §3.2 were their upstream
+aggregator's problem. Both workarounds were reverted (`95a23c5`), and local play
+now requests `grok-4.7`, whose replies name it exactly. See the
+[TB-1 report](TB-1-IMPLEMENTATION-REPORT.md) §8.*
 
 The aggregator routes by a prefixed name and answers with the unprefixed one
 (`deepseek-ai/DeepSeek-V4.1-Flash`). The exact route-change guard therefore
@@ -60,7 +65,7 @@ name. The guard stays exact, and any other name is still a changed route. The
 name is in the profile digest, so a change is recorded. It is not a material
 change, because the requested model, provider and prompt are unchanged.
 
-### 3.2 The provider intermittently returns an empty HTTP 200 (classified, `6f44524`)
+### 3.2 The provider intermittently returns an empty HTTP 200 (upstream; workaround withdrawn)
 
 About one reply in three is HTTP 200 with `"choices": null` and zero tokens.
 Replaying the same captured request showed 2 empty of 3 as-is, 1 of 3 without

@@ -3,10 +3,12 @@
 **Date:** 2026-09-26 · **Contract:**
 [TB-1 contract](TB-1-COMMITTED-OUTCOME-CONTEXT-CONTRACT.md) ·
 **Decision:** [ADR-TB1](TB-1-COMMITTED-OUTCOME-CONTEXT-ADR.md) (owner chose
-option A on 2026-09-25) · **Behavior SHA:**
-`fd4b44449d6dc7415007950b7a5245ac972e64cd` · **Evidence:** exact-SHA CI
-`36225725632` `success` · **Review:** pending (new independent Reviewer, which
-also covers the track B gateway fixes).
+option A on 2026-09-25) · **Approved behavior SHA:** `95a23c5` (TB-1 at `e3c8917` plus the
+withdrawal of the gateway workarounds) · **Evidence:** exact-SHA CI
+`36225725632` (`fd4b444`) and `36259129374` (`e3c8917`) `success`; CI for
+`95a23c5` is verified by the owner · **Review:** new independent Reviewer
+(Sonnet 5) `PASS WITH ISSUES` (0B/2I/2M), then `PASS` on the repairs and on
+the withdrawal. **TB-1 CLOSED** (§8).
 
 ## 1. Commits
 
@@ -18,6 +20,9 @@ also covers the track B gateway fixes).
 | `fb531b8` | docs | TB-1 contract and ADR-TB1 | — |
 | `e0c8b9c` | behavior | Successor 0051, prompt version 7, tests | `36225204723` **failure** (§4) |
 | `fd4b444` | behavior | Successor 0052: epoch from the migration ledger; test update | `36225725632` success |
+| `3df2751` | docs | This report | `36258218214` success |
+| `e3c8917` | behavior | Successor 0053 and tests: review repairs (§8) | `36259129374` success |
+| `95a23c5` | behavior | Revert of `6f44524`, `9ca1fdb`, `e269364` (§8) | owner-verified |
 
 ## 2. What changed
 
@@ -101,3 +106,30 @@ UI with the SQL evidence check passing.
 - Human play, beta, launch or production live model use.
 - Any provider approval.
 - Closure: TB-1 and the gateway fixes close only on an independent PASS.
+
+## 8. Independent Review and closure
+
+A new independent Reviewer (Sonnet 5, fresh context) verified the five
+exact-SHA runs above itself and returned `PASS WITH ISSUES`: 0 BLOCKER,
+2 IMPORTANT, 2 MINOR. The gateway commits and the TB-1 commits each passed;
+the relaxed RE-2 conversation rule was found to be the one ADR-TB1 records.
+
+| # | Finding | Resolution |
+|---|---|---|
+| I-1 | 0052 moved the epoch to the migration ledger row, which had no immutability guard, while 0051's table had one. | `e3c8917`, successor 0053: that row's name and `applied_at` cannot change and it cannot be deleted. Checksum updates stay possible for the recovery rehearsal. Tested. |
+| I-2 | No test proved the new capability: a Character told another Character's exchange. | `e3c8917`: Tavi is told Iora's committed exchange, which used only knowledge Tavi may have. |
+| M1 | Appending an empty `committedOutcomes` to a context already at the bound could exceed 48,000 bytes. | `e3c8917`: the context fails closed above the bound. Not tested at the edge (impractical to construct). |
+| M2 | Whole-statement fact matching misses paraphrase. | Accepted; unchanged RE-2 limitation. |
+
+The same Reviewer re-reviewed `e3c8917`: `PASS`, no new findings (a
+checksum-only update of the epoch row is not separately tested).
+
+**Withdrawal of the gateway workarounds.** The owner found that the empty
+replies and the renamed answering model were their upstream aggregator's
+problem and asked for every workaround to be removed. `95a23c5` reverts
+`6f44524`, `9ca1fdb` and `e269364`; the local profile now requests `grok-4.7`,
+whose replies name it exactly. The same Reviewer confirmed the revert is exact
+and leaves TB-1 intact: `PASS`.
+
+At the owner's request, the Reviewer did not check CI for `e3c8917` or
+`95a23c5`; the owner verifies it. TB-1 closes at `95a23c5`.
