@@ -223,7 +223,15 @@ suite("TB-1 committed outcomes in the generation context", () => {
     expect(manifest.rows[0]!.digest).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("the epoch is fixed", async () => {
-    await expect(pool.query("delete from simulora.tb1_outcome_context_epoch")).rejects.toThrow();
+  it("applies only to Actions created after 0051 was applied", async () => {
+    const gate = await pool.query<{ before: boolean; after: boolean }>(
+      `select simulora.tb1_outcomes_apply('2000-01-01T00:00:00Z') as before,
+              simulora.tb1_outcomes_apply(now()) as after`,
+    );
+    expect(gate.rows[0]).toEqual({ before: false, after: true });
+    const epochTable = await pool.query<{ found: string | null }>(
+      "select to_regclass('simulora.tb1_outcome_context_epoch')::text as found",
+    );
+    expect(epochTable.rows[0]!.found).toBeNull();
   });
 });
