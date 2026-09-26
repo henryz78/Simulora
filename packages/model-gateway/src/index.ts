@@ -573,7 +573,7 @@ export class OpenAICompatibleModelGateway implements ModelGatewayPort {
     }
     if (!response.ok) throw new ProviderResponseError(`Provider HTTP ${response.status}`);
     const envelope = await readBoundedBody(response, maxEnvelopeBytes);
-    let body: { model?: unknown; choices?: Array<{ message?: { content?: unknown } }> };
+    let body: { model?: unknown; choices?: Array<{ message?: { content?: unknown } }> | null };
     try {
       body = JSON.parse(envelope) as typeof body;
     } catch {
@@ -582,6 +582,11 @@ export class OpenAICompatibleModelGateway implements ModelGatewayPort {
     const expectedModel = this.profile.answeringModel ?? this.profile.model;
     if (typeof body.model === "string" && body.model !== expectedModel) {
       throw new ModelRouteChangedError("Provider answered with a different model");
+    }
+    // Some aggregators answer an upstream failure with HTTP 200 and no choices.
+    // That is an outage, not a malformed answer.
+    if (body.choices === null || (Array.isArray(body.choices) && body.choices.length === 0)) {
+      throw new ProviderUnavailableError("Provider returned no choices");
     }
     const content = body.choices?.[0]?.message?.content;
     if (typeof content !== "string" || content.length > 64_000) {

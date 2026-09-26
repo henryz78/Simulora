@@ -234,6 +234,11 @@ describe("IP-9 live capability profile adapter", () => {
     ["non-JSON content", () => completion("not json at all"), ProviderResponseError],
     ["a candidate without narrative", () => completion({ operation: {} }), ProviderResponseError],
     ["another model", () => completion(candidateFor(base), "other-model"), ModelRouteChangedError],
+    [
+      "an empty upstream reply",
+      () => Response.json({ model: "synthetic-model", choices: null, usage: { total_tokens: 0 } }),
+      ProviderUnavailableError,
+    ],
     ["an echoed key", () => completion(`{"narrative":"${apiKey}"}`), UnsafeModelContextError],
     ["an oversized body", () => new Response("<html>".repeat(60_000)), ProviderResponseError],
   ])("classifies %s without copying the provider body", async (_label, respond, type) => {
