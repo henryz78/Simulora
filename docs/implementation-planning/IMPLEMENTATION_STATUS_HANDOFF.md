@@ -1615,3 +1615,20 @@ pre-existing):**
 
 Human play (track B) with the new local provider is not started.
 
+## 54. SA-2 started: creator movement grant and knowledge guidance
+
+On 2026-09-25 the product owner chose both repairs:
+
+- a creator-granted movement permission in Studio;
+- an early warning plus a clear message for Characters that know nothing
+  addressable.
+
+The contract is the
+[SA-2 Studio Movement and Knowledge Contract](SA-2-STUDIO-MOVEMENT-AND-KNOWLEDGE-CONTRACT.md).
+[ADR-SA2](SA-2-CREATOR-ROUTINE-GRANT-ADR.md) supersedes the
+"no creator policy-writing API" clause of ADR-RE3. It lets the World owner grant
+movement inside the Revision document, and the database derives the same
+immutable RE-3 policy from it.
+
+Enforcement is unchanged. The track closes only after an independent Review.
+

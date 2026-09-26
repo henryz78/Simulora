@@ -55,6 +55,8 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [G10 External Decision Packet](implementation-planning/G10-EXTERNAL-DECISION-PACKET.md)
 - [SA-1 Studio Authoring Contract](implementation-planning/STUDIO-AUTHORING-CONTRACT.md)
 - [SA-1 Implementation Report](implementation-planning/SA-1-IMPLEMENTATION-REPORT.md)
+- [SA-2 Studio Movement and Knowledge Contract](implementation-planning/SA-2-STUDIO-MOVEMENT-AND-KNOWLEDGE-CONTRACT.md)
+- [ADR-SA2 Creator-granted routine movement](implementation-planning/SA-2-CREATOR-ROUTINE-GRANT-ADR.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)
