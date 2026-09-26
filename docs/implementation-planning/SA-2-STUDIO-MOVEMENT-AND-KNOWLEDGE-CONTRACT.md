@@ -1,7 +1,7 @@
 # SA-2 Studio Movement Grant and Knowledge Guidance
 
-**Date:** 2026-09-25 · **Status:** `APPROVED DIRECTION 2026-09-25 — IMPLEMENTED,
-REVIEW PENDING` (behavior `9e06d52`, CI `36220835359`; see the
+**Date:** 2026-09-25 · **Status:** `APPROVED DIRECTION 2026-09-25 — CLOSED` (independent Review `PASS`,
+0B/0I/4M; approved behavior `9e06d52`, CI `36220835359`; see the
 [implementation report](SA-2-IMPLEMENTATION-REPORT.md)).
 
 The product owner chose both options (in chat, 2026-09-25):

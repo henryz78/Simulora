@@ -1615,7 +1615,7 @@ pre-existing):**
 
 Human play (track B) with the new local provider is not started.
 
-## 54. SA-2 started: creator movement grant and knowledge guidance
+## 54. SA-2 creator movement grant and knowledge guidance: CLOSED
 
 On 2026-09-25 the product owner chose both repairs:
 
@@ -1639,3 +1639,14 @@ gating, the knowledge warning and the clearer refusal message. Exact-SHA CI
 `36220835359` `success`: real PG 175/175 and 304/304, stack 10/10, browser
 matrix 210. See the [SA-2 Implementation Report](SA-2-IMPLEMENTATION-REPORT.md).
 Independent Review pending.
+
+**SA-2 CLOSED (2026-09-25):** a new independent Reviewer returned `PASS`
+(0B/0I/4M) and verified exact-SHA CI `36220835359` itself. Approved behavior
+SHA `9e06d52ce030420a551281a73c376fc8d3e9ddea`. The minors (knowledge-message
+code, `routineMoverIds` on other state responses, one-way route wording, a
+stale domain comment) are accepted follow-ups; ADR-RE3 now points to ADR-SA2.
+See the [SA-2 Implementation Report](SA-2-IMPLEMENTATION-REPORT.md) §6.
+Next, if the owner approves: track B, bounded human play with the owner's
+OpenAI-compatible provider in local or test only. Beta, launch and production
+live model use remain unauthorized.
+

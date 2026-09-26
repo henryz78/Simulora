@@ -5,7 +5,7 @@
 **Decision:** [ADR-SA2](SA-2-CREATOR-ROUTINE-GRANT-ADR.md) ·
 **Behavior SHA:** `9e06d52ce030420a551281a73c376fc8d3e9ddea` ·
 **Evidence:** exact-SHA CI `36220835359` `success` ·
-**Review:** pending (new independent Reviewer).
+**Review:** new independent Reviewer `PASS` (0B/0I/4M). **SA-2 CLOSED** (§6).
 
 ## 1. Commits
 
@@ -92,3 +92,43 @@
 - No model provider was called.
 - Human play (track B), beta, launch and production live model use remain
   unstarted and unauthorized.
+
+## 6. Independent Review: `PASS`
+
+A new independent Reviewer returned `PASS`: 0 BLOCKER, 0 IMPORTANT, 4 MINOR.
+SA-2 closes, and the approved behavior SHA is
+`9e06d52ce030420a551281a73c376fc8d3e9ddea`.
+
+**Commit verdicts:** `3531252` PASS, `9e06d52` PASS (no frozen constraint
+weakened), `ac44912` PASS (report accurate).
+
+**Verified in code by the Reviewer:**
+
+- Only the owner-scoped `createRevision` writes `world_revisions`, and the
+  Revision document must equal the validated Draft. No import, remix, restore,
+  branch or correction path creates a policy row. An administrative insert for
+  a Revision that already has a derived policy is refused by the primary key.
+- `userRole` has no id, so it cannot be a mover.
+- 0050 edits no earlier migration. The domain and SQL agree on every traced
+  edge case, and a valid document always yields a row that passes the RE-3
+  shape trigger, so Studio cannot save a Draft that later fails at Revision.
+- Enforcement still comes only from the policy row.
+
+**Verified CI by the Reviewer:** run `36220835359` on `9e06d52`, `success`,
+real `postgres:17`: 0050 applied, idempotent and rehearsed; `test:postgres`
+175/175; IP-5 304/304; stack 10/10; browser matrix 210 with no flaky, skipped
+or retried test.
+
+**Minors, accepted as follow-ups (not changed, so the approved SHA stays):**
+
+| # | Finding | Follow-up |
+|---|---|---|
+| M1 | The knowledge message is chosen from `WORLD_NOT_PLAYABLE` plus a selected Character, but every validation error uses that code. A thread closing just before submit would show the knowledge message. | Give the RE-2 refusal its own code or match its message. |
+| M2 | Start-continuity and branch-state responses never fill `routineMoverIds`. No current consumer is affected; a future one would not gate movement. | Fill the field there, or document that only the state endpoint carries it. |
+| M3 | Routes are one-way, but the route checkbox does not say so. | Say "one way, From → To" in the label or help text. |
+| M4 | The domain comment still calls the policy "not creator-authored permission", and ADR-RE3 had no supersession pointer. | ADR-RE3 pointer added in this documentation commit; the code comment waits for the next behavior change. |
+
+**Test gaps noted, not claimed:** UPDATE immutability of the derived row is
+covered by the existing trigger but not probed separately; stale movers after a
+place is removed are caught by the save guard but not tested.
+

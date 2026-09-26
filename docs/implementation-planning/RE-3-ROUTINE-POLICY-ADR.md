@@ -4,6 +4,11 @@ Status: implemented under the user-approved RE-3 contract;
 [independent repair review PASS](RE-3-INDEPENDENT-REVIEW.md).
 This supplements ADR-008/010/012 without changing their authority.
 
+**Superseded in part (2026-09-25):** [ADR-SA2](SA-2-CREATOR-ROUTINE-GRANT-ADR.md)
+replaces the "no creator/user policy-writing API" clause below. The World owner
+may now grant movement in the Revision document, and the database derives the
+same immutable policy from it. The rest of this decision stands.
+
 The frozen World/Character schema does not identify user avatars or declare
 location safety. Therefore neither "not named like the player" nor an authored
 route grants permission. RE-3 uses an immutable administrative policy attached
