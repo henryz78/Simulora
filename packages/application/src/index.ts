@@ -10,6 +10,7 @@ import type {
   CorrectionRequest,
   ExplanationResponse,
   FoundationResponse,
+  LibraryResponse,
   OrientationResponse,
   RecoveryBranch,
   RecoveryPoint,
@@ -618,6 +619,7 @@ export interface WorldContinuityPort {
     participation: ParticipationContract,
   ): Promise<AuthoritativeState>;
   readCurrentState(account: EligibleAccount, continuityId: string): Promise<AuthoritativeState>;
+  readLibrary?(account: EligibleAccount): Promise<LibraryResponse>;
   readBranchState?(account: EligibleAccount, branchId: string): Promise<AuthoritativeState>;
   readOrientation?(account: EligibleAccount, continuityId: string): Promise<OrientationResponse>;
   listBranchCommits?(
@@ -707,6 +709,11 @@ export class WorldContinuityService {
 
   readCurrentState(account: EligibleAccount, continuityId: string) {
     return this.port.readCurrentState(account, continuityId);
+  }
+
+  readLibrary(account: EligibleAccount) {
+    if (!this.port.readLibrary) throw new Error("The library is not configured");
+    return this.port.readLibrary(account);
   }
 
   readBranchState(account: EligibleAccount, branchId: string) {

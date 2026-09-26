@@ -17,6 +17,7 @@ import {
   type DeletionStatus,
   type ExplanationResponse,
   type ExportResponse,
+  type LibraryResponse,
   type OrientationResponse,
   type ProjectionFreshness,
   type ParticipationContract,
@@ -27,7 +28,7 @@ import {
   type WorldStudioResponse,
   type WorldValidationResponse,
 } from "@simulora/contracts";
-import { worldDocumentInputSchema } from "@simulora/contracts";
+import { libraryResponseSchema, worldDocumentInputSchema } from "@simulora/contracts";
 import {
   ActionComposer,
   ActionList,
@@ -78,6 +79,22 @@ import {
 export { ContinuityLayout };
 
 export function FoundationPage(): ReactElement {
+  // PX-1: a player's entry. Without the API (or signed out) the lists stay hidden.
+  const [library, setLibrary] = useState<LibraryResponse | null>(null);
+  useEffect(() => {
+    let active = true;
+    void fetch("/v1/me/library", { headers: { accept: "application/json" } })
+      .then(async (response) =>
+        response.ok ? libraryResponseSchema.parse(await response.json()) : null,
+      )
+      .catch(() => null)
+      .then((loaded) => {
+        if (active) setLibrary(loaded);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -87,41 +104,51 @@ export function FoundationPage(): ReactElement {
           </span>
           <span>Simulora</span>
         </Link>
-        <span className="phase-badge">IP-8 · Trust & lifecycle</span>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
-          <p className="eyebrow">Production implementation</p>
-          <h1 id="foundation-title">A durable world begins with a known source of truth.</h1>
+          <p className="eyebrow">Worlds that remember</p>
+          <h1 id="foundation-title">Step into a world that keeps what happened.</h1>
           <p className="hero-copy">
-            Durable Actions, Recovery and the two-axis Participation Contract now share one
-            authoritative Branch/Commit/State Revision spine.
+            Build a small world, then play in it. Characters answer from what they know, and nothing
+            in your world changes until you confirm it.
           </p>
         </section>
-        <section className="boundary-panel" aria-labelledby="current-boundary">
-          <h2 id="current-boundary">Current implementation boundary</h2>
-          <ul>
-            <li>World and current Continuity state are server-authoritative.</li>
-            <li>Existing Continuities remain pinned to their starting World Revision.</li>
-            <li>Return and Explanation are derived projections with visible freshness.</li>
-            <li>Correction is a direct, exact-confirmation path that preserves history.</li>
-            <li>Branch preserves its source; Restore appends instead of rewinding history.</li>
-            <li>Only a direct user command can change participation authority.</li>
-          </ul>
-        </section>
+        {library && library.continuities.length > 0 ? (
+          <section className="foundation-card" aria-labelledby="continue-title">
+            <h2 id="continue-title">Continue playing</h2>
+            <ul>
+              {library.continuities.map((item) => (
+                <li key={item.continuityId}>
+                  <Link to={`/continuities/${item.continuityId}`}>{item.worldTitle}</Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        {library && library.worlds.length > 0 ? (
+          <section className="foundation-card" aria-labelledby="worlds-title">
+            <h2 id="worlds-title">Your worlds</h2>
+            <ul>
+              {library.worlds.map((item) => (
+                <li key={item.worldId}>
+                  <Link to={`/worlds/${item.worldId}/studio`}>{item.title}</Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         <section className="foundation-card" aria-labelledby="creator-entry-title">
-          <p className="eyebrow">Create a personal world</p>
-          <h2 id="creator-entry-title">Start with a playable core</h2>
+          <h2 id="creator-entry-title">Make a new world</h2>
           <p>
-            Save a durable Draft, check what it changes in play, and create a new immutable Revision
-            when you are ready. Existing Continuities stay pinned.
+            Give it a title, a premise and a first scene. You can add places, characters and rules,
+            check that it plays, then begin.
           </p>
           <Link className="primary-action inline-action" to="/worlds/new">
             Open World Studio
           </Link>
         </section>
       </main>
-      <footer className="site-footer">Product Implementation · IP-8 Trust & lifecycle</footer>
     </div>
   );
 }
@@ -159,7 +186,10 @@ export function WorldPage(): ReactElement {
     .reverse()
     .map((entry) => actions.get(entry.id))
     .find((action): action is ActionResponse => Boolean(action));
-  const committedHistory = history.filter((entry) => entry.status === "COMMITTED");
+  // PX-1: the story so far is every finished turn, with the reply it received.
+  const storyHistory = history.filter(
+    (entry) => entry.status === "COMMITTED" || entry.status === "COMPLETED_NO_EFFECT",
+  );
   return (
     <div className="world-shell">
       <div className="world-main">
@@ -193,15 +223,18 @@ export function WorldPage(): ReactElement {
             </section>
           ) : null}
 
-          {committedHistory.length > 0 ? (
+          {storyHistory.length > 0 ? (
             <section className="recorded-history" aria-labelledby="recorded-title">
-              <p className="card-label">Committed history</p>
-              <h2 id="recorded-title">Recorded Actions</h2>
+              <p className="card-label">What has happened</p>
+              <h2 id="recorded-title">Story so far</h2>
               <ol>
-                {committedHistory.map((entry) => (
+                {storyHistory.map((entry) => (
                   <li key={entry.id}>
                     <strong>{entry.intent}</strong>
-                    <span>Historical record · retained for context and explanation.</span>
+                    {entry.narrative ? <span>{entry.narrative}</span> : null}
+                    {entry.status === "COMPLETED_NO_EFFECT" ? (
+                      <small>Nothing in the world changed.</small>
+                    ) : null}
                   </li>
                 ))}
               </ol>
@@ -2217,7 +2250,7 @@ export function WorldStudioPage(): ReactElement {
       <header className="surface-header studio-header">
         <div>
           <Link className="back-link" to="/">
-            ← Back to Worlds
+            ← Home
           </Link>
           <p className="eyebrow">World Studio</p>
           <h1>{isNew ? "Start a playable world" : draft.title}</h1>
@@ -3006,7 +3039,12 @@ function StudioCoreFields({
                   }))
                 }
               />
-              Characters above may use this route on their own
+              Characters above may use this route on their own (one way:{" "}
+              {draft.locations.find((location) => location.id === route.fromLocationId)?.name ??
+                "from"}{" "}
+              →{" "}
+              {draft.locations.find((location) => location.id === route.toLocationId)?.name ?? "to"}
+              )
             </label>
             <button
               className="text-action"
@@ -3369,6 +3407,25 @@ function StudioCoreFields({
   );
 }
 
+const findingAreas: Record<string, string> = {
+  characters: "Character",
+  locations: "Place",
+  facts: "Fact",
+  relationships: "Relationship",
+  threads: "Story thread",
+  constraints: "World rule",
+  objectives: "Goals",
+  routineRoutes: "Route",
+  routineMovers: "Who may move",
+};
+
+/** PX-1: name the Studio area a finding is about, not its internal path. */
+function findingArea(path: string): string {
+  const [area = "", index] = path.split(".");
+  const label = findingAreas[area] ?? "World";
+  return index !== undefined && /^\d+$/.test(index) ? `${label} ${Number(index) + 1}` : label;
+}
+
 function ValidationFindings({ validation }: { validation: WorldValidationResponse }): ReactElement {
   return (
     <div className={`validation-findings validation-${validation.outcome.toLowerCase()}`}>
@@ -3383,7 +3440,7 @@ function ValidationFindings({ validation }: { validation: WorldValidationRespons
             <li key={`${finding.path}:${index}`}>
               <strong>
                 {finding.severity === "ERROR" ? "Blocks Revision" : "Optional warning"} ·{" "}
-                {finding.path}
+                {findingArea(finding.path)}
               </strong>
               <span>{finding.message}</span>
               <small>Play effect: {finding.playEffect}</small>

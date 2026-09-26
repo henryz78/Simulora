@@ -260,6 +260,7 @@ test("Action Truth completes twice without confusing proposal and current truth"
   page,
 }) => {
   await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
   await page.getByLabel("Your Action").fill("Relight the western signal with Iora.");
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Received and durably recorded.")).toBeVisible();
@@ -268,14 +269,20 @@ test("Action Truth completes twice without confusing proposal and current truth"
   const worldContext = page.getByLabel("Current world context");
   await expect(worldContext.getByText("The western signal is dim.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   await expect(worldContext.getByText("Recorded consequence 1.", { exact: true })).toBeVisible();
+  // PX-1: the confirmed reply stays on the page and joins the story so far.
+  const reply = "Iora studies the consequence of: Relight the western signal with Iora.";
+  await expect(page.locator(".latest-action-panel").getByText(reply)).toBeVisible();
+  const story = page.getByRole("heading", { name: "Story so far" }).locator("..");
+  await expect(story.getByText(reply)).toBeVisible();
 
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
   await page.getByLabel("Your Action").fill("Read the waiting vessel's lantern pattern.");
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  const recordedHistory = page.getByRole("heading", { name: "Recorded Actions" }).locator("..");
+  const recordedHistory = page.getByRole("heading", { name: "Story so far" }).locator("..");
   await expect(recordedHistory).toBeVisible();
   await expect(recordedHistory.getByRole("listitem")).toHaveCount(2);
   await expectAccessible(page);
@@ -283,6 +290,7 @@ test("Action Truth completes twice without confusing proposal and current truth"
 
 test("an unresolved Action is recovered after refresh by durable Action ID", async ({ page }) => {
   await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
   await page.getByLabel("Your Action").fill("Inspect the western signal housing.");
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
@@ -293,6 +301,7 @@ test("an unresolved Action is recovered after refresh by durable Action ID", asy
 
 test("reconciles a lost acknowledgement before another Action", async ({ page }) => {
   await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
   await page.getByLabel("Your Action").fill("Retry after lost ACK by the western signal.");
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByRole("alert")).toHaveText(
@@ -320,7 +329,7 @@ test("a keyboard-only person can send, review and confirm an exact Action", asyn
   const confirm = page.getByRole("button", { name: "Confirm this exact change" });
   await tabTo(page, confirm);
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   await expect(
     page.getByLabel("Current world context").getByText("Recorded consequence 1.", { exact: true }),
   ).toBeVisible();

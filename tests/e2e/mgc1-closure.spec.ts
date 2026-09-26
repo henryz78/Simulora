@@ -318,7 +318,9 @@ test("relationship, thread and transformed-failure outcomes are reviewed exactly
   const outcome = page.getByLabel("Desired outcome");
 
   // A relationship change needs a Character that is part of a scaled relationship.
-  await expect(outcome.locator("option", { hasText: "Change a relationship" })).toBeDisabled();
+  await expect(
+    outcome.locator("option", { hasText: "Change how this character relates" }),
+  ).toBeDisabled();
   await page.getByLabel("Address a character").selectOption("character.iora");
   await outcome.selectOption("RELATIONSHIP_EFFECT");
   await page.getByLabel("Your Action").fill("Show Tavi how to read the outer markers.");
@@ -328,7 +330,7 @@ test("relationship, thread and transformed-failure outcomes are reviewed exactly
   await expect(review).toContainText("Relationship · Iora and Tavi");
   await expect(review).toContainText("wary");
   await expect(review).toContainText("cordial");
-  await expect(review).toContainText("L2 — bounded routine change");
+  await expect(review).toContainText("A small, everyday change");
   await expect(context.getByRole("list", { name: "Relationships" })).toContainText("wary");
   await expectAccessible(page);
   await page.getByRole("button", { name: "Confirm this exact change" }).click();

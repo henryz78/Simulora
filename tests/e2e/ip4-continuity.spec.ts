@@ -370,7 +370,8 @@ test("explicit Character selection is submitted with the Action and lost-ACK ret
   await page.getByRole("button", { name: "Send Action", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(2);
   expect(bodies[0]?.targetCharacterId).toBe("character.iora");
-  expect(bodies[0]?.requestedEffect).toBeUndefined();
+  // PX-1: talking is the default outcome.
+  expect(bodies[0]?.requestedEffect).toBe("NO_WORLD_EFFECT");
   expect(bodies[1]).toEqual(bodies[0]);
   await page.getByLabel("Address a character").selectOption("");
   await page.getByRole("button", { name: "Send Action", exact: true }).click();
@@ -485,9 +486,7 @@ test("completed response-only dialogue is visible without confirmation controls"
   });
   await page.goto(`/continuities/${continuityId}/actions/${action.id}`);
   await expect(page.getByRole("heading", { name: "Completed no effect" })).toBeVisible();
-  await expect(
-    page.getByText("Recorded response · no World change", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Nothing in the world changed", { exact: true })).toBeVisible();
   await expect(page.getByText("leaves the choice with you", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: /Confirm|Cancel|Retry/ })).toHaveCount(0);
 });

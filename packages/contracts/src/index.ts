@@ -533,6 +533,24 @@ export const authoritativeStateResponseSchema = z.object({
   routineMoverIds: z.array(z.string().min(1).max(120)).optional(),
 });
 
+// PX-1: the caller's own playable Continuities and Worlds, most recent first.
+export const libraryResponseSchema = z.object({
+  continuities: z.array(
+    z.object({
+      continuityId: stableIdSchema,
+      worldTitle: z.string().min(1),
+      lastActivityAt: z.string().datetime(),
+    }),
+  ),
+  worlds: z.array(
+    z.object({
+      worldId: stableIdSchema,
+      title: z.string().min(1),
+      updatedAt: z.string().datetime(),
+    }),
+  ),
+});
+
 export const actionStatusSchema = z.enum([
   "ACKNOWLEDGED",
   "GENERATING",
@@ -1088,6 +1106,7 @@ export type CorrelationContext = z.infer<typeof correlationContextSchema>;
 export type WorkEnvelope = z.infer<typeof workEnvelopeSchema>;
 export type WorldDocumentInput = z.infer<typeof worldDocumentInputSchema>;
 export type AuthoritativeStateResponse = z.infer<typeof authoritativeStateResponseSchema>;
+export type LibraryResponse = z.infer<typeof libraryResponseSchema>;
 export type ActionStatus = z.infer<typeof actionStatusSchema>;
 export type SubmitActionRequest = z.infer<typeof submitActionRequestSchema>;
 export type ActionResponse = z.infer<typeof actionResponseSchema>;

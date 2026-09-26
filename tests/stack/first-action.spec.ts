@@ -29,6 +29,7 @@ async function playFromStudio(page: Page, worldId: string) {
 }
 
 async function confirmFirstAction(page: Page, intent: string) {
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
   await page.getByLabel("Your Action").fill(intent);
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
@@ -36,7 +37,7 @@ async function confirmFirstAction(page: Page, intent: string) {
   await expect(page.getByText("Character response · A local guide")).toBeVisible();
   await expect(page.getByText(/[0-9a-f]{8}-[0-9a-f]{4}-/)).toHaveCount(0);
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   await expect(page.getByLabel("Your Action")).toBeEnabled();
 }
 
@@ -44,19 +45,28 @@ test("a new World reaches its first confirmed Action and Return on the real stac
   page,
 }, testInfo) => {
   const { continuityId } = await beginNewWorld(page, testInfo);
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
   await page.getByLabel("Your Action").fill("Look around the starting place.");
   await page.getByRole("button", { name: "Send Action" }).click();
   await expect(page.getByText("Provisional — not current truth")).toBeVisible();
   await expectAccessible(page);
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
 
   // What was confirmed survives a reload and is what Return reports.
   await page.reload();
-  const recorded = page.getByRole("heading", { name: "Recorded Actions" }).locator("..");
+  const recorded = page.getByRole("heading", { name: "Story so far" }).locator("..");
   await expect(recorded.getByRole("listitem")).toHaveCount(1);
+  // PX-1: after reload the recorded turn still shows the reply it received.
+  await expect(recorded.getByRole("listitem").locator("span")).not.toBeEmpty();
   await page.goto(`/continuities/${continuityId}/return`);
   await expect(page.getByText(/Look around the starting place/).first()).toBeVisible();
+  await expectAccessible(page);
+
+  // PX-1: the home page leads back into this Continuity.
+  await page.goto("/");
+  const playing = page.getByRole("heading", { name: "Continue playing" }).locator("..");
+  await expect(playing.locator(`a[href="/continuities/${continuityId}"]`)).toHaveCount(1);
   await expectAccessible(page);
 });
 
@@ -98,7 +108,7 @@ test("Action, Correction, Branch, Restore and export compose on one World", asyn
   await page.goto(`/continuities/${continuityId}`);
   await expect(context.getByText("The first scene is ready to unfold.")).toBeVisible();
   // Restore appends; the Action and Correction remain in recorded history.
-  const recorded = page.getByRole("heading", { name: "Recorded Actions" }).locator("..");
+  const recorded = page.getByRole("heading", { name: "Story so far" }).locator("..");
   await expect(recorded).toContainText("Ask the guide what changed overnight.");
 
   // The same World exports through the real worker and object store.
@@ -204,16 +214,16 @@ test("a caused change, a protected refusal and a correction agree across review,
   // 1. A routine L2 change: exact review, no change before confirmation, then committed.
   await send("character.iora", "RELATIONSHIP_EFFECT", "Show Tavi how to read the outer markers.");
   await expect(review).toContainText("Relationship · Iora and Tavi");
-  await expect(review).toContainText("L2 — bounded routine change");
+  await expect(review).toContainText("A small, everyday change");
   await expect(relationships).toContainText("wary");
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   await expect(relationships).toContainText("cordial");
 
   // 2. A protected relationship is never changed as routine: it asks for L3, and cancelling leaves it.
   await send("character.tavi", "RELATIONSHIP_EFFECT", "Ask Tavi to swear to keep Maren's lamp.");
   await expect(review).toContainText("Relationship · Tavi and Maren");
-  await expect(review).toContainText("L3 — protected or high-consequence change");
+  await expect(review).toContainText("An important change — review it carefully");
   await page.getByRole("button", { name: "Cancel Action" }).click();
   await expect(page.getByLabel("Your Action")).toBeEnabled();
   await expect(relationships).toContainText("unsworn");
@@ -388,14 +398,14 @@ test("a World authored only in Studio plays relationship states, a thread and a 
   // A routine relationship moves one step after an ordinary confirmation.
   await send("A local guide", "RELATIONSHIP_EFFECT", "Share the evening watch with Character 2.");
   await expect(review).toContainText("Relationship · A local guide and Character 2");
-  await expect(review).toContainText("L2 — bounded routine change");
+  await expect(review).toContainText("A small, everyday change");
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   await expect(relationships).toContainText("close");
 
   // The protected one asks for a high-consequence confirmation; cancelling keeps it.
   await send("Character 3", "RELATIONSHIP_EFFECT", "Ask Character 3 to swear the oath.");
-  await expect(review).toContainText("L3 — protected or high-consequence change");
+  await expect(review).toContainText("An important change — review it carefully");
   await page.getByRole("button", { name: "Cancel Action" }).click();
   await expect(page.getByLabel("Your Action")).toBeEnabled();
   await expect(relationships).toContainText("unsworn");
@@ -466,6 +476,10 @@ test("a Studio World moves a named Character along an opened route, and its rule
   await expect(
     page.getByText("Character 2 does not know anything a player can ask about yet"),
   ).toBeVisible();
+  // PX-1: the finding names its Studio area, not an internal path, and quotes cleanly.
+  await expect(page.getByText("Optional warning · Character 2")).toBeVisible();
+  await expect(page.getByText("knowledgeFactIds")).toHaveCount(0);
+  await expect(page.getByText('.".', { exact: false })).toHaveCount(0);
   const { continuityId } = await playFromStudio(page, worldId);
 
   const where = async (name: string) => {
@@ -501,7 +515,7 @@ test("a Studio World moves a named Character along an opened route, and its rule
   };
   await sendMove("Walk the guide to the next place.");
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
-  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   expect((await where("A local guide")).at).toBe(place2);
 
   // The way back was drawn only one way, so the authored rule shapes the outcome.

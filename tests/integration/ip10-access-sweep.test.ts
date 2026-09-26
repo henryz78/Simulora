@@ -38,6 +38,7 @@ const selfScoped = new Set([
   "GET /v1/me",
   "GET /v1/me/consents",
   "POST /v1/me/consents",
+  "GET /v1/me/library",
   "GET /v1/product-changes",
   "POST /v1/usage/quotes",
   "GET /v1/usage/ledger",
@@ -518,7 +519,7 @@ suite("IP-10.5 SEC-ACCESS horizontal sweep against PostgreSQL", () => {
         "GET /v1/resources/:resourceType/:resourceId/access",
       ]);
       // The intruder's own views hold nothing of the owner's.
-      for (const url of ["/v1/usage/ledger", "/v1/me/consents", "/v1/me"]) {
+      for (const url of ["/v1/usage/ledger", "/v1/me/consents", "/v1/me", "/v1/me/library"]) {
         const body = (await send("GET", url)).body;
         for (const text of [
           marker,

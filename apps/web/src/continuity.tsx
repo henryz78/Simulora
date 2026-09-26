@@ -144,6 +144,10 @@ export async function readJson(url: string, init?: RequestInit): Promise<unknown
   }
 }
 
+// SA-2 M1: the RE-2 refusal for an addressed Character, not any 422.
+const characterKnowledgeRefusal =
+  "The selected Character is unavailable or cannot know this Action target";
+
 function pendingHistory(history: BranchAction[]): BranchAction[] {
   return history.filter((entry) => !TERMINAL_ACTION_STATUSES.has(entry.status));
 }
@@ -199,6 +203,8 @@ function updateHistoryForAction(history: BranchAction[], action: ActionResponse)
             shouldAcceptAction(entry.status, action.status) && action.commit?.committedAt
               ? action.commit.committedAt
               : entry.committedAt,
+          narrative:
+            entry.narrative ?? action.proposal?.narrative ?? action.dialogue?.narrative ?? null,
         }
       : entry,
   );
@@ -211,7 +217,7 @@ function updateHistoryForAction(history: BranchAction[], action: ActionResponse)
       intent: action.intent,
       acknowledgedAt: action.acknowledgedAt,
       committedAt: action.commit?.committedAt ?? null,
-      narrative: null,
+      narrative: action.proposal?.narrative ?? action.dialogue?.narrative ?? null,
     },
   ];
 }
@@ -221,11 +227,14 @@ function mergeBranchHistory(current: BranchAction[], incoming: BranchAction[]): 
   const merged = incoming.map((entry) => {
     const previous = currentById.get(entry.id);
     currentById.delete(entry.id);
-    if (!previous || shouldAcceptAction(previous.status, entry.status)) return entry;
+    if (!previous) return entry;
+    const narrative = entry.narrative ?? previous.narrative;
+    if (shouldAcceptAction(previous.status, entry.status)) return { ...entry, narrative };
     return {
       ...entry,
       status: previous.status,
       committedAt: previous.committedAt ?? entry.committedAt,
+      narrative,
     };
   });
   return [...merged, ...currentById.values()];
@@ -481,14 +490,16 @@ export function ContinuityProvider({
         });
         if (!response.ok) {
           if (response.status >= 400 && response.status < 500) {
-            const refused = (await response.json().catch(() => null)) as { code?: string } | null;
+            const refused = (await response.json().catch(() => null)) as {
+              message?: string;
+            } | null;
             pendingSubmission.current.delete(submissionKey);
             await refresh().catch(() => undefined);
             return {
               action: null,
               // SA-2: an addressed Character must know the fact this Action is about.
               error:
-                targetCharacterId && refused?.code === "WORLD_NOT_PLAYABLE"
+                targetCharacterId && refused?.message === characterKnowledgeRefusal
                   ? "This character does not know anything this Action can be about yet. Give them knowledge of a fact in World Studio, or let the world respond."
                   : "The Action was not accepted. Review the current world and try again.",
             };
@@ -867,12 +878,10 @@ export function ActionStatusCard({
       ? "This response needs another bounded generation attempt. You can leave and return with this Action ID; current truth is unchanged."
       : "The world is preparing a provisional response. Nothing has been recorded yet.",
     VALIDATING: "Checking the proposed consequence against current World truth and authority.",
-    AWAITING_CONFIRMATION:
-      "Provisional proposal — review the exact effect before it can be recorded.",
-    COMMITTING: "Confirmed. Recording one authoritative change…",
-    COMMITTED: "Recorded. The Branch head and committed history now include this Action.",
-    COMPLETED_NO_EFFECT:
-      "Response recorded as dialogue. Current World truth, Branch head and clock are unchanged.",
+    AWAITING_CONFIRMATION: "Here is what would happen. Nothing changes until you confirm it.",
+    COMMITTING: "Confirmed. Recording the change…",
+    COMMITTED: "Done. This is now part of your story.",
+    COMPLETED_NO_EFFECT: "The world answered. Nothing in the world changed.",
     FAILED_RECOVERABLE:
       action.statusReason === "NO_WORLD_EFFECT"
         ? "No world change recorded; response not committed. Close this Action to continue."
@@ -945,11 +954,11 @@ export function ActionStatusCard({
               <dd>{action.proposal.displayEffect.after}</dd>
             </div>
             <div>
-              <dt>Review level</dt>
+              <dt>Size of change</dt>
               <dd>
                 {action.proposal.impact === "L3"
-                  ? "L3 — protected or high-consequence change"
-                  : "L2 — bounded routine change"}
+                  ? "An important change — review it carefully"
+                  : "A small, everyday change"}
               </dd>
             </div>
             <div>
@@ -959,9 +968,21 @@ export function ActionStatusCard({
           </dl>
         </div>
       ) : null}
+      {action.proposal && action.status === "COMMITTED" ? (
+        <div className="proposal-review">
+          {action.proposal.responseSource ? (
+            <p className="card-label">
+              {action.proposal.responseSource.type === "CHARACTER"
+                ? `Character response · ${characterName(action.proposal.responseSource.characterId, world)}`
+                : "World response"}
+            </p>
+          ) : null}
+          <p>{action.proposal.narrative}</p>
+        </div>
+      ) : null}
       {action.dialogue && action.status === "COMPLETED_NO_EFFECT" ? (
         <div className="proposal-review">
-          <p className="proposal-label">Recorded response · no World change</p>
+          <p className="proposal-label">Nothing in the world changed</p>
           <p className="card-label">
             {action.dialogue.responseSource.type === "CHARACTER"
               ? `Character response · ${characterName(action.dialogue.responseSource.characterId, world)}`
@@ -1231,7 +1252,8 @@ export function ActionComposer(): ReactElement {
   const [intent, setIntent] = useState("");
   const [targetCharacterId, setTargetCharacterId] = useState("");
   // "THREAD_EFFECT:<id>" asks to work toward resolving that open thread.
-  const [effectChoice, setEffectChoice] = useState<string>("FACT_REWRITE");
+  // PX-1: talking is the default; a world change is a deliberate choice.
+  const [effectChoice, setEffectChoice] = useState<string>("NO_WORLD_EFFECT");
   const [requestedEffect, targetThreadId] = effectChoice.startsWith("THREAD_EFFECT:")
     ? (["THREAD_EFFECT", effectChoice.slice("THREAD_EFFECT:".length)] as const)
     : ([effectChoice as RequestedEffect, undefined] as const);
@@ -1304,7 +1326,7 @@ export function ActionComposer(): ReactElement {
             setTargetCharacterId(nextCharacterId);
             if (requestedEffect === "ROUTINE_EFFECT" || requestedEffect === "RELATIONSHIP_EFFECT") {
               // A character-bound outcome never carries over to another character.
-              setRequestedEffect("FACT_REWRITE");
+              setRequestedEffect("NO_WORLD_EFFECT");
             }
           }}
           disabled={
@@ -1347,23 +1369,23 @@ export function ActionComposer(): ReactElement {
             loadState.status !== "ready"
           }
         >
-          <option value="FACT_REWRITE">Change a current world fact</option>
+          <option value="NO_WORLD_EFFECT">Just talk or look — nothing changes</option>
+          <option value="FACT_REWRITE">Change something in the world</option>
           <option value="ROUTINE_EFFECT" disabled={!canMove}>
             Have this character move
           </option>
           <option value="RELATIONSHIP_EFFECT" disabled={!canShiftRelationship}>
-            Change a relationship of this character
+            Change how this character relates to someone
           </option>
-          <option value="THREAD_EFFECT">Open a new story thread</option>
+          <option value="THREAD_EFFECT">Start a new story thread</option>
           {openThreads.map((thread) => (
             <option key={thread.id} value={`THREAD_EFFECT:${thread.id}`}>
               Work toward resolving: {thread.title}
             </option>
           ))}
-          <option value="NO_WORLD_EFFECT">Ask for a response only</option>
         </select>
         <p className="field-help">
-          The requested outcome stays provisional until you review and confirm it.
+          Talking changes nothing. A change to the world waits for your confirmation.
         </p>
         <label htmlFor="world-action">Your Action</label>
         <textarea

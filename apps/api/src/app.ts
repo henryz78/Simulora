@@ -11,6 +11,7 @@ import {
 import { DevelopmentAuthAdapter, type AuthPort } from "@simulora/auth";
 import {
   authoritativeStateResponseSchema,
+  libraryResponseSchema,
   createWorldRequestSchema,
   createWorldResponseSchema,
   createWorldRevisionRequestSchema,
@@ -471,6 +472,11 @@ export function createApiApp(options: ApiAppOptions = {}): FastifyInstance {
         body.participation,
       );
       return reply.status(201).send(stateResponse(continuity));
+    });
+
+    app.get("/v1/me/library", async (request) => {
+      const account = await authenticatedAccount(request, auth);
+      return libraryResponseSchema.parse(await service.readLibrary(account));
     });
 
     app.get("/v1/continuities/:continuityId/state", async (request) => {

@@ -426,6 +426,24 @@ h1 {
   padding: 22px;
 }
 
+/* PX-1: the player's library on the home page. */
+.foundation-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.foundation-card li a {
+  color: #f0c988;
+  text-underline-offset: 3px;
+}
+.recorded-history li small {
+  display: block;
+  margin-top: 4px;
+  color: #aebfbb;
+}
+
 .foundation-card h2,
 .boundary-panel h2 {
   margin-top: 0;

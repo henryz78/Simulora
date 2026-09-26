@@ -1032,7 +1032,9 @@ function assessWorldDocument(value: unknown): {
             {
               path: `characters.${index}.knowledgeFactIds`,
               message: `${character.name} does not know anything a player can ask about yet${
-                needed ? `; give them knowledge of "${needed.statement}"` : ""
+                needed
+                  ? `; give them knowledge of "${needed.statement.replace(/[.!?]+$/, "")}"`
+                  : ""
               }.`,
               severity: "WARNING" as const,
               playEffect: `Players cannot address ${character.name} until they know that fact.`,
@@ -1566,7 +1568,7 @@ export class AuthoritativeWorldRepository {
     this.assertEligible(account);
     await this.assertConsentActive(account);
     const participation = participationContractSchema.parse(participationInput);
-    return transaction(this.pool, async (client) => {
+    const started = await transaction(this.pool, async (client) => {
       await this.ensureAccountWithClient(client, account);
       const revisionResult = await client.query<{
         id: string;
@@ -1676,6 +1678,7 @@ export class AuthoritativeWorldRepository {
         stateHash,
       };
     });
+    return { ...started, routineMoverIds: await this.routineMoverIds(worldRevisionId) };
   }
 
   async readCurrentState(
@@ -1715,15 +1718,6 @@ export class AuthoritativeWorldRepository {
     // The current read is owner-scoped in IP-4. Future shared projections must filter
     // ACCOUNT_PRIVATE and CONTINUITY_PRIVATE facts at the authorization boundary.
     const filteredState: StateRevisionDocument = state;
-    const policyAvailable = await this.pool.query<{ available: boolean }>(
-      "select to_regclass('simulora.re3_routine_policies') is not null as available",
-    );
-    const policy = policyAvailable.rows[0]?.available
-      ? await this.pool.query<{ document: unknown }>(
-          "select document from simulora.re3_routine_policies where world_revision_id = $1",
-          [row.world_revision_id],
-        )
-      : { rows: [] };
     return {
       continuityId: row.continuity_id,
       branchId: row.branch_id,
@@ -1734,9 +1728,65 @@ export class AuthoritativeWorldRepository {
       world: worldDocumentSchema.parse(row.world_document),
       state: filteredState,
       stateHash: row.state_hash,
-      routineMoverIds: policy.rows[0]
-        ? routinePolicySchema.parse(policy.rows[0].document).npcIds
-        : [],
+      routineMoverIds: await this.routineMoverIds(row.world_revision_id),
+    };
+  }
+
+  /** The Characters a Revision's routine policy lets move on their own, or none. */
+  private async routineMoverIds(worldRevisionId: string): Promise<string[]> {
+    const policyAvailable = await this.pool.query<{ available: boolean }>(
+      "select to_regclass('simulora.re3_routine_policies') is not null as available",
+    );
+    if (!policyAvailable.rows[0]?.available) return [];
+    const policy = await this.pool.query<{ document: unknown }>(
+      "select document from simulora.re3_routine_policies where world_revision_id = $1",
+      [worldRevisionId],
+    );
+    return policy.rows[0] ? routinePolicySchema.parse(policy.rows[0].document).npcIds : [];
+  }
+
+  /** PX-1: the caller's playable Continuities and undeleted Worlds, most recent first. */
+  async readLibrary(account: SyntheticAccount): Promise<{
+    continuities: Array<{ continuityId: string; worldTitle: string; lastActivityAt: string }>;
+    worlds: Array<{ worldId: string; title: string; updatedAt: string }>;
+  }> {
+    this.assertEligible(account);
+    const continuities = await this.pool.query<{
+      id: string;
+      title: string;
+      last_activity_at: Date;
+    }>(
+      `select c.id, r.document->>'title' as title,
+              coalesce(head.created_at, c.created_at) as last_activity_at
+       from simulora.continuities c
+       join simulora.world_revisions r on r.id = c.world_revision_id
+       join simulora.branches b on b.id = c.active_branch_id
+       left join simulora.world_commits head on head.id = b.head_commit_id
+       where c.owner_account_id = $1 and c.status = 'ACTIVE'
+       order by last_activity_at desc, c.id
+       limit 50`,
+      [account.accountId],
+    );
+    const worlds = await this.pool.query<{ id: string; title: string; updated_at: Date }>(
+      `select w.id, w.title, coalesce(d.updated_at, w.created_at) as updated_at
+       from simulora.worlds w
+       left join simulora.world_drafts d on d.world_id = w.id
+       where w.owner_account_id = $1 and w.deleted_at is null
+       order by updated_at desc, w.id
+       limit 50`,
+      [account.accountId],
+    );
+    return {
+      continuities: continuities.rows.map((row) => ({
+        continuityId: row.id,
+        worldTitle: row.title,
+        lastActivityAt: row.last_activity_at.toISOString(),
+      })),
+      worlds: worlds.rows.map((row) => ({
+        worldId: row.id,
+        title: row.title,
+        updatedAt: row.updated_at.toISOString(),
+      })),
     };
   }
 
