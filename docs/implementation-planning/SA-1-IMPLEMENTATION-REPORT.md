@@ -5,7 +5,7 @@
 **Behavior SHA:** `512ea3097a0e05b6185ae72fb3a88106fe1821e7` (first reviewed at `986a710`) ·
 **Evidence:** exact-SHA CI `36218066242` `success` (earlier `36216503345`) ·
 **Review:** first review `PASS WITH ISSUES` (0B/0I/4M); minors fixed in
-`512ea30`, focused re-review pending (§6).
+`512ea30`; focused re-review `PASS` (0B/0I/2M, accepted). **SA-1 CLOSED** (§6).
 
 ## 1. Commits
 
@@ -14,6 +14,7 @@
 | `9d8da44` | behavior | Studio controls for relationship states, story threads and world rules, and the tests |
 | `66894fc` | test only | The stack journey checks that the authored rule reaches play, instead of moving a Character (see §4) |
 | `986a710` | behavior | Studio fieldsets shrink and legends wrap at 320 px (WebKit); the relationship legend is shorter |
+| `512ea30` | behavior | Review minors M1–M4 (§6) |
 
 ## 2. What changed
 
@@ -160,4 +161,33 @@ SA-1 defect.
 
 **CI for the fixes:** exact-SHA CI `36218066242` on `512ea30`, `success`.
 **Next:** a focused re-review by the same Reviewer.
+
+### Focused re-review of `512ea30`: `PASS`
+
+The same Reviewer returned `PASS`: 0 BLOCKER, 0 IMPORTANT, 2 MINOR. SA-1
+closes, and the approved behavior SHA is
+`512ea3097a0e05b6185ae72fb3a88106fe1821e7`.
+
+- **M1–M4:** confirmed fixed, with no scope creep. The ref-based tracking is
+  safe under:
+  - StrictMode;
+  - a stale position after load, restore or a STALE_DRAFT reload;
+  - relationship removal.
+- **CI:** the Reviewer verified exact-SHA CI `36218066242`:
+  - real PG 171/171 and 295/295;
+  - migrations passed;
+  - stack 8/8;
+  - browser matrix 200, with no retries.
+
+**Remaining minors, accepted as follow-ups:**
+
+- **m1:** the save-blocking message is rendered only while a problem exists,
+  so many screen readers will not announce it when it appears. The fix is to
+  always render the live region and fill its text. This is not changed here,
+  so the approved SHA stays stable.
+- **m2:** the §1 commit table lacked `512ea30`. It is fixed in this
+  documentation commit.
+
+**Observation:** while two states share a name, the Starting state select
+shows the first match. This is visual only, and save is blocked meanwhile.
 

@@ -1599,3 +1599,19 @@ own work.
 - A focused re-review by the same Reviewer is pending. See the
   [SA-1 Implementation Report](SA-1-IMPLEMENTATION-REPORT.md) §6.
 
+**SA-1 CLOSED (2026-09-25):** the focused re-review by the same Reviewer
+returned `PASS` (0B/0I/2M accepted).
+
+- Approved behavior SHA: `512ea3097a0e05b6185ae72fb3a88106fe1821e7`.
+- Exact-SHA CI: `36218066242` `success`.
+- Accepted follow-up: the save-blocking message should be announced when it
+  appears.
+
+**Open, and needing product-owner approval before any repair (both
+pre-existing):**
+
+- movement on Studio Worlds is impossible without an RE-3 routine policy;
+- an added Character must know a fact before it can be addressed.
+
+Human play (track B) with the new local provider is not started.
+
