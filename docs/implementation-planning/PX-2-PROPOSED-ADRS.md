@@ -1,7 +1,8 @@
 # PX-2 Proposed Decisions: Lighter Play Beyond Presentation
 
-**Date:** 2026-09-26 · **Status:** `PROPOSED — awaiting the owner's decision`.
-Nothing here is approved or implemented.
+**Date:** 2026-09-26 · **Status:** `DECIDED 2026-09-26 — D1 A, D2 A` (the
+owner chose option A for both in chat). Implementation follows its own
+contract and an independent Review.
 
 The [Play Weight Health Check](PLAY-WEIGHT-HEALTH-CHECK.md) found that the
 heaviest problems are not presentation. PX-1 fixed what touches no frozen
@@ -59,3 +60,7 @@ cut many L3 confirmations without any semantic change. It can be done with D1.
 
 1. D1: A, B or C?
 2. D2: A, B or C?
+
+## Decision
+
+The owner chose **D1 A** and **D2 A** on 2026-09-26.
