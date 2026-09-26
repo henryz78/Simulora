@@ -164,6 +164,7 @@ export function WorldPage(): ReactElement {
     retryAction,
     undoAction,
     autoConfirmedIds,
+    undoneIds,
   } = useContinuity();
   if (loadState.status === "loading") {
     return (
@@ -222,6 +223,7 @@ export function WorldPage(): ReactElement {
                 onCancel={cancelAction}
                 onRetry={retryAction}
                 appliedAutomatically={autoConfirmedIds.has(latestAction.id)}
+                undone={undoneIds.has(latestAction.id)}
                 // PX-2a: Undo only while this change is still the current head.
                 {...(latestAction.commit?.resultingHeadCommitId === data.continuity.headCommitId
                   ? { onUndo: undoAction }
@@ -241,6 +243,9 @@ export function WorldPage(): ReactElement {
                     {entry.narrative ? <span>{entry.narrative}</span> : null}
                     {entry.status === "COMPLETED_NO_EFFECT" ? (
                       <small>Nothing in the world changed.</small>
+                    ) : null}
+                    {undoneIds.has(entry.id) ? (
+                      <small>Undone: the world went back to before this.</small>
                     ) : null}
                   </li>
                 ))}

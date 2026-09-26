@@ -92,6 +92,8 @@ export type ContinuityContextValue = {
   quickPlay: boolean;
   setQuickPlay: (enabled: boolean) => void;
   autoConfirmedIds: ReadonlySet<string>;
+  /** Actions undone in this session; their words stay in the story. */
+  undoneIds: ReadonlySet<string>;
   /** Restore the head before this committed Action, as an appended Commit. */
   undoAction: (action: ActionResponse) => Promise<string | null>;
 };
@@ -210,8 +212,9 @@ function updateHistoryForAction(history: BranchAction[], action: ActionResponse)
             shouldAcceptAction(entry.status, action.status) && action.commit?.committedAt
               ? action.commit.committedAt
               : entry.committedAt,
+          // The action's own record wins over a cached history entry (PX-1 review M1).
           narrative:
-            entry.narrative ?? action.proposal?.narrative ?? action.dialogue?.narrative ?? null,
+            action.proposal?.narrative ?? action.dialogue?.narrative ?? entry.narrative ?? null,
         }
       : entry,
   );
@@ -323,6 +326,7 @@ export function ContinuityProvider({
     [quickPlayKey],
   );
   const [autoConfirmedIds, setAutoConfirmedIds] = useState<ReadonlySet<string>>(new Set());
+  const [undoneIds, setUndoneIds] = useState<ReadonlySet<string>>(new Set());
   const autoConfirmAttempted = useRef(new Set<string>());
 
   const load = useCallback(
@@ -620,6 +624,7 @@ export function ContinuityProvider({
       const branchId = loadState.data.continuity.branchId;
       const prepared = await prepareRestore(branchId, action.proposal.expectedHeadCommitId);
       const confirmed = prepared.data ? await confirmRestore(branchId, prepared.data) : null;
+      if (confirmed?.data) setUndoneIds((current) => new Set([...current, action.id]));
       await refresh();
       return confirmed?.data
         ? null
@@ -748,10 +753,12 @@ export function ContinuityProvider({
       quickPlay,
       setQuickPlay,
       autoConfirmedIds,
+      undoneIds,
       undoAction,
     }),
     [
       autoConfirmedIds,
+      undoneIds,
       quickPlay,
       setQuickPlay,
       undoAction,
@@ -935,6 +942,7 @@ export function ActionStatusCard({
   onRetry,
   onUndo,
   appliedAutomatically = false,
+  undone = false,
   compact = false,
 }: {
   action: ActionResponse;
@@ -944,6 +952,8 @@ export function ActionStatusCard({
   /** PX-2a: offered only while this Action's Commit is still the head. */
   onUndo?: (action: ActionResponse) => Promise<string | null>;
   appliedAutomatically?: boolean;
+  /** PX-2a review I-1: the world went back, but the story keeps what was said. */
+  undone?: boolean;
   compact?: boolean;
 }): ReactElement {
   const [error, setError] = useState<string | null>(null);
@@ -1046,6 +1056,12 @@ export function ActionStatusCard({
           </dl>
         </div>
       ) : null}
+      {undone && action.status === "COMMITTED" ? (
+        <p className="action-note">
+          Undone. The world is back to how it was before this change; what was said stays in the
+          story.
+        </p>
+      ) : null}
       {appliedAutomatically && action.status === "COMMITTED" ? (
         <p className="action-note">Applied automatically by quick play. You can undo it.</p>
       ) : null}
@@ -1145,6 +1161,10 @@ export function ActionStatusCard({
           >
             Undo this change
           </button>
+          <p className="muted-copy">
+            Undo returns the world to how it was before this change. What was said stays in the
+            story.
+          </p>
         </div>
       ) : null}
       {action.status === "CONFLICT" ? (

@@ -13,6 +13,8 @@ test.beforeEach(async ({ page }, testInfo) => {
   // Routine fixtures return L2 proposals; the others return L3.
   const routine =
     testInfo.title.startsWith("RE-3 routine movement") || testInfo.title.includes("[L2]");
+  // The server refuses a Restore whose expected head has moved on.
+  const staleUndo = testInfo.title.includes("[stale]");
   let characterLocation = "location.tidal-observatory";
   observedIdempotencyKeys = [];
   confirmRequests = [];
@@ -217,6 +219,13 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.route(`**/v1/branches/${branchId}/restores`, async (route) => {
     const input = route.request().postDataJSON() as Record<string, string>;
     restoreRequests.push({ step: "confirm", ...input });
+    if (staleUndo) {
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ code: "STALE_RESTORE", message: "STALE_RESTORE" }),
+      });
+    }
     head = "35000000-0000-4000-8000-000000000001";
     characterLocation = "location.tidal-observatory";
     return route.fulfill({
@@ -419,8 +428,13 @@ test("PX-2a quick play confirms a small change without a click, and Undo restore
       expectedHeadCommitId: "32000000-0000-4000-8000-000000000001",
     },
   ]);
-  // The head has moved on, so the change is no longer offered for Undo.
+  // The head has moved on, so the change is no longer offered for Undo, and the
+  // story says the world went back while keeping what was said.
   await expect(page.getByRole("button", { name: "Undo this change" })).toHaveCount(0);
+  await expect(page.getByText("Undone. The world is back to how it was")).toBeVisible();
+  const story = page.getByRole("heading", { name: "Story so far" }).locator("..");
+  await expect(story.getByText("Undone: the world went back to before this.")).toBeVisible();
+  await expectAccessible(page);
 
   // The setting is the player's and survives a reload.
   await page.reload();
@@ -436,4 +450,19 @@ test("PX-2a quick play still leaves an important change to the player", async ({
   await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
   await expect(page.getByText("An important change — review it carefully")).toBeVisible();
   expect(confirmRequests).toEqual([]);
+});
+
+test("PX-2a Undo that the server refuses leaves the world and says why [L2] [stale]", async ({
+  page,
+}) => {
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Quick play: apply small changes at once").check();
+  await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(page.getByText("Applied automatically by quick play.")).toBeVisible();
+  await page.getByRole("button", { name: "Undo this change" }).click();
+  await expect(page.getByRole("alert")).toContainText("The change could not be undone.");
+  const context = page.getByLabel("Current world context");
+  await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Undone: the world went back to before this.")).toHaveCount(0);
 });
