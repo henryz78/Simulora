@@ -1,6 +1,6 @@
 # IP-10 Requirement → Evidence Matrix
 
-**Status:** `IP-10 IN PROGRESS — MATRIX UPDATE 2 (2026-09-25)`. This is a
+**Status:** `IP-10 IN PROGRESS — MATRIX UPDATE 3 (2026-09-25)`. This is a
 living IP-10.8 document. It records what `main` proves and where the gaps are.
 It passes no Gate.
 
@@ -23,6 +23,19 @@ It passes no Gate.
   - It was repaired in a separate bounded track as `28b0d8a` (successor
     migration 0049).
   - The independent Reviewer returned `PASS` (0B / 0I / 1M).
+
+**Update 3 (2026-09-25):** every remaining engineering item is evidenced in
+CI `36207364368` on `b3c914d`, pending the final IP-10 engineering review.
+
+- **`E2E-CONTINUITY-IMPACT`:** the real-stack scenario passes on desktop and
+  390×844. It found three presentation gaps after Commit. The product owner
+  authorized a minimal repair, `1629a2c`
+  ([IP-10 Continuity Impact Report](IP-10-CONTINUITY-IMPACT-REPORT.md)).
+- **IP-10.4:** the [compatibility matrix](IP-10-COMPATIBILITY-MATRIX.md) is
+  written.
+- **IP-10.7:** the [alert definitions](IP-10-ALERT-DEFINITIONS.md) are
+  written.
+- **§9** maps each G10 condition to engineering evidence or `EXTERNAL`.
 
 **Baseline mapped:** approved IP-9 behavior
 `c812d6c6d29be86be3557a00b4866b5d01f0499f`, exact-SHA CI `36096978257`
@@ -52,10 +65,10 @@ Evidence paths are relative to the repository root. Test names are quoted.
 | PR-001 | INV-04, INV-05, E2E-AGENCY, E2E-CONTRACT-TRANSITION | `ip6-participation-character`: "commits all six independent contracts through direct user Actions only", "rejects stale/mismatched expectations…", "rejects any non-direct Commit that changes participation"; `packages/domain`: "round-trips all six…", "rejects model candidates that attempt to smuggle protected authority fields"; `e2e/ip6-participation`: "changes the two independent axes…", "stale review writes nothing…" | `EVIDENCED` | — |
 | PR-002 | E2E-START | `tests/stack/first-action.spec.ts` "a new World reaches its first confirmed Action and Return on the real stack": premise → Revision → "Begin play" → first Action → exact confirmation → Return, through the real API, worker and PostgreSQL on desktop and 390×844 (CI `36103979617`); `e2e/ip7-world-studio` | `EVIDENCED` | — |
 | PR-003 | E2E-RETURN, LONG-01 | `e2e/ip4-continuity` Return tests (freshness, authoritative fallback, no false "no change"); `ip4-return-continuity` routes; `LONG-01` return after a nine-day gap: stale projection labelled, rebuilt `FRESH` at the head, no pending Actions (CI `36198101564`) | `EVIDENCED` | — |
-| PR-004 | INV-07, INV-08, INV-13, E2E-CORRECT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `e2e/ip4-continuity` "Continuity fact Lens leads to exact Correction review…"; `tests/stack` real-stack Correction; `ip4-adversarial` correction/removal and cross-account hiding; `ip4-return-continuity` Explanation routes; `ip10-invariants` INV-07/INV-08; MGC-1 L3 relationship redefinition | `PARTIAL — TEST GAP` | `E2E-CONTINUITY-IMPACT` still has no single end-to-end scenario. Scope widening has no operation. |
+| PR-004 | INV-07, INV-08, INV-13, E2E-CORRECT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `tests/stack` E2E-CONTINUITY-IMPACT (routine L2 change, protected L3 refused, thread resolution, direct correction; review, Trace, Explanation and Return agree; CI `36207364368`); `e2e/ip4-continuity` fact Lens → exact Correction; `ip4-adversarial` correction/removal and cross-account hiding; `ip4-return-continuity`; `ip10-invariants` INV-07/INV-08 | `EVIDENCED` for the implemented rows | Scope widening and Memory Candidate promotion have no operation (INV-05). |
 | PR-005 | E2E-CAUSE | MGC-1: `mgc1-closure` (PG) causal relationship shift with its Event; transformed failure proposed, rejected with no change, then confirmed into a new open thread; "a provider failure never becomes a transformed failure"; `e2e/mgc1-closure` composer journey; `re3-routine-effects` and `action-truth` for movement and fact updates | `EVIDENCED` (deterministic) / `EXTERNAL` (model quality) | Closed by MGC-1 (`f68addd`). The quality of transformed failure on a real model needs an approved provider. |
 | PR-006 | INV-05, INV-07, MODEL-CHAR | `packages/domain` "keeps two characters' identity, knowledge and stance distinct", "binds Character attribution and rejects generated user commitments"; `ip6` authority guards | `EVIDENCED` (deterministic) / `EXTERNAL` (model quality) | The structural proof holds. A character-quality rubric on a real model needs an approved provider (Plan §20). |
-| PR-007 | INV-05, INV-08, INV-13, E2E-AUDIT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `ip4-return-continuity` Trace/Explanation; `re3` causal Event; `ip8` audit and appeal | `EVIDENCED` | Shares the PR-004 `E2E-CONTINUITY-IMPACT` gap. |
+| PR-007 | INV-05, INV-08, INV-13, E2E-AUDIT, E2E-CONTINUITY-IMPACT, E2E-EXPLANATION | `ip4-return-continuity` Trace/Explanation; `re3` causal Event; `ip8` audit and appeal; E2E-CONTINUITY-IMPACT: Change Trace names target, before → after and the causing Action (`1629a2c`, CI `36207364368`) | `EVIDENCED` | The RE-3 movement summary still lists raw identifiers (observation). |
 | PR-008 | INV-09, E2E-RECOVERY | `ip5-recovery` (20 tests); `e2e/ip5-recovery` "Safe Point, Branch and exact append-only Restore share one Recovery model"; `ip10-invariants` INV-09; `tests/stack` "Action, Correction, Branch, Restore and export compose on one World" | `EVIDENCED` | — |
 | PR-009 | INV-12, E2E-EXIT | `ip8-trust-lifecycle`, `ip9-object-storage`, `e2e/ip8-trust-lifecycle` "owner can inspect trust, export selected data, appeal, and review deletion"; `ip10-invariants` INV-12; real-stack export in `tests/stack` | `EVIDENCED` | — |
 | PR-010 | INV-06, MODEL-FALLBACK, FAULT-PROVIDER | `ip9-model-provider` out-of-envelope rejection, outage fallback, material profile change | `EVIDENCED` (provider doubles) / `EXTERNAL` (real provider) | No real provider has been evaluated or approved. |
@@ -129,10 +142,10 @@ harness passed in CI `36198101564`; see [IP-10-LONG-01-AND-DRILLS-REPORT](IP-10-
 
 | Item | State today | Engineering can do now | Needs outside input |
 |---|---|---|---|
-| IP-10.4 compatibility | `migration-contract` and `migration-upgrade` prove upgrade from earlier schemas. The CI rehearsal passed in `36198101564`: the approved G9 release seeds its schema, its backup restores identically (rollback path), and both copies upgrade and differ only in ledger timestamps. | The compatibility matrix document | — |
+| IP-10.4 compatibility | Done: [IP-10 Compatibility Matrix](IP-10-COMPATIBILITY-MATRIX.md). Forward migration, restore and rollback by restore are `VERIFIED`. In-place downgrade is `NOT SUPPORTED`. The prior release serving from the restored backup is `NOT REHEARSED`. A stale G9 tab on an MGC-1 World is `ANALYSED — PARTIAL`. | — | Rollback window and DR targets |
 | IP-10.5 privacy/security/a11y | The SEC-ACCESS sweep, INV-07 and INV-12 are done (§6.1); automated a11y; six open threat-model items | — | Specialist penetration, privacy/legal review and human screen-reader review |
 | IP-10.6 performance/capacity/fault | CI `perf:ack`, fault matrix, restore drill; capacity and killed-worker drill passed (CI `36198101564`) | — | The production device and network profile, and worker count |
-| IP-10.7 operations | Runbooks exist | Alert definitions tied to the existing metrics | Named owners and a tested escalation path |
+| IP-10.7 operations | Runbooks, plus [alert definitions](IP-10-ALERT-DEFINITIONS.md): 17 alerts on existing logs and probes, with signal gaps recorded (no production acknowledgement latency) | — | Named owners, tested escalation, and the monitoring stack (cloud vendor) |
 
 ### 6.1 SEC-ACCESS sweep result (IP-10.5)
 
@@ -203,9 +216,30 @@ and NFR-006 wait for MGC-1 to pass independent review.
 | Step | State |
 |---|---|
 | 1 | Done (`3f84328`, CI `36100042739`) |
-| 2 | "Begin play" and cross-capability journeys done (`38672ee`); `E2E-CONTINUITY-IMPACT` remains |
+| 2 | Done; `E2E-CONTINUITY-IMPACT` in CI `36207364368` |
 | 3 | Done (`f68addd`) |
-| 4 | Rehearsal passed (CI `36198101564`); the matrix document remains |
+| 4 | Done: rehearsal plus the compatibility matrix |
 | 5 | Done (CI `36198101564`) |
 | 6 | Done (CI `36198101564`); found the defect repaired in `28b0d8a` |
-| 7 | Updates 1 and 2 |
+| 7 | Updates 1–3; IP-10.7 alert definitions written |
+
+## 9. G10 conditions: engineering evidence and `EXTERNAL`
+
+This section records where each condition stands at update 3. The final IP-10
+engineering review decides whether G10 can move to conditional closure.
+
+| G10 condition | Engineering evidence | Still `EXTERNAL` |
+|---|---|---|
+| Every MUST PR/NFR has passing evidence | §2: every MUST row is `EVIDENCED` for what the product implements (CI `36207364368`) | Model-quality and human-judgment parts of PR-005, PR-006, PR-010 and NFR-006 |
+| Architecture invariants hold | §4: INV-01–INV-13 evidenced (INV-01 for the implemented Action kinds, INV-05 for the implemented rows) | — |
+| `LONG-01` passes | 20 sessions / 30 days on real PostgreSQL | Judged character quality on a real model |
+| Security and privacy (automated) | SEC-ACCESS sweep, INV-07, INV-12, the access tests | Specialist security, privacy and legal review |
+| Accessibility | Automated axe, 320 px reflow, keyboard and reduced motion on five projects | Human screen-reader review |
+| Compatibility and rollback | [Compatibility matrix](IP-10-COMPATIBILITY-MATRIX.md); upgrade and rollback-by-restore rehearsal | Rollback window, DR and retention targets |
+| Capacity and fault tolerance | IP-10.6 drill (300 Actions, concurrency 20, worker SIGKILLed), fault matrix, restore drill | Production device and network profile, worker count |
+| Operations readiness | [IP-9 runbooks](IP-9-RUNBOOKS.md) and [alert definitions](IP-10-ALERT-DEFINITIONS.md) | Named owners, tested escalation, monitoring stack |
+| Plan §20 decisions | — | Cloud vendor and region; OIDC and adult eligibility; real model provider and retention/training terms; safety taxonomy and appeal policy; pricing; retention, purge and DR targets; brand and asset provenance |
+
+SHOULD selection is unchanged: PR-012, PR-015, PR-016 and PR-017 are not
+selected.
+

@@ -1481,3 +1481,41 @@ record is in [IP-10 LONG-01, Upgrade Rehearsal and Killed-Worker Drill](IP-10-LO
 
 No beta or launch is authorized.
 
+## 51. Remaining IP-10 engineering items evidenced; final review pending
+
+Evidence: CI `36207364368` on `b3c914d`, `success`.
+
+- **Real PostgreSQL:** 171/171 and 294/294.
+- **Real-stack journeys:** 6/6 on desktop and 390×844, including
+  E2E-CONTINUITY-IMPACT.
+- **Browser matrix:** 195 passed.
+- **Restore and upgrade/rollback rehearsals:** passed.
+- **IP-10.6 drill:** acknowledgement p95 466.9 ms, 0 undrained.
+
+**Items:**
+
+- **`E2E-CONTINUITY-IMPACT`** passes. It found three presentation gaps after
+  Commit; truth was correct. The product owner authorized the minimal repair
+  `1629a2c`:
+  - Change Trace names MGC-1 changes and their causing Action;
+  - no raw UUID is shown as the reason;
+  - Continuity links survive a reload.
+
+  See [IP-10 Continuity Impact Report](IP-10-CONTINUITY-IMPACT-REPORT.md).
+- **Test-only fix:** `b3c914d` fixes a pre-existing timing race in
+  `ip9-model-provider`.
+- **IP-10.4:** the [IP-10 Compatibility Matrix](IP-10-COMPATIBILITY-MATRIX.md)
+  records only verified paths and states what is not supported or not
+  rehearsed.
+- **IP-10.7:** the [IP-10 Alert Definitions](IP-10-ALERT-DEFINITIONS.md)
+  define 17 alerts on existing signals. Owners and escalation are `EXTERNAL`,
+  and the signal gaps are recorded.
+- **Matrix update 3** adds §9, which maps each G10 condition to engineering
+  evidence or `EXTERNAL`.
+
+**Next:** a new independent Reviewer performs the final IP-10 engineering
+review, including the repair `1629a2c`. The implementer does not approve its
+own work.
+
+External items stay pending, and no beta or launch is authorized.
+
