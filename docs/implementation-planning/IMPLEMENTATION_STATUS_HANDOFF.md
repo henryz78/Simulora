@@ -1,6 +1,6 @@
 # Simulora Implementation Status Handoff
 
-**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 IN PROGRESS / MGC-1 PASS / LONG-01 PASS`
+**Status:** `G1–G6 PASS / RE-1–RE-3 BOUNDED REALITY CLOSURE COMPLETE / IP-7 PASS / G7 PASS / IP-8 BEHAVIOR PASS WITH ISSUES / G8 CONDITIONAL / IP-9 PASS / G9 PASS / IP-10 ENGINEERING COMPLETE / MGC-1 PASS / LONG-01 PASS / G10 CONDITIONAL — EXTERNAL DECISIONS PENDING`
 
 **Latest Gate:** G9 is `PASS` and closed. See §43–§47 and the
 [IP-9 Implementation Report](IP-9-IMPLEMENTATION-REPORT.md). The approved IP-9
@@ -1518,4 +1518,41 @@ review, including the repair `1629a2c`. The implementer does not approve its
 own work.
 
 External items stay pending, and no beta or launch is authorized.
+
+## 52. IP-10 final engineering review: engineering complete, external decisions pending
+
+A new independent Reviewer performed the final IP-10 engineering review on
+`73294e8` (behavior through `b3c914d`). The result is `PASS`: 0 BLOCKER,
+0 IMPORTANT, and 1 MINOR inherited from `28b0d8a` and already accepted. See
+[IP-10 Final Engineering Review](IP-10-FINAL-ENGINEERING-REVIEW.md).
+
+- **Repair `1629a2c`:** `PASS`. Presentation only; the reason token stays
+  opaque on the API.
+- **CI:** the Reviewer read the logs of `36207364368` itself.
+- **Satisfied by engineering evidence:**
+  - MUST PR/NFR evidence and invariants;
+  - `LONG-01`;
+  - automated security, privacy and accessibility;
+  - compatibility and rollback by restore;
+  - capacity and the killed-worker drill;
+  - operations documents.
+- **G10 can enter conditional closure.** The remaining conditions are
+  `EXTERNAL` and pending, never PASS:
+  - cloud vendor and region;
+  - OIDC and adult eligibility;
+  - real model provider and retention/training terms;
+  - safety taxonomy and appeal policy;
+  - pricing;
+  - retention, purge and DR targets;
+  - brand and asset provenance;
+  - human screen-reader review;
+  - specialist security, privacy and legal review;
+  - named operations owners and tested escalation.
+
+SHOULD selection is unchanged: PR-012, PR-015, PR-016 and PR-017 are not
+selected.
+
+**Status: engineering complete, external decisions pending.** Beta, launch
+and any new feature phase are not started and not authorized. Production
+live model use stays disabled.
 

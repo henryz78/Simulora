@@ -1,6 +1,6 @@
 # IP-10 Requirement → Evidence Matrix
 
-**Status:** `IP-10 IN PROGRESS — MATRIX UPDATE 3 (2026-09-25)`. This is a
+**Status:** `IP-10 ENGINEERING COMPLETE — EXTERNAL DECISIONS PENDING (2026-09-25)`. This is a
 living IP-10.8 document. It records what `main` proves and where the gaps are.
 It passes no Gate.
 
@@ -226,7 +226,8 @@ and NFR-006 wait for MGC-1 to pass independent review.
 ## 9. G10 conditions: engineering evidence and `EXTERNAL`
 
 This section records where each condition stands at update 3. The final IP-10
-engineering review decides whether G10 can move to conditional closure.
+engineering review returned `PASS` (0B/0I/1M, inherited) and found that G10
+can enter conditional closure; see [IP-10 Final Engineering Review](IP-10-FINAL-ENGINEERING-REVIEW.md).
 
 | G10 condition | Engineering evidence | Still `EXTERNAL` |
 |---|---|---|

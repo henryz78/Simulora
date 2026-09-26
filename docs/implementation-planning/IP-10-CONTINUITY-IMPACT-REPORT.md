@@ -84,4 +84,5 @@ behavior outside this repair's authorization.
 
 ## 3. Review
 
-Pending: the final IP-10 engineering review covers `1629a2c`.
+The final IP-10 engineering review passed `1629a2c` as presentation only
+(0 BLOCKER / 0 IMPORTANT); see [IP-10 Final Engineering Review](IP-10-FINAL-ENGINEERING-REVIEW.md).
