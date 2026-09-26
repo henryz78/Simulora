@@ -853,14 +853,17 @@ export function compileActionGenerationContext(
   world: WorldDocument,
   state: StateRevisionDocument,
   targetCharacterId?: string,
+  selectImplicitCharacter = false,
 ): ActionGenerationContext | null {
   const targetFact = state.facts.find(isGeneratorEligibleFact);
   if (!targetFact) return null;
   const character = targetCharacterId
     ? compileCharacterContext(world, state, targetCharacterId)
-    : world.characters
-        .map((spec) => compileCharacterContext(world, state, spec.id))
-        .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id));
+    : selectImplicitCharacter
+      ? world.characters
+          .map((spec) => compileCharacterContext(world, state, spec.id))
+          .find((context) => context.knownFacts.some((fact) => fact.id === targetFact.id))
+      : null;
   if (targetCharacterId && !character?.knownFacts.some((fact) => fact.id === targetFact.id)) {
     throw new ValidationError(
       "Character has no authorized canonical target in the current effect envelope",
@@ -2543,9 +2546,11 @@ export class AuthoritativeWorldRepository {
         operation_payload: Record<string, unknown>;
         status: ActionStatus;
         intent: string;
+        world_response_when_unaddressed: boolean;
       }>(
         `select id, actor_account_id, branch_id, expected_head_commit_id, operation_type,
-                 operation_payload, status, intent
+                 operation_payload, status, intent,
+                 simulora.px2b_world_response_apply(created_at) as world_response_when_unaddressed
          from simulora.actions where id = $1 and actor_account_id = $2 for update`,
         [actionId, account.accountId],
       );
@@ -2655,6 +2660,7 @@ export class AuthoritativeWorldRepository {
           typeof action.operation_payload.targetCharacterId === "string"
             ? action.operation_payload.targetCharacterId
             : undefined,
+          !action.world_response_when_unaddressed,
         );
         if (!generationContext) throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
         const expectedResponseSource: ActionResponseSource = generationContext.character
@@ -4724,6 +4730,7 @@ export class AuthoritativeWorldRepository {
           requestedEffect?: string;
           targetThreadId?: string;
         };
+        world_response_when_unaddressed: boolean;
         supports_re2_context: boolean;
         supports_re3_policy: boolean;
       }>(
@@ -4733,6 +4740,7 @@ export class AuthoritativeWorldRepository {
                 continuity.active_branch_id, continuity.status as continuity_status,
                 c.state_revision_id as source_state_revision_id,
                 s.document as state_document, wr.document as world_document, a.operation_payload,
+                simulora.px2b_world_response_apply(a.created_at) as world_response_when_unaddressed,
                 to_regprocedure('simulora.re2_generation_context(uuid)') is not null as supports_re2_context,
                 to_regclass('simulora.re3_routine_policies') is not null as supports_re3_policy
          from simulora.actions a
@@ -4814,6 +4822,7 @@ export class AuthoritativeWorldRepository {
         world,
         state,
         action.operation_payload.targetCharacterId,
+        !action.world_response_when_unaddressed,
       );
       let context: Record<string, unknown> | undefined;
       if (generationContext && action.supports_re2_context) {

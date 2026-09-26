@@ -44,7 +44,9 @@ const participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } 
 
 function requestFor(evaluationCase: ModelEvaluationCase): WorldTurnRequest {
   const state = createInitialState(modelEvaluationWorld, participation);
-  const context = compileActionGenerationContext(modelEvaluationWorld, state);
+  // Evaluation cases model an addressed Character; world-response coverage is
+  // exercised through the real Action path.
+  const context = compileActionGenerationContext(modelEvaluationWorld, state, undefined, true);
   if (!context) throw new Error("Evaluation world has no generator-eligible fact");
   return {
     actionId: randomUUID(),

@@ -190,6 +190,75 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     }
   });
 
+  it("uses WORLD for new unaddressed Actions while preserving the pre-cutoff binding", async () => {
+    const world = structuredClone(lanternReachSeed);
+    world.facts.push({
+      id: "fact.iora-private",
+      statement: "Iora keeps a private spare key under the desk.",
+      scope: "CONTINUITY_PRIVATE",
+      provenance: "PX-2b fixture",
+      lifecycle: "ACTIVE",
+    });
+    world.characters[0]!.knowledgeFactIds.push("fact.iora-private");
+    const draft = await repository.createWorld(account, world);
+    const revision = await repository.createRevision(account, draft.worldId, draft.rowVersion);
+    const continuity = await repository.startContinuity(account, revision.revisionId, {
+      initiativeMode: "GUIDED",
+      structureMode: "OPEN_ENDED",
+    });
+    const gateway = new DeterministicModelGateway();
+    const oldAction = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `px2b-old-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask the world what happens next.",
+    });
+    await pool.query(
+      "update simulora.actions set created_at = now() - interval '1 minute' where id = $1",
+      [oldAction.id],
+    );
+    const oldProposal = await repository.processAction(oldAction.id, (request) => {
+      expect(request.character?.id).toBe("character.iora");
+      return gateway.generateWorldTurn(request);
+    });
+    expect(oldProposal?.proposal?.responseSource).toEqual({
+      type: "CHARACTER",
+      characterId: "character.iora",
+    });
+    await repository.cancelAction(account, oldAction.id);
+
+    const worldAction = await repository.submitAction(account, continuity.branchId, {
+      schemaVersion: 1,
+      idempotencyKey: `px2b-world-${randomUUID()}`,
+      expectedHeadCommitId: continuity.headCommitId,
+      participationExpectation: continuity.state.participation,
+      intent: "Ask the world what happens next.",
+    });
+    let context: Readonly<Record<string, unknown>> | undefined;
+    const worldProposal = await repository.processAction(worldAction.id, (request) => {
+      context = request.context;
+      expect(request.character).toBeNull();
+      return gateway.generateWorldTurn(request);
+    });
+    expect(worldProposal?.proposal?.responseSource).toEqual({ type: "WORLD" });
+    expect(JSON.stringify(context)).not.toContain("spare key");
+    const manifest = await pool.query<{ context_manifest: Record<string, unknown> }>(
+      "select context_manifest from simulora.generation_attempts where action_id = $1",
+      [worldAction.id],
+    );
+    expect(manifest.rows[0]?.context_manifest).toMatchObject({
+      includedCharacterIds: [],
+      includedFactIds: [continuity.state.facts[0]!.id],
+    });
+    const evidence = await pool.query<{ valid: boolean }>(
+      "select simulora.action_generation_evidence_is_valid(proposal) as valid from simulora.action_proposals proposal where action_id = $1",
+      [worldAction.id],
+    );
+    expect(evidence.rows[0]?.valid).toBe(true);
+    await repository.cancelAction(account, worldAction.id);
+  });
+
   it("replays the rejected Tavi dialogue through app, sealed SQL evidence and exact confirmation", async () => {
     const narrative =
       "Tavi keeps one hand on the observatory rail and watches the western shoals swallow the signal's glow. The waiting vessel rocks beyond the markers, her running lights steady but her crew blind to any marked channel. 'If you wave them through that dim western line right now,' Tavi says, 'they'll read it as a bearing and steer straight into the shoals. In this fog that light is barely a smear — they can't judge the gap, and the tide is already turning. I wouldn't call them in on that.' Tavi nods east instead. 'There's a sheltered approach east of the harbor markers. Send the invitation that way, or hold the vessel outside until the western signal brightens. I'm not saying what the keeper should do — but I won't pilot anyone through the west on a light that faint.'";
@@ -608,6 +677,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       idempotencyKey: `g6-authority-${randomUUID()}`,
       expectedHeadCommitId: continuity.headCommitId,
       participationExpectation: continuity.state.participation,
+      targetCharacterId: "character.iora",
       intent: "Ask Iora to inspect the western signal.",
     });
     const proposed = await repository.processAction(action.id, (request) =>
@@ -633,6 +703,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       idempotencyKey: `g6-raw-${randomUUID()}`,
       expectedHeadCommitId: continuity.headCommitId,
       participationExpectation: continuity.state.participation,
+      targetCharacterId: "character.iora",
       intent: "Ask Iora whether the signal is safe.",
     });
     const narrative = options.narrative ?? "Iora refuses to light an unsafe signal.";
