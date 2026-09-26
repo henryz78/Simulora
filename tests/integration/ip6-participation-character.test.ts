@@ -190,7 +190,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
     }
   });
 
-  it("uses WORLD for new unaddressed Actions while preserving the pre-cutoff binding", async () => {
+  it("uses WORLD for new unaddressed Actions and gates on the 0054 ledger time", async () => {
     const world = structuredClone(lanternReachSeed);
     world.facts.push({
       id: "fact.iora-private",
@@ -206,28 +206,24 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       initiativeMode: "GUIDED",
       structureMode: "OPEN_ENDED",
     });
-    const gateway = new DeterministicModelGateway();
-    const oldAction = await repository.submitAction(account, continuity.branchId, {
-      schemaVersion: 1,
-      idempotencyKey: `px2b-old-${randomUUID()}`,
-      expectedHeadCommitId: continuity.headCommitId,
-      participationExpectation: continuity.state.participation,
-      intent: "Ask the world what happens next.",
-    });
-    await pool.query(
-      "update simulora.actions set created_at = now() - interval '1 minute' where id = $1",
-      [oldAction.id],
+    // Action timestamps and the 0054 ledger row are immutable, so the pre-cutoff
+    // binding is exercised end to end in migration-upgrade; here, the gate itself.
+    const gate = await pool.query<{ before: boolean; after: boolean }>(
+      `select simulora.px2b_world_response_apply('2000-01-01T00:00:00Z') as before,
+              simulora.px2b_world_response_apply(now()) as after`,
     );
-    const oldProposal = await repository.processAction(oldAction.id, (request) => {
-      expect(request.character?.id).toBe("character.iora");
-      return gateway.generateWorldTurn(request);
-    });
-    expect(oldProposal?.proposal?.responseSource).toEqual({
-      type: "CHARACTER",
-      characterId: "character.iora",
-    });
-    await repository.cancelAction(account, oldAction.id);
-
+    expect(gate.rows[0]).toEqual({ before: false, after: true });
+    const epochRow = "0054_px2b_world_response.sql";
+    await expect(
+      pool.query(
+        "update app_meta.schema_migrations set applied_at = applied_at + interval '1 day' where name = $1",
+        [epochRow],
+      ),
+    ).rejects.toThrow("The PX-2b selection epoch is immutable");
+    await expect(
+      pool.query("delete from app_meta.schema_migrations where name = $1", [epochRow]),
+    ).rejects.toThrow("The PX-2b selection epoch is immutable");
+    const gateway = new DeterministicModelGateway();
     const worldAction = await repository.submitAction(account, continuity.branchId, {
       schemaVersion: 1,
       idempotencyKey: `px2b-world-${randomUUID()}`,
@@ -706,6 +702,22 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       targetCharacterId: "character.iora",
       intent: "Ask Iora whether the signal is safe.",
     });
+    // PX-2b: a CHARACTER source needs explicit targeting, which binds RE-2
+    // evidence. Lift the fixture's legacy manifest to that shape, keeping its edits.
+    let manifest = options.manifest;
+    const legacy = manifest as Record<string, unknown> | undefined;
+    if (legacy?.compilerVersion === "ip6-context-v1") {
+      const source = await pool.query<{ digest: string }>(
+        `select encode(sha256(convert_to(simulora.canonical_jsonb_text(
+           simulora.re2_generation_context($1)), 'UTF8')), 'hex') as digest`,
+        [action.id],
+      );
+      manifest = {
+        ...legacy,
+        compilerVersion: "re2-context-v1",
+        sourceContextDigest: source.rows[0]!.digest,
+      };
+    }
     const narrative = options.narrative ?? "Iora refuses to light an unsafe signal.";
     const responseSource = { type: "CHARACTER" as const, characterId: "character.iora" };
     const target = continuity.state.facts.find(
@@ -750,7 +762,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       `insert into simulora.generation_attempts
        (id, action_id, attempt_number, adapter, status, context_manifest)
        values ($1, $2, 1, 'deterministic', 'RUNNING', $3::jsonb)`,
-      [attemptId, action.id, JSON.stringify(options.manifest)],
+      [attemptId, action.id, JSON.stringify(manifest)],
     );
     if (options.completeAttempt) {
       await pool.query(
@@ -1503,6 +1515,7 @@ suite("IP-6 participation and character authority against PostgreSQL", () => {
       idempotencyKey: `knowledge-${randomUUID()}`,
       expectedHeadCommitId: continuity.headCommitId,
       participationExpectation: continuity.state.participation,
+      targetCharacterId: "character.iora",
       intent: "Ask Iora whether the signal is safe.",
     });
     const gateway = new DeterministicModelGateway();

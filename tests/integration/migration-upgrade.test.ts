@@ -242,7 +242,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
     }
   }, 30_000);
 
-  it("keeps a pending proposal and an active Restore review valid across 0047 to 0048", async () => {
+  it("keeps a pending proposal and an active Restore review valid across 0047 to 0048 and later", async () => {
     if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
     const databaseName = `simulora_mgc_upgrade_${randomUUID().replaceAll("-", "")}`;
     const admin = createDatabasePool(connectionString);
@@ -302,8 +302,27 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       const review = await repository.prepareRestore(account, restored.branchId, point.commitId);
       const pending = await start();
       const proposal = await propose(pending, pending.headCommitId);
+      // PX-2b: an unaddressed Action submitted before 0054 keeps the RE-2 Character.
+      const unprocessed = await start();
+      const early = await repository.submitAction(account, unprocessed.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: unprocessed.headCommitId,
+        participationExpectation: unprocessed.state.participation,
+        intent: "Steady the western signal.",
+      });
 
       await runMigrations(url.toString(), migrations);
+      const late = await repository.processAction(
+        early.id,
+        (request) => gateway.generateWorldTurn(request),
+        "upgraded",
+      );
+      expect(late?.proposal?.responseSource).toEqual({
+        type: "CHARACTER",
+        characterId: "character.iora",
+      });
+      expect((await confirm(late!)).status).toBe("COMMITTED");
 
       const confirmedRestore = await repository.confirmRestore(account, restored.branchId, {
         proposalId: review.id,

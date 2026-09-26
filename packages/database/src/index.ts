@@ -1120,6 +1120,23 @@ export function onTransactionRetryConflict(
   transactionRetryLogger = observer;
 }
 
+// PX-2b: an unaddressed Action gets a WORLD response only once 0054 is installed
+// and the Action was created after it; earlier schemas keep the RE-2 selection.
+async function worldResponseWhenUnaddressed(
+  client: PoolClient,
+  actionId: string,
+): Promise<boolean> {
+  const installed = await client.query<{ installed: boolean }>(
+    "select to_regprocedure('simulora.px2b_world_response_apply(timestamp with time zone)') is not null as installed",
+  );
+  if (!installed.rows[0]?.installed) return false;
+  const result = await client.query<{ applies: boolean }>(
+    "select simulora.px2b_world_response_apply(created_at) as applies from simulora.actions where id = $1",
+    [actionId],
+  );
+  return result.rows[0]?.applies ?? false;
+}
+
 async function transaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
@@ -2546,11 +2563,9 @@ export class AuthoritativeWorldRepository {
         operation_payload: Record<string, unknown>;
         status: ActionStatus;
         intent: string;
-        world_response_when_unaddressed: boolean;
       }>(
         `select id, actor_account_id, branch_id, expected_head_commit_id, operation_type,
-                 operation_payload, status, intent,
-                 simulora.px2b_world_response_apply(created_at) as world_response_when_unaddressed
+                 operation_payload, status, intent
          from simulora.actions where id = $1 and actor_account_id = $2 for update`,
         [actionId, account.accountId],
       );
@@ -2660,7 +2675,7 @@ export class AuthoritativeWorldRepository {
           typeof action.operation_payload.targetCharacterId === "string"
             ? action.operation_payload.targetCharacterId
             : undefined,
-          !action.world_response_when_unaddressed,
+          !(await worldResponseWhenUnaddressed(client, actionId)),
         );
         if (!generationContext) throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
         const expectedResponseSource: ActionResponseSource = generationContext.character
@@ -4730,7 +4745,6 @@ export class AuthoritativeWorldRepository {
           requestedEffect?: string;
           targetThreadId?: string;
         };
-        world_response_when_unaddressed: boolean;
         supports_re2_context: boolean;
         supports_re3_policy: boolean;
       }>(
@@ -4740,7 +4754,6 @@ export class AuthoritativeWorldRepository {
                 continuity.active_branch_id, continuity.status as continuity_status,
                 c.state_revision_id as source_state_revision_id,
                 s.document as state_document, wr.document as world_document, a.operation_payload,
-                simulora.px2b_world_response_apply(a.created_at) as world_response_when_unaddressed,
                 to_regprocedure('simulora.re2_generation_context(uuid)') is not null as supports_re2_context,
                 to_regclass('simulora.re3_routine_policies') is not null as supports_re3_policy
          from simulora.actions a
@@ -4822,7 +4835,7 @@ export class AuthoritativeWorldRepository {
         world,
         state,
         action.operation_payload.targetCharacterId,
-        !action.world_response_when_unaddressed,
+        !(await worldResponseWhenUnaddressed(client, actionId)),
       );
       let context: Record<string, unknown> | undefined;
       if (generationContext && action.supports_re2_context) {
