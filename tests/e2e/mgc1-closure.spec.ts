@@ -143,6 +143,8 @@ async function install(page: Page) {
       customState: {},
     },
     source: { stateHash: "b".repeat(64) },
+    // The fixture's administrative policy lets only Tavi move (SA-2 exposes it).
+    routineMoverIds: ["character.tavi"],
   });
 
   const json = (route: Route, body: unknown, status = 200) =>
@@ -379,5 +381,38 @@ test("Return shows structured threads and relationship state, not the narrative 
   );
   await expect(page.getByRole("list", { name: "Relationships" })).toContainText("now wary");
   await expect(page.getByText("Recent developments")).toBeVisible();
+  await expectAccessible(page);
+});
+
+test("SA-2: movement is offered only to movers, and an uninformed Character's refusal is explained", async ({
+  page,
+}) => {
+  await install(page);
+  await page.goto(`/continuities/${continuityId}`);
+  const outcome = page.getByLabel("Desired outcome");
+  const move = outcome.locator("option", { hasText: "Have this character move" });
+  await page.getByLabel("Address a character").selectOption("character.iora");
+  await expect(move).toBeDisabled();
+  await page.getByLabel("Address a character").selectOption("character.tavi");
+  await expect(move).toBeEnabled();
+
+  // The API refuses an addressed Character that cannot know the Action's target.
+  await page.route(`**/v1/branches/${branchId}/actions`, (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({
+            code: "WORLD_NOT_PLAYABLE",
+            message: "The selected Character is unavailable or cannot know this Action target",
+          }),
+        })
+      : route.fallback(),
+  );
+  await page.getByLabel("Your Action").fill("Ask Tavi what the tide will do.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  await expect(
+    page.getByText("This character does not know anything this Action can be about yet."),
+  ).toBeVisible();
   await expectAccessible(page);
 });

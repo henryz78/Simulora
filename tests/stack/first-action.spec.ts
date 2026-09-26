@@ -432,3 +432,83 @@ test("a World authored only in Studio plays relationship states, a thread and a 
   );
   await expectAccessible(page);
 });
+
+// SA-2: a creator-granted movement on a World authored only in Studio.
+test("a Studio World moves a named Character along an opened route, and its rule meets the closed way back", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/worlds/new");
+  await page
+    .getByLabel("World title")
+    .fill(`Studio movement ${testInfo.project.name} ${Date.now()}`);
+  await page.getByRole("button", { name: "Create Draft" }).click();
+  await expect(page).toHaveURL(/\/worlds\/[0-9a-f-]+\/studio$/);
+  const worldId = /\/worlds\/([0-9a-f-]+)\/studio$/.exec(page.url())![1]!;
+  await page.getByRole("button", { name: "Add place" }).click();
+  await page.getByRole("button", { name: "Add Character" }).click();
+  await page.getByText("Facts, routes, relationships and boundaries").click();
+  await page.getByRole("button", { name: "Add route" }).click();
+  await page
+    .getByRole("group", { name: "Route 1" })
+    .getByLabel("Characters above may use this route on their own")
+    .check();
+  await page.getByRole("group", { name: "Who may move" }).getByLabel("A local guide").check();
+  await page.getByRole("button", { name: "Add world rule" }).click();
+  await page
+    .getByRole("group", { name: "Rule 1" })
+    .getByLabel("Rule")
+    .fill("The flooded causeway cannot be crossed.");
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+
+  // Character 2 knows nothing yet: the playability check says so before play.
+  await page.getByRole("button", { name: "Check playability" }).click();
+  await expect(
+    page.getByText("Character 2 does not know anything a player can ask about yet"),
+  ).toBeVisible();
+  const { continuityId } = await playFromStudio(page, worldId);
+
+  const where = async (name: string) => {
+    const state = (await (
+      await page.request.get(`/v1/continuities/${continuityId}/state`)
+    ).json()) as {
+      world: { locations: Array<{ id: string }> };
+      state: { characters: Array<{ name: string; locationId: string }> };
+      routineMoverIds: string[];
+    };
+    return {
+      state,
+      at: state.state.characters.find((character) => character.name === name)!.locationId,
+    };
+  };
+  const before = await where("A local guide");
+  expect(before.state.routineMoverIds).toHaveLength(1);
+  const [start, place2] = before.state.world.locations.map((location) => location.id);
+  expect(before.at).toBe(start);
+
+  const outcome = page.getByLabel("Desired outcome");
+  const move = outcome.locator("option", { hasText: "Have this character move" });
+  await page.getByLabel("Address a character").selectOption({ label: "Character 2" });
+  await expect(move).toBeDisabled();
+
+  const review = page.locator(".proposal-review");
+  const sendMove = async (intent: string) => {
+    await page.getByLabel("Address a character").selectOption({ label: "A local guide" });
+    await outcome.selectOption("ROUTINE_EFFECT");
+    await page.getByLabel("Your Action").fill(intent);
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  };
+  await sendMove("Walk the guide to the next place.");
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  expect((await where("A local guide")).at).toBe(place2);
+
+  // The way back was drawn only one way, so the authored rule shapes the outcome.
+  await sendMove("Walk the guide back across the causeway.");
+  await expect(review).toContainText("World constraint · The flooded causeway cannot be crossed.");
+  await page.getByRole("button", { name: "Cancel Action" }).click();
+  await expect(page.getByLabel("Your Action")).toBeEnabled();
+  expect((await where("A local guide")).at).toBe(place2);
+  await expectAccessible(page);
+});

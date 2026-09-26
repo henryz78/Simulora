@@ -73,9 +73,11 @@ export const worldDocumentInputSchema = z.object({
         fromLocationId: z.string().min(1),
         toLocationId: z.string().min(1),
         label: nonEmptyTextSchema,
+        permitsRoutineMovement: z.boolean().optional(),
       }),
     )
     .optional(),
+  routineMovers: z.array(z.string().min(1)).optional(),
   characters: z
     .array(
       z.object({
@@ -527,6 +529,8 @@ export const authoritativeStateResponseSchema = z.object({
     customState: z.record(z.string(), z.unknown()),
   }),
   source: z.object({ stateHash: z.string().regex(/^[0-9a-f]{64}$/) }),
+  // SA-2: Characters the pinned Revision's routine policy lets move ([] when none).
+  routineMoverIds: z.array(z.string().min(1).max(120)).optional(),
 });
 
 export const actionStatusSchema = z.enum([

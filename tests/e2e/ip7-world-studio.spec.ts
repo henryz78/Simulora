@@ -336,3 +336,88 @@ test("SA-1: creator authors relationship states, story threads and world rules",
   });
   expect(cleared).not.toHaveProperty("threads");
 });
+
+test("SA-2: creator names who may move and which routes they may use", async ({ page }) => {
+  const harbor = { id: "location-harbor", name: "Harbor", description: "A foggy harbor." };
+  const keeper = {
+    id: "character-keeper",
+    name: "The keeper",
+    role: "Tends the harbour bell",
+    locationId,
+    motives: ["Keep the bell working."],
+    stance: "May refuse when the bell is at risk.",
+    knowledgeFactIds: [],
+  };
+  let draft: Record<string, unknown> = {
+    ...documentFor(),
+    locations: [...documentFor().locations, harbor],
+    routineRoutes: [
+      { fromLocationId: locationId, toLocationId: harbor.id, label: "The harbour steps." },
+    ],
+    characters: [...documentFor().characters, keeper],
+  };
+  let rowVersion = 1;
+  await page.route(`**/v1/worlds/${worldId}/studio`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(studioResponse(draft as ReturnType<typeof documentFor>, rowVersion)),
+    }),
+  );
+  await page.route(`**/v1/worlds/${worldId}/draft`, async (route) => {
+    draft = (route.request().postDataJSON() as { document: Record<string, unknown> }).document;
+    rowVersion += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ worldId, rowVersion, document: draft, documentHash: "b".repeat(64) }),
+    });
+  });
+
+  await page.goto(`/worlds/${worldId}/studio`);
+  await page.getByText("Facts, routes, relationships and boundaries").click();
+  const movers = page.getByRole("group", { name: "Who may move" });
+  const save = page.getByRole("button", { name: "Save Draft" });
+
+  // Each half of the grant alone is explained and cannot be saved.
+  await movers.getByLabel("The keeper").check();
+  await expect(
+    page.getByText("Open at least one route to the Characters who move on their own"),
+  ).toBeVisible();
+  await expect(save).toBeDisabled();
+  await movers.getByLabel("The keeper").uncheck();
+  const route = page.getByRole("group", { name: "Route 1" });
+  await route.getByLabel("Characters above may use this route on their own").check();
+  await expect(
+    page.getByText("Tick at least one Character who may use the open routes"),
+  ).toBeVisible();
+  await movers.getByLabel("The keeper").focus();
+  await page.keyboard.press("Space");
+  await expect(save).toBeEnabled();
+  await expectAccessible(page);
+  await save.click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  expect(draft).toMatchObject({
+    routineMovers: [keeper.id],
+    routineRoutes: [
+      { fromLocationId: locationId, toLocationId: harbor.id, permitsRoutineMovement: true },
+    ],
+  });
+
+  // Removing the mover leaves an open route with nobody to use it, which is explained.
+  await page
+    .getByRole("group", { name: "Character 2", exact: true })
+    .getByRole("button", { name: "Remove Character" })
+    .click();
+  await expect(movers.getByLabel("The keeper")).toHaveCount(0);
+  await expect(
+    page.getByText("Tick at least one Character who may use the open routes"),
+  ).toBeVisible();
+  await route.getByLabel("Characters above may use this route on their own").uncheck();
+  await save.click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  expect(draft).not.toHaveProperty("routineMovers");
+  expect((draft.routineRoutes as Array<Record<string, unknown>>)[0]).not.toHaveProperty(
+    "permitsRoutineMovement",
+  );
+});

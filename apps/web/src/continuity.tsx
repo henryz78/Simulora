@@ -481,11 +481,16 @@ export function ContinuityProvider({
         });
         if (!response.ok) {
           if (response.status >= 400 && response.status < 500) {
+            const refused = (await response.json().catch(() => null)) as { code?: string } | null;
             pendingSubmission.current.delete(submissionKey);
             await refresh().catch(() => undefined);
             return {
               action: null,
-              error: "The Action was not accepted. Review the current world and try again.",
+              // SA-2: an addressed Character must know the fact this Action is about.
+              error:
+                targetCharacterId && refused?.code === "WORLD_NOT_PLAYABLE"
+                  ? "This character does not know anything this Action can be about yet. Give them knowledge of a fact in World Studio, or let the world respond."
+                  : "The Action was not accepted. Review the current world and try again.",
             };
           }
           await refresh().catch(() => undefined);
@@ -1235,6 +1240,11 @@ export function ActionComposer(): ReactElement {
     loadState.status === "ready"
       ? (loadState.data.state.threads ?? []).filter((thread) => thread.status === "OPEN")
       : [];
+  // SA-2: movement is offered only to Characters the Revision's policy lets move.
+  const routineMoverIds = loadState.status === "ready" ? loadState.data.routineMoverIds : undefined;
+  const canMove =
+    Boolean(targetCharacterId) &&
+    (routineMoverIds === undefined || routineMoverIds.includes(targetCharacterId));
   const canShiftRelationship =
     loadState.status === "ready" &&
     Boolean(targetCharacterId) &&
@@ -1252,6 +1262,10 @@ export function ActionComposer(): ReactElement {
       !targetCharacterId
     ) {
       setError("Choose a character first.");
+      return;
+    }
+    if (requestedEffect === "ROUTINE_EFFECT" && !canMove) {
+      setError("This character cannot move on their own in this World.");
       return;
     }
     setWorking(true);
@@ -1334,7 +1348,7 @@ export function ActionComposer(): ReactElement {
           }
         >
           <option value="FACT_REWRITE">Change a current world fact</option>
-          <option value="ROUTINE_EFFECT" disabled={!targetCharacterId}>
+          <option value="ROUTINE_EFFECT" disabled={!canMove}>
             Have this character move
           </option>
           <option value="RELATIONSHIP_EFFECT" disabled={!canShiftRelationship}>

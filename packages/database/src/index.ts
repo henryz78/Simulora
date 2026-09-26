@@ -276,6 +276,8 @@ export type ContinuityStateRecord = {
   world: WorldDocument;
   state: StateRevisionDocument;
   stateHash: string;
+  /** SA-2: Characters the pinned Revision's routine policy lets move. */
+  routineMoverIds?: string[];
 };
 
 export type SubmitActionDatabaseInput = {
@@ -1012,6 +1014,32 @@ function assessWorldDocument(value: unknown): {
             },
           ]
         : []),
+      // SA-2: the same rule the Composer meets when a Character is addressed.
+      ...parsed.data.characters.flatMap((character, index) => {
+        try {
+          compileActionGenerationContext(
+            parsed.data,
+            createInitialState(parsed.data, {
+              initiativeMode: "GUIDED",
+              structureMode: "OPEN_ENDED",
+            }),
+            character.id,
+          );
+          return [];
+        } catch {
+          const needed = parsed.data.facts.find((fact) => fact.scope === "SHARED");
+          return [
+            {
+              path: `characters.${index}.knowledgeFactIds`,
+              message: `${character.name} does not know anything a player can ask about yet${
+                needed ? `; give them knowledge of "${needed.statement}"` : ""
+              }.`,
+              severity: "WARNING" as const,
+              playEffect: `Players cannot address ${character.name} until they know that fact.`,
+            },
+          ];
+        }
+      }),
       ...(parsed.data.objectives.length === 0
         ? [
             {
@@ -1687,6 +1715,15 @@ export class AuthoritativeWorldRepository {
     // The current read is owner-scoped in IP-4. Future shared projections must filter
     // ACCOUNT_PRIVATE and CONTINUITY_PRIVATE facts at the authorization boundary.
     const filteredState: StateRevisionDocument = state;
+    const policyAvailable = await this.pool.query<{ available: boolean }>(
+      "select to_regclass('simulora.re3_routine_policies') is not null as available",
+    );
+    const policy = policyAvailable.rows[0]?.available
+      ? await this.pool.query<{ document: unknown }>(
+          "select document from simulora.re3_routine_policies where world_revision_id = $1",
+          [row.world_revision_id],
+        )
+      : { rows: [] };
     return {
       continuityId: row.continuity_id,
       branchId: row.branch_id,
@@ -1697,6 +1734,9 @@ export class AuthoritativeWorldRepository {
       world: worldDocumentSchema.parse(row.world_document),
       state: filteredState,
       stateHash: row.state_hash,
+      routineMoverIds: policy.rows[0]
+        ? routinePolicySchema.parse(policy.rows[0].document).npcIds
+        : [],
     };
   }
 

@@ -96,9 +96,13 @@ export const worldDocumentSchema = z
           fromLocationId: stableIdSchema,
           toLocationId: stableIdSchema,
           label: nonEmptyTextSchema,
+          // SA-2: the creator lets `routineMovers` use this route (ADR-SA2).
+          permitsRoutineMovement: z.boolean().optional(),
         }),
       )
       .optional(),
+    // SA-2: Characters the creator lets move on their own along permitted routes.
+    routineMovers: z.array(stableIdSchema).optional(),
     characters: z.array(worldCharacterSpecSchema).min(1),
     facts: z.array(worldFactSchema).min(1),
     relationships: z.array(
@@ -150,6 +154,26 @@ export const worldDocumentSchema = z
         });
       }
     });
+
+    const movers = world.routineMovers ?? [];
+    if (new Set(movers).size !== movers.length || movers.some((id) => !characterIds.has(id))) {
+      context.addIssue({
+        code: "custom",
+        message: "Characters who move on their own must be distinct World Characters",
+        path: ["routineMovers"],
+      });
+    }
+    if (
+      movers.length > 0 !==
+      Boolean(world.routineRoutes?.some((route) => route.permitsRoutineMovement === true))
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Characters who move on their own need at least one route they may use, and a route open to them needs at least one such Character",
+        path: ["routineMovers"],
+      });
+    }
 
     world.characters.forEach((character, index) => {
       if (!locationIds.has(character.locationId)) {

@@ -582,6 +582,8 @@ export type AuthoritativeState = {
   world: WorldDocument;
   state: StateRevisionDocument;
   stateHash: string;
+  /** SA-2: Characters the pinned Revision's routine policy lets move. */
+  routineMoverIds?: string[];
 };
 
 export interface WorldContinuityPort {

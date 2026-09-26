@@ -2555,6 +2555,7 @@ function StudioCoreFields({
       return {
         ...current,
         characters: current.characters.filter((character) => character.id !== id),
+        routineMovers: orUndefined((current.routineMovers ?? []).filter((mover) => mover !== id)),
         relationships: current.relationships.filter(
           (relationship) =>
             relationship.fromCharacterId !== id && relationship.toCharacterId !== id,
@@ -2900,6 +2901,32 @@ function StudioCoreFields({
           Add fact
         </button>
         <h3>Routine routes</h3>
+        <fieldset className="studio-checks">
+          <legend>Who may move</legend>
+          <p className="muted-copy">
+            Only the Characters you tick may move, and only along routes you open to them below. The
+            player's own role never moves on its own.
+          </p>
+          {draft.characters.map((character) => (
+            <label key={character.id}>
+              <input
+                type="checkbox"
+                checked={(draft.routineMovers ?? []).includes(character.id)}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    routineMovers: orUndefined(
+                      event.target.checked
+                        ? [...(current.routineMovers ?? []), character.id]
+                        : (current.routineMovers ?? []).filter((mover) => mover !== character.id),
+                    ),
+                  }))
+                }
+              />
+              {character.name}
+            </label>
+          ))}
+        </fieldset>
         {(draft.routineRoutes ?? []).map((route, index) => (
           <fieldset
             className="studio-repeatable"
@@ -2963,6 +2990,23 @@ function StudioCoreFields({
                   }))
                 }
               />
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={route.permitsRoutineMovement === true}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    routineRoutes: current.routineRoutes?.map((item, routeIndex) =>
+                      routeIndex === index
+                        ? { ...item, permitsRoutineMovement: event.target.checked || undefined }
+                        : item,
+                    ),
+                  }))
+                }
+              />
+              Characters above may use this route on their own
             </label>
             <button
               className="text-action"
@@ -3365,6 +3409,13 @@ function studioDraftProblem(draft: WorldDocumentInput): string | null {
     )
   )
     return "Give each relationship state a different name before saving.";
+  if (
+    Boolean(draft.routineMovers?.length) !==
+    Boolean(draft.routineRoutes?.some((route) => route.permitsRoutineMovement === true))
+  )
+    return draft.routineMovers?.length
+      ? "Open at least one route to the Characters who move on their own, or untick them."
+      : "Tick at least one Character who may use the open routes, or close the routes.";
   if (draft.threads?.some((thread) => !thread.title.trim()))
     return "Give every story thread a title before saving.";
   if (draft.constraints?.some((rule) => !rule.statement.trim()))

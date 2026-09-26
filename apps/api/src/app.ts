@@ -133,6 +133,7 @@ function stateResponse(result: Awaited<ReturnType<WorldContinuityService["readCu
     world: result.world,
     state: result.state,
     source: { stateHash: result.stateHash },
+    routineMoverIds: result.routineMoverIds,
   });
 }
 
