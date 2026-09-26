@@ -2274,7 +2274,7 @@ export function WorldStudioPage(): ReactElement {
               model call or live provider is involved.
             </p>
             {draftProblem ? (
-              <p className="action-error" id="studio-draft-problem">
+              <p className="action-error" id="studio-draft-problem" aria-live="polite">
                 {draftProblem}
               </p>
             ) : null}
@@ -2339,7 +2339,7 @@ export function WorldStudioPage(): ReactElement {
                 player will experience.
               </p>
               {draftProblem ? (
-                <p className="action-error" id="studio-draft-problem">
+                <p className="action-error" id="studio-draft-problem" aria-live="polite">
                   {draftProblem}
                 </p>
               ) : null}
@@ -2628,25 +2628,33 @@ function StudioCoreFields({
         relationshipIndex === index ? { ...item, ...patch(item) } : item,
       ),
     }));
-  // A renamed or removed state carries the starting state with it. Position, not
-  // text, decides, so a momentary duplicate name never moves the starting state.
-  const renameState = (index: number, stateIndex: number, label: string) =>
-    updateRelationship(index, (item) => ({
-      scale: item.scale?.map((state, position) => (position === stateIndex ? label : state)),
-      initialState:
-        item.scale?.indexOf(item.initialState ?? "") === stateIndex ? label : item.initialState,
-    }));
-  const removeState = (index: number, stateIndex: number) =>
-    updateRelationship(index, (item) => {
-      const scale = (item.scale ?? []).filter((_, position) => position !== stateIndex);
-      return {
-        scale,
-        initialState:
-          item.scale?.indexOf(item.initialState ?? "") === stateIndex
-            ? scale[0]
-            : item.initialState,
-      };
-    });
+  // The starting state is tracked by position, never by text, so typing a name
+  // through a duplicate never moves it. A stale position (after a reload or a
+  // restore) falls back to the first matching state.
+  const startPositions = useRef(new Map<string, number>());
+  const startOf = (item: WorldDocumentInput["relationships"][number]): number => {
+    const known = startPositions.current.get(item.id);
+    return known !== undefined && item.scale?.[known] === item.initialState
+      ? known
+      : (item.scale?.indexOf(item.initialState ?? "") ?? -1);
+  };
+  const setStart = (index: number, position: number, scale: string[]) => {
+    startPositions.current.set(draft.relationships[index]!.id, position);
+    updateRelationship(index, () => ({ scale, initialState: scale[position] }));
+  };
+  const renameState = (index: number, stateIndex: number, label: string) => {
+    const item = draft.relationships[index]!;
+    const scale = (item.scale ?? []).map((state, position) =>
+      position === stateIndex ? label : state,
+    );
+    setStart(index, startOf(item), scale);
+  };
+  const removeState = (index: number, stateIndex: number) => {
+    const item = draft.relationships[index]!;
+    const start = startOf(item);
+    const scale = (item.scale ?? []).filter((_, position) => position !== stateIndex);
+    setStart(index, start === stateIndex ? 0 : start > stateIndex ? start - 1 : start, scale);
+  };
   return (
     <section className="surface-card studio-core" aria-labelledby="studio-core-title">
       <p className="card-label">Playable core</p>
@@ -3064,12 +3072,7 @@ function StudioCoreFields({
                   type="radio"
                   name={`studio-relationship-change-${relationship.id}`}
                   checked={Boolean(relationship.scale)}
-                  onChange={() =>
-                    updateRelationship(index, () => ({
-                      scale: ["distant", "neutral", "close"],
-                      initialState: "neutral",
-                    }))
-                  }
+                  onChange={() => setStart(index, 1, ["distant", "neutral", "close"])}
                 />
                 Yes, it can move between named states
               </label>
@@ -3117,7 +3120,7 @@ function StudioCoreFields({
                     <select
                       value={relationship.initialState}
                       onChange={(event) =>
-                        updateRelationship(index, () => ({ initialState: event.target.value }))
+                        setStart(index, event.target.selectedIndex, relationship.scale!)
                       }
                     >
                       {relationship.scale.map((state, stateIndex) => (
@@ -3235,6 +3238,7 @@ function StudioCoreFields({
               Rule
               <textarea
                 rows={2}
+                maxLength={4000}
                 value={constraint.statement}
                 onChange={(event) =>
                   setDraft((current) => ({

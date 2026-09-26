@@ -263,6 +263,12 @@ test("SA-1: creator authors relationship states, story threads and world rules",
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Save Draft" })).toBeDisabled();
   await relationship.getByRole("textbox", { name: "State 3", exact: true }).fill("state 3");
+  // Typing a name through a duplicate never moves the starting state (review M1).
+  const firstState = relationship.getByRole("textbox", { name: "State 1", exact: true });
+  await firstState.fill("");
+  await firstState.pressSequentially("closer");
+  await expect(relationship.getByLabel("Starting state")).toHaveValue("close");
+  await firstState.fill("distant");
   await expect(relationship.getByLabel("How a change is confirmed")).toHaveValue("ROUTINE");
 
   await page.getByRole("button", { name: "Add story thread" }).click();
@@ -305,12 +311,18 @@ test("SA-1: creator authors relationship states, story threads and world rules",
   ]);
   await expectAccessible(page);
 
-  await relationship.getByLabel("No, it stays as described").check();
+  // The new controls work from the keyboard alone (review M3).
+  await relationship.getByLabel("No, it stays as described").focus();
+  await page.keyboard.press("Space");
+  await expect(relationship.getByLabel("No, it stays as described")).toBeChecked();
   await page
     .getByRole("group", { name: "Thread 1" })
     .getByRole("button", { name: "Remove thread" })
-    .click();
-  await page.getByRole("button", { name: "Save Draft" }).click();
+    .focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("group", { name: "Thread 1" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save Draft" }).focus();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("status")).toContainText("Draft saved");
   const cleared = draft as Record<string, unknown> & {
     relationships: Array<Record<string, unknown>>;
