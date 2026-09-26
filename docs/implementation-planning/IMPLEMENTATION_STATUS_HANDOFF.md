@@ -1560,3 +1560,11 @@ live model use stays disabled.
 lists the product-owner decisions in a recommended order (model provider
 first) and proposes two unauthorized tracks: Studio authoring for the MGC-1
 fields, and bounded human play validation.
+
+**Decisions recorded (2026-09-25):** directional product-owner choices
+(OpenAI-compatible provider, Cloudflare, provisional retention and recovery
+targets, Google plus email login, no adult verification for now, free test
+with a daily limit) are in the packet's §5. None is an approval. Track A is
+proposed as the [SA-1 Studio Authoring Contract](STUDIO-AUTHORING-CONTRACT.md)
+and awaits approval.
+

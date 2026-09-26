@@ -53,6 +53,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [IP-10 Alert Definitions](implementation-planning/IP-10-ALERT-DEFINITIONS.md)
 - [IP-10 Final Engineering Review](implementation-planning/IP-10-FINAL-ENGINEERING-REVIEW.md)
 - [G10 External Decision Packet](implementation-planning/G10-EXTERNAL-DECISION-PACKET.md)
+- [SA-1 Studio Authoring Contract (proposed)](implementation-planning/STUDIO-AUTHORING-CONTRACT.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
 - [G1–G6 Final Independent / Integrated Review](implementation-planning/G1-G6-FINAL-INTEGRATED-REVIEW.md)

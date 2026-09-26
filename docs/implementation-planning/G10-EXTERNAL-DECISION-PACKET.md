@@ -1,6 +1,6 @@
 # G10 External Decision Packet
 
-**Date:** 2026-09-25 · **Status:** `AWAITING PRODUCT-OWNER DECISIONS`.
+**Date:** 2026-09-25 · **Status:** `DIRECTIONAL DECISIONS RECORDED (§5); DETAILS PENDING`.
 This is a proposal. It approves no provider, vendor or policy, and it starts
 no phase.
 
@@ -111,3 +111,42 @@ Review.
   selected.
 - Frozen Action, authority, confirmation, Recovery and ownership semantics
   are unchanged.
+
+## 5. Product-owner decisions recorded (2026-09-25)
+
+These are **directional** choices the product owner made in chat. None is an
+approval reference, a signed term or a PASS. Each one still needs the
+details listed before it takes effect.
+
+| Area | Decision | Still needed before it takes effect |
+|---|---|---|
+| Model provider | Use an **OpenAI-compatible** provider. The owner will supply new API details for internal play. | The provider's retention and training terms, and an approval reference, before any shared environment. Internal play runs in local or test only. |
+| Cloud | **Cloudflare**. | See *Cloudflare notes* below. |
+| Retention and recovery | Account deletion is purged within **30 days**. Daily backups are kept **30 days**. At most **1 hour** of data may be lost, and service recovers within **4 hours**. These are provisional targets. | A 1-hour loss limit needs continuous backup (point-in-time recovery) from the PostgreSQL host; daily backups alone allow up to 24 hours of loss. |
+| Login | **Google** and **email** only. | The email method: a one-time link is suggested, since it stores no password. The identity service. |
+| Adult eligibility | **No verification for now.** | Product Definition V1 stays adult-only (frozen). How adult-only is stated before external users is still to be decided. |
+| Safety | The provider's own moderation, plus fixed hard rules (for example, illegal content and sexual content involving minors are refused), plus an email or form for appeals. | The rule list and appeal contact |
+| Pricing | Free internal test with a **daily per-person Action limit**. | The limit number |
+| Brand and assets | Keep "Simulora" subject to a trademark check. Assets are original or licensed. | The trademark check |
+| People and reviews | Deferred until launch preparation. | — |
+| Jurisdiction | The owner is outside China, and no mainland-China launch is planned, so no China filing is pursued. | Launch regions |
+| Track A | **Agreed.** | Approval of the [SA-1 Studio Authoring Contract](STUDIO-AUTHORING-CONTRACT.md) |
+
+**Cloudflare notes (engineering facts, not a decision):**
+
+- The stack is a static web app, a Node API, a long-running Node worker,
+  PostgreSQL and an S3-compatible object store (`deploy/`).
+- **Fits well:**
+  - the web app on Cloudflare's static hosting;
+  - export objects on R2, which is S3-compatible, matching the IP-9 object
+    adapter.
+- **Needs a choice:**
+  - Cloudflare does not host PostgreSQL itself, so a managed PostgreSQL
+    provider is needed, reachable from Cloudflare;
+  - the API and worker are long-running Node processes. They need either
+    Cloudflare's container offering (its current limits must be checked) or a
+    separate container host.
+- Monitoring and paging for the IP-10.7 alerts also follow from this.
+
+Beta, launch and production live model use remain unauthorized.
+
