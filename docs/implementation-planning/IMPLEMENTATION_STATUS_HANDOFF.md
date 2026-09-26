@@ -1650,3 +1650,24 @@ Next, if the owner approves: track B, bounded human play with the owner's
 OpenAI-compatible provider in local or test only. Beta, launch and production
 live model use remain unauthorized.
 
+## 55. Track B: local live play with the owner's provider
+
+The product owner approved track B on 2026-09-25: local play with the owner's
+OpenAI-compatible aggregator, with ample quota. Beta, launch and production
+live model use remain unauthorized.
+
+An Agent played a Studio-authored World through the formal UI on the real
+web, API and worker, with a local PGlite database. See the
+[Track B Local Live Play Report](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md).
+
+- **Behavior fixes, pending CI and independent Review:**
+  - `e269364` and `9ca1fdb`: a declared answering model name
+    (`SIMULORA_MODEL_ANSWERING_NAME`), because the aggregator drops its
+    routing prefix;
+  - `6f44524`: an empty HTTP 200 reply is an outage.
+- **Open finding for the owner:** committed outcomes (narratives, transformed
+  failures, thread resolutions) are not in the model's generation context, so
+  later turns can contradict them. The fix touches RE-2 authorized context.
+- **Profile note:** this model needs a longer timeout and a larger output
+  budget than the defaults.
+
