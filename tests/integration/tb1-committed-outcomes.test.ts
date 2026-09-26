@@ -221,6 +221,18 @@ suite("TB-1 committed outcomes in the generation context", () => {
       [followUp.id],
     );
     expect(manifest.rows[0]!.digest).toMatch(/^[0-9a-f]{64}$/);
+
+    // Iora's exchange used only knowledge Tavi may have, so Tavi is told it,
+    // although it was addressed to Iora.
+    const toTavi = await submit(continuityId, "NO_WORLD_EFFECT", {
+      targetCharacterId: "character.tavi",
+    });
+    const tavi = (await context(toTavi.id)).now as { committedOutcomes: Outcome[] };
+    expect(tavi.committedOutcomes.at(-1)!.exchange).toEqual([
+      expect.objectContaining({ role: "USER" }),
+      expect.objectContaining({ role: "CHARACTER", characterId: "character.iora" }),
+    ]);
+    await repository.cancelAction(account, toTavi.id);
   });
 
   it("applies only to Actions created after 0051 was applied", async () => {
@@ -233,5 +245,17 @@ suite("TB-1 committed outcomes in the generation context", () => {
       "select to_regclass('simulora.tb1_outcome_context_epoch')::text as found",
     );
     expect(epochTable.rows[0]!.found).toBeNull();
+
+    // The ledger row that holds the epoch cannot move or disappear.
+    const epochRow = "0051_tb1_committed_outcome_context.sql";
+    await expect(
+      pool.query(
+        "update app_meta.schema_migrations set applied_at = applied_at - interval '1 day' where name = $1",
+        [epochRow],
+      ),
+    ).rejects.toThrow("The TB-1 outcome epoch is immutable");
+    await expect(
+      pool.query("delete from app_meta.schema_migrations where name = $1", [epochRow]),
+    ).rejects.toThrow("The TB-1 outcome epoch is immutable");
   });
 });
