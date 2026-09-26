@@ -1556,3 +1556,7 @@ selected.
 and any new feature phase are not started and not authorized. Production
 live model use stays disabled.
 
+**Next (proposal only):** the [G10 External Decision Packet](G10-EXTERNAL-DECISION-PACKET.md)
+lists the product-owner decisions in a recommended order (model provider
+first) and proposes two unauthorized tracks: Studio authoring for the MGC-1
+fields, and bounded human play validation.
