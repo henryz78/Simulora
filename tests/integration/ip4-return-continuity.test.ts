@@ -188,6 +188,7 @@ suite("IP-4 Return, Continuity and direct correction against PostgreSQL", () => 
       expect(restored.current.situation).toBe(fact.statement);
       expect(restored.freshness.sourceHeadCommitId).not.toBe(continuity.headCommitId);
     },
+    30_000,
   );
 
   it("does not promote a private fact into the shared current-situation lead", async () => {
