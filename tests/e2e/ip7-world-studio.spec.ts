@@ -194,3 +194,133 @@ test("Studio keeps an existing Continuity pinned and is complete on mobile", asy
   await expect(page.getByRole("button", { name: "Resume pinned Continuity" })).toBeVisible();
   await expectAccessible(page);
 });
+
+test("SA-1: creator authors relationship states, story threads and world rules", async ({
+  page,
+}) => {
+  const second = {
+    id: "character-keeper",
+    name: "The keeper",
+    role: "Tends the harbour bell",
+    locationId,
+    motives: ["Keep the bell working."],
+    stance: "May refuse when the bell is at risk.",
+    knowledgeFactIds: [],
+  };
+  // An API-authored field Studio never displays must survive a save.
+  let draft: Record<string, unknown> = {
+    ...documentFor(),
+    characters: [...documentFor().characters, second],
+    relationships: [
+      {
+        id: "relationship-api",
+        fromCharacterId: characterId,
+        toCharacterId: second.id,
+        description: "Authored through the API.",
+        protection: "ROUTINE",
+      },
+    ],
+  };
+  let rowVersion = 1;
+  const posted: unknown[] = [];
+  await page.route(`**/v1/worlds/${worldId}/studio`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(studioResponse(draft as ReturnType<typeof documentFor>, rowVersion)),
+    }),
+  );
+  await page.route(`**/v1/worlds/${worldId}/draft`, async (route) => {
+    draft = (route.request().postDataJSON() as { document: Record<string, unknown> }).document;
+    posted.push(draft);
+    rowVersion += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ worldId, rowVersion, document: draft, documentHash: "b".repeat(64) }),
+    });
+  });
+
+  await page.goto(`/worlds/${worldId}/studio`);
+  await page.getByText("Facts, routes, relationships and boundaries").click();
+  const relationship = page.getByRole("group", { name: "Relationship 1", exact: true });
+  await relationship.getByLabel("Yes, it can move between named states").check();
+  await expect(relationship.getByLabel("Starting state")).toHaveValue("neutral");
+  await relationship.getByRole("textbox", { name: "State 2", exact: true }).fill("wary");
+  await expect(relationship.getByLabel("Starting state")).toHaveValue("wary");
+  await relationship.getByRole("button", { name: "Remove state 2" }).click();
+  await expect(relationship.getByLabel("Starting state")).toHaveValue("distant");
+  await expect(relationship.getByRole("button", { name: "Remove state 1" })).toBeDisabled();
+  for (let count = 2; count < 7; count += 1) {
+    await relationship.getByRole("button", { name: "Add state" }).click();
+  }
+  await expect(relationship.getByRole("button", { name: "Add state" })).toBeDisabled();
+  await relationship.getByRole("button", { name: "Remove state 7" }).click();
+  await relationship.getByLabel("Starting state").selectOption("close");
+  await relationship.getByRole("textbox", { name: "State 3", exact: true }).fill("close");
+  await expect(
+    page.getByText("Give each relationship state a different name before saving."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Draft" })).toBeDisabled();
+  await relationship.getByRole("textbox", { name: "State 3", exact: true }).fill("state 3");
+  await expect(relationship.getByLabel("How a change is confirmed")).toHaveValue("ROUTINE");
+
+  await page.getByRole("button", { name: "Add story thread" }).click();
+  await page.getByRole("group", { name: "Thread 1" }).getByLabel("Title").fill("");
+  await expect(page.getByText("Give every story thread a title before saving.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Draft" })).toBeDisabled();
+  await page
+    .getByRole("group", { name: "Thread 1" })
+    .getByLabel("Title")
+    .fill("Who rang the harbour bell?");
+  await page.getByRole("button", { name: "Add world rule" }).click();
+  await page
+    .getByRole("group", { name: "Rule 1" })
+    .getByLabel("Rule")
+    .fill("No one crosses the flooded causeway.");
+  await page.getByRole("button", { name: "Add world rule" }).click();
+  await page
+    .getByRole("group", { name: "Rule 2" })
+    .getByRole("button", { name: "Remove rule" })
+    .click();
+
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  expect(posted).toHaveLength(1);
+  const saved = draft as {
+    relationships: Array<Record<string, unknown>>;
+    threads: Array<{ title: string }>;
+    constraints: Array<{ statement: string }>;
+  };
+  expect(saved.relationships[0]).toMatchObject({
+    id: "relationship-api",
+    description: "Authored through the API.",
+    protection: "ROUTINE",
+    scale: ["distant", "close", "state 3", "state 4", "state 5", "state 6"],
+    initialState: "close",
+  });
+  expect(saved.threads.map((thread) => thread.title)).toEqual(["Who rang the harbour bell?"]);
+  expect(saved.constraints.map((rule) => rule.statement)).toEqual([
+    "No one crosses the flooded causeway.",
+  ]);
+  await expectAccessible(page);
+
+  await relationship.getByLabel("No, it stays as described").check();
+  await page
+    .getByRole("group", { name: "Thread 1" })
+    .getByRole("button", { name: "Remove thread" })
+    .click();
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  const cleared = draft as Record<string, unknown> & {
+    relationships: Array<Record<string, unknown>>;
+  };
+  expect(cleared.relationships[0]).toEqual({
+    id: "relationship-api",
+    fromCharacterId: characterId,
+    toCharacterId: second.id,
+    description: "Authored through the API.",
+    protection: "ROUTINE",
+  });
+  expect(cleared).not.toHaveProperty("threads");
+});

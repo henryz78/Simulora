@@ -2024,6 +2024,7 @@ export function WorldStudioPage(): ReactElement {
   const legacyStorageKey = worldId ? `simulora:world-draft:${worldId}` : null;
   const savedDraft = studio?.draft.document ?? null;
   const dirty = Boolean(savedDraft && JSON.stringify(savedDraft) !== JSON.stringify(draft));
+  const draftProblem = studioDraftProblem(draft);
 
   const load = async (): Promise<void> => {
     if (!worldId) return;
@@ -2272,7 +2273,17 @@ export function WorldStudioPage(): ReactElement {
               These structured values become the source for a future immutable World Revision. No
               model call or live provider is involved.
             </p>
-            <button className="primary-action" type="submit" disabled={busy !== null}>
+            {draftProblem ? (
+              <p className="action-error" id="studio-draft-problem">
+                {draftProblem}
+              </p>
+            ) : null}
+            <button
+              className="primary-action"
+              type="submit"
+              disabled={busy !== null || draftProblem !== null}
+              aria-describedby={draftProblem ? "studio-draft-problem" : undefined}
+            >
               {busy === "create" ? "Creating Draft…" : "Create Draft"}
             </button>
           </section>
@@ -2327,11 +2338,17 @@ export function WorldStudioPage(): ReactElement {
                 Save the Draft, then run a server-side playability check. Findings explain what a
                 player will experience.
               </p>
+              {draftProblem ? (
+                <p className="action-error" id="studio-draft-problem">
+                  {draftProblem}
+                </p>
+              ) : null}
               <div className="studio-actions">
                 <button
                   className="secondary-action"
                   type="button"
-                  disabled={busy !== null || !dirty}
+                  disabled={busy !== null || !dirty || draftProblem !== null}
+                  aria-describedby={draftProblem ? "studio-draft-problem" : undefined}
                   onClick={() => void save()}
                 >
                   {busy === "save" ? "Saving…" : "Save Draft"}
@@ -2463,6 +2480,7 @@ function StudioCoreFields({
   draft: WorldDocumentInput;
   setDraft: Dispatch<SetStateAction<WorldDocumentInput>>;
 }): ReactElement {
+  const orUndefined = <T,>(items: T[]): T[] | undefined => (items.length ? items : undefined);
   const lines = (value: string): string[] =>
     value
       .split("\n")
@@ -2596,6 +2614,37 @@ function StudioCoreFields({
             description: "Describe what connects these Characters.",
           },
         ],
+      };
+    });
+  const updateRelationship = (
+    index: number,
+    patch: (
+      item: WorldDocumentInput["relationships"][number],
+    ) => Partial<WorldDocumentInput["relationships"][number]>,
+  ) =>
+    setDraft((current) => ({
+      ...current,
+      relationships: current.relationships.map((item, relationshipIndex) =>
+        relationshipIndex === index ? { ...item, ...patch(item) } : item,
+      ),
+    }));
+  // A renamed or removed state carries the starting state with it. Position, not
+  // text, decides, so a momentary duplicate name never moves the starting state.
+  const renameState = (index: number, stateIndex: number, label: string) =>
+    updateRelationship(index, (item) => ({
+      scale: item.scale?.map((state, position) => (position === stateIndex ? label : state)),
+      initialState:
+        item.scale?.indexOf(item.initialState ?? "") === stateIndex ? label : item.initialState,
+    }));
+  const removeState = (index: number, stateIndex: number) =>
+    updateRelationship(index, (item) => {
+      const scale = (item.scale ?? []).filter((_, position) => position !== stateIndex);
+      return {
+        scale,
+        initialState:
+          item.scale?.indexOf(item.initialState ?? "") === stateIndex
+            ? scale[0]
+            : item.initialState,
       };
     });
   return (
@@ -2997,6 +3046,106 @@ function StudioCoreFields({
                 }
               />
             </label>
+            <fieldset className="studio-checks">
+              <legend>Can this relationship change during play?</legend>
+              <label>
+                <input
+                  type="radio"
+                  name={`studio-relationship-change-${relationship.id}`}
+                  checked={!relationship.scale}
+                  onChange={() =>
+                    updateRelationship(index, () => ({ scale: undefined, initialState: undefined }))
+                  }
+                />
+                No, it stays as described
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`studio-relationship-change-${relationship.id}`}
+                  checked={Boolean(relationship.scale)}
+                  onChange={() =>
+                    updateRelationship(index, () => ({
+                      scale: ["distant", "neutral", "close"],
+                      initialState: "neutral",
+                    }))
+                  }
+                />
+                Yes, it can move between named states
+              </label>
+            </fieldset>
+            {relationship.scale ? (
+              <>
+                <fieldset className="studio-checks">
+                  <legend>States, in order</legend>
+                  {relationship.scale.map((state, stateIndex) => (
+                    <div className="studio-field-grid" key={stateIndex}>
+                      <label className="field-label">
+                        State {stateIndex + 1}
+                        <input
+                          value={state}
+                          maxLength={60}
+                          onChange={(event) => renameState(index, stateIndex, event.target.value)}
+                        />
+                      </label>
+                      <button
+                        className="text-action"
+                        type="button"
+                        disabled={relationship.scale!.length <= 2}
+                        onClick={() => removeState(index, stateIndex)}
+                      >
+                        Remove state {stateIndex + 1}
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    disabled={relationship.scale.length >= 7}
+                    onClick={() =>
+                      updateRelationship(index, (item) => ({
+                        scale: [...(item.scale ?? []), `state ${(item.scale?.length ?? 0) + 1}`],
+                      }))
+                    }
+                  >
+                    Add state
+                  </button>
+                </fieldset>
+                <div className="studio-field-grid">
+                  <label className="field-label">
+                    Starting state
+                    <select
+                      value={relationship.initialState}
+                      onChange={(event) =>
+                        updateRelationship(index, () => ({ initialState: event.target.value }))
+                      }
+                    >
+                      {relationship.scale.map((state, stateIndex) => (
+                        <option key={stateIndex} value={state}>
+                          {state || `State ${stateIndex + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field-label">
+                    How a change is confirmed
+                    <select
+                      value={relationship.protection ?? "PROTECTED"}
+                      onChange={(event) =>
+                        updateRelationship(index, () => ({
+                          protection: event.target.value as "PROTECTED" | "ROUTINE",
+                        }))
+                      }
+                    >
+                      <option value="ROUTINE">Routine: one step is an ordinary confirmation</option>
+                      <option value="PROTECTED">
+                        Protected: any change needs a high-consequence confirmation
+                      </option>
+                    </select>
+                  </label>
+                </div>
+              </>
+            ) : null}
             <button
               className="text-action"
               type="button"
@@ -3020,6 +3169,116 @@ function StudioCoreFields({
           onClick={addRelationship}
         >
           Add relationship
+        </button>
+        <h3>Story threads at the start</h3>
+        <p className="muted-copy">
+          Open questions the story can resolve during play. Each starts open.
+        </p>
+        {(draft.threads ?? []).map((thread, index) => (
+          <fieldset className="studio-repeatable" key={thread.id}>
+            <legend>Thread {index + 1}</legend>
+            <label className="field-label">
+              Title
+              <input
+                value={thread.title}
+                maxLength={200}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    threads: current.threads?.map((item) =>
+                      item.id === thread.id ? { ...item, title: event.target.value } : item,
+                    ),
+                  }))
+                }
+              />
+            </label>
+            <button
+              className="text-action"
+              type="button"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  threads: orUndefined(
+                    (current.threads ?? []).filter((item) => item.id !== thread.id),
+                  ),
+                }))
+              }
+            >
+              Remove thread
+            </button>
+          </fieldset>
+        ))}
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() =>
+            setDraft((current) => ({
+              ...current,
+              threads: [
+                ...(current.threads ?? []),
+                { id: crypto.randomUUID(), title: "A question the story can answer." },
+              ],
+            }))
+          }
+        >
+          Add story thread
+        </button>
+        <h3>World rules</h3>
+        <p className="muted-copy">
+          When an Action runs into a rule, the world can turn the attempt into a different outcome
+          and open a new thread. You confirm it before it counts.
+        </p>
+        {(draft.constraints ?? []).map((constraint, index) => (
+          <fieldset className="studio-repeatable" key={constraint.id}>
+            <legend>Rule {index + 1}</legend>
+            <label className="field-label">
+              Rule
+              <textarea
+                rows={2}
+                value={constraint.statement}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    constraints: current.constraints?.map((item) =>
+                      item.id === constraint.id ? { ...item, statement: event.target.value } : item,
+                    ),
+                  }))
+                }
+              />
+            </label>
+            <button
+              className="text-action"
+              type="button"
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  constraints: orUndefined(
+                    (current.constraints ?? []).filter((item) => item.id !== constraint.id),
+                  ),
+                }))
+              }
+            >
+              Remove rule
+            </button>
+          </fieldset>
+        ))}
+        <button
+          className="secondary-action"
+          type="button"
+          onClick={() =>
+            setDraft((current) => ({
+              ...current,
+              constraints: [
+                ...(current.constraints ?? []),
+                {
+                  id: crypto.randomUUID(),
+                  statement: "Describe something this world does not allow.",
+                },
+              ],
+            }))
+          }
+        >
+          Add world rule
         </button>
         <label className="field-label" htmlFor="studio-paths">
           Interaction paths
@@ -3088,6 +3347,25 @@ function ValidationFindings({ validation }: { validation: WorldValidationRespons
       )}
     </div>
   );
+}
+
+// SA-1: never send a Draft the input contract rejects. The server's findings
+// stay the only validation truth for everything else.
+function studioDraftProblem(draft: WorldDocumentInput): string | null {
+  if (draft.relationships.some((item) => item.scale?.some((state) => !state.trim())))
+    return "Name every relationship state before saving.";
+  if (
+    draft.relationships.some(
+      (item) =>
+        item.scale && new Set(item.scale.map((state) => state.trim())).size !== item.scale.length,
+    )
+  )
+    return "Give each relationship state a different name before saving.";
+  if (draft.threads?.some((thread) => !thread.title.trim()))
+    return "Give every story thread a title before saving.";
+  if (draft.constraints?.some((rule) => !rule.statement.trim()))
+    return "Write every world rule before saving.";
+  return null;
 }
 
 function starterWorld(): WorldDocumentInput {

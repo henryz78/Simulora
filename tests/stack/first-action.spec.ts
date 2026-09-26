@@ -111,8 +111,9 @@ test("Action, Correction, Branch, Restore and export compose on one World", asyn
 });
 
 // E2E-CONTINUITY-IMPACT (Validation §4.1) for the implemented rows. The World is
-// created through the formal API because Studio does not author relationship
-// scales or threads (MGC-1 §8); everything after that is the browser.
+// created through the formal API, which also proves an API-authored World plays;
+// SA-1 below authors the same kinds of field in Studio. Everything after that is
+// the browser.
 const place = "location.tidal-observatory";
 const signal = "fact.western-signal-dim";
 const person = (id: string, name: string, role: string) => ({
@@ -317,6 +318,110 @@ test("a caused change, a protected refusal and a correction agree across review,
   await expect(returned).toContainText("now unsworn");
   await expect(page.getByRole("list", { name: "Story threads" })).toContainText(
     "Resolved · Why the unfamiliar vessel waits",
+  );
+  await expectAccessible(page);
+});
+
+// SA-1: the same kinds of change on a World authored entirely in Studio, with
+// no API-created document.
+test("a World authored only in Studio plays relationship states, a thread and a rule", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/worlds/new");
+  await page
+    .getByLabel("World title")
+    .fill(`Studio authored ${testInfo.project.name} ${Date.now()}`);
+  await page.getByRole("button", { name: "Create Draft" }).click();
+  await expect(page).toHaveURL(/\/worlds\/[0-9a-f-]+\/studio$/);
+  const worldId = /\/worlds\/([0-9a-f-]+)\/studio$/.exec(page.url())![1]!;
+  await page.getByRole("button", { name: "Add Character" }).click();
+  await page.getByRole("button", { name: "Add Character" }).click();
+  // A Character can be addressed only about what it knows (RE-2 authorized context).
+  await page
+    .getByRole("group", { name: "Character 3", exact: true })
+    .getByLabel("The first scene is ready to unfold.")
+    .check();
+  await page.getByText("Facts, routes, relationships and boundaries").click();
+  await page.getByRole("button", { name: "Add relationship" }).click();
+  await page.getByRole("button", { name: "Add relationship" }).click();
+
+  // Character 3's only scaled relationship is protected; the guide's is routine.
+  const oath = page.getByRole("group", { name: "Relationship 1", exact: true });
+  await oath.getByLabel(/^From/).selectOption({ label: "Character 3" });
+  await oath.getByLabel("Yes, it can move between named states").check();
+  await oath.getByRole("textbox", { name: "State 1", exact: true }).fill("unsworn");
+  await oath.getByRole("textbox", { name: "State 2", exact: true }).fill("sworn");
+  await oath.getByRole("button", { name: "Remove state 3" }).click();
+  await oath.getByLabel("Starting state").selectOption("unsworn");
+  await expect(oath.getByLabel("How a change is confirmed")).toHaveValue("PROTECTED");
+  const trust = page.getByRole("group", { name: "Relationship 2", exact: true });
+  await trust.getByLabel("Yes, it can move between named states").check();
+  await trust.getByLabel("How a change is confirmed").selectOption("ROUTINE");
+
+  await page.getByRole("button", { name: "Add story thread" }).click();
+  await page.getByRole("group", { name: "Thread 1" }).getByLabel("Title").fill("Why the bell rang");
+  await page.getByRole("button", { name: "Add world rule" }).click();
+  await page
+    .getByRole("group", { name: "Rule 1" })
+    .getByLabel("Rule")
+    .fill("The flooded causeway cannot be crossed.");
+  await expectAccessible(page);
+  await page.getByRole("button", { name: "Save Draft" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  const { continuityId } = await playFromStudio(page, worldId);
+
+  const context = page.getByLabel("Current world context");
+  const relationships = context.getByRole("list", { name: "Relationships" });
+  const review = page.locator(".proposal-review");
+  const send = async (
+    character: string | null,
+    outcome: string | { label: string },
+    intent: string,
+  ) => {
+    if (character) await page.getByLabel("Address a character").selectOption({ label: character });
+    await page.getByLabel("Desired outcome").selectOption(outcome);
+    await page.getByLabel("Your Action").fill(intent);
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Provisional — not current truth")).toBeVisible();
+  };
+
+  // A routine relationship moves one step after an ordinary confirmation.
+  await send("A local guide", "RELATIONSHIP_EFFECT", "Share the evening watch with Character 2.");
+  await expect(review).toContainText("Relationship · A local guide and Character 2");
+  await expect(review).toContainText("L2 — bounded routine change");
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(page.getByText("Recorded. The Branch head")).toBeVisible();
+  await expect(relationships).toContainText("close");
+
+  // The protected one asks for a high-consequence confirmation; cancelling keeps it.
+  await send("Character 3", "RELATIONSHIP_EFFECT", "Ask Character 3 to swear the oath.");
+  await expect(review).toContainText("L3 — protected or high-consequence change");
+  await page.getByRole("button", { name: "Cancel Action" }).click();
+  await expect(page.getByLabel("Your Action")).toBeEnabled();
+  await expect(relationships).toContainText("unsworn");
+
+  // The authored rule turns an impossible movement into a transformed outcome.
+  await send("A local guide", "ROUTINE_EFFECT", "Walk the guide across the causeway.");
+  await expect(review).toContainText("World constraint · The flooded causeway cannot be crossed.");
+  await page.getByRole("button", { name: "Cancel Action" }).click();
+  await expect(page.getByLabel("Your Action")).toBeEnabled();
+
+  // The authored thread resolves from a caused Action.
+  await send(null, { label: "Work toward resolving: Why the bell rang" }, "Ask who rang it.");
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(context.getByRole("list", { name: "Story threads" })).toContainText(
+    "Resolved · Why the bell rang",
+  );
+
+  await expect(async () => {
+    await page.goto(`/continuities/${continuityId}/return`);
+    await expect(page.getByText("Current projection")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20000 });
+  const returned = page.getByRole("list", { name: "Relationships" });
+  await expect(returned).toContainText("now close");
+  await expect(returned).toContainText("now unsworn");
+  await expect(page.getByRole("list", { name: "Story threads" })).toContainText(
+    "Resolved · Why the bell rang",
   );
   await expectAccessible(page);
 });
