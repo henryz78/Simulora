@@ -1591,3 +1591,11 @@ The product owner approved SA-1 (track A) on 2026-09-25.
 **Next:** a new independent Reviewer. The implementer does not approve its
 own work.
 
+**SA-1 review (2026-09-25):**
+
+- The first independent Review returned `PASS WITH ISSUES` (0B/0I/4M).
+- All four minors are fixed in `512ea30`, with exact-SHA CI `36218066242` `success`.
+- Two report claims were corrected.
+- A focused re-review by the same Reviewer is pending. See the
+  [SA-1 Implementation Report](SA-1-IMPLEMENTATION-REPORT.md) §6.
+

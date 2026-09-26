@@ -2,9 +2,10 @@
 
 **Date:** 2026-09-25 · **Contract:**
 [SA-1 Studio Authoring Contract](STUDIO-AUTHORING-CONTRACT.md) ·
-**Behavior SHA:** `986a710c8cf543cfbd84b674f3f553755aef3e8f` ·
-**Evidence:** exact-SHA CI `36216503345` `success` · **Review:** pending
-independent Reviewer.
+**Behavior SHA:** `512ea3097a0e05b6185ae72fb3a88106fe1821e7` (first reviewed at `986a710`) ·
+**Evidence:** exact-SHA CI `36218066242` `success` (earlier `36216503345`) ·
+**Review:** first review `PASS WITH ISSUES` (0B/0I/4M); minors fixed in
+`512ea30`, focused re-review pending (§6).
 
 ## 1. Commits
 
@@ -33,8 +34,10 @@ API, worker, model or authority change.
 - **Starting state:** a select limited to the states.
   - It follows its state by position: renaming or removing that state carries
     the starting state along.
-  - A momentary duplicate name never moves it (a defect found and fixed during
-    implementation).
+  - The first version said a momentary duplicate name never moves it. That was
+    true only for whole-value edits: typing a name keystroke by keystroke
+    through a duplicate could still move it (review M1). `512ea30` stores the
+    position, and a keystroke test fails on the earlier code.
 - **Confirmation:**
   - `ROUTINE`: "one step is an ordinary confirmation";
   - `PROTECTED`: "any change needs a high-consequence confirmation".
@@ -82,7 +85,9 @@ tablet. The case covers:
 - the duplicate-name and empty-title guards (save disabled);
 - an API-authored field surviving save;
 - clearing back to a fixed relationship;
-- axe, keyboard and 320 px reflow.
+- axe and 320 px reflow; keyboard-only operation of the toggle, remove and
+  save controls (added in `512ea30`; before that, only the first focus ring was
+  checked, review M3).
 
 **Real stack:** 8/8 on desktop and 390×844. They include "a World authored
 only in Studio plays relationship states, a thread and a rule", with no
@@ -126,3 +131,33 @@ here and not repaired.
   new OpenAI-compatible endpoint confirmed that JSON mode works (HTTP 200,
   about 3 s). No play was run on it.
 - Beta, launch and production live model use remain unauthorized.
+
+## 6. Independent Review
+
+A new independent Reviewer returned `PASS WITH ISSUES`: 0 BLOCKER,
+0 IMPORTANT, 4 MINOR. SA-1 can close.
+
+**Commit verdicts:**
+
+- `9d8da44`: PASS, subject to the minors;
+- `66894fc`: PASS, a legitimate harness correction. The movement claim was
+  verified in code and in 0048 SQL;
+- `986a710`: PASS.
+
+The Reviewer verified CI `36216503345` and the two earlier failures itself.
+
+| # | Finding | Resolution in `512ea30` |
+|---|---|---|
+| M1 | The starting state could move when a name was typed through a duplicate, and the report overstated the fix | Position stored; keystroke test added; report corrected (§2.1) |
+| M2 | Rules had no 4000-character limit in the UI | `maxLength={4000}` |
+| M3 | The keyboard evidence was overstated | Keyboard-only steps added; report corrected (§3) |
+| M4 | Contract §5 still said an invalid scale "returns a blocking finding". The save-blocking message was tied only to a disabled button. | Contract §5 aligned with §2; the message is `aria-live="polite"` |
+
+The Reviewer also flagged a product-direction point. Studio's rules copy
+promises a transformed outcome. That cannot happen on a Studio World with the
+deterministic adapter, because movement needs an RE-3 policy (§4). It is not an
+SA-1 defect.
+
+**CI for the fixes:** exact-SHA CI `36218066242` on `512ea30`, `success`.
+**Next:** a focused re-review by the same Reviewer.
+

@@ -1,6 +1,6 @@
 # SA-1 Studio Authoring Contract
 
-**Date:** 2026-09-25 · **Status:** `APPROVED 2026-09-25 — IMPLEMENTED (behavior `986a710`), REVIEW PENDING`; see [SA-1 Implementation Report](SA-1-IMPLEMENTATION-REPORT.md).
+**Date:** 2026-09-25 · **Status:** `APPROVED 2026-09-25 — IMPLEMENTED (behavior `512ea30`), RE-REVIEW PENDING`; see [SA-1 Implementation Report](SA-1-IMPLEMENTATION-REPORT.md).
 The product owner agreed to track A in principle
 ([G10 External Decision Packet](G10-EXTERNAL-DECISION-PACKET.md) §5).
 Implementation starts only after this contract is approved, and closes only
@@ -128,7 +128,8 @@ A Draft carrying all three field groups:
 - validates to `VALID`;
 - becomes a Revision whose document equals the Draft.
 
-An invalid scale returns a blocking finding at the right path.
+A save with an invalid scale is refused, and the saved Draft is unchanged
+(aligned with §2 after review M4).
 
 ### Real stack (container step, desktop and 390×844)
 
