@@ -372,7 +372,13 @@ suite("IP-9 live provider path against PostgreSQL", () => {
         "ip9-slow",
         { profile: routing },
       );
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      // Wait for the claim itself rather than a fixed delay a slow runner can outlast.
+      await expect
+        .poll(async () => (await repository.readAction(owner, action.id)).status, {
+          timeout: 5_000,
+          interval: 50,
+        })
+        .toBe("GENERATING");
       skew = 11_000;
       const waiting = await repository.readAction(owner, action.id);
       expect(waiting.status).toBe("GENERATING");
