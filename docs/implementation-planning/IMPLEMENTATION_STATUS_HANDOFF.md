@@ -1568,3 +1568,26 @@ with a daily limit) are in the packet's §5. None is an approval. Track A is
 proposed as the [SA-1 Studio Authoring Contract](STUDIO-AUTHORING-CONTRACT.md)
 and awaits approval.
 
+## 53. SA-1 Studio authoring implemented; independent Review pending
+
+The product owner approved SA-1 (track A) on 2026-09-25.
+
+- **Behavior SHA:** `986a710`; exact-SHA CI `36216503345` `success`.
+  - Real PG: 171/171 and 295/295.
+  - Browser matrix: 200.
+  - Real stack: 8/8, including a World authored only in Studio.
+- **Change:** web only. Studio now authors relationship states, story threads
+  and world rules. See the [SA-1 Implementation Report](SA-1-IMPLEMENTATION-REPORT.md).
+- **Pre-existing findings, not repaired:**
+  - movement on a Studio World always fails, because the RE-3 routine policy
+    is never authored;
+  - an added Character cannot be addressed until it knows a fact.
+
+  Both matter for human play.
+- **New provider:** the product owner supplied a new OpenAI-compatible profile.
+  It is stored only in the ignored local `.secret.txt`. One connectivity call
+  succeeded. It is not approved for any shared environment.
+
+**Next:** a new independent Reviewer. The implementer does not approve its
+own work.
+

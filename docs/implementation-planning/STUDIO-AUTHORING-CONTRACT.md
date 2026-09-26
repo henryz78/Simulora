@@ -1,6 +1,6 @@
 # SA-1 Studio Authoring Contract
 
-**Date:** 2026-09-25 · **Status:** `PROPOSED — AWAITING APPROVAL`.
+**Date:** 2026-09-25 · **Status:** `APPROVED 2026-09-25 — IMPLEMENTED (behavior `986a710`), REVIEW PENDING`; see [SA-1 Implementation Report](SA-1-IMPLEMENTATION-REPORT.md).
 The product owner agreed to track A in principle
 ([G10 External Decision Packet](G10-EXTERNAL-DECISION-PACKET.md) §5).
 Implementation starts only after this contract is approved, and closes only
@@ -26,15 +26,18 @@ can, and E2E-CONTINUITY-IMPACT had to create its World through
 - **Draft contract:** `updateWorldDraftRequestSchema` →
   `worldDocumentInputSchema` (`packages/contracts`) already accepts every
   field.
-- **Server validation:** `assessWorldDocument` (`packages/database`) runs the
-  full `worldDocumentSchema` (`packages/domain`), including these rules:
+- **Server validation:** the Draft save (`updateDraft`) already parses the
+  full `worldDocumentSchema` (`packages/domain`). A save that breaks any of
+  these rules is refused, and the saved Draft stays unchanged:
   - a scale has 2–7 distinct labels of at most 60 characters;
   - `initialState` must come from the scale;
   - a scale and `initialState` are present together or not at all;
   - all stable IDs are unique;
   - thread titles are at most 200 characters.
 
-  Failures already return as Studio findings that block a Revision.
+  This was corrected during implementation. The first draft of this contract
+  said such errors come back as playability findings; they come back as a
+  refused save.
 - **Play:** Action Composer, the worker, confirmation, Change Trace and Return
   already handle these fields (MGC-1 and `1629a2c`).
 
@@ -47,6 +50,8 @@ All changes are inside `WorldStudioPage` / `StudioCoreFields`
 (`apps/web/src/pages.tsx`) and `styles.css`.
 
 ### 3.1 Relationship: "Can this relationship change during play?"
+
+(Shipped with the shorter legend "Changes during play" so it wraps at 320 px.)
 
 For each relationship:
 
@@ -84,9 +89,11 @@ For each relationship:
 - **Preserve unseen fields.** Studio keeps any field it does not display.
   Opening and saving a Draft authored by the API loses nothing.
 - **Never send a rejected shape.** The Draft never sends a document that the
-  input contract rejects. Fewer than 2 or more than 7 non-empty states shows
-  an inline message and disables save; it never causes a failed request.
-  Otherwise the server's findings stay the only validation truth.
+  input contract or the World schema would refuse for these fields. The count
+  is bounded by the controls (2–7). An empty or duplicate state name, an empty
+  thread title or an empty rule shows an inline message and disables save, so
+  it never causes a failed request. The server stays the validation truth for
+  everything else.
 - **Remove dependents.** Removing a Character still removes its relationships
   (existing behaviour).
 - **Only an existing Revision path.** A World reaches play only through the
