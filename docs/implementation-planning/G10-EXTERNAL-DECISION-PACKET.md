@@ -163,8 +163,8 @@ details listed before it takes effect.
   use only transaction-scoped locks and `SKIP LOCKED`; they still need a
   staging check through the pooler before use.
 - **Region:** the database region should sit near the API and worker host.
-- Supabase's own login and storage are not used: login stays Google and email
-  through the chosen identity service, and export objects stay on R2.
+- Open: Supabase's login service could be the identity service for Google
+  and email login; that is not decided. Export objects stay on R2.
 
 Beta, launch and production live model use remain unauthorized.
 
