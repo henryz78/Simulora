@@ -234,38 +234,12 @@ describe("IP-9 live capability profile adapter", () => {
     ["non-JSON content", () => completion("not json at all"), ProviderResponseError],
     ["a candidate without narrative", () => completion({ operation: {} }), ProviderResponseError],
     ["another model", () => completion(candidateFor(base), "other-model"), ModelRouteChangedError],
-    [
-      "an empty upstream reply",
-      () => Response.json({ model: "synthetic-model", choices: null, usage: { total_tokens: 0 } }),
-      ProviderUnavailableError,
-    ],
     ["an echoed key", () => completion(`{"narrative":"${apiKey}"}`), UnsafeModelContextError],
     ["an oversized body", () => new Response("<html>".repeat(60_000)), ProviderResponseError],
   ])("classifies %s without copying the provider body", async (_label, respond, type) => {
     const failure = gateway(providerReturning(respond)).generateWorldTurn(base);
     await expect(failure).rejects.toBeInstanceOf(type);
     await expect(failure).rejects.not.toThrow(/slow down|boom|<html>|sk-synthetic/);
-  });
-
-  it("accepts only the declared answering model when the provider renames the route", async () => {
-    const renamed = (answeringModel: string) =>
-      new OpenAICompatibleModelGateway({
-        profile: { ...liveProfile, model: "Router/synthetic-model", answeringModel },
-        endpoint: "http://127.0.0.1:9/v1/chat/completions",
-        apiKey,
-        fetch: providerReturning(() => completion(candidateFor(base), "synthetic-model")),
-      });
-    const accepted = await renamed("synthetic-model").generateWorldTurn(base);
-    expect(accepted.narrative).toBe(candidateFor(base).narrative);
-    await expect(renamed("other-model").generateWorldTurn(base)).rejects.toBeInstanceOf(
-      ModelRouteChangedError,
-    );
-    expect(profileDigest({ ...liveProfile, answeringModel: "synthetic-model" })).not.toBe(
-      profileDigest(liveProfile),
-    );
-    expect(
-      isMaterialProfileChange(liveProfile, { ...liveProfile, answeringModel: "synthetic-model" }),
-    ).toBe(false);
   });
 
   it("turns a network failure or timeout into an unavailable provider", async () => {

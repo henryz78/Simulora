@@ -193,9 +193,6 @@ async function main(): Promise<void> {
       adapter: "openai-compatible",
       endpoint,
       model,
-      ...(process.env.SIMULORA_MODEL_ANSWERING_NAME
-        ? { answeringModel: process.env.SIMULORA_MODEL_ANSWERING_NAME }
-        : {}),
       apiKey,
       profileId: process.env.SIMULORA_MODEL_PROFILE_ID ?? "live-primary",
       profileVersion: process.env.SIMULORA_MODEL_PROFILE_VERSION ?? "1",

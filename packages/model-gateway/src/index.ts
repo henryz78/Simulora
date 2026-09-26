@@ -12,14 +12,6 @@ export type CapabilityProfile = {
   /** Provider model identifier; `null` for the deterministic adapter. */
   model: string | null;
   /**
-   * The model name the provider reports, declared when it differs from `model`
-   * (an aggregator that drops its routing prefix). Absent, the answer must name
-   * `model` exactly. Either way, any other name is a changed route. It is in
-   * the profile digest, so a change is recorded, but it is not material: the
-   * requested model, provider and prompt stay the same.
-   */
-  answeringModel?: string;
-  /**
    * Origin of the provider endpoint, derived from it; `null` for the
    * deterministic adapter. The same model name at another provider is a
    * different data flow, so it is part of the profile.
@@ -575,20 +567,14 @@ export class OpenAICompatibleModelGateway implements ModelGatewayPort {
     }
     if (!response.ok) throw new ProviderResponseError(`Provider HTTP ${response.status}`);
     const envelope = await readBoundedBody(response, maxEnvelopeBytes);
-    let body: { model?: unknown; choices?: Array<{ message?: { content?: unknown } }> | null };
+    let body: { model?: unknown; choices?: Array<{ message?: { content?: unknown } }> };
     try {
       body = JSON.parse(envelope) as typeof body;
     } catch {
       throw new ProviderResponseError("Provider returned a non-JSON envelope");
     }
-    const expectedModel = this.profile.answeringModel ?? this.profile.model;
-    if (typeof body.model === "string" && body.model !== expectedModel) {
+    if (typeof body.model === "string" && body.model !== this.profile.model) {
       throw new ModelRouteChangedError("Provider answered with a different model");
-    }
-    // Some aggregators answer an upstream failure with HTTP 200 and no choices.
-    // That is an outage, not a malformed answer.
-    if (body.choices === null || (Array.isArray(body.choices) && body.choices.length === 0)) {
-      throw new ProviderUnavailableError("Provider returned no choices");
     }
     const content = body.choices?.[0]?.message?.content;
     if (typeof content !== "string" || content.length > 64_000) {
@@ -686,7 +672,6 @@ export type ModelRoutingInput =
       adapter: "openai-compatible";
       endpoint: string;
       model: string;
-      answeringModel?: string;
       apiKey: string;
       profileId: string;
       profileVersion: string;
@@ -708,7 +693,6 @@ export function createModelGateway(
       version: routing.profileVersion,
       adapter: "openai-compatible",
       model: routing.model,
-      ...(routing.answeringModel ? { answeringModel: routing.answeringModel } : {}),
       promptVersion: livePromptVersion,
       timeoutMs: routing.timeoutMs,
       maxOutputTokens: routing.maxOutputTokens,
@@ -735,8 +719,6 @@ export function profileDigest(profile: CapabilityProfile): string {
     profile.timeoutMs,
     profile.maxOutputTokens,
     profile.retentionApprovalRef,
-    // Appended only when declared, so existing profile digests are unchanged.
-    ...(profile.answeringModel ? [profile.answeringModel] : []),
   ]);
   return createHash("sha256").update(canonical).digest("hex");
 }
