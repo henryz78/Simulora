@@ -180,15 +180,49 @@ and both are WD-1b's scope:
 - Marta's stance still repeats: she will not name anyone or start a quarrel.
 - The world still holds no answer to find.
 
+### 3.9 Live check after WD-1b (2026-09-27)
+
+Same stack, with 0056 applied and prompt version 10. In Studio, the second
+fact of "The Lantern Inn" became a secret: "The ledger is sewn into the lining
+of the wool merchant's grey coat, which hangs on the peg by the door."
+
+- Scope: continuity private.
+- "Can be discovered in play": on, with the note "Feeling or searching the
+  grey coat on the peg by the door; the lining is stiff and freshly stitched."
+
+Revision 2 was created and a new Continuity started from it. Quick play was
+off. Two Actions, both under the default "Let the story decide", took two
+generation attempts with no retries.
+
+| Action | Addressed | Outcome | Result |
+|---|---|---|---|
+| "I go through the travellers' coats hanging on the pegs by the door, pressing along each hem and lining for anything stiff or hidden." | no one | change in the world | The model chose **`REVEAL_FACT`**. The review card showed "Discovered" and "A small, everyday change". After exact confirmation it was committed with Undo offered. One `FACT_REVEALED` Event was recorded. The World response: "The wool merchant's grey coat is stiff under your fingers, its lining freshly stitched, and Marta's missing ledger is sewn inside it." |
+| "I bring the grey coat to the counter, show Marta the ledger stitched into its lining, and ask her what she wants to do about the wool merchant." | Marta | no effect | Marta acted on the discovery with a new decision: "Cut it free and hang the coat back before he misses it … I want my book, not a quarrel, with the pass shut." Her stance moved on (compare §3.8). |
+
+Both gaps from §3.8 are closed: the world holds an answer to find, and Marta
+responds to it.
+
+Observations (not fixed):
+
+- **The secret is visible to the player before it is found.** The play page's
+  "What is true now" lists every current fact regardless of scope. It showed
+  the secret from the first turn, and the Continuity page lists it too. The
+  model never saw it before the reveal; this is a display gap that the WD-1b
+  contract did not cover.
+- **The current situation is now stale.** It still reads "Marta's ledger is
+  missing from the counter." "Let the story decide" cannot rewrite it (L3), and
+  the player did not choose "Change something in the world".
+
 ## 4. Usage
 
-There were 23 provider calls:
+There were 31 provider calls:
 
 - 13 in-product attempts over 6 Actions (the last two after TB-1);
 - 1 model-name probe;
 - 9 diagnostic replays of one captured request;
 - 4 generation attempts for 3 Actions in the §3.7 check (2026-09-27);
-- 2 generation attempts for 2 Actions in the §3.8 check (2026-09-27).
+- 2 generation attempts for 2 Actions in the §3.8 check (2026-09-27);
+- 2 generation attempts for 2 Actions in the §3.9 check (2026-09-27).
 
 No limit was reached. Nothing was committed except through exact UI
 confirmation.
