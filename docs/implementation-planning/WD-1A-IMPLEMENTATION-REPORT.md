@@ -90,6 +90,7 @@ shared fact, so this no longer happens for them.
 
 ## 5. Not claimed
 
-- A live check of `ADD_FACT` with the owner's provider (next).
+- Human enjoyment of `ADD_FACT`. An Agent-operated live check with `grok-4.7` passed
+  ([Track B §3.8](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md)).
 - Human enjoyment; beta, launch or production live model use.
 - WD-1b (secrets and "Let the story decide"), which is not started.

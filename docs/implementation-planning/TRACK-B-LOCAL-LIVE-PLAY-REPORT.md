@@ -164,6 +164,22 @@ Observations (not fixed):
 
 These are world-depth limits for a later track.
 
+### 3.8 Live check after WD-1a (2026-09-27)
+
+Same stack, with 0055 applied, prompt version 9 and quick play on. Two
+Actions, two generation attempts, no retries.
+
+| Action | Addressed | Outcome | Result |
+|---|---|---|---|
+| "I wipe the frost from the window and study the snow outside the door for footprints." | no one | change in the world | The model chose **`ADD_FACT`**. Quick play applied it at once, with Undo offered. The lead fact ("Marta's ledger is still missing…") was **not** rewritten. A new shared fact appeared: "Where the common-room light reaches the snow piled against the door, the surface is smooth and shows no footprints." |
+| "I tell Marta the snow outside the door is unmarked, and ask whether that means the ledger is still inside the inn." | Marta | no effect | Marta used the new fact and reasoned from it: smooth snow "only says no foot has crossed that bank", and she does not call it proof. |
+
+The search log problem from §3.7 is gone for new Actions. Two gaps remain,
+and both are WD-1b's scope:
+
+- Marta's stance still repeats: she will not name anyone or start a quarrel.
+- The world still holds no answer to find.
+
 ## 4. Usage
 
 There were 23 provider calls:
@@ -171,7 +187,8 @@ There were 23 provider calls:
 - 13 in-product attempts over 6 Actions (the last two after TB-1);
 - 1 model-name probe;
 - 9 diagnostic replays of one captured request;
-- 4 generation attempts for 3 Actions in the §3.7 check (2026-09-27).
+- 4 generation attempts for 3 Actions in the §3.7 check (2026-09-27);
+- 2 generation attempts for 2 Actions in the §3.8 check (2026-09-27).
 
 No limit was reached. Nothing was committed except through exact UI
 confirmation.
