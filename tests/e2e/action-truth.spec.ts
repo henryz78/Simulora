@@ -5,6 +5,7 @@ const continuityId = "30000000-0000-4000-8000-000000000001";
 const branchId = "30000000-0000-4000-8000-000000000002";
 const initialHead = "30000000-0000-4000-8000-000000000003";
 const participation = { initiativeMode: "GUIDED", structureMode: "OPEN_ENDED" } as const;
+const ledger = "The ledger is sewn into the pilot's coat lining.";
 let observedIdempotencyKeys: string[] = [];
 let confirmRequests: Array<Record<string, string>> = [];
 let restoreRequests: Array<Record<string, string>> = [];
@@ -25,6 +26,8 @@ test.beforeEach(async ({ page }, testInfo) => {
   restoreRequests = [];
   let head = initialHead;
   let fact = "The western signal is dim.";
+  // WD-1b: the author's secret, hidden from the player until play reveals it.
+  let ledgerScope = "CONTINUITY_PRIVATE";
   let actionNumber = 0;
   let dropFirstRetryResponse = true;
   const actions = new Map<string, Record<string, unknown>>();
@@ -72,7 +75,25 @@ test.beforeEach(async ({ page }, testInfo) => {
           provenance: "Original World seed",
           lifecycle: "ACTIVE",
         },
+        ...(revealed
+          ? [
+              {
+                id: "fact.ledger",
+                statement: ledger,
+                scope: "CONTINUITY_PRIVATE",
+                provenance: "Original World seed",
+                lifecycle: "ACTIVE",
+              },
+            ]
+          : []),
       ],
+      ...(revealed
+        ? {
+            discoverableFacts: [
+              { factId: "fact.ledger", howToFind: "Searching the pilot's coat." },
+            ],
+          }
+        : {}),
       relationships: [],
       interactionPaths: ["Inspect the signal."],
       interactionBoundaries: ["The world never authors user speech."],
@@ -99,7 +120,10 @@ test.beforeEach(async ({ page }, testInfo) => {
               : "Present at the observatory.",
         },
       ],
-      facts: [{ id: "fact.signal", statement: fact }],
+      facts: [
+        { id: "fact.signal", statement: fact },
+        ...(revealed ? [{ id: "fact.ledger", statement: ledger, scope: ledgerScope }] : []),
+      ],
       relationships: [],
       openThreads: ["The unfamiliar vessel waits offshore."],
       objectives: [],
@@ -172,7 +196,7 @@ test.beforeEach(async ({ page }, testInfo) => {
           ? {
               target: "fact.ledger",
               before: "Hidden until now.",
-              after: "The ledger is sewn into the pilot's coat lining.",
+              after: ledger,
               scope: "SHARED",
             }
           : added
@@ -278,6 +302,7 @@ test.beforeEach(async ({ page }, testInfo) => {
       head = committedHead;
       const proposal = action.proposal as { displayEffect: { after: string }; narrative: string };
       if (routine) characterLocation = proposal.displayEffect.after;
+      else if (revealed) ledgerScope = "SHARED";
       else fact = proposal.displayEffect.after;
       const committed = {
         ...action,
@@ -483,16 +508,23 @@ test("WD-1b the story decides by default, and a revealed secret reads as discove
   page,
 }) => {
   await page.goto(`/continuities/${continuityId}`);
+  const context = page.getByLabel("Current world context");
+  await expect(context.getByText("The western signal is dim.")).toBeVisible();
+  await expect(context.getByText(ledger)).toHaveCount(0);
   const outcome = page.getByLabel("Desired outcome");
   await expect(outcome).toHaveValue("STORY_DECIDES");
   await expect(outcome.locator("option").first()).toHaveText("Let the story decide");
   await page.getByLabel("Your Action").fill("I search the pilot's coat by the door.");
   await page.getByRole("button", { name: "Send Action" }).click();
   const review = page.getByText("Discovered", { exact: true }).locator("xpath=ancestor::dl");
-  await expect(review).toContainText("The ledger is sewn into the pilot's coat lining.");
+  await expect(review).toContainText(ledger);
   await expect(review).toContainText("A small, everyday change");
   await expect(page.getByText("Hidden until now.")).toHaveCount(0);
+  await expect(context.getByText(ledger)).toHaveCount(0);
   await expectAccessible(page);
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
+  await expect(context.getByText(ledger, { exact: true })).toBeVisible();
 });
 
 test("PX-2a quick play still leaves an important change to the player", async ({ page }) => {

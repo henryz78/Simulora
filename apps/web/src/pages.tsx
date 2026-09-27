@@ -40,6 +40,7 @@ import {
   describeTarget,
   labelMode,
   useContinuity,
+  isHiddenSecret,
   readText,
 } from "./continuity.js";
 import { readBranchTrace, readExplanation, readOrientation } from "./ip4-api.js";
@@ -539,7 +540,7 @@ export function ContinuityPage(): ReactElement {
   }
   const { data } = loadState;
   const currentFacts = data.state.facts
-    .filter((value) => isCurrentFactValue(value))
+    .filter((value) => isCurrentFactValue(value) && !isHiddenSecret(data.world, value))
     .map((fact) => currentFact(fact))
     .filter((fact): fact is CurrentFact => Boolean(fact));
   const committed = history.filter((entry) => entry.status === "COMMITTED");

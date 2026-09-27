@@ -284,8 +284,9 @@ suite("WD-1b secrets and STORY_DECIDES against PostgreSQL", () => {
       impact?: string;
       requestedEffect?: RequestedEffect;
       targetCharacterId?: string;
+      continuity?: Continuity;
     }) => {
-      const continuity = await start();
+      const continuity = options.continuity ?? (await start());
       const action = await submit(
         continuity,
         options.requestedEffect ?? "STORY_DECIDES",
@@ -329,7 +330,13 @@ suite("WD-1b secrets and STORY_DECIDES against PostgreSQL", () => {
                     simulora.mgc_effect_context($1)), 'UTF8')), 'hex') end as effect`,
         [action.id],
       );
-      const included = options.targetCharacterId ? [lead, "fact.ledger"] : [lead];
+      // Every SHARED fact, plus the ledger a Character knows.
+      const included = continuity.state.facts
+        .filter(
+          (item) =>
+            item.scope === "SHARED" || (options.targetCharacterId && item.id === "fact.ledger"),
+        )
+        .map((item) => item.id);
       const manifest = {
         compilerVersion: "re2-context-v1",
         expectedHeadCommitId: continuity.headCommitId,
@@ -390,9 +397,10 @@ suite("WD-1b secrets and STORY_DECIDES against PostgreSQL", () => {
           expiresAt,
         ],
       );
+      return action.id;
     };
-    await expect(seal({})).resolves.toBeUndefined();
-    await expect(seal({ targetCharacterId: "character.iora" })).resolves.toBeUndefined();
+    await expect(seal({})).resolves.toBeTypeOf("string");
+    await expect(seal({ targetCharacterId: "character.iora" })).resolves.toBeTypeOf("string");
     const refused = /Proposal must exactly bind/;
     await expect(seal({ factId: "fact.cellar" })).rejects.toThrow(refused);
     await expect(seal({ factId: lead })).rejects.toThrow(refused);
@@ -402,5 +410,28 @@ suite("WD-1b secrets and STORY_DECIDES against PostgreSQL", () => {
     await expect(seal({ impact: "L3" })).rejects.toThrow(refused);
     await expect(seal({ narrative: `You open the lining. ${key}` })).rejects.toThrow(refused);
     await expect(seal({ requestedEffect: "FACT_REWRITE" })).rejects.toThrow(refused);
+
+    // Review M2: a secret revealed in play cannot be revealed again, while the
+    // same Continuity still seals a reveal of a secret that is still hidden.
+    const fresh = await start();
+    const first = await submit(fresh);
+    const proposed = await repository.processAction(
+      first.id,
+      returning(
+        { type: "REVEAL_FACT", factId: "fact.ledger", causalFactIds: [lead] },
+        `You slit the coat's lining. ${ledger}`,
+      ),
+    );
+    await repository.confirmAction(account, first.id, {
+      proposalId: proposed!.proposal!.id,
+      proposalDigest: proposed!.proposal!.digest,
+      expectedHeadCommitId: proposed!.proposal!.expectedHeadCommitId,
+    });
+    const now = await repository.readCurrentState(account, fresh.continuityId);
+    expect(now.state.facts.find((item) => item.id === "fact.ledger")?.scope).toBe("SHARED");
+    const revealed = { ...fresh, headCommitId: now.headCommitId, state: now.state };
+    const control = await seal({ continuity: revealed, factId: "fact.key" });
+    await repository.cancelAction(account, control);
+    await expect(seal({ continuity: revealed })).rejects.toThrow(refused);
   });
 });

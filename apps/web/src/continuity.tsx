@@ -1026,12 +1026,12 @@ export function ActionStatusCard({
           ) : null}
           <p>{action.proposal.narrative}</p>
           {action.proposal.displayEffect.target === `fact.${action.id}` ||
-          action.proposal.displayEffect.before === "Hidden until now." ? (
+          isRevealProposal(action.proposal, world?.world) ? (
             // WD-1a/WD-1b: an added or revealed fact has no earlier state to show.
             <dl>
               <div>
                 <dt>
-                  {action.proposal.displayEffect.before === "Hidden until now."
+                  {isRevealProposal(action.proposal, world?.world)
                     ? "Discovered"
                     : "New in the world"}
                 </dt>
@@ -1222,11 +1222,13 @@ export function WorldContextSummary(): ReactElement {
       <section>
         <h2>What is true now</h2>
         <ul className="truth-list">
-          {data.state.facts.filter(isCurrentFactValue).map((fact, index) => {
-            const item = asRecord(fact);
-            const statement = readText(item, "statement") ?? `Current fact ${index + 1}`;
-            return <li key={readText(item, "id") ?? statement}>{statement}</li>;
-          })}
+          {data.state.facts
+            .filter((fact) => isCurrentFactValue(fact) && !isHiddenSecret(data.world, fact))
+            .map((fact, index) => {
+              const item = asRecord(fact);
+              const statement = readText(item, "statement") ?? `Current fact ${index + 1}`;
+              return <li key={readText(item, "id") ?? statement}>{statement}</li>;
+            })}
         </ul>
       </section>
       <section>
@@ -1343,6 +1345,32 @@ export function labelMode(value: string): string {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+/** WD-1b: an author's secret stays out of the player's view until play reveals it. */
+export function isHiddenSecret(world: AuthoritativeStateResponse["world"], fact: unknown): boolean {
+  const item = asRecord(fact);
+  const id = readText(item, "id");
+  return (
+    item?.scope === "CONTINUITY_PRIVATE" &&
+    (world.discoverableFacts ?? []).some((secret) => secret.factId === id)
+  );
+}
+
+/**
+ * WD-1b: only a reveal is an L2 change to a declared secret; rewriting a
+ * revealed fact is always L3.
+ */
+function isRevealProposal(
+  proposal: { impact: string; displayEffect: { target: string } },
+  world: AuthoritativeStateResponse["world"] | null | undefined,
+): boolean {
+  return (
+    proposal.impact === "L2" &&
+    (world?.discoverableFacts ?? []).some(
+      (secret) => secret.factId === proposal.displayEffect.target,
+    )
+  );
 }
 
 function isCurrentFactValue(value: unknown): boolean {
