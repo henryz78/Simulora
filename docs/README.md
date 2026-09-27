@@ -74,6 +74,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [WD-1a Shared World Contract](implementation-planning/WD-1A-SHARED-WORLD-CONTRACT.md)
 - [WD-1a Implementation Report](implementation-planning/WD-1A-IMPLEMENTATION-REPORT.md)
 - [WD-1b Secrets and Story Contract](implementation-planning/WD-1B-SECRETS-AND-STORY-CONTRACT.md)
+- [WD-1b Implementation Report](implementation-planning/WD-1B-IMPLEMENTATION-REPORT.md)
 - [Parallel Agent Handoff](implementation-planning/PARALLEL-AGENT-HANDOFF.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)

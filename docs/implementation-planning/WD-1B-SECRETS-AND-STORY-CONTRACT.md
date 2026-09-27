@@ -1,6 +1,6 @@
 # WD-1b Secrets and "Let the Story Decide" Contract
 
-**Date:** 2026-09-27 · **Status:** `AUTHORIZED` (owner decision W3 A and W4 A,
+**Date:** 2026-09-27 · **Status:** `CLOSED` at `0a94e6a` ([report](WD-1B-IMPLEMENTATION-REPORT.md)). Owner decision W3 A and W4 A (
 [WD-1](WD-1-PROPOSED-DECISIONS.md)). Builds on [WD-1a](WD-1A-SHARED-WORLD-CONTRACT.md).
 The track closes on an independent Review of an exact SHA with green CI.
 

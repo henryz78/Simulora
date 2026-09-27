@@ -1811,3 +1811,18 @@ W4 A:
 
 Threads, relationships and movement stay explicit for now; this narrowing is
 stated in the contract.
+
+## 65. WD-1b secrets and "Let the story decide": CLOSED
+
+See the [WD-1b report](WD-1B-IMPLEMENTATION-REPORT.md).
+
+- **Approved SHA:** `0a94e6a`, exact-SHA CI `36348064153` success. Migration
+  0056.
+- **What it does:** authors may mark a private fact as a secret with a note on
+  how it could be found. Under the new default, "Let the story decide", the
+  model may respond, add a fact, reveal a secret (`REVEAL_FACT`, L2) or
+  transform a declared-constraint failure. It never produces L3. A Character
+  reveals only secrets it knows. Prompt version 10.
+- **Review:** Sonnet 5 `PASS` (0B/0I/2M, accepted).
+- **Next:** a live check of reveals and "Let the story decide" with
+  `grok-4.7`.
