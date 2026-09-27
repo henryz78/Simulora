@@ -1769,3 +1769,17 @@ See the [PX-2b report](PX-2B-IMPLEMENTATION-REPORT.md).
 - **Next:** the front-end direction (Task 4, branch `frontend-design`) waits
   for the owner's choice of Option A and the visual direction before a PX-3
   contract.
+
+## 62. WD-1 world depth: proposed
+
+The live check after PX-2 ([Track B §3.7](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md))
+worked for the player's side but showed a shallow world. The owner chose to
+deepen the world before the front-end pass. The
+[WD-1 proposal](WD-1-PROPOSED-DECISIONS.md) asks four decisions:
+
+- W1: all shared facts in context;
+- W2: an L2 `ADD_FACT`;
+- W3: author secrets revealed through an L2 `REVEAL_FACT`;
+- W4: a "Let the story decide" outcome.
+
+Nothing is implemented. PX-3 (front end) waits.

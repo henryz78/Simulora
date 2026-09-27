@@ -70,6 +70,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [PX-2a Implementation Report](implementation-planning/PX-2A-IMPLEMENTATION-REPORT.md)
 - [PX-2b World Response Contract](implementation-planning/PX-2B-WORLD-RESPONSE-CONTRACT.md)
 - [PX-2b Implementation Report](implementation-planning/PX-2B-IMPLEMENTATION-REPORT.md)
+- [WD-1 Proposed Decisions: A Deeper World](implementation-planning/WD-1-PROPOSED-DECISIONS.md)
 - [Parallel Agent Handoff](implementation-planning/PARALLEL-AGENT-HANDOFF.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)
