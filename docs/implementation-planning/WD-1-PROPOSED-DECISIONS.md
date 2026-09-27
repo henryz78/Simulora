@@ -1,6 +1,8 @@
 # WD-1 Proposed Decisions: A Deeper World
 
-**Date:** 2026-09-27 · **Status:** `PROPOSED` (awaiting the owner's choices).
+**Date:** 2026-09-27 · **Status:** `DECIDED 2026-09-27: W1 A, W2 A, W3 A, W4 A`
+(the owner took every recommendation in chat). Work proceeds as WD-1a and
+WD-1b, each with its own contract.
 Each decision changes frozen semantics, so each chosen option then needs a
 successor ADR, a contract, implementation and an independent Review.
 
@@ -111,3 +113,8 @@ WD-1a is about the size of PX-2b; WD-1b is larger.
 2. W2: A, B or C?
 3. W3: A, B, C or D?
 4. W4: A, B or C?
+
+## Decision
+
+On 2026-09-27 the owner chose **W1 A, W2 A, W3 A and W4 A**, taking the
+recommendation for each. First part: [WD-1a contract](WD-1A-SHARED-WORLD-CONTRACT.md).
