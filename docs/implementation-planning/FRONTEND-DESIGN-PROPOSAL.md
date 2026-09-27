@@ -15,6 +15,12 @@ The two viewpoints remain visible without merging authority:
 
 The Health Check and closed PX-1/PX-2a work identify the first experience wins: reduce the visual weight of two choices before every Action; remove Branch, Commit, Provisional and L3 from the first reading order; show honest feedback during a roughly 20-second generation; keep the latest reply and Story so far visible; make returning to a Continuity first-class; and show a WORLD response clearly when no Character is addressed.
 
+The interface supports English and Simplified Chinese from the same client-side
+presentation layer. A visible language control is available in the bottom dock;
+it changes labels, navigation and helper copy without changing routes, payloads,
+facts or authority. World-authored content and generated narrative keep their
+stored language; this proposal does not add automatic translation to the runtime.
+
 This is an interface proposal. It does not broaden the current one-fact or one-Character runtime ceiling.
 
 ## 2. Information architecture
@@ -53,9 +59,20 @@ This is not a new state machine; server gates remain authoritative. Optional dep
 
 ### 2.4 Play shell
 
-A Continuity shell contains a global **Library** link, World title, **Current path** label, local navigation (**World**, **Return**, **Continuity**, **Context**) and the pending-Action notice. Recovery remains available from the current-state summary and Continuity view, and may sit in an overflow menu so it does not compete with the next Action.
+A Continuity shell contains the World title, **Current path** label and the
+pending-Action notice. **Library**, **Studio**, **Play** and **Return** live in a
+floating bottom dock shared by every page, with the English / 中文 switch in the
+same dock. Contextual links (**World**, **Continuity**, **Context**, **Recovery**)
+remain inside the Play surface as ordinary wrapped links; they do not create a
+second scrolling navigation strip. Recovery remains available from the
+current-state summary and Continuity view.
 
 Desktop uses an 8/4 split: situation, composer, latest outcome and Story so far in the main column; current-state summary, open threads, relationships and Recovery in the side column. At 390×844 it becomes one ordered column: situation, composer, latest outcome or pending review, Story so far, summary, threads/relationships, Recovery.
+
+The bottom dock is fixed above the safe-area inset, has a readable label for
+every destination, and never covers the composer, confirmation or Restore
+review. It uses a two-row layout at 390×844 instead of a horizontal carousel;
+there are no auxiliary navigation scrollbars.
 
 ## 3. Play loop
 
@@ -75,10 +92,10 @@ Desktop uses an 8/4 split: situation, composer, latest outcome and Story so far 
 
 - Use one column with a 16px side inset; keep situation and composer near the top.
 - Use native select or disclosure controls. Summarize the selected Character and outcome above the textarea while the keyboard is open.
-- Keep **Send Action** in normal flow; do not use a sticky footer that can cover the keyboard or confirmation.
+- Keep **Send Action** in normal flow; the floating dock stays below the safe-area inset and never covers the keyboard, composer, confirmation or Restore review.
 - Keep the Action and status region in place during generation; do not jump to page top.
 - Put latest outcome before Story so far. Wrap long generated text without horizontal scrolling.
-- Use a labelled, keyboard-reachable horizontal local nav with **World** and **Return** first. Recovery must remain discoverable.
+- Use labelled, keyboard-reachable wrapped contextual links with **World** and **Return** first. The fixed bottom dock exposes **Library**, **Studio**, **Play**, **Return** and the language switch without a horizontal carousel. Recovery must remain discoverable.
 - Put summary and relationships below the story; use native details for long secondary lists.
 - Make primary and destructive actions full width and at least 44px high.
 
@@ -100,7 +117,7 @@ This is exploratory; brand, logo and final typefaces remain open under the G10 e
 - Moss (#5D7D68) indicates freshness only with a text label.
 - Use an editorial serif for World titles and a humanist sans for controls and body text; IDs and hashes belong in a disclosure or metadata row.
 - Use an 8px spacing scale, 16px mobile inset, 24px desktop card padding and 44px controls.
-- Use quiet borders, modest radius and no gradients. Motion is a short result-entry transition with no automatic focus movement; reduced motion disables it.
+- Use quiet borders, modest radius and no gradients. Motion is a short result-entry transition with no automatic focus movement; reduced motion disables it. The bottom dock has a light elevation and respects `env(safe-area-inset-bottom)`.
 
 This direction gives the World a readable page and controls a restrained workspace. It does not copy WorldOS layout, naming, icons or visual expression.
 
@@ -113,6 +130,9 @@ This direction gives the World a readable page and controls a restrained workspa
 | WORLD response label with no Character | Response source and agency rules | PX-2b presents its result; no new model or validator work. |
 | Generation status messages | Must not claim Commit or fabricate backend progress | Presentation-only. |
 | Latest outcome and Story so far | Existing Action/history data | Presentation-only. |
+| English / 简体中文 switch | Client-side labels and helper copy only | Presentation-only; stored World text keeps its authored language. |
+| Floating bottom dock | Route presentation only | Presentation-only; keep existing route and accessible-name contracts. |
+| Removing auxiliary scrollbars | Layout and responsive presentation | Presentation-only; wrap links or use a two-row dock, never hide required content. |
 | Quick play and Undo | Exact confirmation, Restore and current-head checks | Present existing affordances only. |
 | Return fallback | Authoritative state and projection freshness | Preserve conservative fallback. |
 | Director/Player mode switch | Authority and participation | Do not implement; successor ADR and owner decision required. |
@@ -133,6 +153,8 @@ Recommended PX-3 scope is presentation-only. If a proposed copy or mode requires
 - Keyboard users can reach disclosure, selects, confirmation, Undo, Restore review and navigation.
 - Controls are at least 44×44px; existing axe contrast checks continue to pass.
 - Titles, thread names and generated text wrap at 320px without horizontal overflow.
+- The bottom dock is reachable in English and Chinese, has visible focus, and remains above the mobile safe-area inset.
+- No required navigation or action depends on a hidden or auxiliary scrollbar.
 - Reduced motion disables nonessential transitions.
 - State never relies on colour, icon shape or position alone.
 
@@ -151,7 +173,8 @@ PX-3 should add focused browser checks for:
 7. Story so far retaining a confirmed reply after reload.
 8. Return fresh projection and conservative fallback.
 9. Recovery review and Restore confirmation.
-10. No horizontal overflow at 320px and no focus loss after outcome rendering.
+10. English and Simplified Chinese labels remain accessible at desktop and 390×844.
+11. No horizontal overflow or auxiliary navigation scrollbar at 320px and no focus loss after outcome rendering.
 
 Use the existing real-PostgreSQL and axe-backed evidence model. A visual pass alone does not prove frozen behavior.
 
