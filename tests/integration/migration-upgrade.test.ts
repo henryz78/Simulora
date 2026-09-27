@@ -343,4 +343,124 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       await rm(directory, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("keeps pre-0055 Actions on the lead-fact context across 0054 to 0055", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const databaseName = `simulora_wd1a_upgrade_${randomUUID().replaceAll("-", "")}`;
+    const admin = createDatabasePool(connectionString);
+    const directory = await mkdtemp(path.join(tmpdir(), "simulora-wd1a-prior-"));
+    const url = new URL(connectionString);
+    url.pathname = `/${databaseName}`;
+    let pool: ReturnType<typeof createDatabasePool> | undefined;
+    try {
+      await admin.query(`create database ${databaseName} template template0 encoding 'UTF8'`);
+      const migrations = path.resolve("db/migrations");
+      const files = (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort();
+      expect(files[54]).toBe("0055_wd1a_shared_world.sql");
+      for (const file of files.slice(0, 54))
+        await copyFile(path.join(migrations, file), path.join(directory, file));
+      await runMigrations(url.toString(), directory);
+      pool = createDatabasePool(url.toString());
+      const db = pool;
+      const repository = new AuthoritativeWorldRepository(db);
+      const gateway = new DeterministicModelGateway();
+      const account = { accountId: randomUUID(), eligibility: "adult" as const };
+      // Two SHARED facts, so the pre- and post-0055 contexts differ.
+      const world = await repository.createWorld(account, {
+        ...lanternReachSeed,
+        facts: [
+          ...lanternReachSeed.facts,
+          {
+            id: "fact.vessel-waiting",
+            statement: "An unfamiliar vessel waits beyond the harbor markers.",
+            scope: "SHARED",
+            provenance: "WD-1a upgrade fixture",
+            lifecycle: "ACTIVE",
+          },
+        ],
+      });
+      const revision = await repository.createRevision(account, world.worldId, world.rowVersion);
+      const start = () =>
+        repository.startContinuity(account, revision.revisionId, {
+          initiativeMode: "GUIDED",
+          structureMode: "OPEN_ENDED",
+        });
+      type Continuity = Awaited<ReturnType<typeof start>>;
+      const submit = (
+        continuity: Continuity,
+        requestedEffect: "FACT_REWRITE" | "NO_WORLD_EFFECT",
+        expectedHeadCommitId = continuity.headCommitId,
+      ) =>
+        repository.submitAction(account, continuity.branchId, {
+          schemaVersion: 1,
+          idempotencyKey: randomUUID(),
+          expectedHeadCommitId,
+          participationExpectation: continuity.state.participation,
+          intent: "Watch the harbor.",
+          requestedEffect,
+        });
+      const process = (actionId: string) =>
+        repository.processAction(actionId, (request) => gateway.generateWorldTurn(request), "wd1a");
+      const includedFactIds = async (actionId: string) =>
+        (
+          await db.query<{ ids: string[] }>(
+            `select context_manifest->'includedFactIds' as ids from simulora.generation_attempts
+             where action_id = $1 order by attempt_number desc limit 1`,
+            [actionId],
+          )
+        ).rows[0]!.ids;
+      const confirm = (proposed: Awaited<ReturnType<typeof process>>) => {
+        if (!proposed?.proposal) throw new Error("Expected a proposal");
+        return repository.confirmAction(account, proposed.id, {
+          proposalId: proposed.proposal.id,
+          proposalDigest: proposed.proposal.digest,
+          expectedHeadCommitId: proposed.proposal.expectedHeadCommitId,
+        });
+      };
+
+      // Before 0055: one sealed proposal, one unprocessed fact change and one
+      // unprocessed response-only Action, each on its own path.
+      const sealedPath = await start();
+      const sealed = await process((await submit(sealedPath, "FACT_REWRITE")).id);
+      const earlyPath = await start();
+      const early = await submit(earlyPath, "FACT_REWRITE");
+      const earlyTalkPath = await start();
+      const earlyTalk = await submit(earlyTalkPath, "NO_WORLD_EFFECT");
+
+      await runMigrations(url.toString(), migrations);
+
+      expect((await confirm(sealed)).status).toBe("COMMITTED");
+      const earlyProposal = await process(early.id);
+      expect(await includedFactIds(early.id)).toEqual(["fact.western-signal-dim"]);
+      expect((await confirm(earlyProposal)).status).toBe("COMMITTED");
+      expect((await process(earlyTalk.id))?.status).toBe("COMPLETED_NO_EFFECT");
+      expect(await includedFactIds(earlyTalk.id)).toEqual(["fact.western-signal-dim"]);
+
+      // After 0055 the same kinds of Action see both shared facts.
+      const latePath = await start();
+      const late = await submit(latePath, "FACT_REWRITE");
+      const lateProposal = await process(late.id);
+      expect(await includedFactIds(late.id)).toEqual([
+        "fact.western-signal-dim",
+        "fact.vessel-waiting",
+      ]);
+      const lateCommitted = await confirm(lateProposal);
+      expect(lateCommitted.status).toBe("COMMITTED");
+      const lateTalk = await submit(
+        latePath,
+        "NO_WORLD_EFFECT",
+        lateCommitted.commit!.resultingHeadCommitId,
+      );
+      expect((await process(lateTalk.id))?.status).toBe("COMPLETED_NO_EFFECT");
+      expect(await includedFactIds(lateTalk.id)).toEqual([
+        "fact.western-signal-dim",
+        "fact.vessel-waiting",
+      ]);
+    } finally {
+      await pool?.end();
+      await dropDatabaseAfterDisconnect(admin, databaseName);
+      await admin.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

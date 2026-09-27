@@ -459,12 +459,14 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
           "existing SHARED fact stopped being true, return this operation instead, with",
           "targetFactId one SHARED id from context.current.facts and its statement and scope",
           "copied exactly:",
+          // Name the chosen fact, not the lead, so the example does not steer
+          // every rewrite to the first fact.
           JSON.stringify({
             type: "UPDATE_CANONICAL_FACT",
-            targetFactId: request.targetFact.id,
-            beforeStatement: request.targetFact.statement,
+            targetFactId: "The id of the chosen SHARED fact.",
+            beforeStatement: "That fact's statement, copied exactly.",
             afterStatement: "The complete resulting statement of that fact.",
-            scope: request.targetFact.scope,
+            scope: "SHARED",
             provenance: `Confirmed Action ${request.actionId}`,
           }),
         ]

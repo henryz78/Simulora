@@ -174,6 +174,34 @@ suite("WD-1a shared world against PostgreSQL", () => {
     await repository.cancelAction(account, addressed.id);
   });
 
+  it("gives a response-only Action every shared fact, and SQL no-effect evidence agrees", async () => {
+    const continuity = await start();
+    for (const targetCharacterId of [undefined, "character.iora"]) {
+      const action = await repository.submitAction(account, continuity.branchId, {
+        schemaVersion: 1,
+        idempotencyKey: randomUUID(),
+        expectedHeadCommitId: continuity.headCommitId,
+        participationExpectation: continuity.state.participation,
+        intent: "I ask what the harbor looks like tonight.",
+        requestedEffect: "NO_WORLD_EFFECT",
+        ...(targetCharacterId ? { targetCharacterId } : {}),
+      });
+      let context = "";
+      // The terminal update runs the SQL no-effect evidence check, so reaching
+      // COMPLETED_NO_EFFECT means SQL derived the same fact set.
+      const completed = await repository.processAction(action.id, (request) => {
+        context = JSON.stringify(request.context);
+        return gateway.generateWorldTurn(request);
+      });
+      expect(completed?.status).toBe("COMPLETED_NO_EFFECT");
+      expect(context).toContain(vesselText);
+      expect(context).not.toContain(keeperNote);
+      expect((await manifestOf(action.id)).includedFactIds).toEqual(
+        targetCharacterId ? [lead, vessel, "fact.iora-secret"] : [lead, vessel],
+      );
+    }
+  });
+
   it("records ADD_FACT at L2 with one FACT_ADDED Event, and Restore removes it", async () => {
     const continuity = await start();
     const action = await submit(continuity);
