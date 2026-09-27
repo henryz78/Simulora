@@ -537,6 +537,14 @@ export const actionCandidateSchema = z
           causalFactIds: z.array(stableIdSchema).min(1).max(4),
         })
         .strict(),
+      // WD-1a: record one new SHARED fact; id and provenance are server-derived.
+      z
+        .object({
+          type: z.literal("ADD_FACT"),
+          statement: boundedTextSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
       z
         .object({
           type: z.literal("TRANSFORM_FAILURE"),
@@ -559,6 +567,14 @@ export const requestedEffectSchema = z.enum([
   "THREAD_EFFECT",
 ]);
 export type RequestedEffect = z.infer<typeof requestedEffectSchema>;
+
+/** WD-1a: the server-derived identity of a fact added by an Action. */
+export function factIdForAction(actionId: string): string {
+  return `fact.${actionId}`;
+}
+
+/** What an added fact's review shows as its "before" state. */
+export const addedFactBefore = "Nothing recorded yet.";
 
 /** The server-derived identity of a thread opened by an Action. */
 export function threadIdForAction(actionId: string): string {
@@ -731,6 +747,8 @@ export function validateActionCandidate(
     relationshipPolicies?: readonly RelationshipPolicy[];
     /** MGC-1: causal constraints declared by the pinned World Revision. */
     constraintIds?: readonly string[];
+    /** WD-1a: a fact change may add one new SHARED fact (Actions after 0055). */
+    allowAddFact?: boolean;
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -771,7 +789,9 @@ export function validateActionCandidate(
   // A world-changing attempt may instead fail against a declared constraint.
   const transformedFailure =
     operation.type === "TRANSFORM_FAILURE" && requestedEffect !== "NO_WORLD_EFFECT";
-  if (operation.type !== envelopeOperation && !transformedFailure) {
+  const addedFact =
+    operation.type === "ADD_FACT" && requestedEffect === "FACT_REWRITE" && expected.allowAddFact;
+  if (operation.type !== envelopeOperation && !transformedFailure && !addedFact) {
     throw new Error("Candidate effect does not match the requested closed effect envelope");
   }
   const allowedContext = new Set(expected.authorizedContextFactIds);
@@ -792,6 +812,33 @@ export function validateActionCandidate(
     operation.type === "TRANSFORM_FAILURE"
   ) {
     return validateClosureOperation(candidate, operation, expected, eligibleCausalFact);
+  }
+  if (operation.type === "ADD_FACT") {
+    assertGeneratedNarrativeDoesNotAuthorUser(operation.statement, expected.userRoleName);
+    assertGeneratedTextDoesNotLeakExcludedFacts(
+      [operation.statement],
+      expected.state,
+      expected.authorizedContextFactIds,
+    );
+    if (operation.causalFactIds.some((id) => !eligibleCausalFact(id))) {
+      throw new Error("Added fact source is outside the authorized context");
+    }
+    const factId = factIdForAction(candidate.actionId);
+    if (expected.state.facts.some((fact) => fact.id === factId)) {
+      throw new Error("Added fact identity already exists at the expected head");
+    }
+    // WD-1a (ADR-WD1-2): adding a fact changes and removes nothing, so it is L2.
+    return {
+      candidate,
+      impact: "L2",
+      requiresExactConfirmation: true,
+      displayEffect: {
+        target: factId,
+        before: addedFactBefore,
+        after: operation.statement,
+        scope: "SHARED",
+      },
+    };
   }
   if (operation.type === "NO_WORLD_EFFECT") {
     assertGeneratedNarrativeDoesNotAuthorUser(
@@ -1601,6 +1648,28 @@ export function applyValidatedActionCandidate(
         ...threads,
         { id: threadIdForAction(validated.candidate.actionId), title, status: "OPEN" as const },
       ],
+    });
+  }
+  if (operation.type === "ADD_FACT") {
+    const id = factIdForAction(validated.candidate.actionId);
+    if (state.facts.some((fact) => fact.id === id)) {
+      throw new Error("Validated added fact already exists");
+    }
+    const turn = state.worldClock.turn + 1;
+    return stateRevisionDocumentSchema.parse({
+      ...state,
+      worldClock: { turn, label: `After action ${turn}` },
+      facts: [
+        ...state.facts,
+        {
+          id,
+          statement: operation.statement,
+          scope: "SHARED" as const,
+          provenance: `Confirmed Action ${validated.candidate.actionId}`,
+          lifecycle: "ACTIVE" as const,
+        },
+      ],
+      openThreads: [...state.openThreads, validated.candidate.narrative],
     });
   }
   if (operation.type === "MOVE_CHARACTER") {

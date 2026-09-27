@@ -1020,40 +1020,54 @@ export function ActionStatusCard({
             </p>
           ) : null}
           <p>{action.proposal.narrative}</p>
-          <dl>
-            <div>
-              <dt>Affects</dt>
-              <dd>{describeTarget(action.proposal.displayEffect.target, world)}</dd>
-            </div>
-            <div>
-              <dt>
-                {action.proposal.displayEffect.target.startsWith("constraint.")
-                  ? "The attempt fails"
-                  : "Current"}
-              </dt>
-              <dd>{action.proposal.displayEffect.before}</dd>
-            </div>
-            <div>
-              <dt>
-                {action.proposal.displayEffect.target.startsWith("constraint.")
-                  ? "New open thread"
-                  : "If confirmed"}
-              </dt>
-              <dd>{action.proposal.displayEffect.after}</dd>
-            </div>
-            <div>
-              <dt>Size of change</dt>
-              <dd>
-                {action.proposal.impact === "L3"
-                  ? "An important change — review it carefully"
-                  : "A small, everyday change"}
-              </dd>
-            </div>
-            <div>
-              <dt>Scope</dt>
-              <dd>{labelMode(action.proposal.displayEffect.scope)}</dd>
-            </div>
-          </dl>
+          {action.proposal.displayEffect.target === `fact.${action.id}` ? (
+            // WD-1a: an added fact has no earlier state to compare against.
+            <dl>
+              <div>
+                <dt>New in the world</dt>
+                <dd>{action.proposal.displayEffect.after}</dd>
+              </div>
+              <div>
+                <dt>Size of change</dt>
+                <dd>A small, everyday change</dd>
+              </div>
+            </dl>
+          ) : (
+            <dl>
+              <div>
+                <dt>Affects</dt>
+                <dd>{describeTarget(action.proposal.displayEffect.target, world)}</dd>
+              </div>
+              <div>
+                <dt>
+                  {action.proposal.displayEffect.target.startsWith("constraint.")
+                    ? "The attempt fails"
+                    : "Current"}
+                </dt>
+                <dd>{action.proposal.displayEffect.before}</dd>
+              </div>
+              <div>
+                <dt>
+                  {action.proposal.displayEffect.target.startsWith("constraint.")
+                    ? "New open thread"
+                    : "If confirmed"}
+                </dt>
+                <dd>{action.proposal.displayEffect.after}</dd>
+              </div>
+              <div>
+                <dt>Size of change</dt>
+                <dd>
+                  {action.proposal.impact === "L3"
+                    ? "An important change — review it carefully"
+                    : "A small, everyday change"}
+                </dd>
+              </div>
+              <div>
+                <dt>Scope</dt>
+                <dd>{labelMode(action.proposal.displayEffect.scope)}</dd>
+              </div>
+            </dl>
+          )}
         </div>
       ) : null}
       {undone && action.status === "COMMITTED" ? (

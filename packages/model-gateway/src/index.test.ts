@@ -212,6 +212,27 @@ describe("IP-9 live capability profile adapter", () => {
     expect(plain.failure).toBeNull();
   });
 
+  it("offers ADD_FACT first and any shared rewrite only for WD-1a Actions (prompt v9)", () => {
+    expect(livePromptVersion).toBe(9);
+    const skeletonOf = (request: WorldTurnRequest) => {
+      const system = compileWorldTurnPrompt(request).system;
+      const lines = system.split("\n");
+      const at = lines.indexOf(
+        "Return ONE JSON candidate object, no markdown. Only these keys/values are permitted:",
+      );
+      const skeleton = JSON.parse(lines[at + 1]!) as { operation: { type: string } };
+      return { system, lines, operation: skeleton.operation };
+    };
+    const shared = skeletonOf({ ...base, requestedEffect: "FACT_REWRITE", sharedWorld: true });
+    expect(shared.operation.type).toBe("ADD_FACT");
+    expect(shared.system).toContain("Prefer ADD_FACT");
+    expect(shared.lines.some((line) => line.includes('"UPDATE_CANONICAL_FACT"'))).toBe(true);
+    expect(shared.system).toContain("unnamed people already in the scene");
+    const legacy = skeletonOf({ ...base, requestedEffect: "FACT_REWRITE" });
+    expect(legacy.operation.type).toBe("UPDATE_CANONICAL_FACT");
+    expect(legacy.system).not.toContain("ADD_FACT");
+  });
+
   it("sends rules and data as separate messages and returns an untrusted draft", async () => {
     const seen: SentRequest[] = [];
     const draft = await gateway(

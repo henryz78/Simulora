@@ -15,6 +15,7 @@ import {
   requestedEffectSchema,
   restoreSectionsFor,
   threadIdForAction,
+  factIdForAction,
   routinePolicySchema,
   stateRevisionDocumentSchema,
   validateDirectCorrectionCandidate,
@@ -637,6 +638,12 @@ export type ActionGenerationContext = {
     statement: string;
     scope: "ACCOUNT_PRIVATE" | "CONTINUITY_PRIVATE" | "SHARED";
   };
+  /** Every fact id the generator may see, lead fact first, then state order. */
+  contextFactIds: string[];
+  /** Facts a rewrite may target: the lead fact, or every SHARED fact after 0055. */
+  targetFactIds: string[];
+  /** WD-1a: the Action was created after 0055 (all shared facts; ADD_FACT). */
+  sharedWorld: boolean;
 };
 
 export type ActionGenerator = (request: {
@@ -650,6 +657,7 @@ export type ActionGenerator = (request: {
   participation: ActionGenerationContext["participation"];
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
+  sharedWorld?: boolean;
   context?: Readonly<Record<string, unknown>>;
   priorDialogue?: ReadonlyArray<ActionDialogueRecord>;
 }) => Promise<{
@@ -834,6 +842,17 @@ function closureEventFor(
       },
     };
   }
+  if (operation.type === "ADD_FACT") {
+    return {
+      type: "FACT_ADDED",
+      payload: {
+        actionId,
+        factId: factIdForAction(actionId),
+        statement: operation.statement,
+        causalFactIds: operation.causalFactIds,
+      },
+    };
+  }
   if (operation.type === "TRANSFORM_FAILURE") {
     return {
       type: "ATTEMPT_TRANSFORMED",
@@ -854,6 +873,7 @@ export function compileActionGenerationContext(
   state: StateRevisionDocument,
   targetCharacterId?: string,
   selectImplicitCharacter = false,
+  sharedWorld = false,
 ): ActionGenerationContext | null {
   const targetFact = state.facts.find(isGeneratorEligibleFact);
   if (!targetFact) return null;
@@ -869,7 +889,26 @@ export function compileActionGenerationContext(
       "Character has no authorized canonical target in the current effect envelope",
     );
   }
+  // WD-1a (ADR-WD1-1): after 0055 every ACTIVE SHARED fact joins the context.
+  const known = new Set(character?.knownFacts.map((fact) => fact.id) ?? []);
+  const contextFactIds = [
+    targetFact.id,
+    ...state.facts
+      .filter(
+        (fact) =>
+          fact.id !== targetFact.id &&
+          fact.lifecycle === "ACTIVE" &&
+          ((sharedWorld && fact.scope === "SHARED") ||
+            (fact.scope !== "ACCOUNT_PRIVATE" && known.has(fact.id))),
+      )
+      .map((fact) => fact.id),
+  ];
   return {
+    contextFactIds,
+    targetFactIds: sharedWorld
+      ? state.facts.filter(isGeneratorEligibleFact).map((fact) => fact.id)
+      : [targetFact.id],
+    sharedWorld,
     participation: state.participation,
     character: character
       ? {
@@ -1091,6 +1130,10 @@ function eventSummary(eventType: string, payload?: Record<string, unknown>): str
       return "A canonical continuity fact was removed by the participant.";
     case "ACTION_RECORDED":
       return "A participant action was recorded on this path.";
+    case "FACT_ADDED":
+      return typeof payload?.statement === "string"
+        ? `New in the world: ${payload.statement}`
+        : "A new fact was recorded on this path.";
     case "CHARACTER_MOVED":
       return `${typeof payload?.characterId === "string" ? payload.characterId : "Character"} moved from ${typeof payload?.beforeLocationId === "string" ? payload.beforeLocationId : "the earlier location"} to ${typeof payload?.afterLocationId === "string" ? payload.afterLocationId : "the new location"}; source: ${Array.isArray(payload?.causalFactIds) ? payload.causalFactIds.join(", ") : "recorded Action"}.`;
     case "PARTICIPATION_CONTRACT_CHANGED":
@@ -1118,6 +1161,20 @@ export function onTransactionRetryConflict(
   observer: ((detail: { code: unknown; message: string }) => void) | undefined,
 ): void {
   transactionRetryLogger = observer;
+}
+
+// WD-1a: the shared-world context and ADD_FACT apply only once 0055 is installed
+// and the Action was created after it; earlier schemas and Actions keep RE-2.
+async function sharedWorldApplies(client: PoolClient, actionId: string): Promise<boolean> {
+  const installed = await client.query<{ installed: boolean }>(
+    "select to_regprocedure('simulora.wd1_shared_world_apply(timestamp with time zone)') is not null as installed",
+  );
+  if (!installed.rows[0]?.installed) return false;
+  const result = await client.query<{ applies: boolean }>(
+    "select simulora.wd1_shared_world_apply(created_at) as applies from simulora.actions where id = $1",
+    [actionId],
+  );
+  return result.rows[0]?.applies ?? false;
 }
 
 // PX-2b: an unaddressed Action gets a WORLD response only once 0054 is installed
@@ -2676,6 +2733,7 @@ export class AuthoritativeWorldRepository {
             ? action.operation_payload.targetCharacterId
             : undefined,
           !(await worldResponseWhenUnaddressed(client, actionId)),
+          await sharedWorldApplies(client, actionId),
         );
         if (!generationContext) throw new ConflictError("NO_ACTIVE_CANONICAL_FACT");
         const expectedResponseSource: ActionResponseSource = generationContext.character
@@ -2699,11 +2757,9 @@ export class AuthoritativeWorldRepository {
           actionId,
           expectedHeadCommitId: request.expectedHeadCommitId,
           state: expectedState,
-          authorizedTargetFactIds: [generationContext.targetFact.id],
-          authorizedContextFactIds: [
-            generationContext.targetFact.id,
-            ...(generationContext.character?.knownFacts.map((fact) => fact.id) ?? []),
-          ],
+          authorizedTargetFactIds: generationContext.targetFactIds,
+          authorizedContextFactIds: generationContext.contextFactIds,
+          allowAddFact: generationContext.sharedWorld,
           responseSource: expectedResponseSource,
           userRoleName: world.userRole.name,
           requestedEffect: requestedEffectSchema.parse(
@@ -4836,6 +4892,7 @@ export class AuthoritativeWorldRepository {
         state,
         action.operation_payload.targetCharacterId,
         !(await worldResponseWhenUnaddressed(client, actionId)),
+        await sharedWorldApplies(client, actionId),
       );
       let context: Record<string, unknown> | undefined;
       if (generationContext && action.supports_re2_context) {
@@ -4908,12 +4965,7 @@ export class AuthoritativeWorldRepository {
         return null;
       }
       const attemptId = randomUUID();
-      const includedFactIds = [
-        ...new Set([
-          generationContext.targetFact.id,
-          ...(generationContext.character?.knownFacts.map((fact) => fact.id) ?? []),
-        ]),
-      ];
+      const includedFactIds = generationContext.contextFactIds;
       const manifest = {
         compilerVersion: "ip6-context-v1",
         expectedHeadCommitId: action.expected_head_commit_id,
@@ -5138,6 +5190,7 @@ export class AuthoritativeWorldRepository {
         participation: prepared.generationContext.participation,
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
+        ...(prepared.generationContext.sharedWorld ? { sharedWorld: true } : {}),
         ...(prepared.context ? { context: prepared.context } : {}),
         ...(prepared.priorDialogue.length ? { priorDialogue: prepared.priorDialogue } : {}),
       });
@@ -5158,11 +5211,9 @@ export class AuthoritativeWorldRepository {
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         state: prepared.state,
-        authorizedTargetFactIds: [prepared.generationContext.targetFact.id],
-        authorizedContextFactIds: [
-          prepared.generationContext.targetFact.id,
-          ...(prepared.generationContext.character?.knownFacts.map((fact) => fact.id) ?? []),
-        ],
+        authorizedTargetFactIds: prepared.generationContext.targetFactIds,
+        authorizedContextFactIds: prepared.generationContext.contextFactIds,
+        allowAddFact: prepared.generationContext.sharedWorld,
         responseSource: expectedResponseSource,
         userRoleName: prepared.userRoleName,
         requestedEffect,

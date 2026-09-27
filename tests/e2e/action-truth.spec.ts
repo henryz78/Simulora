@@ -15,6 +15,8 @@ test.beforeEach(async ({ page }, testInfo) => {
     testInfo.title.startsWith("RE-3 routine movement") || testInfo.title.includes("[L2]");
   // The server refuses a Restore whose expected head has moved on.
   const staleUndo = testInfo.title.includes("[stale]");
+  // WD-1a: the World records one new fact at L2.
+  const added = testInfo.title.includes("[added]");
   let characterLocation = "location.tidal-observatory";
   observedIdempotencyKeys = [];
   confirmRequests = [];
@@ -157,16 +159,25 @@ test.beforeEach(async ({ page }, testInfo) => {
         id: proposalId,
         digest: proposalDigest,
         expectedHeadCommitId: input.expectedHeadCommitId,
-        impact: routine ? "L2" : "L3",
+        impact: routine || added ? "L2" : "L3",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         narrative: `Iora studies the consequence of: ${input.intent}`,
-        responseSource: { type: "CHARACTER", characterId: "character.iora" },
-        displayEffect: {
-          target: routine ? "character.iora" : "fact.signal",
-          before: routine ? characterLocation : fact,
-          after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
-          scope: "SHARED",
-        },
+        responseSource: added
+          ? { type: "WORLD" }
+          : { type: "CHARACTER", characterId: "character.iora" },
+        displayEffect: added
+          ? {
+              target: `fact.${actionId}`,
+              before: "Nothing recorded yet.",
+              after: "A second hull rides low behind the waiting vessel.",
+              scope: "SHARED",
+            }
+          : {
+              target: routine ? "character.iora" : "fact.signal",
+              before: routine ? characterLocation : fact,
+              after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
+              scope: "SHARED",
+            },
       },
       commit: null,
     };
@@ -439,6 +450,23 @@ test("PX-2a quick play confirms a small change without a click, and Undo restore
   // The setting is the player's and survives a reload.
   await page.reload();
   await expect(page.getByLabel("Quick play: apply small changes at once")).toBeChecked();
+});
+
+test("WD-1a a new fact reads as new in the world, not as a before and after [added]", async ({
+  page,
+}) => {
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
+  await page.getByLabel("Your Action").fill("I scan the harbor markers through the glass.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  const review = page.getByText("New in the world").locator("xpath=ancestor::dl");
+  await expect(review).toContainText("A second hull rides low behind the waiting vessel.");
+  await expect(review).toContainText("A small, everyday change");
+  await expect(page.getByText("Nothing recorded yet.")).toHaveCount(0);
+  await expect(page.getByText("World response", { exact: true })).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
 });
 
 test("PX-2a quick play still leaves an important change to the player", async ({ page }) => {
