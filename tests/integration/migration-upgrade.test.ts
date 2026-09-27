@@ -365,14 +365,16 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       const repository = new AuthoritativeWorldRepository(db);
       const gateway = new DeterministicModelGateway();
       const account = { accountId: randomUUID(), eligibility: "adult" as const };
-      // Two SHARED facts, so the pre- and post-0055 contexts differ.
+      // Two SHARED facts, so the pre- and post-0055 contexts differ. The second
+      // must not repeat World text: before 0055 it is excluded from a World
+      // response, and a context that quotes an excluded fact fails closed.
       const world = await repository.createWorld(account, {
         ...lanternReachSeed,
         facts: [
           ...lanternReachSeed.facts,
           {
-            id: "fact.vessel-waiting",
-            statement: "An unfamiliar vessel waits beyond the harbor markers.",
+            id: "fact.red-pennant",
+            statement: "A red pennant hangs from the harbor master's mast.",
             scope: "SHARED",
             provenance: "WD-1a upgrade fixture",
             lifecycle: "ACTIVE",
@@ -442,7 +444,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       const lateProposal = await process(late.id);
       expect(await includedFactIds(late.id)).toEqual([
         "fact.western-signal-dim",
-        "fact.vessel-waiting",
+        "fact.red-pennant",
       ]);
       const lateCommitted = await confirm(lateProposal);
       expect(lateCommitted.status).toBe("COMMITTED");
@@ -454,7 +456,7 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
       expect((await process(lateTalk.id))?.status).toBe("COMPLETED_NO_EFFECT");
       expect(await includedFactIds(lateTalk.id)).toEqual([
         "fact.western-signal-dim",
-        "fact.vessel-waiting",
+        "fact.red-pennant",
       ]);
     } finally {
       await pool?.end();
