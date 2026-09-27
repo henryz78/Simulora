@@ -122,6 +122,10 @@ export const worldDocumentInputSchema = z.object({
   constraints: z
     .array(z.object({ id: z.string().min(1), statement: nonEmptyTextSchema }))
     .optional(),
+  // WD-1b: private facts the author lets play reveal.
+  discoverableFacts: z
+    .array(z.object({ factId: z.string().min(1), howToFind: z.string().trim().min(1).max(1000) }))
+    .optional(),
   interactionPaths: z.array(nonEmptyTextSchema).min(1),
   interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
   objectives: z.array(nonEmptyTextSchema).default([]),
@@ -653,6 +657,7 @@ export const submitActionRequestSchema = z.object({
       "NO_WORLD_EFFECT",
       "RELATIONSHIP_EFFECT",
       "THREAD_EFFECT",
+      "STORY_DECIDES",
     ])
     .optional(),
   targetThreadId: z

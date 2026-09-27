@@ -17,6 +17,8 @@ test.beforeEach(async ({ page }, testInfo) => {
   const staleUndo = testInfo.title.includes("[stale]");
   // WD-1a: the World records one new fact at L2.
   const added = testInfo.title.includes("[added]");
+  // WD-1b: the World reveals an author's secret at L2.
+  const revealed = testInfo.title.includes("[revealed]");
   let characterLocation = "location.tidal-observatory";
   observedIdempotencyKeys = [];
   confirmRequests = [];
@@ -159,25 +161,33 @@ test.beforeEach(async ({ page }, testInfo) => {
         id: proposalId,
         digest: proposalDigest,
         expectedHeadCommitId: input.expectedHeadCommitId,
-        impact: routine || added ? "L2" : "L3",
+        impact: routine || added || revealed ? "L2" : "L3",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         narrative: `Iora studies the consequence of: ${input.intent}`,
-        responseSource: added
-          ? { type: "WORLD" }
-          : { type: "CHARACTER", characterId: "character.iora" },
-        displayEffect: added
+        responseSource:
+          added || revealed
+            ? { type: "WORLD" }
+            : { type: "CHARACTER", characterId: "character.iora" },
+        displayEffect: revealed
           ? {
-              target: `fact.${actionId}`,
-              before: "Nothing recorded yet.",
-              after: "A second hull rides low behind the waiting vessel.",
+              target: "fact.ledger",
+              before: "Hidden until now.",
+              after: "The ledger is sewn into the pilot's coat lining.",
               scope: "SHARED",
             }
-          : {
-              target: routine ? "character.iora" : "fact.signal",
-              before: routine ? characterLocation : fact,
-              after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
-              scope: "SHARED",
-            },
+          : added
+            ? {
+                target: `fact.${actionId}`,
+                before: "Nothing recorded yet.",
+                after: "A second hull rides low behind the waiting vessel.",
+                scope: "SHARED",
+              }
+            : {
+                target: routine ? "character.iora" : "fact.signal",
+                before: routine ? characterLocation : fact,
+                after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
+                scope: "SHARED",
+              },
       },
       commit: null,
     };
@@ -467,6 +477,22 @@ test("WD-1a a new fact reads as new in the world, not as a before and after [add
   await expectAccessible(page);
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
   await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
+});
+
+test("WD-1b the story decides by default, and a revealed secret reads as discovered [revealed]", async ({
+  page,
+}) => {
+  await page.goto(`/continuities/${continuityId}`);
+  const outcome = page.getByLabel("Desired outcome");
+  await expect(outcome).toHaveValue("STORY_DECIDES");
+  await expect(outcome.locator("option").first()).toHaveText("Let the story decide");
+  await page.getByLabel("Your Action").fill("I search the pilot's coat by the door.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  const review = page.getByText("Discovered", { exact: true }).locator("xpath=ancestor::dl");
+  await expect(review).toContainText("The ledger is sewn into the pilot's coat lining.");
+  await expect(review).toContainText("A small, everyday change");
+  await expect(page.getByText("Hidden until now.")).toHaveCount(0);
+  await expectAccessible(page);
 });
 
 test("PX-2a quick play still leaves an important change to the player", async ({ page }) => {

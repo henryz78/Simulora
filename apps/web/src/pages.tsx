@@ -1897,6 +1897,49 @@ function currentSituation(data: AuthoritativeStateResponse): string {
   );
 }
 
+/**
+ * WD-1b: marks a private fact as a secret play can uncover, with a note on how.
+ * The note guides the story; it is never shown to the player.
+ */
+function StudioSecret({
+  factId,
+  howToFind,
+  onChange,
+}: {
+  factId: string;
+  howToFind: string | null;
+  onChange: (howToFind: string | null) => void;
+}): ReactElement {
+  return (
+    <div className="studio-secret">
+      <label>
+        <input
+          type="checkbox"
+          checked={howToFind !== null}
+          onChange={(event) =>
+            onChange(
+              event.target.checked ? "Searching the right place or asking the right person." : null,
+            )
+          }
+        />{" "}
+        Can be discovered in play
+      </label>
+      {howToFind !== null ? (
+        <label className="field-label" htmlFor={`studio-secret-${factId}`}>
+          How it could be found
+          <textarea
+            id={`studio-secret-${factId}`}
+            rows={2}
+            maxLength={1000}
+            value={howToFind}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
 type CurrentFact = {
   id: string;
   statement: string;
@@ -2621,11 +2664,52 @@ function StudioCoreFields({
         },
       ],
     }));
+  // WD-1b: a secret is a private fact the author lets play reveal. Keep the key
+  // off the document entirely when no secret is declared.
+  const withDiscoverable = (
+    current: WorldDocumentInput,
+    entries: NonNullable<WorldDocumentInput["discoverableFacts"]>,
+  ): WorldDocumentInput => {
+    const next = { ...current };
+    delete next.discoverableFacts;
+    return entries.length ? { ...next, discoverableFacts: entries } : next;
+  };
+  const setDiscoverable = (factId: string, howToFind: string | null) =>
+    setDraft((current) => {
+      const others = (current.discoverableFacts ?? []).filter((item) => item.factId !== factId);
+      return withDiscoverable(
+        current,
+        howToFind === null
+          ? others
+          : [
+              ...(current.discoverableFacts ?? []).filter((item) => item.factId !== factId),
+              {
+                factId,
+                howToFind,
+              },
+            ],
+      );
+    });
+  const updateFactScope = (id: string, scope: WorldDocumentInput["facts"][number]["scope"]) =>
+    setDraft((current) =>
+      withDiscoverable(
+        {
+          ...current,
+          facts: current.facts.map((fact) => (fact.id === id ? { ...fact, scope } : fact)),
+        },
+        scope === "CONTINUITY_PRIVATE"
+          ? (current.discoverableFacts ?? [])
+          : (current.discoverableFacts ?? []).filter((item) => item.factId !== id),
+      ),
+    );
   const removeFact = (id: string) =>
     setDraft((current) => {
       if (current.facts.length === 1) return current;
       return {
-        ...current,
+        ...withDiscoverable(
+          current,
+          (current.discoverableFacts ?? []).filter((item) => item.factId !== id),
+        ),
         facts: current.facts.filter((fact) => fact.id !== id),
         characters: current.characters.map((character) => ({
           ...character,
@@ -2921,9 +3005,7 @@ function StudioCoreFields({
                   id={`studio-scope-${fact.id}`}
                   value={fact.scope}
                   onChange={(event) =>
-                    updateFact(fact.id, {
-                      scope: event.target.value as typeof fact.scope,
-                    })
+                    updateFactScope(fact.id, event.target.value as typeof fact.scope)
                   }
                 >
                   <option value="SHARED">Shared</option>
@@ -2932,6 +3014,16 @@ function StudioCoreFields({
                 </select>
               </label>
             </div>
+            {fact.scope === "CONTINUITY_PRIVATE" ? (
+              <StudioSecret
+                factId={fact.id}
+                howToFind={
+                  draft.discoverableFacts?.find((item) => item.factId === fact.id)?.howToFind ??
+                  null
+                }
+                onChange={(howToFind) => setDiscoverable(fact.id, howToFind)}
+              />
+            ) : null}
             <button
               className="text-action"
               type="button"

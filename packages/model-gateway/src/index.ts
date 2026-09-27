@@ -69,7 +69,12 @@ export type WorldTurnRequest = {
   expectedHeadCommitId: string;
   intent: string;
   requestedEffect?:
-    "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "RELATIONSHIP_EFFECT" | "THREAD_EFFECT";
+    | "FACT_REWRITE"
+    | "ROUTINE_EFFECT"
+    | "NO_WORLD_EFFECT"
+    | "RELATIONSHIP_EFFECT"
+    | "THREAD_EFFECT"
+    | "STORY_DECIDES";
   /** MGC-1: the open thread the user asked this Action to resolve. */
   targetThreadId?: string;
   effectContext?: EffectContext;
@@ -163,7 +168,7 @@ export class DeterministicModelGateway implements ModelGatewayPort {
       (item) =>
         actor && item.fromLocationId === actor.locationId && item.toLocationId !== actor.locationId,
     );
-    if (requestedEffect === "NO_WORLD_EFFECT") {
+    if (requestedEffect === "NO_WORLD_EFFECT" || requestedEffect === "STORY_DECIDES") {
       return Promise.resolve({
         narrative,
         responseSource,
@@ -313,7 +318,7 @@ export class UnsafeModelContextError extends Error {
   override readonly name = "UnsafeModelContextError";
 }
 
-export const livePromptVersion = 9;
+export const livePromptVersion = 10;
 const maxPromptCharacters = 48_000;
 
 // System rules travel separately from the compiled request. Creator-authored text
@@ -404,7 +409,7 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
           causalFactIds: [request.targetFact.id],
         }
       : null) ??
-    (effect === "NO_WORLD_EFFECT"
+    (effect === "NO_WORLD_EFFECT" || effect === "STORY_DECIDES"
       ? {
           type: "NO_WORLD_EFFECT",
           reason: "Explain briefly why this response has no world-state effect.",
@@ -447,11 +452,13 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
     "The server decides validity; movement and canonical changes still need exact confirmation.",
     `The requested effect is ${effect}; operation.type must be ${String(operation.type)}` +
       (effect === "FACT_REWRITE" && request.sharedWorld ? " or UPDATE_CANONICAL_FACT" : "") +
+      (effect === "STORY_DECIDES" ? " or one operation offered below" : "") +
       (failure && effect !== "NO_WORLD_EFFECT" && operation !== failure
         ? " unless the constraint alternative below applies."
         : "."),
     "If the selected effect permits advice or refusal, put it in the narrative/reason while",
     "retaining the required operation envelope.",
+    ...(effect === "STORY_DECIDES" ? storyDecidesRules(request) : []),
     ...(effect === "FACT_REWRITE" && request.sharedWorld
       ? [
           "context.current.facts lists every shared fact. causalFactIds are 1-4 ids from it.",
@@ -480,6 +487,44 @@ export function compileWorldTurnPrompt(request: WorldTurnRequest): CompiledWorld
       : []),
   ].join("\n");
   return { system, data: JSON.stringify({ compiledGenerationRequest: request }) };
+}
+
+/**
+ * WD-1b: under "Let the story decide" the model picks the outcome. It may add a
+ * fact, and reveal a discoverable fact only when the action meets its note.
+ */
+function storyDecidesRules(request: WorldTurnRequest): string[] {
+  const discoverable = Array.isArray(request.context?.discoverable)
+    ? (request.context.discoverable as unknown[])
+    : [];
+  const causalFactIds = [request.targetFact.id];
+  return [
+    "You decide what the action achieves. Keep NO_WORLD_EFFECT when it only talks or looks",
+    "and finds nothing new.",
+    ...(request.sharedWorld
+      ? [
+          "If it reveals one new concrete detail, return instead:",
+          JSON.stringify({
+            type: "ADD_FACT",
+            statement: "One new, concrete detail the action revealed or caused, as a fact.",
+            causalFactIds,
+          }),
+        ]
+      : []),
+    ...(discoverable.length
+      ? [
+          "context.discoverable lists hidden truths with how each could be found. Only when the",
+          "action meets an entry's howToFind, return this, with that entry's factId, and show the",
+          "discovery in the narrative. Otherwise never mention a discoverable statement:",
+          JSON.stringify({
+            type: "REVEAL_FACT",
+            factId: "The factId of the entry the action uncovers.",
+            causalFactIds,
+          }),
+        ]
+      : []),
+    "causalFactIds are 1-4 ids from context.current.facts. Never change an existing fact here.",
+  ];
 }
 
 export type OpenAICompatibleGatewayOptions = {

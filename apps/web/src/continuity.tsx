@@ -45,7 +45,12 @@ export type ActionResult = {
 };
 
 type RequestedEffect =
-  "FACT_REWRITE" | "ROUTINE_EFFECT" | "NO_WORLD_EFFECT" | "RELATIONSHIP_EFFECT" | "THREAD_EFFECT";
+  | "FACT_REWRITE"
+  | "ROUTINE_EFFECT"
+  | "NO_WORLD_EFFECT"
+  | "RELATIONSHIP_EFFECT"
+  | "THREAD_EFFECT"
+  | "STORY_DECIDES";
 
 /** A scaled relationship the selected Character is part of, read from current state. */
 function scaledRelationshipsOf(state: AuthoritativeStateResponse["state"], characterId: string) {
@@ -1020,11 +1025,16 @@ export function ActionStatusCard({
             </p>
           ) : null}
           <p>{action.proposal.narrative}</p>
-          {action.proposal.displayEffect.target === `fact.${action.id}` ? (
-            // WD-1a: an added fact has no earlier state to compare against.
+          {action.proposal.displayEffect.target === `fact.${action.id}` ||
+          action.proposal.displayEffect.before === "Hidden until now." ? (
+            // WD-1a/WD-1b: an added or revealed fact has no earlier state to show.
             <dl>
               <div>
-                <dt>New in the world</dt>
+                <dt>
+                  {action.proposal.displayEffect.before === "Hidden until now."
+                    ? "Discovered"
+                    : "New in the world"}
+                </dt>
                 <dd>{action.proposal.displayEffect.after}</dd>
               </div>
               <div>
@@ -1387,8 +1397,8 @@ export function ActionComposer(): ReactElement {
   const [intent, setIntent] = useState("");
   const [targetCharacterId, setTargetCharacterId] = useState("");
   // "THREAD_EFFECT:<id>" asks to work toward resolving that open thread.
-  // PX-1: talking is the default; a world change is a deliberate choice.
-  const [effectChoice, setEffectChoice] = useState<string>("NO_WORLD_EFFECT");
+  // WD-1b: the story decides by default; it never makes an important change.
+  const [effectChoice, setEffectChoice] = useState<string>("STORY_DECIDES");
   const [requestedEffect, targetThreadId] = effectChoice.startsWith("THREAD_EFFECT:")
     ? (["THREAD_EFFECT", effectChoice.slice("THREAD_EFFECT:".length)] as const)
     : ([effectChoice as RequestedEffect, undefined] as const);
@@ -1461,7 +1471,7 @@ export function ActionComposer(): ReactElement {
             setTargetCharacterId(nextCharacterId);
             if (requestedEffect === "ROUTINE_EFFECT" || requestedEffect === "RELATIONSHIP_EFFECT") {
               // A character-bound outcome never carries over to another character.
-              setRequestedEffect("NO_WORLD_EFFECT");
+              setRequestedEffect("STORY_DECIDES");
             }
           }}
           disabled={
@@ -1504,6 +1514,7 @@ export function ActionComposer(): ReactElement {
             loadState.status !== "ready"
           }
         >
+          <option value="STORY_DECIDES">Let the story decide</option>
           <option value="NO_WORLD_EFFECT">Just talk or look — nothing changes</option>
           <option value="FACT_REWRITE">Change something in the world</option>
           <option value="ROUTINE_EFFECT" disabled={!canMove}>

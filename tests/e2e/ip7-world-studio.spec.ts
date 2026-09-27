@@ -421,3 +421,60 @@ test("SA-2: creator names who may move and which routes they may use", async ({ 
     "permitsRoutineMovement",
   );
 });
+
+test("WD-1b: creator marks a private fact as a secret and says how it could be found", async ({
+  page,
+}) => {
+  let draft: Record<string, unknown> = {
+    ...documentFor(),
+    facts: [
+      ...documentFor().facts,
+      {
+        id: "fact-ledger",
+        statement: "The ledger is sewn into the merchant's coat.",
+        scope: "CONTINUITY_PRIVATE",
+        provenance: "World creator Draft",
+        lifecycle: "ACTIVE",
+      },
+    ],
+  };
+  let rowVersion = 1;
+  await page.route(`**/v1/worlds/${worldId}/studio`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(studioResponse(draft as ReturnType<typeof documentFor>, rowVersion)),
+    }),
+  );
+  await page.route(`**/v1/worlds/${worldId}/draft`, async (route) => {
+    draft = (route.request().postDataJSON() as { document: Record<string, unknown> }).document;
+    rowVersion += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ worldId, rowVersion, document: draft, documentHash: "b".repeat(64) }),
+    });
+  });
+
+  await page.goto(`/worlds/${worldId}/studio`);
+  await page.getByText("Facts, routes, relationships and boundaries").click();
+  const shared = page.getByRole("group", { name: "Fact 1", exact: true });
+  await expect(shared.getByLabel("Can be discovered in play")).toHaveCount(0);
+  const secret = page.getByRole("group", { name: "Fact 2", exact: true });
+  await secret.getByLabel("Can be discovered in play").check();
+  await secret.getByLabel("How it could be found").fill("Searching the merchant's coat.");
+  await expectAccessible(page);
+  const save = page.getByRole("button", { name: "Save Draft" });
+  await save.click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  expect(draft.discoverableFacts).toEqual([
+    { factId: "fact-ledger", howToFind: "Searching the merchant's coat." },
+  ]);
+
+  // A shared fact cannot be a secret, so changing the scope withdraws it.
+  await secret.getByLabel("Scope").selectOption("SHARED");
+  await expect(secret.getByLabel("Can be discovered in play")).toHaveCount(0);
+  await save.click();
+  await expect(page.getByRole("status")).toContainText("Draft saved");
+  expect(draft).not.toHaveProperty("discoverableFacts");
+});

@@ -212,8 +212,8 @@ describe("IP-9 live capability profile adapter", () => {
     expect(plain.failure).toBeNull();
   });
 
-  it("offers ADD_FACT first and any shared rewrite only for WD-1a Actions (prompt v9)", () => {
-    expect(livePromptVersion).toBe(9);
+  it("offers ADD_FACT first and any shared rewrite only for WD-1a Actions (prompt v9+)", () => {
+    expect(livePromptVersion).toBe(10);
     const skeletonOf = (request: WorldTurnRequest) => {
       const system = compileWorldTurnPrompt(request).system;
       const lines = system.split("\n");
@@ -231,6 +231,39 @@ describe("IP-9 live capability profile adapter", () => {
     const legacy = skeletonOf({ ...base, requestedEffect: "FACT_REWRITE" });
     expect(legacy.operation.type).toBe("UPDATE_CANONICAL_FACT");
     expect(legacy.system).not.toContain("ADD_FACT");
+  });
+
+  it("lets the story respond, add a fact, or reveal only a listed secret (prompt v10)", () => {
+    const skeletonOf = (request: WorldTurnRequest) => {
+      const system = compileWorldTurnPrompt(request).system;
+      const lines = system.split("\n");
+      const at = lines.indexOf(
+        "Return ONE JSON candidate object, no markdown. Only these keys/values are permitted:",
+      );
+      const skeleton = JSON.parse(lines[at + 1]!) as { operation: { type: string } };
+      return { system, operation: skeleton.operation };
+    };
+    const story = { ...base, requestedEffect: "STORY_DECIDES" as const, sharedWorld: true };
+    const plain = skeletonOf(story);
+    expect(plain.operation.type).toBe("NO_WORLD_EFFECT");
+    expect(plain.system).toContain('"ADD_FACT"');
+    expect(plain.system).not.toContain('"REVEAL_FACT"');
+    expect(plain.system).not.toContain('"UPDATE_CANONICAL_FACT"');
+    const secret = skeletonOf({
+      ...story,
+      context: {
+        discoverable: [
+          {
+            factId: "fact.ledger",
+            statement: "The ledger is sewn in a coat.",
+            howToFind: "Search it.",
+          },
+        ],
+      },
+    });
+    expect(secret.system).toContain('"REVEAL_FACT"');
+    expect(secret.system).toContain("Only when the");
+    expect(secret.system).not.toContain('"UPDATE_CANONICAL_FACT"');
   });
 
   it("sends rules and data as separate messages and returns an untrusted draft", async () => {

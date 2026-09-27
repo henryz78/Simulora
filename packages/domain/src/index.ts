@@ -121,6 +121,10 @@ export const worldDocumentSchema = z
     constraints: z
       .array(z.object({ id: stableIdSchema, statement: nonEmptyTextSchema }))
       .optional(),
+    // WD-1b: private facts the author lets play reveal, and how they could be found.
+    discoverableFacts: z
+      .array(z.object({ factId: stableIdSchema, howToFind: boundedTextSchema }).strict())
+      .optional(),
     interactionPaths: z.array(nonEmptyTextSchema).min(1),
     interactionBoundaries: z.array(nonEmptyTextSchema).min(1),
     objectives: z.array(nonEmptyTextSchema).default([]),
@@ -154,6 +158,20 @@ export const worldDocumentSchema = z
         });
       }
     });
+
+    const discoverable = (world.discoverableFacts ?? []).map((item) => item.factId);
+    if (
+      new Set(discoverable).size !== discoverable.length ||
+      discoverable.some(
+        (id) => !world.facts.some((fact) => fact.id === id && fact.scope === "CONTINUITY_PRIVATE"),
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A discoverable fact must be a distinct continuity-private World fact",
+        path: ["discoverableFacts"],
+      });
+    }
 
     const movers = world.routineMovers ?? [];
     if (new Set(movers).size !== movers.length || movers.some((id) => !characterIds.has(id))) {
@@ -537,6 +555,14 @@ export const actionCandidateSchema = z
           causalFactIds: z.array(stableIdSchema).min(1).max(4),
         })
         .strict(),
+      // WD-1b: reveal one author-declared discoverable fact (it becomes SHARED).
+      z
+        .object({
+          type: z.literal("REVEAL_FACT"),
+          factId: stableIdSchema,
+          causalFactIds: z.array(stableIdSchema).min(1).max(4),
+        })
+        .strict(),
       // WD-1a: record one new SHARED fact; id and provenance are server-derived.
       z
         .object({
@@ -565,6 +591,8 @@ export const requestedEffectSchema = z.enum([
   "NO_WORLD_EFFECT",
   "RELATIONSHIP_EFFECT",
   "THREAD_EFFECT",
+  // WD-1b: the model chooses a response, ADD_FACT, REVEAL_FACT or a declared failure.
+  "STORY_DECIDES",
 ]);
 export type RequestedEffect = z.infer<typeof requestedEffectSchema>;
 
@@ -575,6 +603,32 @@ export function factIdForAction(actionId: string): string {
 
 /** What an added fact's review shows as its "before" state. */
 export const addedFactBefore = "Nothing recorded yet.";
+
+/** What a revealed fact's review shows as its "before" state. */
+export const revealedFactBefore = "Hidden until now.";
+
+/**
+ * WD-1b: the facts one generation may reveal. A World response may reveal every
+ * declared discoverable fact still private at the head; a Character only those
+ * it knows.
+ */
+export function revealableFacts(
+  world: WorldDocument,
+  state: StateRevisionDocument,
+  characterKnownFactIds: readonly string[] | null,
+): Array<{ factId: string; statement: string; howToFind: string }> {
+  return (world.discoverableFacts ?? []).flatMap((item) => {
+    const fact = state.facts.find(
+      (candidate) =>
+        candidate.id === item.factId &&
+        candidate.lifecycle === "ACTIVE" &&
+        candidate.scope === "CONTINUITY_PRIVATE",
+    );
+    if (!fact) return [];
+    if (characterKnownFactIds && !characterKnownFactIds.includes(fact.id)) return [];
+    return [{ factId: fact.id, statement: fact.statement, howToFind: item.howToFind }];
+  });
+}
 
 /** The server-derived identity of a thread opened by an Action. */
 export function threadIdForAction(actionId: string): string {
@@ -749,6 +803,8 @@ export function validateActionCandidate(
     constraintIds?: readonly string[];
     /** WD-1a: a fact change may add one new SHARED fact (Actions after 0055). */
     allowAddFact?: boolean;
+    /** WD-1b: facts this generation may reveal under STORY_DECIDES. */
+    revealableFactIds?: readonly string[];
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -785,13 +841,21 @@ export function validateActionCandidate(
     NO_WORLD_EFFECT: "NO_WORLD_EFFECT",
     RELATIONSHIP_EFFECT: "SHIFT_RELATIONSHIP",
     THREAD_EFFECT: expected.targetThreadId ? "RESOLVE_THREAD" : "OPEN_THREAD",
+    STORY_DECIDES: "NO_WORLD_EFFECT",
   }[requestedEffect];
   // A world-changing attempt may instead fail against a declared constraint.
   const transformedFailure =
     operation.type === "TRANSFORM_FAILURE" && requestedEffect !== "NO_WORLD_EFFECT";
   const addedFact =
-    operation.type === "ADD_FACT" && requestedEffect === "FACT_REWRITE" && expected.allowAddFact;
-  if (operation.type !== envelopeOperation && !transformedFailure && !addedFact) {
+    operation.type === "ADD_FACT" &&
+    (requestedEffect === "FACT_REWRITE" || requestedEffect === "STORY_DECIDES") &&
+    expected.allowAddFact;
+  // WD-1b: only the story may reveal, and only a fact this generation may reveal.
+  const revealedFact =
+    operation.type === "REVEAL_FACT" &&
+    requestedEffect === "STORY_DECIDES" &&
+    (expected.revealableFactIds ?? []).includes(operation.factId);
+  if (operation.type !== envelopeOperation && !transformedFailure && !addedFact && !revealedFact) {
     throw new Error("Candidate effect does not match the requested closed effect envelope");
   }
   const allowedContext = new Set(expected.authorizedContextFactIds);
@@ -800,11 +864,40 @@ export function validateActionCandidate(
     expected.state.facts.some(
       (fact) => fact.id === id && fact.lifecycle === "ACTIVE" && fact.scope !== "ACCOUNT_PRIVATE",
     );
+  // A reveal may name the fact it reveals; every other excluded fact stays out.
+  const disclosedFactIds = [
+    ...expected.authorizedContextFactIds,
+    ...(operation.type === "REVEAL_FACT" ? [operation.factId] : []),
+  ];
   assertGeneratedTextDoesNotLeakExcludedFacts(
     [candidate.narrative, operation.type === "NO_WORLD_EFFECT" ? operation.reason : ""],
     expected.state,
-    expected.authorizedContextFactIds,
+    disclosedFactIds,
   );
+  if (operation.type === "REVEAL_FACT") {
+    if (operation.causalFactIds.some((id) => !eligibleCausalFact(id))) {
+      throw new Error("Revealed fact source is outside the authorized context");
+    }
+    const fact = expected.state.facts.find(
+      (item) =>
+        item.id === operation.factId &&
+        item.lifecycle === "ACTIVE" &&
+        item.scope === "CONTINUITY_PRIVATE",
+    );
+    if (!fact) throw new Error("Revealed fact is not a private fact at the expected head");
+    // ADR-WD1-3: an author-authorized reveal is the one L2 scope widening.
+    return {
+      candidate,
+      impact: "L2",
+      requiresExactConfirmation: true,
+      displayEffect: {
+        target: fact.id,
+        before: revealedFactBefore,
+        after: fact.statement,
+        scope: "SHARED",
+      },
+    };
+  }
   if (
     operation.type === "SHIFT_RELATIONSHIP" ||
     operation.type === "OPEN_THREAD" ||
@@ -1648,6 +1741,27 @@ export function applyValidatedActionCandidate(
         ...threads,
         { id: threadIdForAction(validated.candidate.actionId), title, status: "OPEN" as const },
       ],
+    });
+  }
+  if (operation.type === "REVEAL_FACT") {
+    const turn = state.worldClock.turn + 1;
+    if (
+      !state.facts.some(
+        (fact) =>
+          fact.id === operation.factId &&
+          fact.lifecycle === "ACTIVE" &&
+          fact.scope === "CONTINUITY_PRIVATE",
+      )
+    ) {
+      throw new Error("Validated revealed fact is no longer private");
+    }
+    return stateRevisionDocumentSchema.parse({
+      ...state,
+      worldClock: { turn, label: `After action ${turn}` },
+      facts: state.facts.map((fact) =>
+        fact.id === operation.factId ? { ...fact, scope: "SHARED" as const } : fact,
+      ),
+      openThreads: [...state.openThreads, validated.candidate.narrative],
     });
   }
   if (operation.type === "ADD_FACT") {

@@ -370,8 +370,8 @@ test("explicit Character selection is submitted with the Action and lost-ACK ret
   await page.getByRole("button", { name: "Send Action", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(2);
   expect(bodies[0]?.targetCharacterId).toBe("character.iora");
-  // PX-1: talking is the default outcome.
-  expect(bodies[0]?.requestedEffect).toBe("NO_WORLD_EFFECT");
+  // WD-1b: the story decides by default.
+  expect(bodies[0]?.requestedEffect).toBe("STORY_DECIDES");
   expect(bodies[1]).toEqual(bodies[0]);
   await page.getByLabel("Address a character").selectOption("");
   await page.getByRole("button", { name: "Send Action", exact: true }).click();

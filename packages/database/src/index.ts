@@ -16,6 +16,7 @@ import {
   restoreSectionsFor,
   threadIdForAction,
   factIdForAction,
+  revealableFacts,
   routinePolicySchema,
   stateRevisionDocumentSchema,
   validateDirectCorrectionCandidate,
@@ -842,6 +843,12 @@ function closureEventFor(
       },
     };
   }
+  if (operation.type === "REVEAL_FACT") {
+    return {
+      type: "FACT_REVEALED",
+      payload: { actionId, factId: operation.factId, causalFactIds: operation.causalFactIds },
+    };
+  }
   if (operation.type === "ADD_FACT") {
     return {
       type: "FACT_ADDED",
@@ -866,6 +873,21 @@ function closureEventFor(
     };
   }
   return null;
+}
+
+/** WD-1b: which declared discoverable facts this generation may reveal. */
+function revealableFactIdsFor(
+  world: WorldDocument,
+  state: StateRevisionDocument,
+  context: ActionGenerationContext,
+  requestedEffect: RequestedEffect,
+): string[] {
+  if (requestedEffect !== "STORY_DECIDES") return [];
+  return revealableFacts(
+    world,
+    state,
+    context.character ? context.character.knownFacts.map((fact) => fact.id) : null,
+  ).map((item) => item.factId);
 }
 
 export function compileActionGenerationContext(
@@ -1130,6 +1152,8 @@ function eventSummary(eventType: string, payload?: Record<string, unknown>): str
       return "A canonical continuity fact was removed by the participant.";
     case "ACTION_RECORDED":
       return "A participant action was recorded on this path.";
+    case "FACT_REVEALED":
+      return "A hidden truth came to light.";
     case "FACT_ADDED":
       return typeof payload?.statement === "string"
         ? `New in the world: ${payload.statement}`
@@ -2760,6 +2784,12 @@ export class AuthoritativeWorldRepository {
           authorizedTargetFactIds: generationContext.targetFactIds,
           authorizedContextFactIds: generationContext.contextFactIds,
           allowAddFact: generationContext.sharedWorld,
+          revealableFactIds: revealableFactIdsFor(
+            world,
+            expectedState,
+            generationContext,
+            requestedEffectSchema.parse(action.operation_payload.requestedEffect ?? "FACT_REWRITE"),
+          ),
           responseSource: expectedResponseSource,
           userRoleName: world.userRole.name,
           requestedEffect: requestedEffectSchema.parse(
@@ -4995,7 +5025,10 @@ export class AuthoritativeWorldRepository {
           routinePolicyDigest: policyResult.rows[0]?.digest ?? null,
         });
       }
-      if (action.operation_payload.requestedEffect === "NO_WORLD_EFFECT") {
+      if (
+        action.operation_payload.requestedEffect === "NO_WORLD_EFFECT" ||
+        action.operation_payload.requestedEffect === "STORY_DECIDES"
+      ) {
         Object.assign(contextManifest, {
           priorDialogueIds: priorDialogue.map((entry) => entry.id),
           priorDialogueDigest: contentHash(priorDialogue),
@@ -5214,6 +5247,12 @@ export class AuthoritativeWorldRepository {
         authorizedTargetFactIds: prepared.generationContext.targetFactIds,
         authorizedContextFactIds: prepared.generationContext.contextFactIds,
         allowAddFact: prepared.generationContext.sharedWorld,
+        revealableFactIds: revealableFactIdsFor(
+          prepared.world,
+          prepared.state,
+          prepared.generationContext,
+          requestedEffect,
+        ),
         responseSource: expectedResponseSource,
         userRoleName: prepared.userRoleName,
         requestedEffect,
