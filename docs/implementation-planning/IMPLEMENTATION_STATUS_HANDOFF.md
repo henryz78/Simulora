@@ -1748,5 +1748,24 @@ See the [PX-2a report](PX-2A-IMPLEMENTATION-REPORT.md).
 - **Review:** Sonnet 5 `PASS WITH ISSUES` (0B/2I/3M), repaired, re-review
   `PASS`.
 - **Owner decision on I-2:** quick play stays a per-browser setting.
-- **Next:** PX-2b (§59) awaits its exact-SHA CI, which the owner watches, and
-  an independent Review, which is running.
+- **Next:** PX-2b (§59), since closed (§61).
+
+## 61. PX-2b WORLD response for unaddressed Actions: CLOSED
+
+See the [PX-2b report](PX-2B-IMPLEMENTATION-REPORT.md).
+
+- **Approved SHA:** `c7242b2`, exact-SHA CI `36279253443` success. Behavior
+  commits `3012bea` (0054) and `55fa21e` (schema-aware gate); `afb4b5b`,
+  `9ae9b69` and `c7242b2` are test and docs only.
+- **What it does:** a new `PARTICIPATE` Action that names no Character is
+  answered by the World with shared context only. An explicit Character
+  target is unchanged. Actions created before 0054 keep the earlier implicit
+  selection.
+- **Review:** first Reviewer `PASS WITH ISSUES` (0B/2I/2M). I-1 did not
+  reproduce; I-2 added a negative test. A focused re-review by a new Reviewer
+  (Sonnet 5) returned `PASS WITH ISSUES` (0B/0I/1M, accepted).
+- **Not done:** a live check of prompt version 8 and WORLD responses with the
+  owner's provider; human play.
+- **Next:** the front-end direction (Task 4, branch `frontend-design`) waits
+  for the owner's choice of Option A and the visual direction before a PX-3
+  contract.

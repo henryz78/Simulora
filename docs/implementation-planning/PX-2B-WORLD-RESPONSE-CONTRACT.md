@@ -1,6 +1,6 @@
 # PX-2b World Response Contract
 
-**Date:** 2026-09-26 · **Status:** implementation authorized by the D1-A decision.
+**Date:** 2026-09-26 · **Status:** `CLOSED` at `c7242b2` ([report](PX-2B-IMPLEMENTATION-REPORT.md)).
 
 When a new `PARTICIPATE` Action omits `targetCharacterId`, the response source is
 `WORLD`. The response may describe an unnamed person already present in the

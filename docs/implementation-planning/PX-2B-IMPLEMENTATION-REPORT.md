@@ -1,7 +1,8 @@
 # PX-2b Implementation Report
 
-**Status:** implementation complete; independent review and exact-SHA CI are
-pending.
+**Status:** `CLOSED` at `c7242b2` (exact-SHA CI `36279253443` success;
+independent re-review `PASS WITH ISSUES`, 0B/0I/1M accepted). Behavior
+commits: `3012bea`, `55fa21e`; later commits are test and docs only.
 
 PX-2b implements the approved D1 A behavior: a new unaddressed
 `PARTICIPATE` Action is generated as a WORLD response. The Action may still
@@ -60,9 +61,42 @@ knowledge-boundary expansion remain out of scope.
     Iora) and is rejected, with a sealing WORLD control. It was run against a
     0054-only database first and was already rejected there, which is the
     evidence for the I-1 disposition.
-  - **M-1** (no proposal sealed before 0054 then confirmed after): accepted as
-    low risk; 0054 changes no manifest shape, only the epoch-gated selection.
+  - **M-1** (no proposal sealed before 0054 then confirmed after): already
+    covered. The migration-upgrade case "across 0047 to 0048 and later" seals
+    a proposal on a 0047 schema, runs the full chain through 0054 and confirms
+    it as `COMMITTED` (confirmed by the re-review).
   - **M-2** (stale untracked `dist/` typings): not a tracked artifact; no change.
 - Local evidence after the repair: fresh PostgreSQL 16, `test:postgres` 21 files,
   181 passed / 2 skipped; `pnpm check` pass. Exact-SHA CI and the Reviewer's
   focused re-review are still required before PX-2b closes.
+
+## Focused re-review and closure (2026-09-27)
+
+A new independent Reviewer (Sonnet 5; the first Reviewer's session could not be
+resumed) re-reviewed `9ae9b69` and `c7242b2`: **`PASS WITH ISSUES`, 0B/0I/1M.**
+
+- **I-1 disposition confirmed.** Every `PARTICIPATE` family binds the response
+  source to the epoch-gated selection somewhere on the insert path:
+  - fact rewrite through `action_proposal_effect_shape_is_valid` (0030) and
+    the manifest check in `action_generation_evidence_is_valid` (0054);
+  - MOVE to the explicit target (0032);
+  - closures through `mgc_selected_character` (0048, 0054);
+  - no-effect responses in `valid_action_no_effect_evidence` (0054).
+- **The new negative test rejects for the claimed reason.** Its WORLD control
+  seals and is checked valid.
+- **The stack test change matches D1 A.** Explicit-Character coverage stays
+  in `tests/e2e/action-truth.spec.ts`.
+- **Migration hygiene holds.** Only `0054` was added; no existing migration
+  was edited.
+- **New M (accepted):** the addressed half of the new test relies on
+  `prepareRawParticipateProposal` lifting every legacy manifest. If that lift
+  were narrowed later, the case could pass for the legacy-manifest reason
+  instead. Recorded here; no change.
+
+Evidence: exact-SHA CI `36279253443` at `c7242b2`, success (verified by the
+owner). **PX-2b CLOSED.**
+
+## Not claimed
+
+- A live check of WORLD responses with the owner's provider (not yet run).
+- Human enjoyment; beta, launch or production live model use.
