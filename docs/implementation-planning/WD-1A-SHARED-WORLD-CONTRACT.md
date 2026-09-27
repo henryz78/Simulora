@@ -1,6 +1,6 @@
 # WD-1a Shared World Contract
 
-**Date:** 2026-09-27 · **Status:** `AUTHORIZED` (owner decision W1 A and W2 A,
+**Date:** 2026-09-27 · **Status:** `CLOSED` at `838b36f` ([report](WD-1A-IMPLEMENTATION-REPORT.md)). Owner decision W1 A and W2 A (
 [WD-1](WD-1-PROPOSED-DECISIONS.md)). The track closes on an independent Review
 of an exact SHA with green CI.
 

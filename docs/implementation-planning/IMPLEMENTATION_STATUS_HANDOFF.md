@@ -1783,3 +1783,18 @@ deepen the world before the front-end pass. The
 - W4: a "Let the story decide" outcome.
 
 Nothing is implemented. PX-3 (front end) waits.
+
+## 63. WD-1a shared world: CLOSED
+
+See the [WD-1a report](WD-1A-IMPLEMENTATION-REPORT.md).
+
+- **Approved SHA:** `838b36f`, exact-SHA CI `36345541672` success. Behavior
+  commits `70f5ea0` (migration 0055) and `64b68c9`.
+- **What it does:** for Actions after 0055, the model sees every shared fact.
+  A rewrite may target any shared fact (still L3). A fact change may instead
+  add one new SHARED fact at L2 (`ADD_FACT`, quick play and Undo apply).
+  Prompt version 9.
+- **Review:** Sonnet 5 `PASS WITH ISSUES` (0B/2I/1M), repaired, re-review
+  `PASS`.
+- **Next:** a live check of `ADD_FACT` with `grok-4.7`, then the WD-1b
+  contract (W3 A secrets, W4 A "Let the story decide").
