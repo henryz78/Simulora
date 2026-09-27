@@ -1798,3 +1798,16 @@ See the [WD-1a report](WD-1A-IMPLEMENTATION-REPORT.md).
   `PASS`.
 - **Next:** a live check of `ADD_FACT` with `grok-4.7`, then the WD-1b
   contract (W3 A secrets, W4 A "Let the story decide").
+
+## 64. WD-1b secrets and "Let the story decide": authorized
+
+The [WD-1b contract](WD-1B-SECRETS-AND-STORY-CONTRACT.md) implements W3 A and
+W4 A:
+
+- author secrets (`discoverableFacts`), revealed through an L2 `REVEAL_FACT`
+  the author pre-authorized;
+- a `STORY_DECIDES` default that yields a response, `ADD_FACT`, `REVEAL_FACT`
+  or a declared-constraint failure.
+
+Threads, relationships and movement stay explicit for now; this narrowing is
+stated in the contract.
