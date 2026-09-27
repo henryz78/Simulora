@@ -98,5 +98,6 @@ owner). **PX-2b CLOSED.**
 
 ## Not claimed
 
-- A live check of WORLD responses with the owner's provider (not yet run).
+- Human enjoyment of WORLD responses. An Agent-operated live check with `grok-4.7` was
+  run later ([Track B §3.7](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md)).
 - Human enjoyment; beta, launch or production live model use.

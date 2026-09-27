@@ -68,6 +68,7 @@ Also fixed in `275805a`: PX-1 review M1 (history narrative precedence).
 
 ## 5. Not claimed
 
-- A live check of prompt version 8 with the owner's provider (not yet run).
+- Human enjoyment of prompt version 8. An Agent-operated live check with `grok-4.7` was
+  run later ([Track B §3.7](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md)).
 - Human enjoyment.
 - Beta, launch or production live model use.

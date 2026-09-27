@@ -139,13 +139,39 @@ version 7) was applied to the play database, and action 4 was sent again.
   - The SQL evidence check accepted the new context.
   - The fact now reads that way.
 
+### 3.7 Live check after PX-2a and PX-2b (2026-09-27)
+
+Same local stack (PGlite with 0054 applied, real API and worker, `grok-4.7`,
+prompt version 8). Played in "The Lantern Inn" through the browser: 3 Actions,
+4 generation attempts. Agent-operated; not human enjoyment.
+
+| Action | Addressed | Outcome | Result |
+|---|---|---|---|
+| "I check the coat pegs by the door and the woodpile for the ledger." | no one | no effect | **World response** in the second person: "You check the coat pegs by the door and the woodpile. Damp cloaks, a scatter of bark, and no bound book." It is the player's own attempt, not Marta's (compare §3.5). |
+| "I ask Marta quietly whether the wool merchant was near the counter…" | Marta | no effect | **Character response · Marta**, within her knowledge; she speaks no words for the user. |
+| "I pull the loose hearthstone by the fire and look underneath…" | no one | change in the world | One bounded retry, then an L3 **World response** proposal. Confirmed in the UI; the current situation updated and Undo was offered. |
+
+Observations (not fixed):
+
+- **The fact is becoming a search log.** A plain search is recorded by
+  rewriting the one shared fact ("…behind the counter, under the benches, and
+  at the hearthstones…") and asks for an "important change" review. This is
+  the single-fact L3 ceiling, not a PX-2 defect.
+- **The world has nowhere to go.** The world holds no hidden truth about
+  where the ledger is, so searches can only fail.
+- **Marta's answers are static.** She repeats the same stance each turn: she
+  won't name anyone or start a quarrel.
+
+These are world-depth limits for a later track.
+
 ## 4. Usage
 
 There were 23 provider calls:
 
 - 13 in-product attempts over 6 Actions (the last two after TB-1);
 - 1 model-name probe;
-- 9 diagnostic replays of one captured request.
+- 9 diagnostic replays of one captured request;
+- 4 generation attempts for 3 Actions in the §3.7 check (2026-09-27).
 
 No limit was reached. Nothing was committed except through exact UI
 confirmation.
