@@ -1858,11 +1858,14 @@ See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
 
 ## 67. P1–P4 follow-up package
 
-- **P1:** test-only Restore-expiry hardening is in `84afa7d`. The E2E cases now
-  await their delayed network responses, and PostgreSQL expiry checks poll the
-  durable proposal status instead of relying on 100/150/250 ms wall-clock
-  sleeps. Local desktop and 390×844 E2E passed; real-PostgreSQL CI remains the
-  required evidence.
+- **P1:** the initial test-only Restore-expiry hardening in `84afa7d` was
+  reviewed as **FAIL (1B/1I/1M)**. R1 repaired it in test-only commit
+  `10d8962`: the valid confirmation stays inside a two-second live window,
+  expiry is polled from SQL after confirmation, the 100 ms read-expiry check
+  uses durable status polling, and the two E2E timing changes were reverted.
+  Local PGlite checks and desktop/390×844 E2E passed; authoritative CI
+  [`36380894036`](https://github.com/henryz78/Simulora/actions/runs/36380894036)
+  passed all migration, PostgreSQL, quality, container and browser steps.
 - **P2:** the current-situation design choices are documented in
   [WD-2 Current Situation Proposal](WD-2-CURRENT-SITUATION-PROPOSAL.md).
 - **P3:** the `STORY_DECIDES` widening choices for threads, relationships and
