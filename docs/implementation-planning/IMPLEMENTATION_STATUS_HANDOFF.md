@@ -1354,6 +1354,7 @@ which is a draft of IP-10.8.
 
   G10 cannot pass while these remain. Closing them is a product-owner
   decision.
+
 - **External:** every Plan §20 decision, the `SHOULD` selection, specialist
   and human accessibility review, and named operations owners.
 
@@ -1377,6 +1378,7 @@ On 2026-09-24 the product owner made three decisions:
   MGC-1 has its own process: implementation → real PostgreSQL, browser and
   migration regression → independent review → repair → re-review. After it
   passes, the IP-10 matrix is updated and `LONG-01` is run.
+
 - **IP-10 continues as validation only.** Its test-only work proceeds in
   parallel with MGC-1.
 - **SHOULD selection.** PR-012, PR-015, PR-016 and PR-017 are not selected for
@@ -1422,6 +1424,7 @@ MGC-1 is a bounded track, not a Gate.
   - Action → Correction → Branch/Restore → export.
 
   `E2E-CONTINUITY-IMPACT` remains to do.
+
 - **IP-10.5:** the SEC-ACCESS horizontal sweep over 43 owner-scoped route probes
   landed in `f68addd`. The only reads that answer do so exactly as for an
   unknown identifier.
@@ -1502,6 +1505,7 @@ Evidence: CI `36207364368` on `b3c914d`, `success`.
   - Continuity links survive a reload.
 
   See [IP-10 Continuity Impact Report](IP-10-CONTINUITY-IMPACT-REPORT.md).
+
 - **Test-only fix:** `b3c914d` fixes a pre-existing timing race in
   `ip9-model-provider`.
 - **IP-10.4:** the [IP-10 Compatibility Matrix](IP-10-COMPATIBILITY-MATRIX.md)
@@ -1584,6 +1588,7 @@ The product owner approved SA-1 (track A) on 2026-09-25.
   - an added Character cannot be addressed until it knows a fact.
 
   Both matter for human play.
+
 - **New provider:** the product owner supplied a new OpenAI-compatible profile.
   It is stored only in the ignored local `.secret.txt`. One connectivity call
   succeeded. It is not approved for any shared environment.
@@ -1816,8 +1821,7 @@ stated in the contract.
 
 See the [WD-1b report](WD-1B-IMPLEMENTATION-REPORT.md).
 
-- **Approved SHA:** `0a94e6a`, exact-SHA CI `36348064153` success. Migration
-  0056.
+- **Approved SHA:** `0a94e6a`, exact-SHA CI `36348064153` success. Migration 0056.
 - **What it does:** authors may mark a private fact as a secret with a note on
   how it could be found. Under the new default, "Let the story decide", the
   model may respond, add a fact, reveal a secret (`REVEAL_FACT`, L2) or
@@ -1851,3 +1855,23 @@ See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
 - **Not fixed:** the "current situation" line goes stale after play changes
   the world (a design question), and the flaky 250 ms window in
   `tests/e2e/ip5-recovery.spec.ts`.
+
+## 67. P1–P4 follow-up package
+
+- **P1:** test-only Restore-expiry hardening is in `84afa7d`. The E2E cases now
+  await their delayed network responses, and PostgreSQL expiry checks poll the
+  durable proposal status instead of relying on 100/150/250 ms wall-clock
+  sleeps. Local desktop and 390×844 E2E passed; real-PostgreSQL CI remains the
+  required evidence.
+- **P2:** the current-situation design choices are documented in
+  [WD-2 Current Situation Proposal](WD-2-CURRENT-SITUATION-PROPOSAL.md).
+- **P3:** the `STORY_DECIDES` widening choices for threads, relationships and
+  movement are documented in
+  [WD-2 Story-Decides Widening Proposal](WD-2-STORY-DECIDES-WIDENING-PROPOSAL.md).
+- **P4:** the read-only front-end comparison is in
+  [Front-end Design Comparison](FRONTEND-DESIGN-COMPARISON.md). The
+  `frontend-design` branch remains separate; no PX-3 implementation is
+  authorized.
+
+These documents do not choose WD-2 or PX-3, change frozen semantics, or enable
+any provider, beta, launch or production live model.
