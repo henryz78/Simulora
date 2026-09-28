@@ -1827,7 +1827,7 @@ See the [WD-1b report](WD-1B-IMPLEMENTATION-REPORT.md).
 - **Next:** a live check of reveals and "Let the story decide" with
   `grok-4.7` (done; see §66).
 
-## 66. WD-1b secret-visibility repair: reviewer PASS, CI pending
+## 66. WD-1b secret-visibility repair: CLOSED
 
 See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
 [Track B §3.9](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md).
@@ -1840,8 +1840,8 @@ See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
 - **Review:** the same independent Reviewer returned two focused FAILs
   (1B/1I/2M on `494a171`, 1B/0I/1M on `5287ca0`), both fixed, then `PASS`
   (0B/0I/1M, accepted) on `549ea5e`.
-- **Approved behavior SHA:** `549ea5e`. Exact-SHA CI `36376303697`: pending
-  the owner's confirmation. The repair closes when it is green.
+- **Approved behavior SHA:** `549ea5e`. Exact-SHA CI `36376303697`
+  success (verified by the owner). **Repair CLOSED.**
 - **Owner decision A:** an export stays the owner's full copy and includes
   every author secret; the export page says so.
 - **Known limits (accepted):** hiding is a display rule against spoilers, not

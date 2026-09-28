@@ -82,7 +82,7 @@ confirmed:
 | M1 | The play page recognizes a reveal by the literal `"Hidden until now."` rather than the domain constant. | Accepted; fold into the next behavior change. |
 | M2 | The "already SHARED" forged reveal uses a fact that was always shared, not one revealed earlier. | Accepted; the same guard refuses both, by inspection. Fold into the next test change. |
 
-## 5. Repair after the live check (reviewer PASS, CI pending)
+## 5. Repair after the live check (CLOSED)
 
 The live check ([Track B §3.9](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md)) found that
 the player could read a secret before it was revealed. The model never saw it;
@@ -106,8 +106,8 @@ only, with no SQL or domain change.
   constraint could see an L2 change of that other kind labelled "Discovered".
 
 **Review of `549ea5e`: `PASS` (0B/0I/1M, M1 above accepted).** Approved
-behavior SHA `549ea5e`. Exact-SHA CI `36376303697` is pending the owner's
-confirmation; the repair closes when it is green.
+behavior SHA `549ea5e`. Exact-SHA CI `36376303697` success (verified by the
+owner). **Repair CLOSED.**
 
 ## 6. Not claimed
 
