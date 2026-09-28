@@ -2717,6 +2717,11 @@ html {
   background: transparent;
 }
 
+.danger-action:disabled:hover {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
 /* Status stays visible in the border, not only in the heading. */
 .action-page > .action-status.action-status-conflict,
 .action-page > .action-status.action-status-failed_recoverable {
@@ -2740,12 +2745,6 @@ button.text-action {
 
 button.text-action:hover {
   text-decoration-color: var(--danger);
-}
-
-@media (max-width: 760px) {
-  html {
-    scroll-padding-top: 16px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
