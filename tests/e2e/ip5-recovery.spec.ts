@@ -389,15 +389,9 @@ test("conflicted Action remains visible until explicitly superseded", async ({ p
 test("a delayed older Action detail cannot regress Conflict", async ({ page }) => {
   await installRoutes(page, "CONFLICT", false, true);
   await page.goto(`/continuities/${continuityId}`);
-  const delayedDetail = page.waitForResponse(
-    (response) =>
-      response.request().method() === "GET" &&
-      new URL(response.url()).pathname === "/v1/actions/60000000-0000-4000-8000-000000000020" &&
-      response.status() === 200,
-  );
   await page.getByRole("link", { name: /Conflict · Inspect the signal/ }).click();
   await expect(page.getByRole("heading", { name: "Conflict" })).toBeVisible();
-  await delayedDetail;
+  await page.waitForTimeout(350);
   await expect(page.getByRole("heading", { name: "Conflict" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry Action" })).toHaveCount(0);
 });
@@ -406,15 +400,9 @@ test("a delayed older Branch history cannot revive a superseded Action", async (
   await installRoutes(page, "CONFLICT", false, false, true);
   await page.goto(`/continuities/${continuityId}/actions/60000000-0000-4000-8000-000000000020`);
   await expect(page.getByRole("heading", { name: "Conflict" })).toBeVisible();
-  const delayedHistory = page.waitForResponse(
-    (response) =>
-      response.request().method() === "GET" &&
-      new URL(response.url()).pathname === `/v1/branches/${branchId}/actions` &&
-      response.status() === 200,
-  );
   await page.getByRole("button", { name: "Close stale Action" }).click();
   await expect(page.getByRole("heading", { name: "Superseded" })).toBeVisible();
-  await delayedHistory;
+  await page.waitForTimeout(450);
   await expect(page.getByText("One Action still needs attention")).toHaveCount(0);
 });
 

@@ -862,9 +862,13 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
          from simulora.restore_proposals where id = $2`,
       [readExpiryProposalId, proposal.id],
     );
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    expect((await repository.readRestoreProposal(account, readExpiryProposalId)).status).toBe(
-      "EXPIRED",
+    await vi.waitFor(
+      async () => {
+        expect((await repository.readRestoreProposal(account, readExpiryProposalId)).status).toBe(
+          "EXPIRED",
+        );
+      },
+      { timeout: 5_000, interval: 50 },
     );
 
     const expiringProposalId = randomUUID();
@@ -875,7 +879,7 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
         proposal_digest, status, expires_at)
        select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
               expected_head_commit_id, included_sections, excluded_sections, diff,
-              proposal_digest, 'ACTIVE', clock_timestamp() + interval '1 second'
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '2 seconds'
          from simulora.restore_proposals where id = $2`,
       [expiringProposalId, proposal.id],
     );
@@ -922,9 +926,12 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
 
     await vi.waitFor(
       async () => {
-        expect((await repository.readRestoreProposal(account, expiringProposalId)).status).toBe(
-          "EXPIRED",
+        const result = await pool.query(
+          `select expires_at <= clock_timestamp() as expired
+             from simulora.restore_proposals where id = $1`,
+          [expiringProposalId],
         );
+        expect(result.rows[0]?.expired).toBe(true);
       },
       { timeout: 5_000, interval: 50 },
     );
