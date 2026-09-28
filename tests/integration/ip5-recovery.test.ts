@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   ActionTruthService,
   WorldContinuityService,
@@ -698,11 +698,16 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
         proposal_digest, status, expires_at)
        select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
               expected_head_commit_id, included_sections, excluded_sections, diff,
-              proposal_digest, 'ACTIVE', clock_timestamp() + interval '100 milliseconds'
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '1 second'
        from simulora.restore_proposals where id = $2`,
       [timedOutId, proposal.id],
     );
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await vi.waitFor(
+      async () => {
+        expect((await repository.readRestoreProposal(account, timedOutId)).status).toBe("EXPIRED");
+      },
+      { timeout: 5_000, interval: 50 },
+    );
 
     const regenerated = await repository.prepareRestore(
       account,
@@ -870,9 +875,17 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
         proposal_digest, status, expires_at)
        select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
               expected_head_commit_id, included_sections, excluded_sections, diff,
-              proposal_digest, 'ACTIVE', clock_timestamp() + interval '250 milliseconds'
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '1 second'
          from simulora.restore_proposals where id = $2`,
       [expiringProposalId, proposal.id],
+    );
+    await vi.waitFor(
+      async () => {
+        expect((await repository.readRestoreProposal(account, expiringProposalId)).status).toBe(
+          "EXPIRED",
+        );
+      },
+      { timeout: 5_000, interval: 50 },
     );
     await expect(
       pool.query(
@@ -915,7 +928,6 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
       pool.query("delete from simulora.restore_confirmations where id = $1", [confirmationId]),
     ).rejects.toThrow(/restore_confirmations is immutable/);
 
-    await new Promise((resolve) => setTimeout(resolve, 350));
     await expect(
       pool.query(
         `insert into simulora.world_commits
@@ -957,11 +969,16 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
         proposal_digest, status, expires_at)
        select $1, continuity_id, branch_id, actor_account_id, source_commit_id,
               expected_head_commit_id, included_sections, excluded_sections, diff,
-              proposal_digest, 'ACTIVE', clock_timestamp() + interval '150 milliseconds'
+              proposal_digest, 'ACTIVE', clock_timestamp() + interval '1 second'
          from simulora.restore_proposals where id = $2`,
       [expiringId, proposal.id],
     );
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await vi.waitFor(
+      async () => {
+        expect((await repository.readRestoreProposal(account, expiringId)).status).toBe("EXPIRED");
+      },
+      { timeout: 5_000, interval: 50 },
+    );
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const outcomes = await Promise.race([
