@@ -10,6 +10,15 @@ const stateRevisionId = "60000000-0000-4000-8000-000000000005";
 const worldRevisionId = "60000000-0000-4000-8000-000000000006";
 const pointId = "60000000-0000-4000-8000-000000000007";
 const now = "2026-09-07T00:00:00.000Z";
+// WD-1b: an author's secret that play has not revealed yet.
+const secret = "A spare lens key hangs behind the observatory door.";
+const secretFact = {
+  id: "fact.key",
+  statement: secret,
+  scope: "CONTINUITY_PRIVATE",
+  provenance: "Original World seed",
+  lifecycle: "ACTIVE",
+};
 
 function state(branch = branchId, head = branchHead): Record<string, unknown> {
   return {
@@ -49,7 +58,9 @@ function state(branch = branchId, head = branchHead): Record<string, unknown> {
           provenance: "Recorded Action",
           lifecycle: "ACTIVE",
         },
+        secretFact,
       ],
+      discoverableFacts: [{ factId: "fact.key", howToFind: "Looking behind the door." }],
       relationships: [],
       interactionPaths: ["Inspect the lamp."],
       interactionBoundaries: ["The world never authors user speech."],
@@ -70,6 +81,7 @@ function state(branch = branchId, head = branchHead): Record<string, unknown> {
           provenance: "Recorded Action",
           lifecycle: "ACTIVE",
         },
+        secretFact,
       ],
       relationships: [],
       openThreads: ["The harbor watches the signal."],
@@ -300,7 +312,7 @@ async function installRoutes(
           before: { turn: 2, label: "Current watch" },
           after: { turn: 0, label: "Opening watch" },
         },
-        { section: "facts", before: [{ statement: "Signal steady" }], after: [] },
+        { section: "facts", before: [{ statement: "Signal steady" }, secretFact], after: [] },
         { section: "openThreads", before: [{ title: "Follow the signal" }], after: [] },
       ],
       beforeHash: "a".repeat(64),
@@ -413,9 +425,11 @@ test("Safe Point, Branch and exact append-only Restore share one Recovery model"
   await expect(page.getByText("Original path", { exact: true })).toBeVisible();
   await page.getByLabel("Restore from").selectOption(unlabeledCommit);
   await page.getByRole("button", { name: "Review Restore scope" }).click();
-  await expect(page.getByRole("region", { name: "Exact Restore review" })).toContainText(
-    "participation",
-  );
+  const review = page.getByRole("region", { name: "Exact Restore review" });
+  await expect(review).toContainText("participation");
+  await review.getByText("facts · exact before / after").click();
+  await expect(review).toContainText("Signal steady");
+  await expect(review).not.toContainText(secret);
   await page.reload();
   await expect(page.getByRole("region", { name: "Exact Restore review" })).toContainText(
     "other Branches",
@@ -452,4 +466,20 @@ test("a completed Restore receipt survives a lost response and full reload", asy
   await page.reload();
   await expect(page.getByText(/Restore recorded as Commit/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Confirm exact Restore" })).toHaveCount(0);
+});
+
+test("WD-1b an undiscovered secret has no fact or correction page, even by direct link", async ({
+  page,
+}) => {
+  await installRoutes(page);
+  await page.goto(`/continuities/${continuityId}/continuity/facts/fact.key`);
+  await expect(
+    page.getByRole("heading", { name: "This explanation is not available" }),
+  ).toBeVisible();
+  await expect(page.getByText(secret)).toHaveCount(0);
+  await page.goto(`/continuities/${continuityId}/correction/fact.key?operation=CORRECT_CONTINUITY`);
+  await expect(
+    page.getByRole("heading", { name: "This correction target is not available" }),
+  ).toBeVisible();
+  await expect(page.getByText(secret)).toHaveCount(0);
 });

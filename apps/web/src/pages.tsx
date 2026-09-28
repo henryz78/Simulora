@@ -686,12 +686,16 @@ export function FactLensPage(): ReactElement {
         .map((item) => currentFact(item))
         .find((item) => item?.id === factId) ?? null)
     : null;
-  if (!fact && !explanation) {
+  // WD-1b: an undiscovered secret has no explanation page, even by direct link.
+  const hidden = loadState.data.state.facts.some(
+    (value) => currentFact(value)?.id === factId && isHiddenSecret(loadState.data.world, value),
+  );
+  if (hidden || (!fact && !explanation)) {
     return (
       <StatusPage
         title="This explanation is not available"
         copy={
-          state === "unavailable"
+          state === "unavailable" || hidden
             ? "The explanation projection is temporarily unavailable or outside this account's permitted scope. No hidden source was inferred."
             : "The selected fact is not present in the current authorized state."
         }
@@ -1150,6 +1154,12 @@ export function RecoveryPage(): ReactElement {
   const branchKey = useRef<string | null>(null);
   const head = loadState.status === "ready" ? loadState.data.continuity.headCommitId : null;
   const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
+  const world = loadState.status === "ready" ? loadState.data.world : null;
+  // WD-1b: an undiscovered secret stays out of the Restore review too.
+  const shownSection = (section: string, value: unknown): unknown =>
+    section === "facts" && Array.isArray(value) && world
+      ? value.filter((fact) => !isHiddenSecret(world, fact))
+      : value;
 
   const reload = async (): Promise<void> => {
     const result = await readRecovery(continuityId);
@@ -1476,11 +1486,15 @@ export function RecoveryPage(): ReactElement {
                     <div className="restore-section-diff">
                       <div>
                         <strong>Current</strong>
-                        <pre>{JSON.stringify(change.before, null, 2)}</pre>
+                        <pre>
+                          {JSON.stringify(shownSection(change.section, change.before), null, 2)}
+                        </pre>
                       </div>
                       <div>
                         <strong>From selected Commit</strong>
-                        <pre>{JSON.stringify(change.after, null, 2)}</pre>
+                        <pre>
+                          {JSON.stringify(shownSection(change.section, change.after), null, 2)}
+                        </pre>
                       </div>
                     </div>
                   </details>
@@ -1719,7 +1733,7 @@ export function CorrectionReviewPage(): ReactElement {
   const { data } = loadState;
   const fact = targetId
     ? (data.state.facts
-        .filter((value) => isCurrentFactValue(value))
+        .filter((value) => isCurrentFactValue(value) && !isHiddenSecret(data.world, value))
         .map((item) => currentFact(item))
         .find((item) => item?.id === targetId) ?? null)
     : null;
