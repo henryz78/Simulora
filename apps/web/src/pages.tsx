@@ -96,6 +96,7 @@ export function FoundationPage(): ReactElement {
       active = false;
     };
   }, []);
+  const latest = library?.continuities[0]?.worldTitle ?? null;
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -105,53 +106,117 @@ export function FoundationPage(): ReactElement {
           </span>
           <span>Simulora</span>
         </Link>
+        <Link className="secondary-action header-action" to="/worlds/new">
+          New world
+        </Link>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
-          <p className="eyebrow">Worlds that remember</p>
-          <h1 id="foundation-title">Step into a world that keeps what happened.</h1>
-          <p className="hero-copy">
-            Build a small world, then play in it. Characters answer from what they know, and nothing
-            in your world changes until you confirm it.
-          </p>
+          <div className="hero-text">
+            <p className="eyebrow">Worlds that remember</p>
+            <h1 id="foundation-title">
+              Step into a world <em>that keeps what happened.</em>
+            </h1>
+            <p className="hero-copy">
+              Build a small world, then play in it. Characters answer from what they know, and{" "}
+              <strong>nothing in your world changes until you confirm it.</strong>
+            </p>
+            <div className="hero-actions">
+              <Link className="primary-action" to="/worlds/new">
+                Open World Studio
+              </Link>
+              {library && library.continuities.length > 0 ? (
+                <a className="arrow-link" href="#continue-title">
+                  Continue playing <span aria-hidden="true">→</span>
+                </a>
+              ) : null}
+            </div>
+            <p className="hero-note">
+              Give it a title, a premise and a first scene. Add places, characters and rules, check
+              that it plays, then begin.
+            </p>
+          </div>
+          <figure className="hero-frame" aria-hidden="true">
+            <div className="gallery-well">
+              <span className="gallery-plaque">{latest ?? "Your first world"}</span>
+            </div>
+            <figcaption>{latest ? "Your latest world" : "A world waiting to begin"}</figcaption>
+          </figure>
         </section>
         {library && library.continuities.length > 0 ? (
-          <section className="foundation-card" aria-labelledby="continue-title">
+          <section className="collection" aria-labelledby="continue-title">
+            <p className="eyebrow">Your paths</p>
             <h2 id="continue-title">Continue playing</h2>
-            <ul>
+            <ul className="gallery-grid">
               {library.continuities.map((item) => (
-                <li key={item.continuityId}>
-                  <Link to={`/continuities/${item.continuityId}`}>{item.worldTitle}</Link>
+                <li key={item.continuityId} className="gallery-card">
+                  <Link to={`/continuities/${item.continuityId}`}>
+                    <span className="gallery-well" aria-hidden="true">
+                      <span className="gallery-plaque">{item.worldTitle}</span>
+                    </span>
+                    <span className="gallery-title">{item.worldTitle}</span>
+                  </Link>
+                  <small>Last played {formatDay(item.lastActivityAt)}</small>
                 </li>
               ))}
             </ul>
           </section>
         ) : null}
         {library && library.worlds.length > 0 ? (
-          <section className="foundation-card" aria-labelledby="worlds-title">
+          <section className="collection" aria-labelledby="worlds-title">
+            <p className="eyebrow">Made by you</p>
             <h2 id="worlds-title">Your worlds</h2>
-            <ul>
+            <ul className="gallery-grid">
               {library.worlds.map((item) => (
-                <li key={item.worldId}>
-                  <Link to={`/worlds/${item.worldId}/studio`}>{item.title}</Link>
+                <li key={item.worldId} className="gallery-card">
+                  <Link to={`/worlds/${item.worldId}/studio`}>
+                    <span className="gallery-well gallery-well-draft" aria-hidden="true">
+                      <span className="gallery-plaque">{item.title}</span>
+                    </span>
+                    <span className="gallery-title">{item.title}</span>
+                  </Link>
+                  <small>Edited {formatDay(item.updatedAt)} · opens in World Studio</small>
                 </li>
               ))}
             </ul>
           </section>
         ) : null}
-        <section className="foundation-card" aria-labelledby="creator-entry-title">
-          <h2 id="creator-entry-title">Make a new world</h2>
-          <p>
-            Give it a title, a premise and a first scene. You can add places, characters and rules,
-            check that it plays, then begin.
-          </p>
-          <Link className="primary-action inline-action" to="/worlds/new">
-            Open World Studio
-          </Link>
+        <section className="steps" aria-labelledby="creator-entry-title">
+          <p className="eyebrow">How it works</p>
+          <h2 id="creator-entry-title">
+            Make a new world. <em>Three steps.</em>
+          </h2>
+          <ol>
+            <li>
+              <h3>Write the world</h3>
+              <p>A title, a premise and a first scene. Add places, characters and rules.</p>
+            </li>
+            <li>
+              <h3>Check that it plays</h3>
+              <p>World Studio names anything missing before the world can begin.</p>
+            </li>
+            <li>
+              <h3>Play and decide</h3>
+              <p>Act as your character. Big changes wait for your confirmation.</p>
+            </li>
+          </ol>
         </section>
       </main>
+      <footer className="site-footer">
+        <span className="wordmark">
+          <span className="wordmark-mark" aria-hidden="true">
+            S
+          </span>
+          <span>Simulora</span>
+        </span>
+        <span>Worlds that remember.</span>
+      </footer>
     </div>
   );
+}
+
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("en", { day: "numeric", month: "short" });
 }
 
 export function WorldPage(): ReactElement {

@@ -17,6 +17,9 @@ import {
   WorldStudioPage,
 } from "./pages.js";
 import { ContinuityLayout } from "./continuity.js";
+import "@fontsource/instrument-serif/latin-400.css";
+import "@fontsource/instrument-serif/latin-400-italic.css";
+import "@fontsource-variable/sofia-sans/wght.css";
 import "./styles.css";
 
 const router = createBrowserRouter([
