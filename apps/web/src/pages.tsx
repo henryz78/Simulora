@@ -147,7 +147,7 @@ export function FoundationPage(): ReactElement {
           <section className="collection" aria-labelledby="continue-title">
             <p className="eyebrow">Your paths</p>
             <h2 id="continue-title">Continue playing</h2>
-            <ul className="gallery-grid">
+            <ul className="gallery-grid" role="list">
               {library.continuities.map((item) => (
                 <li key={item.continuityId} className="gallery-card">
                   <Link to={`/continuities/${item.continuityId}`}>
@@ -166,7 +166,7 @@ export function FoundationPage(): ReactElement {
           <section className="collection" aria-labelledby="worlds-title">
             <p className="eyebrow">Made by you</p>
             <h2 id="worlds-title">Your worlds</h2>
-            <ul className="gallery-grid">
+            <ul className="gallery-grid" role="list">
               {library.worlds.map((item) => (
                 <li key={item.worldId} className="gallery-card">
                   <Link to={`/worlds/${item.worldId}/studio`}>
@@ -186,7 +186,7 @@ export function FoundationPage(): ReactElement {
           <h2 id="creator-entry-title">
             Make a new world. <em>Three steps.</em>
           </h2>
-          <ol>
+          <ol role="list">
             <li>
               <h3>Write the world</h3>
               <p>A title, a premise and a first scene. Add places, characters and rules.</p>
@@ -216,7 +216,12 @@ export function FoundationPage(): ReactElement {
 }
 
 function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString("en", { day: "numeric", month: "short" });
+  const day = new Date(iso);
+  return day.toLocaleDateString("en", {
+    day: "numeric",
+    month: "short",
+    ...(day.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
+  });
 }
 
 export function WorldPage(): ReactElement {

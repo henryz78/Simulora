@@ -7,6 +7,8 @@
   --line: #e3ddd1;
   --line-soft: #eee9df;
   --line-hover: #c9c2b4;
+  /* Field borders meet 3:1 against paper and surface (WCAG 1.4.11). */
+  --line-control: #8f887c;
   --ink: #1a1917;
   --ink-hover: #2c2a26;
   --ink-pressed: #0f0e0d;
@@ -1623,16 +1625,6 @@ h1 {
 }
 
 @media (max-width: 760px) {
-  .site-header,
-  .site-footer,
-  .foundation-main {
-    width: min(100% - 28px, 680px);
-  }
-
-  .site-header {
-    padding-top: 18px;
-  }
-
   .phase-badge {
     font-size: 0.7rem;
   }
@@ -2684,4 +2676,85 @@ h2 em {
 .back-link {
   display: flex;
   width: fit-content;
+}
+
+/* Review fixes (PX-3). */
+html {
+  scroll-padding-top: 80px;
+}
+
+.field-label textarea,
+.field-label input,
+.field-label select,
+.action-zone textarea,
+.action-zone select {
+  border-color: var(--line-control);
+}
+
+.field-label textarea:hover,
+.field-label input:hover,
+.field-label select:hover,
+.action-zone textarea:hover,
+.action-zone select:hover {
+  border-color: var(--ink);
+}
+
+.primary-action,
+.secondary-action,
+.operation-toggle button {
+  padding-block: 8px;
+  line-height: 1.25;
+}
+
+.primary-action:disabled:hover {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+
+.secondary-action:disabled:hover,
+.operation-toggle button:disabled:hover {
+  border-color: var(--line-hover);
+  background: transparent;
+}
+
+/* Status stays visible in the border, not only in the heading. */
+.action-page > .action-status.action-status-conflict,
+.action-page > .action-status.action-status-failed_recoverable {
+  border-left: 3px solid var(--accent);
+}
+
+.action-page > .action-status.action-status-committed {
+  border-left: 3px solid var(--success);
+}
+
+.pending-ribbon-unavailable,
+.pending-list-unavailable {
+  border: 1px solid var(--danger);
+}
+
+/* Text buttons remove or delete; the text link stays ink. */
+button.text-action {
+  color: var(--danger);
+  text-decoration-color: color-mix(in oklab, var(--danger) 40%, transparent);
+}
+
+button.text-action:hover {
+  text-decoration-color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  html {
+    scroll-padding-top: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foundation-main > *,
+  .world-scene > *,
+  .world-context > *,
+  .surface-page > *,
+  .studio-page > *,
+  .trust-page > * {
+    animation: none;
+  }
 }

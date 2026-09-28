@@ -8,6 +8,8 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
+    // PX-3: the CSP allows fonts only from 'self', so never inline one as data:.
+    assetsInlineLimit: (filePath) => (/\.woff2?$/.test(filePath) ? false : undefined),
   },
   server: {
     host: "127.0.0.1",
