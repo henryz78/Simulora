@@ -1866,6 +1866,9 @@ See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
   Local PGlite checks and desktop/390×844 E2E passed; authoritative CI
   [`36380894036`](https://github.com/henryz78/Simulora/actions/runs/36380894036)
   passed all migration, PostgreSQL, quality, container and browser steps.
+  Re-review of `10d8962` (exact-SHA CI above): **PASS (0B/0I/0M)**. The net
+  test change since `84afa7d~1` keeps both phases of the live-confirmation
+  test and only replaces fixed sleeps with polling. P1 CLOSED.
 - **P2:** the current-situation design choices are documented in
   [WD-2 Current Situation Proposal](WD-2-CURRENT-SITUATION-PROPOSAL.md).
 - **P3:** the `STORY_DECIDES` widening choices for threads, relationships and
