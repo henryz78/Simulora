@@ -1881,3 +1881,21 @@ See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
 
 These documents do not choose WD-2 or PX-3, change frozen semantics, or enable
 any provider, beta, launch or production live model.
+
+## 68. PX-3 Paper Gallery restyle: CLOSED
+
+See the [PX-3 report](PX-3-IMPLEMENTATION-REPORT.md).
+
+- **Decision:** the owner chose a reference site's style (layout, palette,
+  type, fonts, hover and motion) and asked Claude to implement it directly.
+- **Approved SHA:** `149a735`, exact-SHA CI `36488678854` success (verified by
+  the owner). Commits `e328615`, `e01a52d`, `149a735`; the first failed CI's
+  CSP render check (an inlined `data:` font), fixed in `e01a52d`.
+- **What it does:** paper, ink and one red signal; Instrument Serif and Sofia
+  Sans, self-hosted; 44px controls, 120ms colour changes, a sticky blurred
+  bar, a movement-only rise on load; a new home layout. Presentation only: no
+  route, role, label, API, domain or SQL change.
+- **Review:** Sonnet 5 Reviewer, three rounds: `PASS WITH ISSUES` (0B/2I/8M),
+  `PASS WITH ISSUES` (0B/1I/1M), then `PASS` (0B/0I/0M).
+- **Superseded:** the `frontend-design` branch proposals (§54, Task 4).
+- **Not claimed:** human enjoyment or usability of the new look.
