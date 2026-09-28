@@ -3858,7 +3858,8 @@ export function TrustLifecyclePage(): ReactElement {
           <h2 id="export-title">Export a readable copy</h2>
           <p>
             The package includes only selected owner-authorized World data, a versioned manifest and
-            checksums. It excludes provider prompts, secrets and other accounts’ private data.
+            checksums. It excludes provider prompts, API keys and other accounts’ private data.
+            Secrets you wrote into your worlds are included, even ones not yet discovered in play.
           </p>
           <fieldset className="trust-checks">
             <legend>Include</legend>

@@ -6575,7 +6575,8 @@ export class AuthoritativeWorldRepository {
         provenance: "Owner-authorized Simulora World export",
         omittedMaterial: [
           "provider prompts and responses",
-          "secrets and hidden policy configuration",
+          // WD-1b: author secrets are World data and are included.
+          "operational secrets such as API keys, and hidden policy configuration",
           "other accounts' private data",
           "conversation transcript (not implemented in the current export format)",
         ],

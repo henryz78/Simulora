@@ -205,6 +205,8 @@ test("owner can inspect trust, export selected data, appeal, and review deletion
     page.getByRole("heading", { name: "Ownership, portability and exit" }),
   ).toBeVisible();
   await expect(page.getByText("You own this World.")).toBeVisible();
+  // WD-1b: an export is the owner's full copy, author secrets included.
+  await expect(page.getByText(/Secrets you wrote into your worlds are included/)).toBeVisible();
 
   await page.getByRole("button", { name: "Review export usage" }).click();
   await expect(page.getByText("ZERO COST TEST · 0 units")).toBeVisible();
