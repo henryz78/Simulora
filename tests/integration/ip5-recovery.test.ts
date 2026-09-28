@@ -879,14 +879,6 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
          from simulora.restore_proposals where id = $2`,
       [expiringProposalId, proposal.id],
     );
-    await vi.waitFor(
-      async () => {
-        expect((await repository.readRestoreProposal(account, expiringProposalId)).status).toBe(
-          "EXPIRED",
-        );
-      },
-      { timeout: 5_000, interval: 50 },
-    );
     await expect(
       pool.query(
         `insert into simulora.restore_confirmations
@@ -927,6 +919,15 @@ suite("IP-5 non-destructive Recovery against PostgreSQL", () => {
     await expect(
       pool.query("delete from simulora.restore_confirmations where id = $1", [confirmationId]),
     ).rejects.toThrow(/restore_confirmations is immutable/);
+
+    await vi.waitFor(
+      async () => {
+        expect((await repository.readRestoreProposal(account, expiringProposalId)).status).toBe(
+          "EXPIRED",
+        );
+      },
+      { timeout: 5_000, interval: 50 },
+    );
 
     await expect(
       pool.query(
