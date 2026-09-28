@@ -1825,4 +1825,29 @@ See the [WD-1b report](WD-1B-IMPLEMENTATION-REPORT.md).
   reveals only secrets it knows. Prompt version 10.
 - **Review:** Sonnet 5 `PASS` (0B/0I/2M, accepted).
 - **Next:** a live check of reveals and "Let the story decide" with
-  `grok-4.7`.
+  `grok-4.7` (done; see §66).
+
+## 66. WD-1b secret-visibility repair: reviewer PASS, CI pending
+
+See [WD-1b report §5](WD-1B-IMPLEMENTATION-REPORT.md) and
+[Track B §3.9](TRACK-B-LOCAL-LIVE-PLAY-REPORT.md).
+
+- **Why:** the live check with `grok-4.7` worked (one `REVEAL_FACT` confirmed,
+  one `FACT_REVEALED` Event), but the player could read a secret before it was
+  revealed. The model never saw it; the gap was in the player's view.
+- **Commits:** `494a171`, `5287ca0`, `549ea5e`. Web app and tests only; no SQL
+  or domain change.
+- **Review:** the same independent Reviewer returned two focused FAILs
+  (1B/1I/2M on `494a171`, 1B/0I/1M on `5287ca0`), both fixed, then `PASS`
+  (0B/0I/1M, accepted) on `549ea5e`.
+- **Approved behavior SHA:** `549ea5e`. Exact-SHA CI `36376303697`: pending
+  the owner's confirmation. The repair closes when it is green.
+- **Owner decision A:** an export stays the owner's full copy and includes
+  every author secret; the export page says so.
+- **Known limits (accepted):** hiding is a display rule against spoilers, not
+  an authorization boundary; the owner's API responses still carry private
+  facts. M1: a secret sharing an id with a Character or constraint could label
+  another L2 change "Discovered".
+- **Not fixed:** the "current situation" line goes stale after play changes
+  the world (a design question), and the flaky 250 ms window in
+  `tests/e2e/ip5-recovery.spec.ts`.
