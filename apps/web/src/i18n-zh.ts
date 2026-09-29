@@ -212,7 +212,7 @@ export const zh: Record<string, string> = {
   "Opening Recovery…": "正在打开恢复…",
   "Reading the current Branch and its safe references.": "正在读取当前分支及其安全引用。",
   Recovery: "恢复",
-  "Preserve, branch or restore this path": "保存、分支或恢复这条路径",
+  "Preserve, branch or restore this path": "保存、分支或回退这条路径",
   "Recovery operates on the current Continuity. It does not erase history, repair a single fact, or change a future World Revision.":
     "恢复只作用于当前存档。它不会抹掉历史、不会单独修补某个事实，也不会改变未来的世界版本。",
   "Pending Action preserved": "待处理的行动已保留",
@@ -273,7 +273,7 @@ export const zh: Record<string, string> = {
   "Restore recorded as Commit": "回退已记录为提交",
   ". Earlier and intervening history remain.": "。更早和中间的历史都保留。",
   "The current path or Branch head changed after review. Nothing was restored; prepare a new review.":
-    "审阅之后，当前路径或分支最新节点发生了变化。没有恢复任何内容，请重新准备审阅。",
+    "审阅之后，当前路径或分支最新节点发生了变化。没有回退任何内容，请重新准备审阅。",
   "Restore was rejected before mutation. Current truth is unchanged.":
     "回退在改动前被拒绝，当前事实没有变化。",
   "Restore was recorded as a new Commit. The interrupted response was recovered from its durable result.":
