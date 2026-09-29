@@ -17,6 +17,7 @@ import {
   WorldStudioPage,
 } from "./pages.js";
 import { ContinuityLayout } from "./continuity.js";
+import { locale } from "./i18n.js";
 import "@fontsource/instrument-serif/latin-400.css";
 import "@fontsource/instrument-serif/latin-400-italic.css";
 import "@fontsource-variable/sofia-sans/wght.css";
@@ -44,6 +45,8 @@ const router = createBrowserRouter([
   },
   { path: "*", element: <NotFoundPage /> },
 ]);
+
+document.documentElement.lang = locale;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing #root element");

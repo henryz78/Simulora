@@ -11,6 +11,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { t } from "./i18n.js";
 import { Link, NavLink, Outlet, useParams } from "react-router";
 import {
   actionResponseSchema,
@@ -159,8 +160,9 @@ export async function readJson(url: string, init?: RequestInit): Promise<unknown
 }
 
 // SA-2 M1: the RE-2 refusal for an addressed Character, not any 422.
-const characterKnowledgeRefusal =
-  "The selected Character is unavailable or cannot know this Action target";
+const characterKnowledgeRefusal = t(
+  "The selected Character is unavailable or cannot know this Action target",
+);
 
 function pendingHistory(history: BranchAction[]): BranchAction[] {
   return history.filter((entry) => !TERMINAL_ACTION_STATUSES.has(entry.status));
@@ -495,7 +497,7 @@ export function ContinuityProvider({
     ): Promise<ActionResult> => {
       const normalizedIntent = rawIntent.trim();
       if (!normalizedIntent || loadState.status !== "ready") {
-        return { action: null, error: "Describe an Action in the current world first." };
+        return { action: null, error: t("Describe an Action in the current world first.") };
       }
       const branchId = loadState.data.continuity.branchId;
       const expectedHeadCommitId = loadState.data.continuity.headCommitId;
@@ -541,15 +543,18 @@ export function ContinuityProvider({
               // SA-2: an addressed Character must know the fact this Action is about.
               error:
                 targetCharacterId && refused?.message === characterKnowledgeRefusal
-                  ? "This character does not know anything this Action can be about yet. Give them knowledge of a fact in World Studio, or let the world respond."
-                  : "The Action was not accepted. Review the current world and try again.",
+                  ? t(
+                      "This character does not know anything this Action can be about yet. Give them knowledge of a fact in World Studio, or let the world respond.",
+                    )
+                  : t("The Action was not accepted. Review the current world and try again."),
             };
           }
           await refresh().catch(() => undefined);
           return {
             action: null,
-            error:
+            error: t(
               "The acknowledgement could not be confirmed. Current durable Action state was refreshed; retrying the same intent is safe.",
+            ),
           };
         }
         const action = actionResponseSchema.parse(await response.json());
@@ -560,8 +565,9 @@ export function ContinuityProvider({
         await refresh().catch(() => undefined);
         return {
           action: null,
-          error:
+          error: t(
             "The acknowledgement could not be confirmed. Current durable Action state was refreshed; retrying the same intent is safe.",
+          ),
         };
       }
     },
@@ -571,7 +577,7 @@ export function ContinuityProvider({
   const confirmAction = useCallback(
     async (action: ActionResponse): Promise<ActionResult> => {
       if (!action.proposal)
-        return { action, error: "This Action has no exact proposal to confirm." };
+        return { action, error: t("This Action has no exact proposal to confirm.") };
       try {
         const response = await fetch(`/v1/actions/${encodeURIComponent(action.id)}/confirm`, {
           method: "POST",
@@ -624,7 +630,7 @@ export function ContinuityProvider({
   const undoAction = useCallback(
     async (action: ActionResponse): Promise<string | null> => {
       if (loadState.status !== "ready" || !action.proposal || !action.commit) {
-        return "This change can no longer be undone here.";
+        return t("This change can no longer be undone here.");
       }
       const branchId = loadState.data.continuity.branchId;
       const prepared = await prepareRestore(branchId, action.proposal.expectedHeadCommitId);
@@ -633,7 +639,9 @@ export function ContinuityProvider({
       await refresh();
       return confirmed?.data
         ? null
-        : "The change could not be undone. The world has changed since; open Recovery to choose a point.";
+        : t(
+            "The change could not be undone. The world has changed since; open Recovery to choose a point.",
+          );
     },
     [loadState, refresh],
   );
@@ -644,7 +652,7 @@ export function ContinuityProvider({
         return {
           action: null,
           status: 503,
-          error: "The current Branch head is not available for correction review.",
+          error: t("The current Branch head is not available for correction review."),
           errorCode: null,
         };
       }
@@ -654,7 +662,7 @@ export function ContinuityProvider({
           return {
             action: null,
             status: 502,
-            error: "The correction response did not belong to this Continuity.",
+            error: t("The correction response did not belong to this Continuity."),
             errorCode: null,
           };
         }
@@ -672,10 +680,14 @@ export function ContinuityProvider({
         errorCode: result.errorCode,
         error:
           result.errorCode === "NO_ACTIVE_CANONICAL_FACT"
-            ? "This deterministic world adapter has no active canonical fact to correct yet. No Action was created and current truth is unchanged."
+            ? t(
+                "This deterministic world adapter has no active canonical fact to correct yet. No Action was created and current truth is unchanged.",
+              )
             : result.response.status === 409
-              ? "The current Branch head changed. No correction was applied; review the target again."
-              : "The correction could not be prepared. Current World truth is unchanged.",
+              ? t(
+                  "The current Branch head changed. No correction was applied; review the target again.",
+                )
+              : t("The correction could not be prepared. Current World truth is unchanged."),
       };
     },
     [continuityId, loadState, upsertAction],
@@ -797,7 +809,9 @@ export function useContinuity(): ContinuityContextValue {
 export function ContinuityLayout(): ReactElement {
   const { continuityId } = useParams<{ continuityId: string }>();
   if (!continuityId) {
-    return <StatusPage title="This path is incomplete" copy="A Continuity id is required." />;
+    return (
+      <StatusPage title={t("This path is incomplete")} copy={t("A Continuity id is required.")} />
+    );
   }
   return (
     <ContinuityProvider key={continuityId} continuityId={continuityId}>
@@ -809,32 +823,32 @@ export function ContinuityLayout(): ReactElement {
 function ContinuityFrame(): ReactElement {
   const { continuityId, historyState, loadState, pendingActions, pendingActionRefs } =
     useContinuity();
-  const title = loadState.status === "ready" ? loadState.data.world.title : "Current world";
+  const title = loadState.status === "ready" ? loadState.data.world.title : t("Current world");
   const basePath = `/continuities/${encodeURIComponent(continuityId)}`;
   return (
     <div className="continuity-shell">
       <header className="continuity-header">
-        <Link className="wordmark" to="/" aria-label="Simulora home">
+        <Link className="wordmark" to="/" aria-label={t("Simulora home")}>
           <span className="wordmark-mark" aria-hidden="true">
             S
           </span>
-          <span>Simulora</span>
+          <span>{t("Simulora")}</span>
         </Link>
         <div className="continuity-heading">
           <span>{title}</span>
           {loadState.status === "ready" ? (
             <span className="source-chip">
-              Revision {loadState.data.continuity.worldRevisionNumber} · current path
+              {t("Revision")} {loadState.data.continuity.worldRevisionNumber} {t("· current path")}
             </span>
           ) : null}
         </div>
-        <nav className="surface-nav" aria-label="Current world navigation">
+        <nav className="surface-nav" aria-label={t("Current world navigation")}>
           <NavLink to={basePath} end>
-            World
+            {t("World")}
           </NavLink>
-          <NavLink to={`${basePath}/return`}>Return</NavLink>
-          <NavLink to={`${basePath}/continuity`}>Continuity</NavLink>
-          <NavLink to={`${basePath}/context`}>Context</NavLink>
+          <NavLink to={`${basePath}/return`}>{t("Return")}</NavLink>
+          <NavLink to={`${basePath}/continuity`}>{t("Continuity")}</NavLink>
+          <NavLink to={`${basePath}/context`}>{t("Context")}</NavLink>
         </nav>
       </header>
       {historyState === "unavailable" ? (
@@ -858,16 +872,16 @@ function PendingHistoryUnavailableNotice(): ReactElement {
   return (
     <aside
       className="pending-ribbon pending-ribbon-unavailable"
-      aria-label="Pending Actions unavailable"
+      aria-label={t("Pending Actions unavailable")}
       role="region"
       aria-live="polite"
     >
       <div>
-        <strong>Pending Action list is unavailable</strong>
-        <span>No durable Action was discarded. Recover Branch history before acting.</span>
+        <strong>{t("Pending Action list is unavailable")}</strong>
+        <span>{t("No durable Action was discarded. Recover Branch history before acting.")}</span>
       </div>
       <button className="secondary-action" type="button" onClick={() => void refresh()}>
-        Retry pending list
+        {t("Retry pending list")}
       </button>
     </aside>
   );
@@ -885,24 +899,24 @@ function PendingActionRibbon({
   return (
     <aside
       className="pending-ribbon"
-      aria-label="Pending Action notice"
+      aria-label={t("Pending Action notice")}
       role="region"
       aria-live="polite"
     >
       <div>
         <strong>
           {pendingActionRefs.length === 1
-            ? "One Action still needs attention"
+            ? t("One Action still needs attention")
             : `${pendingActionRefs.length} Actions still need attention`}
         </strong>
-        <span>Pending work remains visible while you inspect this path.</span>
+        <span>{t("Pending work remains visible while you inspect this path.")}</span>
       </div>
       <div className="pending-ribbon-links">
         {pendingActionRefs.map((entry) => {
           const action = pendingActions.find((candidate) => candidate.id === entry.id);
           return (
             <Link key={entry.id} to={`${basePath}/actions/${encodeURIComponent(entry.id)}`}>
-              {action ? `${labelMode(action.status)} · ` : "Review Action · "}
+              {action ? `${labelMode(action.status)} · ` : t("Review Action · ")}
               {entry.intent}
             </Link>
           );
@@ -929,7 +943,7 @@ export function SurfaceHeader({
     <header className="surface-header">
       <div>
         <Link className="back-link" to={basePath}>
-          ← Back to world
+          {t("← Back to world")}
         </Link>
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
@@ -966,23 +980,26 @@ export function ActionStatusCard({
   const loadState = useContext(ContinuityContext)?.loadState;
   const world = loadState?.status === "ready" ? loadState.data : null;
   const copy: Record<ActionResponse["status"], string> = {
-    ACKNOWLEDGED: "Received and durably recorded. The world has not changed yet.",
+    ACKNOWLEDGED: t("Received and durably recorded. The world has not changed yet."),
     GENERATING: action.recoverableWait
-      ? "This response needs another bounded generation attempt. You can leave and return with this Action ID; current truth is unchanged."
-      : "The world is preparing a provisional response. Nothing has been recorded yet.",
-    VALIDATING: "Checking the proposed consequence against current World truth and authority.",
-    AWAITING_CONFIRMATION: "Here is what would happen. Nothing changes until you confirm it.",
-    COMMITTING: "Confirmed. Recording the change…",
-    COMMITTED: "Done. This is now part of your story.",
-    COMPLETED_NO_EFFECT: "The world answered. Nothing in the world changed.",
+      ? t(
+          "This response needs another bounded generation attempt. You can leave and return with this Action ID; current truth is unchanged.",
+        )
+      : t("The world is preparing a provisional response. Nothing has been recorded yet."),
+    VALIDATING: t("Checking the proposed consequence against current World truth and authority."),
+    AWAITING_CONFIRMATION: t("Here is what would happen. Nothing changes until you confirm it."),
+    COMMITTING: t("Confirmed. Recording the change…"),
+    COMMITTED: t("Done. This is now part of your story."),
+    COMPLETED_NO_EFFECT: t("The world answered. Nothing in the world changed."),
     FAILED_RECOVERABLE:
       action.statusReason === "NO_WORLD_EFFECT"
-        ? "No world change recorded; response not committed. Close this Action to continue."
-        : "The Action did not complete. Current truth is unchanged and it can be retried.",
-    CONFLICT:
+        ? t("No world change recorded; response not committed. Close this Action to continue.")
+        : t("The Action did not complete. Current truth is unchanged and it can be retried."),
+    CONFLICT: t(
       "The world changed before this proposal could be recorded. Nothing was applied; this stale proposal remains until you close it.",
-    CANCELLED: "Cancelled. Current World truth is unchanged.",
-    SUPERSEDED: "This Action was replaced without changing current truth.",
+    ),
+    CANCELLED: t("Cancelled. Current World truth is unchanged."),
+    SUPERSEDED: t("This Action was replaced without changing current truth."),
   };
   const run = async (handler: ((action: ActionResponse) => Promise<ActionResult>) | undefined) => {
     if (!handler) return;
@@ -993,7 +1010,9 @@ export function ActionStatusCard({
       if (result.error) setError(result.error);
     } catch {
       setError(
-        "The Action response was not acknowledged. Recover its durable status before trying again; current truth may have changed.",
+        t(
+          "The Action response was not acknowledged. Recover its durable status before trying again; current truth may have changed.",
+        ),
       );
     } finally {
       setWorking(false);
@@ -1004,24 +1023,27 @@ export function ActionStatusCard({
       className={`action-status action-status-${action.status.toLowerCase()}${compact ? " compact" : ""}`}
       aria-labelledby={`action-status-${action.id}`}
     >
-      <p className="card-label">Action status · {action.id.slice(0, 8)}</p>
+      <p className="card-label">
+        {t("Action status ·")} {action.id.slice(0, 8)}
+      </p>
       <p className="action-intent">{action.intent}</p>
       <h2 id={`action-status-${action.id}`}>{labelMode(action.status)}</h2>
       <p>{copy[action.status]}</p>
       {action.generation?.fallbackFrom ? (
         <p className="action-note">
-          The primary model was unavailable, so this response came from the declared fallback
-          profile. It passed the same checks, and nothing is recorded until you confirm.
+          {t(
+            "The primary model was unavailable, so this response came from the declared fallback profile. It passed the same checks, and nothing is recorded until you confirm.",
+          )}
         </p>
       ) : null}
       {action.proposal && action.status === "AWAITING_CONFIRMATION" ? (
         <div className="proposal-review">
-          <p className="proposal-label">Provisional — not current truth</p>
+          <p className="proposal-label">{t("Provisional — not current truth")}</p>
           {action.proposal.responseSource ? (
             <p className="card-label">
               {action.proposal.responseSource.type === "CHARACTER"
-                ? `Character response · ${characterName(action.proposal.responseSource.characterId, world)}`
-                : "World response"}
+                ? `${t("Character response")} · ${characterName(action.proposal.responseSource.characterId, world)}`
+                : t("World response")}
             </p>
           ) : null}
           <p>{action.proposal.narrative}</p>
@@ -1032,26 +1054,26 @@ export function ActionStatusCard({
               <div>
                 <dt>
                   {isRevealProposal(action.proposal, world?.world)
-                    ? "Discovered"
-                    : "New in the world"}
+                    ? t("Discovered")
+                    : t("New in the world")}
                 </dt>
                 <dd>{action.proposal.displayEffect.after}</dd>
               </div>
               <div>
-                <dt>Size of change</dt>
-                <dd>A small, everyday change</dd>
+                <dt>{t("Size of change")}</dt>
+                <dd>{t("A small, everyday change")}</dd>
               </div>
             </dl>
           ) : (
             <dl>
               <div>
-                <dt>Affects</dt>
+                <dt>{t("Affects")}</dt>
                 <dd>{describeTarget(action.proposal.displayEffect.target, world)}</dd>
               </div>
               <div>
                 <dt>
                   {action.proposal.displayEffect.target.startsWith("constraint.")
-                    ? "The attempt fails"
+                    ? t("The attempt fails")
                     : "Current"}
                 </dt>
                 <dd>{action.proposal.displayEffect.before}</dd>
@@ -1059,21 +1081,21 @@ export function ActionStatusCard({
               <div>
                 <dt>
                   {action.proposal.displayEffect.target.startsWith("constraint.")
-                    ? "New open thread"
-                    : "If confirmed"}
+                    ? t("New open thread")
+                    : t("If confirmed")}
                 </dt>
                 <dd>{action.proposal.displayEffect.after}</dd>
               </div>
               <div>
-                <dt>Size of change</dt>
+                <dt>{t("Size of change")}</dt>
                 <dd>
                   {action.proposal.impact === "L3"
-                    ? "An important change — review it carefully"
-                    : "A small, everyday change"}
+                    ? t("An important change — review it carefully")
+                    : t("A small, everyday change")}
                 </dd>
               </div>
               <div>
-                <dt>Scope</dt>
+                <dt>{t("Scope")}</dt>
                 <dd>{labelMode(action.proposal.displayEffect.scope)}</dd>
               </div>
             </dl>
@@ -1082,20 +1104,21 @@ export function ActionStatusCard({
       ) : null}
       {undone && action.status === "COMMITTED" ? (
         <p className="action-note">
-          Undone. The world is back to how it was before this change; what was said stays in the
-          story.
+          {t(
+            "Undone. The world is back to how it was before this change; what was said stays in the story.",
+          )}
         </p>
       ) : null}
       {appliedAutomatically && action.status === "COMMITTED" ? (
-        <p className="action-note">Applied automatically by quick play. You can undo it.</p>
+        <p className="action-note">{t("Applied automatically by quick play. You can undo it.")}</p>
       ) : null}
       {action.proposal && action.status === "COMMITTED" ? (
         <div className="proposal-review">
           {action.proposal.responseSource ? (
             <p className="card-label">
               {action.proposal.responseSource.type === "CHARACTER"
-                ? `Character response · ${characterName(action.proposal.responseSource.characterId, world)}`
-                : "World response"}
+                ? `${t("Character response")} · ${characterName(action.proposal.responseSource.characterId, world)}`
+                : t("World response")}
             </p>
           ) : null}
           <p>{action.proposal.narrative}</p>
@@ -1103,14 +1126,16 @@ export function ActionStatusCard({
       ) : null}
       {action.dialogue && action.status === "COMPLETED_NO_EFFECT" ? (
         <div className="proposal-review">
-          <p className="proposal-label">Nothing in the world changed</p>
+          <p className="proposal-label">{t("Nothing in the world changed")}</p>
           <p className="card-label">
             {action.dialogue.responseSource.type === "CHARACTER"
-              ? `Character response · ${characterName(action.dialogue.responseSource.characterId, world)}`
-              : "World response"}
+              ? `${t("Character response")} · ${characterName(action.dialogue.responseSource.characterId, world)}`
+              : t("World response")}
           </p>
           <p>{action.dialogue.narrative}</p>
-          <p className="muted-copy">Source: {action.dialogue.provenance}</p>
+          <p className="muted-copy">
+            {t("Source:")} {action.dialogue.provenance}
+          </p>
         </div>
       ) : null}
       {error ? (
@@ -1126,7 +1151,7 @@ export function ActionStatusCard({
             disabled={working}
             onClick={() => void run(onConfirm)}
           >
-            Confirm this exact change
+            {t("Confirm this exact change")}
           </button>
           <button
             className="secondary-action"
@@ -1134,7 +1159,7 @@ export function ActionStatusCard({
             disabled={working}
             onClick={() => void run(onCancel)}
           >
-            Cancel Action
+            {t("Cancel Action")}
           </button>
         </div>
       ) : null}
@@ -1145,7 +1170,7 @@ export function ActionStatusCard({
           disabled={working}
           onClick={() => void run(onCancel)}
         >
-          Cancel Action
+          {t("Cancel Action")}
         </button>
       ) : null}
       {action.status === "FAILED_RECOVERABLE" ? (
@@ -1156,7 +1181,7 @@ export function ActionStatusCard({
             disabled={working}
             onClick={() => void run(onRetry)}
           >
-            Retry this Action
+            {t("Retry this Action")}
           </button>
           <button
             className="secondary-action"
@@ -1164,7 +1189,7 @@ export function ActionStatusCard({
             disabled={working}
             onClick={() => void run(onCancel)}
           >
-            Cancel Action
+            {t("Cancel Action")}
           </button>
         </div>
       ) : null}
@@ -1183,11 +1208,12 @@ export function ActionStatusCard({
               });
             }}
           >
-            Undo this change
+            {t("Undo this change")}
           </button>
           <p className="muted-copy">
-            Undo returns the world to how it was before this change. What was said stays in the
-            story.
+            {t(
+              "Undo returns the world to how it was before this change. What was said stays in the story.",
+            )}
           </p>
         </div>
       ) : null}
@@ -1199,11 +1225,12 @@ export function ActionStatusCard({
             disabled={working}
             onClick={() => void run(onCancel)}
           >
-            Close stale Action
+            {t("Close stale Action")}
           </button>
           <p className="muted-copy">
-            This supersedes only the stale proposal. Current truth and its history remain unchanged;
-            you can then submit a new Action against the current world.
+            {t(
+              "This supersedes only the stale proposal. Current truth and its history remain unchanged; you can then submit a new Action against the current world.",
+            )}
           </p>
         </div>
       ) : null}
@@ -1214,34 +1241,39 @@ export function ActionStatusCard({
 export function WorldContextSummary(): ReactElement {
   const { continuityId, historyState, loadState, pendingActionRefs } = useContinuity();
   if (loadState.status !== "ready") {
-    return <StatusPage title="Loading current context…" copy="Reading the current Branch head." />;
+    return (
+      <StatusPage
+        title={t("Loading current context…")}
+        copy={t("Reading the current Branch head.")}
+      />
+    );
   }
   const { data } = loadState;
   return (
-    <aside className="world-context" aria-label="Current world context">
+    <aside className="world-context" aria-label={t("Current world context")}>
       <section>
-        <h2>What is true now</h2>
+        <h2>{t("What is true now")}</h2>
         <ul className="truth-list">
           {data.state.facts
             .filter((fact) => isCurrentFactValue(fact) && !isHiddenSecret(data.world, fact))
             .map((fact, index) => {
               const item = asRecord(fact);
-              const statement = readText(item, "statement") ?? `Current fact ${index + 1}`;
+              const statement = readText(item, "statement") ?? `${t("Current fact")} ${index + 1}`;
               return <li key={readText(item, "id") ?? statement}>{statement}</li>;
             })}
         </ul>
       </section>
       <section>
-        <h2>Present here</h2>
+        <h2>{t("Present here")}</h2>
         {data.state.characters.map((character, index) => {
           const item = asRecord(character);
           const characterId = readText(item, "id");
           const spec = data.world.characters.find((candidate) => candidate.id === characterId);
           return (
             <article className="character-card" key={characterId ?? index}>
-              <strong>{readText(item, "name") ?? "Present character"}</strong>
-              <span>{readText(item, "role") ?? "Current stance"}</span>
-              <small>{readText(item, "currentState") ?? "Current state is available."}</small>
+              <strong>{readText(item, "name") ?? t("Present character")}</strong>
+              <span>{readText(item, "role") ?? t("Current stance")}</span>
+              <small>{readText(item, "currentState") ?? t("Current state is available.")}</small>
               {spec ? <small>{spec.stance}</small> : null}
             </article>
           );
@@ -1249,11 +1281,12 @@ export function WorldContextSummary(): ReactElement {
       </section>
       {data.state.threads?.length ? (
         <section>
-          <h2>Story threads</h2>
-          <ul className="truth-list" aria-label="Story threads">
+          <h2>{t("Story threads")}</h2>
+          <ul className="truth-list" aria-label={t("Story threads")}>
             {data.state.threads.map((thread) => (
               <li key={thread.id}>
-                <strong>{thread.status === "OPEN" ? "Open" : "Resolved"}</strong> · {thread.title}
+                <strong>{thread.status === "OPEN" ? t("Open") : t("Resolved")}</strong> ·{" "}
+                {thread.title}
                 {thread.resolution ? <small> — {thread.resolution}</small> : null}
               </li>
             ))}
@@ -1262,14 +1295,15 @@ export function WorldContextSummary(): ReactElement {
       ) : null}
       {data.state.relationships.some((item) => readText(asRecord(item), "state")) ? (
         <section>
-          <h2>Relationships</h2>
-          <ul className="truth-list" aria-label="Relationships">
+          <h2>{t("Relationships")}</h2>
+          <ul className="truth-list" aria-label={t("Relationships")}>
             {data.state.relationships.map((relationship, index) => {
               const item = asRecord(relationship);
               const current = readText(item, "state");
               return current ? (
                 <li key={readText(item, "id") ?? index}>
-                  {readText(item, "description") ?? "A relationship"} · <strong>{current}</strong>
+                  {readText(item, "description") ?? t("A relationship")} ·{" "}
+                  <strong>{current}</strong>
                 </li>
               ) : null;
             })}
@@ -1277,33 +1311,37 @@ export function WorldContextSummary(): ReactElement {
         </section>
       ) : null}
       <section className="authority-note">
-        <h2>Participation</h2>
+        <h2>{t("Participation")}</h2>
         <p>
           {labelMode(data.state.participation.initiativeMode)} ·{" "}
           {labelMode(data.state.participation.structureMode)}
         </p>
         <small>
-          Only a confirmed server Commit advances this world. Provisional output does not.
+          {t("Only a confirmed server Commit advances this world. Provisional output does not.")}
         </small>
         <Link
           className="text-action"
           to={`/continuities/${encodeURIComponent(continuityId)}/participation`}
         >
-          Change participation contract
+          {t("Change participation contract")}
         </Link>
       </section>
       {pendingActionRefs.length > 0 ? (
         <section className="pending-context-note">
-          <h2>Pending work</h2>
-          <p>{pendingActionRefs.length} Action(s) remain unresolved. They are not current truth.</p>
+          <h2>{t("Pending work")}</h2>
+          <p>
+            {pendingActionRefs.length}{" "}
+            {t("Action(s) remain unresolved. They are not current truth.")}
+          </p>
         </section>
       ) : null}
       {historyState === "unavailable" ? (
         <section className="pending-context-note" aria-live="polite">
-          <h2>Pending work unavailable</h2>
+          <h2>{t("Pending work unavailable")}</h2>
           <p>
-            The durable Branch Action list could not be read. No Action was discarded, and new
-            Actions stay paused until it is recovered.
+            {t(
+              "The durable Branch Action list could not be read. No Action was discarded, and new Actions stay paused until it is recovered.",
+            )}
           </p>
         </section>
       ) : null}
@@ -1311,7 +1349,7 @@ export function WorldContextSummary(): ReactElement {
         className="secondary-action inline-action recovery-entry"
         to={`/continuities/${encodeURIComponent(continuityId)}/recovery`}
       >
-        Open Recovery
+        {t("Open Recovery")}
       </Link>
     </aside>
   );
@@ -1328,7 +1366,7 @@ export function StatusPage({
 }): ReactElement {
   return (
     <section className="status-page" aria-live="polite">
-      <p className="eyebrow">Simulora</p>
+      <p className="eyebrow">{t("Simulora")}</p>
       <h1>{title}</h1>
       <p>{copy}</p>
       {children}
@@ -1337,10 +1375,12 @@ export function StatusPage({
 }
 
 export function labelMode(value: string): string {
-  return value
-    .toLowerCase()
-    .replaceAll("_", " ")
-    .replace(/^./, (letter) => letter.toUpperCase());
+  return t(
+    value
+      .toLowerCase()
+      .replaceAll("_", " ")
+      .replace(/^./, (letter) => letter.toUpperCase()),
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -1401,22 +1441,22 @@ function snapshotEventSources(actions: ActionResponse[], onEvent: () => void): E
 
 /** A Character's declared name; identifiers are never shown as if they were names. */
 function characterName(id: string, world: AuthoritativeStateResponse | null): string {
-  return world?.world.characters.find((character) => character.id === id)?.name ?? "Character";
+  return world?.world.characters.find((character) => character.id === id)?.name ?? t("Character");
 }
 
 /** Plain words for what a proposal would change; never a raw identifier. */
 export function describeTarget(target: string, world: AuthoritativeStateResponse | null): string {
   const [kind] = target.split(".");
-  if (kind === "thread") return "Story thread";
-  if (kind === "character") return `Character · ${characterName(target, world)}`;
+  if (kind === "thread") return t("Story thread");
+  if (kind === "character") return `${t("Character")} · ${characterName(target, world)}`;
   const relationship = world?.world.relationships.find((item) => item.id === target);
   if (relationship)
-    return `Relationship · ${characterName(relationship.fromCharacterId, world)} and ${characterName(relationship.toCharacterId, world)}`;
+    return `${t("Relationship")} · ${characterName(relationship.fromCharacterId, world)} ${t("and")} ${characterName(relationship.toCharacterId, world)}`;
   const constraint = world?.world.constraints?.find((item) => item.id === target);
-  if (constraint) return `World constraint · ${constraint.statement}`;
-  if (kind === "relationship") return "Relationship";
-  if (kind === "constraint") return "World constraint";
-  return "World fact";
+  if (constraint) return `${t("World constraint")} · ${constraint.statement}`;
+  if (kind === "relationship") return t("Relationship");
+  if (kind === "constraint") return t("World constraint");
+  return t("World fact");
 }
 
 export function ActionComposer(): ReactElement {
@@ -1456,11 +1496,11 @@ export function ActionComposer(): ReactElement {
       (requestedEffect === "ROUTINE_EFFECT" || requestedEffect === "RELATIONSHIP_EFFECT") &&
       !targetCharacterId
     ) {
-      setError("Choose a character first.");
+      setError(t("Choose a character first."));
       return;
     }
     if (requestedEffect === "ROUTINE_EFFECT" && !canMove) {
-      setError("This character cannot move on their own in this World.");
+      setError(t("This character cannot move on their own in this World."));
       return;
     }
     setWorking(true);
@@ -1482,15 +1522,15 @@ export function ActionComposer(): ReactElement {
     <section className="action-zone" aria-labelledby="action-title">
       <div className="action-heading">
         <div>
-          <p className="card-label">Participation</p>
-          <h2 id="action-title">What do you do?</h2>
+          <p className="card-label">{t("Participation")}</p>
+          <h2 id="action-title">{t("What do you do?")}</h2>
         </div>
         {loadState.status === "ready" ? (
           <span>{labelMode(loadState.data.state.participation.initiativeMode)}</span>
         ) : null}
       </div>
       <form onSubmit={(event) => void submit(event)}>
-        <label htmlFor="action-character">Address a character</label>
+        <label htmlFor="action-character">{t("Address a character")}</label>
         <select
           id="action-character"
           value={targetCharacterId}
@@ -1509,7 +1549,7 @@ export function ActionComposer(): ReactElement {
             loadState.status !== "ready"
           }
         >
-          <option value="">Let the world respond</option>
+          <option value="">{t("Let the world respond")}</option>
           {loadState.status === "ready"
             ? loadState.data.world.characters
                 .filter((character) =>
@@ -1530,7 +1570,7 @@ export function ActionComposer(): ReactElement {
                 ))
             : null}
         </select>
-        <label htmlFor="action-effect">Desired outcome</label>
+        <label htmlFor="action-effect">{t("Desired outcome")}</label>
         <select
           id="action-effect"
           value={effectChoice}
@@ -1542,26 +1582,28 @@ export function ActionComposer(): ReactElement {
             loadState.status !== "ready"
           }
         >
-          <option value="STORY_DECIDES">Let the story decide</option>
-          <option value="NO_WORLD_EFFECT">Just talk or look — nothing changes</option>
-          <option value="FACT_REWRITE">Change something in the world</option>
+          <option value="STORY_DECIDES">{t("Let the story decide")}</option>
+          <option value="NO_WORLD_EFFECT">{t("Just talk or look — nothing changes")}</option>
+          <option value="FACT_REWRITE">{t("Change something in the world")}</option>
           <option value="ROUTINE_EFFECT" disabled={!canMove}>
-            Have this character move
+            {t("Have this character move")}
           </option>
           <option value="RELATIONSHIP_EFFECT" disabled={!canShiftRelationship}>
-            Change how this character relates to someone
+            {t("Change how this character relates to someone")}
           </option>
-          <option value="THREAD_EFFECT">Start a new story thread</option>
+          <option value="THREAD_EFFECT">{t("Start a new story thread")}</option>
           {openThreads.map((thread) => (
             <option key={thread.id} value={`THREAD_EFFECT:${thread.id}`}>
-              Work toward resolving: {thread.title}
+              {t("Work toward resolving:")} {thread.title}
             </option>
           ))}
         </select>
         <p className="field-help">
           {quickPlay
-            ? "Talking changes nothing. Small changes happen at once and can be undone; important ones wait for your confirmation."
-            : "Talking changes nothing. A change to the world waits for your confirmation."}
+            ? t(
+                "Talking changes nothing. Small changes happen at once and can be undone; important ones wait for your confirmation.",
+              )
+            : t("Talking changes nothing. A change to the world waits for your confirmation.")}
         </p>
         <label className="quick-play-toggle">
           <input
@@ -1569,9 +1611,9 @@ export function ActionComposer(): ReactElement {
             checked={quickPlay}
             onChange={(event) => setQuickPlay(event.target.checked)}
           />
-          Quick play: apply small changes at once
+          {t("Quick play: apply small changes at once")}
         </label>
-        <label htmlFor="world-action">Your Action</label>
+        <label htmlFor="world-action">{t("Your Action")}</label>
         <textarea
           id="world-action"
           value={intent}
@@ -1582,7 +1624,7 @@ export function ActionComposer(): ReactElement {
             historyState !== "ready" ||
             loadState.status !== "ready"
           }
-          placeholder="Describe one action in the current world…"
+          placeholder={t("Describe one action in the current world…")}
           rows={3}
         />
         <button
@@ -1596,22 +1638,24 @@ export function ActionComposer(): ReactElement {
             loadState.status !== "ready"
           }
         >
-          {working ? "Sending…" : "Send Action"}
+          {working ? "Sending…" : t("Send Action")}
         </button>
       </form>
       {hasUnresolvedAction ? (
         <p className="pending-composer-note">
-          Resolve the pending Action(s) above before starting another ordinary Action. Correction
-          review remains available from the relevant fact.
+          {t(
+            "Resolve the pending Action(s) above before starting another ordinary Action. Correction review remains available from the relevant fact.",
+          )}
         </p>
       ) : null}
       {historyLoading ? (
-        <p className="pending-composer-note">Checking the durable pending Action list…</p>
+        <p className="pending-composer-note">{t("Checking the durable pending Action list…")}</p>
       ) : null}
       {historyUnavailable ? (
         <p className="pending-composer-note">
-          The durable pending Action list is unavailable. New Actions stay paused until Branch
-          history is recovered.
+          {t(
+            "The durable pending Action list is unavailable. New Actions stay paused until Branch history is recovered.",
+          )}
         </p>
       ) : null}
       {error ? (
@@ -1636,26 +1680,27 @@ export function ActionList({ compact = false }: { compact?: boolean }): ReactEle
     refresh,
   } = useContinuity();
   if (historyState === "loading") {
-    return <p className="empty-state">Checking the durable pending Action list…</p>;
+    return <p className="empty-state">{t("Checking the durable pending Action list…")}</p>;
   }
   if (historyState === "unavailable") {
     return (
       <div className="pending-list-unavailable" role="status" aria-live="polite">
         <p>
-          The durable pending Action list is unavailable. No Action was discarded; recover Branch
-          history before relying on this surface.
+          {t(
+            "The durable pending Action list is unavailable. No Action was discarded; recover Branch history before relying on this surface.",
+          )}
         </p>
         <button className="secondary-action" type="button" onClick={() => void refresh()}>
-          Retry pending list
+          {t("Retry pending list")}
         </button>
       </div>
     );
   }
   if (pendingActionRefs.length === 0) {
-    return <p className="empty-state">No Action is currently waiting for a decision.</p>;
+    return <p className="empty-state">{t("No Action is currently waiting for a decision.")}</p>;
   }
   return (
-    <div className="action-list" aria-label="Pending Action details">
+    <div className="action-list" aria-label={t("Pending Action details")}>
       {pendingActionRefs.map((entry) => {
         const candidate = actions.get(entry.id);
         const action =
@@ -1672,17 +1717,21 @@ export function ActionList({ compact = false }: { compact?: boolean }): ReactEle
           />
         ) : (
           <article className="action-status action-status-unavailable" key={entry.id}>
-            <p className="card-label">Action reference · {entry.id.slice(0, 8)}</p>
+            <p className="card-label">
+              {t("Action reference ·")} {entry.id.slice(0, 8)}
+            </p>
             <h2>{labelMode(entry.status)}</h2>
             <p>
-              {entry.intent} — durable status details are temporarily unavailable. Current truth was
-              not inferred or changed here.
+              {entry.intent}{" "}
+              {t(
+                "— durable status details are temporarily unavailable. Current truth was not inferred or changed here.",
+              )}
             </p>
             <Link
               className="secondary-action inline-action"
               to={`/continuities/${encodeURIComponent(continuityId)}/actions/${encodeURIComponent(entry.id)}`}
             >
-              Recover Action status
+              {t("Recover Action status")}
             </Link>
           </article>
         );

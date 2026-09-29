@@ -7,6 +7,7 @@ import {
   type ReactElement,
   type SetStateAction,
 } from "react";
+import { locale, t } from "./i18n.js";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   type ActionResponse,
@@ -100,53 +101,58 @@ export function FoundationPage(): ReactElement {
   return (
     <div className="app-shell">
       <header className="site-header">
-        <Link className="wordmark" to="/" aria-label="Simulora home">
+        <Link className="wordmark" to="/" aria-label={t("Simulora home")}>
           <span className="wordmark-mark" aria-hidden="true">
             S
           </span>
-          <span>Simulora</span>
+          <span>{t("Simulora")}</span>
         </Link>
         <Link className="secondary-action header-action" to="/worlds/new">
-          New world
+          {t("New world")}
         </Link>
       </header>
       <main id="main-content" className="foundation-main">
         <section className="hero" aria-labelledby="foundation-title">
           <div className="hero-text">
-            <p className="eyebrow">Worlds that remember</p>
+            <p className="eyebrow">{t("Worlds that remember")}</p>
             <h1 id="foundation-title">
-              Step into a world <em>that keeps what happened.</em>
+              {t("Step into a world")} <em>{t("that keeps what happened.")}</em>
             </h1>
             <p className="hero-copy">
-              Build a small world, then play in it. Characters answer from what they know, and{" "}
-              <strong>nothing in your world changes until you confirm it.</strong>
+              {t(
+                "Build a small world, then play in it. Characters answer from what they know, and",
+              )}{" "}
+              <strong>{t("nothing in your world changes until you confirm it.")}</strong>
             </p>
             <div className="hero-actions">
               <Link className="primary-action" to="/worlds/new">
-                Open World Studio
+                {t("Open World Studio")}
               </Link>
               {library && library.continuities.length > 0 ? (
                 <a className="arrow-link" href="#continue-title">
-                  Continue playing <span aria-hidden="true">→</span>
+                  {t("Continue playing")} <span aria-hidden="true">→</span>
                 </a>
               ) : null}
             </div>
             <p className="hero-note">
-              Give it a title, a premise and a first scene. Add places, characters and rules, check
-              that it plays, then begin.
+              {t(
+                "Give it a title, a premise and a first scene. Add places, characters and rules, check that it plays, then begin.",
+              )}
             </p>
           </div>
           <figure className="hero-frame" aria-hidden="true">
             <div className="gallery-well">
-              <span className="gallery-plaque">{latest ?? "Your first world"}</span>
+              <span className="gallery-plaque">{latest ?? t("Your first world")}</span>
             </div>
-            <figcaption>{latest ? "Your latest world" : "A world waiting to begin"}</figcaption>
+            <figcaption>
+              {latest ? t("Your latest world") : t("A world waiting to begin")}
+            </figcaption>
           </figure>
         </section>
         {library && library.continuities.length > 0 ? (
           <section className="collection" aria-labelledby="continue-title">
-            <p className="eyebrow">Your paths</p>
-            <h2 id="continue-title">Continue playing</h2>
+            <p className="eyebrow">{t("Your paths")}</p>
+            <h2 id="continue-title">{t("Continue playing")}</h2>
             <ul className="gallery-grid" role="list">
               {library.continuities.map((item) => (
                 <li key={item.continuityId} className="gallery-card">
@@ -156,7 +162,9 @@ export function FoundationPage(): ReactElement {
                     </span>
                     <span className="gallery-title">{item.worldTitle}</span>
                   </Link>
-                  <small>Last played {formatDay(item.lastActivityAt)}</small>
+                  <small>
+                    {t("Last played")} {formatDay(item.lastActivityAt)}
+                  </small>
                 </li>
               ))}
             </ul>
@@ -164,8 +172,8 @@ export function FoundationPage(): ReactElement {
         ) : null}
         {library && library.worlds.length > 0 ? (
           <section className="collection" aria-labelledby="worlds-title">
-            <p className="eyebrow">Made by you</p>
-            <h2 id="worlds-title">Your worlds</h2>
+            <p className="eyebrow">{t("Made by you")}</p>
+            <h2 id="worlds-title">{t("Your worlds")}</h2>
             <ul className="gallery-grid" role="list">
               {library.worlds.map((item) => (
                 <li key={item.worldId} className="gallery-card">
@@ -175,29 +183,31 @@ export function FoundationPage(): ReactElement {
                     </span>
                     <span className="gallery-title">{item.title}</span>
                   </Link>
-                  <small>Edited {formatDay(item.updatedAt)} · opens in World Studio</small>
+                  <small>
+                    {t("Edited")} {formatDay(item.updatedAt)} {t("· opens in World Studio")}
+                  </small>
                 </li>
               ))}
             </ul>
           </section>
         ) : null}
         <section className="steps" aria-labelledby="creator-entry-title">
-          <p className="eyebrow">How it works</p>
+          <p className="eyebrow">{t("How it works")}</p>
           <h2 id="creator-entry-title">
-            Make a new world. <em>Three steps.</em>
+            {t("Make a new world.")} <em>{t("Three steps.")}</em>
           </h2>
           <ol role="list">
             <li>
-              <h3>Write the world</h3>
-              <p>A title, a premise and a first scene. Add places, characters and rules.</p>
+              <h3>{t("Write the world")}</h3>
+              <p>{t("A title, a premise and a first scene. Add places, characters and rules.")}</p>
             </li>
             <li>
-              <h3>Check that it plays</h3>
-              <p>World Studio names anything missing before the world can begin.</p>
+              <h3>{t("Check that it plays")}</h3>
+              <p>{t("World Studio names anything missing before the world can begin.")}</p>
             </li>
             <li>
-              <h3>Play and decide</h3>
-              <p>Act as your character. Big changes wait for your confirmation.</p>
+              <h3>{t("Play and decide")}</h3>
+              <p>{t("Act as your character. Big changes wait for your confirmation.")}</p>
             </li>
           </ol>
         </section>
@@ -207,9 +217,9 @@ export function FoundationPage(): ReactElement {
           <span className="wordmark-mark" aria-hidden="true">
             S
           </span>
-          <span>Simulora</span>
+          <span>{t("Simulora")}</span>
         </span>
-        <span>Worlds that remember.</span>
+        <span>{t("Worlds that remember.")}</span>
       </footer>
     </div>
   );
@@ -217,7 +227,7 @@ export function FoundationPage(): ReactElement {
 
 function formatDay(iso: string): string {
   const day = new Date(iso);
-  return day.toLocaleDateString("en", {
+  return day.toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     ...(day.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
@@ -240,16 +250,16 @@ export function WorldPage(): ReactElement {
   if (loadState.status === "loading") {
     return (
       <StatusPage
-        title="Opening this world…"
-        copy="Reading the current Branch head from the authoritative service."
+        title={t("Opening this world…")}
+        copy={t("Reading the current Branch head from the authoritative service.")}
       />
     );
   }
   if (loadState.status === "not-found") {
     return (
       <StatusPage
-        title="This Continuity is not available"
-        copy="It may not exist or may not be available to this account."
+        title={t("This Continuity is not available")}
+        copy={t("It may not exist or may not be available to this account.")}
       />
     );
   }
@@ -271,23 +281,27 @@ export function WorldPage(): ReactElement {
           <p className="eyebrow">{data.world.userRole.name}</p>
           <h1 id="world-title">{data.world.title}</h1>
           <p className="world-premise">{data.world.premise}</p>
-          <p className="starting-background">Starting background: {data.world.startingSituation}</p>
+          <p className="starting-background">
+            {t("Starting background:")} {data.world.startingSituation}
+          </p>
           <div className="situation-card">
-            <p className="card-label">Current situation</p>
+            <p className="card-label">{t("Current situation")}</p>
             <p>{currentSituation(data)}</p>
           </div>
 
           <ActionComposer />
           {pendingActionRefs.length > 0 ? (
             <section className="pending-actions-panel" aria-labelledby="pending-actions-title">
-              <p className="card-label">Resolve before continuing</p>
-              <h2 id="pending-actions-title">Pending Actions</h2>
+              <p className="card-label">{t("Resolve before continuing")}</p>
+              <h2 id="pending-actions-title">{t("Pending Actions")}</h2>
               <ActionList />
             </section>
           ) : latestAction ? (
             <section className="latest-action-panel" aria-labelledby="latest-action-title">
-              <p className="card-label">Latest outcome</p>
-              <h2 id="latest-action-title">The current path is ready for your next choice</h2>
+              <p className="card-label">{t("Latest outcome")}</p>
+              <h2 id="latest-action-title">
+                {t("The current path is ready for your next choice")}
+              </h2>
               <ActionStatusCard
                 action={latestAction}
                 onConfirm={confirmAction}
@@ -305,18 +319,18 @@ export function WorldPage(): ReactElement {
 
           {storyHistory.length > 0 ? (
             <section className="recorded-history" aria-labelledby="recorded-title">
-              <p className="card-label">What has happened</p>
-              <h2 id="recorded-title">Story so far</h2>
+              <p className="card-label">{t("What has happened")}</p>
+              <h2 id="recorded-title">{t("Story so far")}</h2>
               <ol>
                 {storyHistory.map((entry) => (
                   <li key={entry.id}>
                     <strong>{entry.intent}</strong>
                     {entry.narrative ? <span>{entry.narrative}</span> : null}
                     {entry.status === "COMPLETED_NO_EFFECT" ? (
-                      <small>Nothing in the world changed.</small>
+                      <small>{t("Nothing in the world changed.")}</small>
                     ) : null}
                     {undoneIds.has(entry.id) ? (
-                      <small>Undone: the world went back to before this.</small>
+                      <small>{t("Undone: the world went back to before this.")}</small>
                     ) : null}
                   </li>
                 ))}
@@ -335,11 +349,13 @@ function WorldReadError(): ReactElement {
   const { refresh } = useContinuity();
   return (
     <StatusPage
-      title="The current world could not be read"
-      copy="Nothing has been inferred or replaced locally. The authoritative state remains the recovery source."
+      title={t("The current world could not be read")}
+      copy={t(
+        "Nothing has been inferred or replaced locally. The authoritative state remains the recovery source.",
+      )}
     >
       <button className="primary-action" type="button" onClick={() => void refresh()}>
-        Try again
+        {t("Try again")}
       </button>
     </StatusPage>
   );
@@ -377,7 +393,9 @@ export function ReturnPage(): ReactElement {
   }, [continuityId, loadState]);
 
   if (loadState.status !== "ready") {
-    return <StatusPage title="Preparing your return…" copy="The current path is being read." />;
+    return (
+      <StatusPage title={t("Preparing your return…")} copy={t("The current path is being read.")} />
+    );
   }
   const { data } = loadState;
   const usingAuthoritativeFallback = projectionState === "fallback";
@@ -389,15 +407,17 @@ export function ReturnPage(): ReactElement {
   return (
     <div className="surface-page orientation-page">
       <SurfaceHeader
-        eyebrow="Return orientation"
-        title={`Welcome back to ${data.world.title}`}
-        copy="A short briefing from committed sources so you can continue without rebuilding the path by hand."
+        eyebrow={t("Return orientation")}
+        title={`${t("Welcome back to")} ${data.world.title}`}
+        copy={t(
+          "A short briefing from committed sources so you can continue without rebuilding the path by hand.",
+        )}
       >
         <span
           className={`freshness-pill ${usingAuthoritativeFallback ? "freshness-fallback" : `freshness-${freshness.status.toLowerCase()}`}`}
         >
           {usingAuthoritativeFallback
-            ? "Authoritative state · projection unavailable"
+            ? t("Authoritative state · projection unavailable")
             : freshnessLabel(freshness)}
         </span>
       </SurfaceHeader>
@@ -410,21 +430,22 @@ export function ReturnPage(): ReactElement {
       <div className="surface-grid orientation-grid">
         <div>
           <section className="surface-card" aria-labelledby="orientation-now">
-            <p className="card-label">Now</p>
-            <h2 id="orientation-now">What is happening</h2>
+            <p className="card-label">{t("Now")}</p>
+            <h2 id="orientation-now">{t("What is happening")}</h2>
             <p className="orientation-lead">{orientation.current.situation}</p>
             <p className="muted-copy">
-              World clock: {orientation.current.worldClock.label} · turn{" "}
+              {t("World clock:")} {orientation.current.worldClock.label} {t("· turn")}{" "}
               {orientation.current.worldClock.turn}
             </p>
           </section>
           <section className="surface-card" aria-labelledby="orientation-changes">
-            <p className="card-label">Committed sources only</p>
-            <h2 id="orientation-changes">Recent recorded changes</h2>
+            <p className="card-label">{t("Committed sources only")}</p>
+            <h2 id="orientation-changes">{t("Recent recorded changes")}</h2>
             {recentChangesUnavailable ? (
               <p className="empty-state">
-                Recent recorded changes are unavailable while this derived view rebuilds. No
-                client-side change record is being inferred.
+                {t(
+                  "Recent recorded changes are unavailable while this derived view rebuilds. No client-side change record is being inferred.",
+                )}
               </p>
             ) : orientation.recentChanges.length > 0 ? (
               <ul className="change-list">
@@ -432,53 +453,60 @@ export function ReturnPage(): ReactElement {
                   <li key={`${change.commitId}:${change.targetId ?? "change"}:${index}`}>
                     <strong>{change.summary}</strong>
                     <span>
-                      {labelMode(change.sourceClass)} source · {labelMode(change.eventType)} ·{" "}
-                      {change.scope}
+                      {labelMode(change.sourceClass)} {t("source ·")} {labelMode(change.eventType)}{" "}
+                      · {change.scope}
                     </span>
-                    <small>Commit {shortId(change.commitId)}</small>
+                    <small>
+                      {t("Commit")} {shortId(change.commitId)}
+                    </small>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="empty-state">
-                There is no recent meaningful change recorded on this path.
+                {t("There is no recent meaningful change recorded on this path.")}
               </p>
             )}
             <p className="muted-copy">
-              This is a bounded recent-history view, not a personal last-seen ledger.
+              {t("This is a bounded recent-history view, not a personal last-seen ledger.")}
             </p>
           </section>
         </div>
         <div>
           <section className="surface-card" aria-labelledby="orientation-matters">
-            <p className="card-label">Still matters</p>
-            <h2 id="orientation-matters">Story threads and relationships</h2>
+            <p className="card-label">{t("Still matters")}</p>
+            <h2 id="orientation-matters">{t("Story threads and relationships")}</h2>
             {orientation.threads?.length ? (
-              <ul className="plain-list thread-list" aria-label="Story threads">
+              <ul className="plain-list thread-list" aria-label={t("Story threads")}>
                 {orientation.threads.map((thread) => (
                   <li key={thread.id}>
-                    <strong>{thread.status === "OPEN" ? "Open" : "Resolved"}</strong> ·{" "}
+                    <strong>{thread.status === "OPEN" ? t("Open") : t("Resolved")}</strong> ·{" "}
                     {thread.title}
                     {thread.resolution ? <span> — {thread.resolution}</span> : null}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="empty-state">No story thread is recorded in this world.</p>
+              <p className="empty-state">{t("No story thread is recorded in this world.")}</p>
             )}
             {orientation.relationships.length > 0 ? (
-              <ul className="plain-list relationship-list" aria-label="Relationships">
+              <ul className="plain-list relationship-list" aria-label={t("Relationships")}>
                 {orientation.relationships.map((relationship) => (
                   <li key={relationship.id}>
                     {relationship.description}
-                    {relationship.state ? <strong> · now {relationship.state}</strong> : null}
+                    {relationship.state ? (
+                      <strong>
+                        {" "}
+                        {t("· now")} {relationship.state}
+                      </strong>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             ) : null}
             {orientation.openThreads.length > 0 ? (
               <details>
-                <summary>Recent developments</summary>
+                <summary>{t("Recent developments")}</summary>
                 <ul className="plain-list">
                   {orientation.openThreads.map((entry, index) => (
                     <li key={`${index}:${entry}`}>{entry}</li>
@@ -491,45 +519,49 @@ export function ReturnPage(): ReactElement {
             className="surface-card continuation-card"
             aria-labelledby="orientation-continue"
           >
-            <p className="card-label">Continue</p>
-            <h2 id="orientation-continue">Choose your next participation point</h2>
+            <p className="card-label">{t("Continue")}</p>
+            <h2 id="orientation-continue">{t("Choose your next participation point")}</h2>
             <p>{orientation.nextParticipation.label}</p>
             <Link
               className="primary-action inline-action"
               to={`/continuities/${encodeURIComponent(continuityId)}`}
             >
-              Continue in world
+              {t("Continue in world")}
             </Link>
             <Link
               className="secondary-action inline-action"
               to={`/continuities/${encodeURIComponent(continuityId)}/continuity`}
             >
-              Understand current continuity
+              {t("Understand current continuity")}
             </Link>
           </section>
         </div>
       </div>
       <section className="freshness-panel" aria-labelledby="orientation-freshness">
-        <h2 id="orientation-freshness">Projection freshness</h2>
+        <h2 id="orientation-freshness">{t("Projection freshness")}</h2>
         <p>
           {projectionState === "ready"
-            ? "This briefing is a derived orientation over committed sources."
-            : "The derived orientation is unavailable or behind the current head. This view is a conservative reading of authoritative current state; recent change history is not inferred."}
+            ? t("This briefing is a derived orientation over committed sources.")
+            : t(
+                "The derived orientation is unavailable or behind the current head. This view is a conservative reading of authoritative current state; recent change history is not inferred.",
+              )}
         </p>
         <dl className="metadata-list">
           <div>
-            <dt>Projection source head</dt>
+            <dt>{t("Projection source head")}</dt>
             <dd>
-              {usingAuthoritativeFallback ? "Unavailable" : shortId(freshness.sourceHeadCommitId)}
+              {usingAuthoritativeFallback
+                ? t("Unavailable")
+                : shortId(freshness.sourceHeadCommitId)}
             </dd>
           </div>
           <div>
-            <dt>Current Branch head</dt>
+            <dt>{t("Current Branch head")}</dt>
             <dd>{shortId(data.continuity.headCommitId)}</dd>
           </div>
           <div>
-            <dt>Head distance</dt>
-            <dd>{usingAuthoritativeFallback ? "Unavailable" : freshness.headDistance}</dd>
+            <dt>{t("Head distance")}</dt>
+            <dd>{usingAuthoritativeFallback ? t("Unavailable") : freshness.headDistance}</dd>
           </div>
         </dl>
         {freshness.status !== "FRESH" ? (
@@ -537,14 +569,15 @@ export function ReturnPage(): ReactElement {
             className="secondary-action inline-action"
             to={`/continuities/${encodeURIComponent(continuityId)}`}
           >
-            Read authoritative current state
+            {t("Read authoritative current state")}
           </Link>
         ) : null}
       </section>
       {requestHead && requestHead !== freshness.currentHeadCommitId ? (
         <p className="action-error" role="alert">
-          This briefing no longer matches the current Branch head. Read the current state before
-          acting.
+          {t(
+            "This briefing no longer matches the current Branch head. Read the current state before acting.",
+          )}
         </p>
       ) : null}
     </div>
@@ -561,11 +594,14 @@ function PendingOrientationNotice({
   return (
     <section className="pending-orientation" aria-labelledby="pending-orientation-title">
       <div>
-        <p className="card-label">Attention before continuing</p>
-        <h2 id="pending-orientation-title">An unresolved Action remains part of this path</h2>
+        <p className="card-label">{t("Attention before continuing")}</p>
+        <h2 id="pending-orientation-title">
+          {t("An unresolved Action remains part of this path")}
+        </h2>
         <p>
-          It has not been folded into current truth. Review its durable status before sending
-          another ordinary Action.
+          {t(
+            "It has not been folded into current truth. Review its durable status before sending another ordinary Action.",
+          )}
         </p>
       </div>
       <div className="pending-orientation-links">
@@ -574,7 +610,7 @@ function PendingOrientationNotice({
             key={entry.id}
             to={`/continuities/${encodeURIComponent(continuityId)}/actions/${encodeURIComponent(entry.id)}`}
           >
-            Review {shortId(entry.id)} · {entry.intent}
+            {t("Review")} {shortId(entry.id)} · {entry.intent}
           </Link>
         ))}
       </div>
@@ -606,7 +642,9 @@ export function ContinuityPage(): ReactElement {
     };
   }, [branchId, head]);
   if (loadState.status !== "ready") {
-    return <StatusPage title="Opening Continuity…" copy="Reading the current Branch head." />;
+    return (
+      <StatusPage title={t("Opening Continuity…")} copy={t("Reading the current Branch head.")} />
+    );
   }
   const { data } = loadState;
   const currentFacts = data.state.facts
@@ -617,38 +655,40 @@ export function ContinuityPage(): ReactElement {
   return (
     <div className="surface-page continuity-page">
       <SurfaceHeader
-        eyebrow="Current path"
-        title="Continuity"
-        copy="Start with what currently holds on this path, then choose the specific fact or change you want to understand."
+        eyebrow={t("Current path")}
+        title={t("Continuity")}
+        copy={t(
+          "Start with what currently holds on this path, then choose the specific fact or change you want to understand.",
+        )}
       />
       <section
         className="surface-card current-path-card"
         aria-labelledby="continuity-current-title"
       >
         <div>
-          <p className="card-label">Current state</p>
-          <h2 id="continuity-current-title">What currently holds</h2>
+          <p className="card-label">{t("Current state")}</p>
+          <h2 id="continuity-current-title">{t("What currently holds")}</h2>
           <p>{currentSituation(data)}</p>
         </div>
         <dl className="metadata-list">
           <div>
-            <dt>World revision</dt>
+            <dt>{t("World revision")}</dt>
             <dd>{data.continuity.worldRevisionNumber}</dd>
           </div>
           <div>
-            <dt>Current head</dt>
+            <dt>{t("Current head")}</dt>
             <dd>{shortId(data.continuity.headCommitId)}</dd>
           </div>
           <div>
-            <dt>Clock</dt>
+            <dt>{t("Clock")}</dt>
             <dd>{data.state.worldClock.label}</dd>
           </div>
         </dl>
       </section>
       <div className="surface-grid continuity-grid">
         <section className="surface-card" aria-labelledby="continuity-facts-title">
-          <p className="card-label">Choose a fact</p>
-          <h2 id="continuity-facts-title">Facts that are accessible here</h2>
+          <p className="card-label">{t("Choose a fact")}</p>
+          <h2 id="continuity-facts-title">{t("Facts that are accessible here")}</h2>
           {currentFacts.length > 0 ? (
             <ul className="fact-links">
               {currentFacts.map((fact) => (
@@ -665,12 +705,12 @@ export function ContinuityPage(): ReactElement {
               ))}
             </ul>
           ) : (
-            <p className="empty-state">No current fact is available in this scope.</p>
+            <p className="empty-state">{t("No current fact is available in this scope.")}</p>
           )}
         </section>
         <section className="surface-card" aria-labelledby="continuity-changes-title">
-          <p className="card-label">Committed history</p>
-          <h2 id="continuity-changes-title">Meaningful changes</h2>
+          <p className="card-label">{t("Committed history")}</p>
+          <h2 id="continuity-changes-title">{t("Meaningful changes")}</h2>
           {committed.length > 0 ? (
             <ul className="change-links">
               {committed
@@ -686,12 +726,14 @@ export function ContinuityPage(): ReactElement {
                           to={`/continuities/${encodeURIComponent(data.continuity.id)}/context?commit=${encodeURIComponent(commitId)}`}
                         >
                           <strong>{entry.intent}</strong>
-                          <span>View Change Trace · Commit {shortId(commitId)}</span>
+                          <span>
+                            {t("View Change Trace · Commit")} {shortId(commitId)}
+                          </span>
                         </Link>
                       ) : (
                         <span>
                           <strong>{entry.intent}</strong>
-                          <small>Recorded on this path.</small>
+                          <small>{t("Recorded on this path.")}</small>
                         </span>
                       )}
                     </li>
@@ -699,21 +741,22 @@ export function ContinuityPage(): ReactElement {
                 })}
             </ul>
           ) : (
-            <p className="empty-state">There is no committed change to explain yet.</p>
+            <p className="empty-state">{t("There is no committed change to explain yet.")}</p>
           )}
         </section>
       </div>
       <section className="surface-card boundary-card" aria-labelledby="continuity-boundary-title">
-        <h2 id="continuity-boundary-title">Explanation boundary</h2>
+        <h2 id="continuity-boundary-title">{t("Explanation boundary")}</h2>
         <p>
-          Explanations name only the permitted source class, Commit, scope and freshness. Hidden
-          prompts, provider reasoning and inaccessible source identities are never shown here.
+          {t(
+            "Explanations name only the permitted source class, Commit, scope and freshness. Hidden prompts, provider reasoning and inaccessible source identities are never shown here.",
+          )}
         </p>
         <Link
           className="secondary-action inline-action"
           to={`/continuities/${encodeURIComponent(data.continuity.id)}/context`}
         >
-          Open Change Trace and pending work
+          {t("Open Change Trace and pending work")}
         </Link>
       </section>
     </div>
@@ -748,7 +791,12 @@ export function FactLensPage(): ReactElement {
   }, [branchId, factId, head]);
 
   if (loadState.status !== "ready") {
-    return <StatusPage title="Opening this fact…" copy="Reading the current authorized state." />;
+    return (
+      <StatusPage
+        title={t("Opening this fact…")}
+        copy={t("Reading the current authorized state.")}
+      />
+    );
   }
   const fact = factId
     ? (loadState.data.state.facts
@@ -763,68 +811,74 @@ export function FactLensPage(): ReactElement {
   if (hidden || (!fact && !explanation)) {
     return (
       <StatusPage
-        title="This explanation is not available"
+        title={t("This explanation is not available")}
         copy={
           state === "unavailable" || hidden
-            ? "The explanation projection is temporarily unavailable or outside this account's permitted scope. No hidden source was inferred."
-            : "The selected fact is not present in the current authorized state."
+            ? t(
+                "The explanation projection is temporarily unavailable or outside this account's permitted scope. No hidden source was inferred.",
+              )
+            : t("The selected fact is not present in the current authorized state.")
         }
       >
         <Link className="secondary-action inline-action" to="..">
-          Back to Continuity
+          {t("Back to Continuity")}
         </Link>
       </StatusPage>
     );
   }
   const targetStatement =
-    explanation?.target.statement ?? fact?.statement ?? "Selected continuity item";
+    explanation?.target.statement ?? fact?.statement ?? t("Selected continuity item");
   const current = explanation?.target.current ?? Boolean(fact);
   return (
     <div className="surface-page lens-page">
       <SurfaceHeader
-        eyebrow="Contextual explanation"
-        title="Why this is active"
-        copy="A scoped explanation of one accessible continuity item."
+        eyebrow={t("Contextual explanation")}
+        title={t("Why this is active")}
+        copy={t("A scoped explanation of one accessible continuity item.")}
       />
       <section className="surface-card lens-target" aria-labelledby="lens-target-title">
-        <p className="card-label">Item</p>
+        <p className="card-label">{t("Item")}</p>
         <h2 id="lens-target-title">{targetStatement}</h2>
         <p className="state-label">
-          {current ? "Current canonical state" : "Historical state · not current"}
+          {current ? t("Current canonical state") : t("Historical state · not current")}
         </p>
         {explanation ? (
           <p>{explanation.explanation}</p>
         ) : (
-          <p>Current state is readable, but its detailed explanation is temporarily unavailable.</p>
+          <p>
+            {t(
+              "Current state is readable, but its detailed explanation is temporarily unavailable.",
+            )}
+          </p>
         )}
       </section>
       {explanation ? (
         <>
           <section className="surface-card" aria-labelledby="lens-source-title">
-            <p className="card-label">Permitted provenance</p>
-            <h2 id="lens-source-title">Why it is available here</h2>
+            <p className="card-label">{t("Permitted provenance")}</p>
+            <h2 id="lens-source-title">{t("Why it is available here")}</h2>
             <dl className="metadata-list">
               <div>
-                <dt>Source class</dt>
+                <dt>{t("Source class")}</dt>
                 <dd>{labelMode(explanation.source.class)}</dd>
               </div>
               <div>
-                <dt>Commit reference</dt>
+                <dt>{t("Commit reference")}</dt>
                 <dd>{shortId(explanation.source.commitId)}</dd>
               </div>
               <div>
-                <dt>Scope</dt>
+                <dt>{t("Scope")}</dt>
                 <dd>{explanation.scope}</dd>
               </div>
               <div>
-                <dt>Freshness</dt>
+                <dt>{t("Freshness")}</dt>
                 <dd>{freshnessLabel(explanation.freshness)}</dd>
               </div>
             </dl>
           </section>
           <section className="surface-card correction-path" aria-labelledby="lens-correction-title">
-            <p className="card-label">What you can do</p>
-            <h2 id="lens-correction-title">Review a correction path</h2>
+            <p className="card-label">{t("What you can do")}</p>
+            <h2 id="lens-correction-title">{t("Review a correction path")}</h2>
             {current && explanation.correction.availableOperations.length > 0 ? (
               <div className="action-buttons">
                 {explanation.correction.availableOperations.includes("CORRECT_CONTINUITY") ? (
@@ -832,7 +886,7 @@ export function FactLensPage(): ReactElement {
                     className="primary-action inline-action"
                     to={`/continuities/${encodeURIComponent(continuityId)}/correction/${encodeURIComponent(factId ?? explanation.target.id)}?operation=CORRECT_CONTINUITY`}
                   >
-                    Correct this fact
+                    {t("Correct this fact")}
                   </Link>
                 ) : null}
                 {explanation.correction.availableOperations.includes("REMOVE_CONTINUITY") ? (
@@ -840,25 +894,27 @@ export function FactLensPage(): ReactElement {
                     className="secondary-action inline-action"
                     to={`/continuities/${encodeURIComponent(continuityId)}/correction/${encodeURIComponent(factId ?? explanation.target.id)}?operation=REMOVE_CONTINUITY`}
                   >
-                    Request removal
+                    {t("Request removal")}
                   </Link>
                 ) : null}
               </div>
             ) : (
               <p className="empty-state">
-                No direct correction operation is available for this item.
+                {t("No direct correction operation is available for this item.")}
               </p>
             )}
             <p className="muted-copy">
-              Any correction is a direct review with exact before/after, scope, reason and
-              current-head confirmation. Cancel or conflict leaves current truth untouched.
+              {t(
+                "Any correction is a direct review with exact before/after, scope, reason and current-head confirmation. Cancel or conflict leaves current truth untouched.",
+              )}
             </p>
           </section>
         </>
       ) : null}
-      <section className="privacy-boundary" aria-label="Explanation safety boundary">
-        Some context is not shown because it is outside your permitted scope. This surface never
-        reveals raw prompts, provider reasoning or hidden source identities.
+      <section className="privacy-boundary" aria-label={t("Explanation safety boundary")}>
+        {t(
+          "Some context is not shown because it is outside your permitted scope. This surface never reveals raw prompts, provider reasoning or hidden source identities.",
+        )}
       </section>
     </div>
   );
@@ -891,31 +947,36 @@ export function ContextPage(): ReactElement {
 
   if (loadState.status !== "ready") {
     return (
-      <StatusPage title="Opening context…" copy="Reading current truth and its permitted trace." />
+      <StatusPage
+        title={t("Opening context…")}
+        copy={t("Reading current truth and its permitted trace.")}
+      />
     );
   }
   return (
     <div className="surface-page context-page">
       <SurfaceHeader
-        eyebrow="World Context"
-        title="Current state and Change Trace"
-        copy="Inspect current truth, pending work and committed causal history without turning this surface into another owner."
+        eyebrow={t("World Context")}
+        title={t("Current state and Change Trace")}
+        copy={t(
+          "Inspect current truth, pending work and committed causal history without turning this surface into another owner.",
+        )}
       />
       <div className="context-layout">
         <WorldContextSummary />
         <div>
           <section className="surface-card context-pending" aria-labelledby="context-pending-title">
-            <p className="card-label">Durable Action status</p>
-            <h2 id="context-pending-title">Pending work</h2>
+            <p className="card-label">{t("Durable Action status")}</p>
+            <h2 id="context-pending-title">{t("Pending work")}</h2>
             <ActionList compact />
           </section>
           <section className="surface-card trace-card" aria-labelledby="trace-title">
-            <p className="card-label">Committed provenance</p>
-            <h2 id="trace-title">Change Trace</h2>
+            <p className="card-label">{t("Committed provenance")}</p>
+            <h2 id="trace-title">{t("Change Trace")}</h2>
             {trace ? (
               <>
                 <div className="trace-freshness">
-                  {freshnessLabel(trace.freshness)} · source head{" "}
+                  {freshnessLabel(trace.freshness)} {t("· source head")}{" "}
                   {shortId(trace.freshness.sourceHeadCommitId)}
                 </div>
                 <ol className="trace-list">
@@ -930,7 +991,11 @@ export function ContextPage(): ReactElement {
                             {labelMode(commit.sourceClass)} · {shortId(commit.id)}
                           </span>
                         </div>
-                        {cause ? <p>From your Action: {cause.intent}</p> : null}
+                        {cause ? (
+                          <p>
+                            {t("From your Action:")} {cause.intent}
+                          </p>
+                        ) : null}
                         {commit.events.length > 0 ? (
                           <ul>
                             {commit.events.map((event) => (
@@ -947,7 +1012,7 @@ export function ContextPage(): ReactElement {
                           </ul>
                         ) : (
                           <p className="muted-copy">
-                            No additional event detail is available in this scope.
+                            {t("No additional event detail is available in this scope.")}
                           </p>
                         )}
                       </li>
@@ -958,8 +1023,10 @@ export function ContextPage(): ReactElement {
             ) : (
               <p className="empty-state">
                 {traceState === "unavailable"
-                  ? "Change Trace is temporarily unavailable or rebuilding. Current authoritative state remains readable."
-                  : "No committed Change Trace is available yet."}
+                  ? t(
+                      "Change Trace is temporarily unavailable or rebuilding. Current authoritative state remains readable.",
+                    )
+                  : t("No committed Change Trace is available yet.")}
               </p>
             )}
           </section>
@@ -969,7 +1036,7 @@ export function ContextPage(): ReactElement {
         className="secondary-action inline-action"
         to={`/continuities/${encodeURIComponent(continuityId)}`}
       >
-        Return to world
+        {t("Return to world")}
       </Link>
     </div>
   );
@@ -1019,16 +1086,16 @@ const initiativeOptions: Array<{
   label: string;
   copy: string;
 }> = [
-  { value: "DIRECT", label: "Direct", copy: "The world responds to your explicit Actions." },
+  { value: "DIRECT", label: t("Direct"), copy: t("The world responds to your explicit Actions.") },
   {
     value: "GUIDED",
-    label: "Guided",
-    copy: "Characters may suggest and initiate bounded scene developments.",
+    label: t("Guided"),
+    copy: t("Characters may suggest and initiate bounded scene developments."),
   },
   {
     value: "WORLD_ACTIVE",
-    label: "World-active",
-    copy: "Background actors may advance only inside a user-triggered cycle.",
+    label: t("World-active"),
+    copy: t("Background actors may advance only inside a user-triggered cycle."),
   },
 ];
 
@@ -1037,11 +1104,11 @@ const structureOptions: Array<{
   label: string;
   copy: string;
 }> = [
-  { value: "OPEN_ENDED", label: "Open-ended", copy: "No objective is fabricated." },
+  { value: "OPEN_ENDED", label: t("Open-ended"), copy: t("No objective is fabricated.") },
   {
     value: "GOAL_FRAMED",
-    label: "Goal-framed",
-    copy: "Only objectives declared by this World Revision are active.",
+    label: t("Goal-framed"),
+    copy: t("Only objectives declared by this World Revision are active."),
   },
 ];
 
@@ -1056,7 +1123,10 @@ export function ParticipationPage(): ReactElement {
 
   if (loadState.status !== "ready" || !current) {
     return (
-      <StatusPage title="Opening participation…" copy="Reading the current Branch contract." />
+      <StatusPage
+        title={t("Opening participation…")}
+        copy={t("Reading the current Branch contract.")}
+      />
     );
   }
   const selection = requested ?? current;
@@ -1091,7 +1161,7 @@ export function ParticipationPage(): ReactElement {
       idempotencyKey.current = null;
       setReviewing(false);
       await refresh();
-      setMessage("Participation changed by one direct user Commit.");
+      setMessage(t("Participation changed by one direct user Commit."));
     } else if (
       result.errorCode === "BRANCH_HEAD_CONFLICT" ||
       result.errorCode === "PARTICIPATION_EXPECTATION_MISMATCH"
@@ -1099,11 +1169,13 @@ export function ParticipationPage(): ReactElement {
       idempotencyKey.current = null;
       await refresh();
       setReviewing(false);
-      setMessage("The current path changed. Review its current contract before trying again.");
+      setMessage(t("The current path changed. Review its current contract before trying again."));
     } else {
       await refresh();
       setMessage(
-        "The result could not be verified. Current truth was refreshed; retrying this exact review is safe.",
+        t(
+          "The result could not be verified. Current truth was refreshed; retrying this exact review is safe.",
+        ),
       );
     }
     setBusy(false);
@@ -1112,13 +1184,15 @@ export function ParticipationPage(): ReactElement {
   return (
     <div className="surface-page participation-page">
       <SurfaceHeader
-        eyebrow="Participation Contract"
-        title="Choose how this world may lead"
-        copy="Initiative and world structure are independent. Neither changes your authority over your avatar, speech, resources, sharing, deletion or irreversible commitments."
+        eyebrow={t("Participation Contract")}
+        title={t("Choose how this world may lead")}
+        copy={t(
+          "Initiative and world structure are independent. Neither changes your authority over your avatar, speech, resources, sharing, deletion or irreversible commitments.",
+        )}
       />
       <section className="surface-card participation-contract" aria-labelledby="initiative-title">
         <fieldset>
-          <legend id="initiative-title">AI initiative</legend>
+          <legend id="initiative-title">{t("AI initiative")}</legend>
           {initiativeOptions.map((option) => (
             <label key={option.value} className="contract-option">
               <input
@@ -1136,7 +1210,7 @@ export function ParticipationPage(): ReactElement {
           ))}
         </fieldset>
         <fieldset>
-          <legend>World structure</legend>
+          <legend>{t("World structure")}</legend>
           {structureOptions.map((option) => (
             <label key={option.value} className="contract-option">
               <input
@@ -1155,16 +1229,16 @@ export function ParticipationPage(): ReactElement {
         </fieldset>
       </section>
       <section className="surface-card contract-review" aria-live="polite">
-        <p className="card-label">Before / after</p>
+        <p className="card-label">{t("Before / after")}</p>
         <dl>
           <div>
-            <dt>Current</dt>
+            <dt>{t("Current")}</dt>
             <dd>
               {labelMode(current.initiativeMode)} · {labelMode(current.structureMode)}
             </dd>
           </div>
           <div>
-            <dt>Requested</dt>
+            <dt>{t("Requested")}</dt>
             <dd>
               {labelMode(selection.initiativeMode)} · {labelMode(selection.structureMode)}
             </dd>
@@ -1177,13 +1251,14 @@ export function ParticipationPage(): ReactElement {
             disabled={!changed}
             onClick={() => setReviewing(true)}
           >
-            Review authority change
+            {t("Review authority change")}
           </button>
         ) : (
           <div className="action-buttons">
             <p>
-              This direct command changes only these two values. It does not authorize the world to
-              act as you or create off-session mutations.
+              {t(
+                "This direct command changes only these two values. It does not authorize the world to act as you or create off-session mutations.",
+              )}
             </p>
             <button
               className="primary-action"
@@ -1191,7 +1266,7 @@ export function ParticipationPage(): ReactElement {
               disabled={busy}
               onClick={() => void apply()}
             >
-              {busy ? "Applying…" : "Apply this exact contract"}
+              {busy ? "Applying…" : t("Apply this exact contract")}
             </button>
             <button
               className="secondary-action"
@@ -1199,7 +1274,7 @@ export function ParticipationPage(): ReactElement {
               disabled={busy}
               onClick={() => setReviewing(false)}
             >
-              Keep current contract
+              {t("Keep current contract")}
             </button>
           </div>
         )}
@@ -1213,8 +1288,8 @@ export function RecoveryPage(): ReactElement {
   const { continuityId, loadState, pendingActionRefs, refresh } = useContinuity();
   const [recovery, setRecovery] = useState<RecoveryResponse | null>(null);
   const [restore, setRestore] = useState<RestoreProposal | null>(null);
-  const [label, setLabel] = useState("Before the next choice");
-  const [branchName, setBranchName] = useState("Alternative path");
+  const [label, setLabel] = useState(t("Before the next choice"));
+  const [branchName, setBranchName] = useState(t("Alternative path"));
   const [branchSourceCommitId, setBranchSourceCommitId] = useState("");
   const [restoreSourceCommitId, setRestoreSourceCommitId] = useState("");
   const [commitSources, setCommitSources] = useState<RecoveryCommitSource[]>([]);
@@ -1244,7 +1319,7 @@ export function RecoveryPage(): ReactElement {
       setCommitSources(await readRecoveryCommitSources(next));
       setMessage(null);
     } else {
-      setMessage("Recovery state is unavailable. Current World truth was not changed.");
+      setMessage(t("Recovery state is unavailable. Current World truth was not changed."));
     }
   };
 
@@ -1261,7 +1336,7 @@ export function RecoveryPage(): ReactElement {
         const sources = await readRecoveryCommitSources(result.data);
         if (active) setCommitSources(sources);
       } else {
-        setMessage("Recovery state is unavailable. Current World truth was not changed.");
+        setMessage(t("Recovery state is unavailable. Current World truth was not changed."));
       }
     });
     return () => {
@@ -1272,8 +1347,8 @@ export function RecoveryPage(): ReactElement {
   if (loadState.status !== "ready" || !branchId || !head) {
     return (
       <StatusPage
-        title="Opening Recovery…"
-        copy="Reading the current Branch and its safe references."
+        title={t("Opening Recovery…")}
+        copy={t("Reading the current Branch and its safe references.")}
       />
     );
   }
@@ -1295,27 +1370,32 @@ export function RecoveryPage(): ReactElement {
   return (
     <div className="surface-page recovery-page">
       <SurfaceHeader
-        eyebrow="Recovery"
-        title="Preserve, branch or restore this path"
-        copy="Recovery operates on the current Continuity. It does not erase history, repair a single fact, or change a future World Revision."
+        eyebrow={t("Recovery")}
+        title={t("Preserve, branch or restore this path")}
+        copy={t(
+          "Recovery operates on the current Continuity. It does not erase history, repair a single fact, or change a future World Revision.",
+        )}
       />
       {pendingActionRefs.length > 0 ? (
         <section className="surface-card recovery-pending" aria-labelledby="recovery-pending-title">
-          <p className="card-label">Pending Action preserved</p>
-          <h2 id="recovery-pending-title">Finish the unresolved Action before switching paths</h2>
+          <p className="card-label">{t("Pending Action preserved")}</p>
+          <h2 id="recovery-pending-title">
+            {t("Finish the unresolved Action before switching paths")}
+          </h2>
           <p>
-            Recovery inspection did not clear it. Use the Action ribbon above to confirm, cancel or
-            retry it.
+            {t(
+              "Recovery inspection did not clear it. Use the Action ribbon above to confirm, cancel or retry it.",
+            )}
           </p>
         </section>
       ) : null}
       <div className="recovery-grid">
         <section className="surface-card" aria-labelledby="safe-point-title">
-          <p className="card-label">Safe Point</p>
-          <h2 id="safe-point-title">Name the current Commit</h2>
-          <p>This creates a reference only. No World state is copied.</p>
+          <p className="card-label">{t("Safe Point")}</p>
+          <h2 id="safe-point-title">{t("Name the current Commit")}</h2>
+          <p>{t("This creates a reference only. No World state is copied.")}</p>
           <label className="field-label" htmlFor="safe-point-label">
-            Label
+            {t("Label")}
             <input
               id="safe-point-label"
               value={label}
@@ -1340,18 +1420,20 @@ export function RecoveryPage(): ReactElement {
                 });
                 if (!result.data) {
                   setMessage(
-                    "The Safe Point was not confirmed. Retry is safe; current truth is unchanged.",
+                    t(
+                      "The Safe Point was not confirmed. Retry is safe; current truth is unchanged.",
+                    ),
                   );
                   return;
                 }
                 pointKey.current = null;
                 setBranchSourceCommitId(result.data.commitId);
                 await reload();
-                setMessage("Safe Point recorded as a reference to the current Commit.");
+                setMessage(t("Safe Point recorded as a reference to the current Commit."));
               })
             }
           >
-            {busy === "point" ? "Recording…" : "Create Safe Point"}
+            {busy === "point" ? "Recording…" : t("Create Safe Point")}
           </button>
           {recovery?.recoveryPoints.length ? (
             <ul className="recovery-list">
@@ -1368,36 +1450,38 @@ export function RecoveryPage(): ReactElement {
                       void run("delete-point", async () => {
                         if (
                           !window.confirm(
-                            "Delete this label only? The referenced Commit and history remain.",
+                            t("Delete this label only? The referenced Commit and history remain."),
                           )
                         )
                           return;
                         const result = await deleteRecoveryPoint(point.id);
                         if (!result.data) {
-                          setMessage("The label could not be deleted. No World state changed.");
+                          setMessage(t("The label could not be deleted. No World state changed."));
                           return;
                         }
                         await reload();
-                        setMessage("Safe Point label deleted. Its Commit and history remain.");
+                        setMessage(t("Safe Point label deleted. Its Commit and history remain."));
                       })
                     }
                   >
-                    Delete label only
+                    {t("Delete label only")}
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="empty-state">No Safe Point labels yet.</p>
+            <p className="empty-state">{t("No Safe Point labels yet.")}</p>
           )}
         </section>
 
         <section className="surface-card" aria-labelledby="branch-title">
-          <p className="card-label">Branch</p>
-          <h2 id="branch-title">Create a separate experiment</h2>
-          <p>The original path, head and history remain unchanged. V1 does not merge Branches.</p>
+          <p className="card-label">{t("Branch")}</p>
+          <h2 id="branch-title">{t("Create a separate experiment")}</h2>
+          <p>
+            {t("The original path, head and history remain unchanged. V1 does not merge Branches.")}
+          </p>
           <label className="field-label" htmlFor="branch-name">
-            Branch name
+            {t("Branch name")}
             <input
               id="branch-name"
               value={branchName}
@@ -1409,7 +1493,7 @@ export function RecoveryPage(): ReactElement {
             />
           </label>
           <label className="field-label" htmlFor="branch-source">
-            Start from
+            {t("Start from")}
             <select
               id="branch-source"
               value={branchSourceCommitId || head}
@@ -1418,7 +1502,9 @@ export function RecoveryPage(): ReactElement {
                 branchKey.current = null;
               }}
             >
-              <option value={head}>Current head · {shortId(head)}</option>
+              <option value={head}>
+                {t("Current head ·")} {shortId(head)}
+              </option>
               {commitSources
                 .filter((commit) => commit.id !== head)
                 .map((commit) => (
@@ -1444,19 +1530,23 @@ export function RecoveryPage(): ReactElement {
                 });
                 if (!result.data) {
                   setMessage(
-                    "The Branch result could not be confirmed. Re-open Recovery to reconcile the durable Branch list before retrying.",
+                    t(
+                      "The Branch result could not be confirmed. Re-open Recovery to reconcile the durable Branch list before retrying.",
+                    ),
                   );
                   return;
                 }
                 branchKey.current = null;
                 await reload();
                 setMessage(
-                  "Separate Branch created. The original remains the current path until you switch.",
+                  t(
+                    "Separate Branch created. The original remains the current path until you switch.",
+                  ),
                 );
               })
             }
           >
-            {busy === "branch" ? "Creating…" : "Create separate Branch"}
+            {busy === "branch" ? "Creating…" : t("Create separate Branch")}
           </button>
           <ul className="recovery-list branch-list">
             {recovery?.branches.map((branch) => (
@@ -1464,7 +1554,7 @@ export function RecoveryPage(): ReactElement {
                 <span>
                   <strong>{branch.name}</strong>
                   <small>
-                    {branch.isCurrent ? "Current path" : `Head ${shortId(branch.headCommitId)}`}
+                    {branch.isCurrent ? t("Current path") : `Head ${shortId(branch.headCommitId)}`}
                   </small>
                 </span>
                 {!branch.isCurrent ? (
@@ -1478,8 +1568,8 @@ export function RecoveryPage(): ReactElement {
                         if (!result.data) {
                           setMessage(
                             result.errorCode === "PENDING_ACTIONS_REQUIRE_RESOLUTION"
-                              ? "Resolve the pending Action before switching the current path."
-                              : "The current path was not changed.",
+                              ? t("Resolve the pending Action before switching the current path.")
+                              : t("The current path was not changed."),
                           );
                           return;
                         }
@@ -1487,12 +1577,14 @@ export function RecoveryPage(): ReactElement {
                         setRestore(null);
                         await refresh();
                         setMessage(
-                          "Current path changed. The previous Branch remains available and unchanged.",
+                          t(
+                            "Current path changed. The previous Branch remains available and unchanged.",
+                          ),
                         );
                       })
                     }
                   >
-                    Make current path
+                    {t("Make current path")}
                   </button>
                 ) : null}
               </li>
@@ -1501,11 +1593,13 @@ export function RecoveryPage(): ReactElement {
         </section>
 
         <section className="surface-card restore-card" aria-labelledby="restore-title">
-          <p className="card-label">Restore</p>
-          <h2 id="restore-title">Append an earlier world state</h2>
-          <p>Restore creates a new Commit on the current Branch. Later history is retained.</p>
+          <p className="card-label">{t("Restore")}</p>
+          <h2 id="restore-title">{t("Append an earlier world state")}</h2>
+          <p>
+            {t("Restore creates a new Commit on the current Branch. Later history is retained.")}
+          </p>
           <label className="field-label" htmlFor="restore-source">
-            Restore from
+            {t("Restore from")}
             <select
               id="restore-source"
               value={restoreSourceCommitId || head}
@@ -1514,7 +1608,7 @@ export function RecoveryPage(): ReactElement {
                 setRestore(null);
               }}
             >
-              <option value={head}>Current head · no earlier change</option>
+              <option value={head}>{t("Current head · no earlier change")}</option>
               {commitSources
                 .filter((commit) => commit.id !== head)
                 .map((commit) => (
@@ -1534,34 +1628,38 @@ export function RecoveryPage(): ReactElement {
                 const result = await prepareRestore(branchId, restoreSourceCommitId);
                 if (!result.data) {
                   setRestore(null);
-                  setMessage("A Restore review could not be prepared. Current truth is unchanged.");
+                  setMessage(
+                    t("A Restore review could not be prepared. Current truth is unchanged."),
+                  );
                   return;
                 }
                 setRestore(result.data);
               })
             }
           >
-            {busy === "review" ? "Comparing…" : "Review Restore scope"}
+            {busy === "review" ? "Comparing…" : t("Review Restore scope")}
           </button>
           {restore ? (
-            <div className="restore-review" role="region" aria-label="Exact Restore review">
-              <h3>Exact Restore review</h3>
+            <div className="restore-review" role="region" aria-label={t("Exact Restore review")}>
+              <h3>{t("Exact Restore review")}</h3>
               <p>
-                <strong>Would change:</strong> {restore.changedSections.join(", ")}
+                <strong>{t("Would change:")}</strong> {restore.changedSections.join(", ")}
               </p>
               <div className="restore-section-diffs">
                 {restore.sectionChanges.map((change) => (
                   <details key={change.section}>
-                    <summary>{change.section} · exact before / after</summary>
+                    <summary>
+                      {change.section} {t("· exact before / after")}
+                    </summary>
                     <div className="restore-section-diff">
                       <div>
-                        <strong>Current</strong>
+                        <strong>{t("Current")}</strong>
                         <pre>
                           {JSON.stringify(shownSection(change.section, change.before), null, 2)}
                         </pre>
                       </div>
                       <div>
-                        <strong>From selected Commit</strong>
+                        <strong>{t("From selected Commit")}</strong>
                         <pre>
                           {JSON.stringify(shownSection(change.section, change.after), null, 2)}
                         </pre>
@@ -1571,19 +1669,20 @@ export function RecoveryPage(): ReactElement {
                 ))}
               </div>
               <p>
-                <strong>Included:</strong> {restore.includedSections.join(", ")}
+                <strong>{t("Included:")}</strong> {restore.includedSections.join(", ")}
               </p>
               <p>
-                <strong>Excluded and preserved:</strong> {restore.excludedSections.join(", ")}
+                <strong>{t("Excluded and preserved:")}</strong>{" "}
+                {restore.excludedSections.join(", ")}
               </p>
               <p className="muted-copy">
-                Expected current head: {shortId(restore.expectedHeadCommitId)} · review expires{" "}
-                {new Date(restore.expiresAt).toLocaleTimeString()}
+                {t("Expected current head:")} {shortId(restore.expectedHeadCommitId)}{" "}
+                {t("· review expires")} {new Date(restore.expiresAt).toLocaleTimeString()}
               </p>
               {restore.status === "CONFIRMED" && restore.resultCommitId ? (
                 <p role="status">
-                  Restore recorded as Commit {shortId(restore.resultCommitId)}. Earlier and
-                  intervening history remain.
+                  {t("Restore recorded as Commit")} {shortId(restore.resultCommitId)}
+                  {t(". Earlier and intervening history remain.")}
                 </p>
               ) : (
                 <button
@@ -1597,7 +1696,9 @@ export function RecoveryPage(): ReactElement {
                         if (result.errorCode === "RESTORE_REVIEW_STALE") {
                           setRestore(null);
                           setMessage(
-                            "The current path or Branch head changed after review. Nothing was restored; prepare a new review.",
+                            t(
+                              "The current path or Branch head changed after review. Nothing was restored; prepare a new review.",
+                            ),
                           );
                           return;
                         }
@@ -1607,7 +1708,7 @@ export function RecoveryPage(): ReactElement {
                         ) {
                           setRestore(null);
                           setMessage(
-                            "Restore was rejected before mutation. Current truth is unchanged.",
+                            t("Restore was rejected before mutation. Current truth is unchanged."),
                           );
                           return;
                         }
@@ -1620,34 +1721,44 @@ export function RecoveryPage(): ReactElement {
                           await refresh();
                           await reload();
                           setMessage(
-                            "Restore was recorded as a new Commit. The interrupted response was recovered from its durable result.",
+                            t(
+                              "Restore was recorded as a new Commit. The interrupted response was recovered from its durable result.",
+                            ),
                           );
                           return;
                         }
                         if (recovered.data?.status === "STALE") {
                           setRestore(null);
                           setMessage(
-                            "The Restore review became stale. Nothing was restored; prepare a new review.",
+                            t(
+                              "The Restore review became stale. Nothing was restored; prepare a new review.",
+                            ),
                           );
                           return;
                         }
                         if (recovered.data?.status === "ACTIVE") {
                           setRestore(recovered.data);
                           setMessage(
-                            "The confirmation response was interrupted. The exact review is still active; retrying confirmation is safe.",
+                            t(
+                              "The confirmation response was interrupted. The exact review is still active; retrying confirmation is safe.",
+                            ),
                           );
                           return;
                         }
                         if (recovered.data?.status === "EXPIRED") {
                           setRestore(null);
                           setMessage(
-                            "The Restore review expired. Nothing was restored; prepare a new review.",
+                            t(
+                              "The Restore review expired. Nothing was restored; prepare a new review.",
+                            ),
                           );
                           return;
                         }
                         setRestore(restore);
                         setMessage(
-                          "The confirmation outcome could not be verified. Do not assume the World changed; retry recovery status before acting again.",
+                          t(
+                            "The confirmation outcome could not be verified. Do not assume the World changed; retry recovery status before acting again.",
+                          ),
                         );
                         return;
                       }
@@ -1655,12 +1766,14 @@ export function RecoveryPage(): ReactElement {
                       await refresh();
                       await reload();
                       setMessage(
-                        "Restore recorded as a new Commit. Earlier and intervening history remain.",
+                        t(
+                          "Restore recorded as a new Commit. Earlier and intervening history remain.",
+                        ),
                       );
                     })
                   }
                 >
-                  {busy === "restore" ? "Recording…" : "Confirm exact Restore"}
+                  {busy === "restore" ? "Recording…" : t("Confirm exact Restore")}
                 </button>
               )}
             </div>
@@ -1671,23 +1784,25 @@ export function RecoveryPage(): ReactElement {
           className="surface-card recovery-boundaries"
           aria-labelledby="recovery-boundaries-title"
         >
-          <p className="card-label">Different operations</p>
-          <h2 id="recovery-boundaries-title">Correction and Delete are not Restore</h2>
+          <p className="card-label">{t("Different operations")}</p>
+          <h2 id="recovery-boundaries-title">{t("Correction and Delete are not Restore")}</h2>
           <ul>
             <li>
-              <strong>Correction</strong> repairs one current canonical record through its own exact
-              review.
+              <strong>{t("Correction")}</strong>{" "}
+              {t("repairs one current canonical record through its own exact review.")}
             </li>
             <li>
-              <strong>Delete</strong> is a separate lifecycle boundary with retention consequences;
-              it is not an undo control and is not performed here.
+              <strong>{t("Delete")}</strong>{" "}
+              {t(
+                "is a separate lifecycle boundary with retention consequences; it is not an undo control and is not performed here.",
+              )}
             </li>
           </ul>
           <Link
             className="secondary-action inline-action"
             to={`/continuities/${encodeURIComponent(continuityId)}/continuity`}
           >
-            Inspect or correct Continuity
+            {t("Inspect or correct Continuity")}
           </Link>
         </section>
       </div>
@@ -1731,14 +1846,17 @@ export function ActionStatusPage(): ReactElement {
   const action = actionId ? (actions.get(actionId) ?? loadedAction) : loadedAction;
   if (state === "loading") {
     return (
-      <StatusPage title="Recovering Action status…" copy="Reading the durable Action resource." />
+      <StatusPage
+        title={t("Recovering Action status…")}
+        copy={t("Reading the durable Action resource.")}
+      />
     );
   }
   if (state === "not-found" || !action) {
     return (
       <StatusPage
-        title="This Action is not available"
-        copy="It may be outside this Continuity or unavailable to this account."
+        title={t("This Action is not available")}
+        copy={t("It may be outside this Continuity or unavailable to this account.")}
       />
     );
   }
@@ -1746,8 +1864,8 @@ export function ActionStatusPage(): ReactElement {
     <div className="surface-page action-page">
       <SurfaceHeader
         eyebrow={labelMode(action.operationType)}
-        title="Action status"
-        copy="This status is durable and remains available while supporting surfaces change."
+        title={t("Action status")}
+        copy={t("This status is durable and remains available while supporting surfaces change.")}
       />
       <ActionStatusCard
         action={action}
@@ -1757,10 +1875,11 @@ export function ActionStatusPage(): ReactElement {
       />
       {action.operationType !== "PARTICIPATE" ? (
         <section className="surface-card action-boundary" aria-labelledby="action-boundary-title">
-          <h2 id="action-boundary-title">Protected correction boundary</h2>
+          <h2 id="action-boundary-title">{t("Protected correction boundary")}</h2>
           <p>
-            This is a direct continuity operation. It cannot be reclassified as an ordinary
-            participation Action, and a stale head requires a fresh review.
+            {t(
+              "This is a direct continuity operation. It cannot be reclassified as an ordinary participation Action, and a stale head requires a fresh review.",
+            )}
           </p>
         </section>
       ) : null}
@@ -1768,7 +1887,7 @@ export function ActionStatusPage(): ReactElement {
         className="secondary-action inline-action"
         to={`/continuities/${encodeURIComponent(continuityId)}`}
       >
-        Return to world
+        {t("Return to world")}
       </Link>
     </div>
   );
@@ -1795,8 +1914,8 @@ export function CorrectionReviewPage(): ReactElement {
   if (loadState.status !== "ready") {
     return (
       <StatusPage
-        title="Preparing correction review…"
-        copy="The current Branch head is required before a protected change can be reviewed."
+        title={t("Preparing correction review…")}
+        copy={t("The current Branch head is required before a protected change can be reviewed.")}
       />
     );
   }
@@ -1810,14 +1929,16 @@ export function CorrectionReviewPage(): ReactElement {
   if (!fact) {
     return (
       <StatusPage
-        title="This correction target is not available"
-        copy="Only an accessible active canonical fact can enter this correction path. Current truth was not changed."
+        title={t("This correction target is not available")}
+        copy={t(
+          "Only an accessible active canonical fact can enter this correction path. Current truth was not changed.",
+        )}
       >
         <Link
           className="secondary-action inline-action"
           to={`/continuities/${encodeURIComponent(continuityId)}/continuity`}
         >
-          Back to Continuity
+          {t("Back to Continuity")}
         </Link>
       </StatusPage>
     );
@@ -1825,11 +1946,11 @@ export function CorrectionReviewPage(): ReactElement {
   const submit = async (): Promise<void> => {
     if (working) return;
     if (!reason.trim()) {
-      setError("State why this exact correction or removal is needed before continuing.");
+      setError(t("State why this exact correction or removal is needed before continuing."));
       return;
     }
     if (operation === "CORRECT_CONTINUITY" && !after.trim()) {
-      setError("Write the exact replacement statement before continuing.");
+      setError(t("Write the exact replacement statement before continuing."));
       return;
     }
     const request: CorrectionRequest = {
@@ -1852,7 +1973,7 @@ export function CorrectionReviewPage(): ReactElement {
         idempotencyKey.current = null;
         refresh().catch(() => undefined);
       }
-      setError(result.error ?? "The correction response did not contain a durable Action.");
+      setError(result.error ?? t("The correction response did not contain a durable Action."));
       return;
     }
     idempotencyKey.current = null;
@@ -1863,53 +1984,57 @@ export function CorrectionReviewPage(): ReactElement {
   return (
     <div className="surface-page correction-page">
       <SurfaceHeader
-        eyebrow="Direct correction review"
-        title={operation === "REMOVE_CONTINUITY" ? "Request removal" : "Correct this fact"}
-        copy="Review the exact target, before/after effect, scope and reason. Nothing changes until the returned Action is directly confirmed against the current head."
+        eyebrow={t("Direct correction review")}
+        title={operation === "REMOVE_CONTINUITY" ? t("Request removal") : t("Correct this fact")}
+        copy={t(
+          "Review the exact target, before/after effect, scope and reason. Nothing changes until the returned Action is directly confirmed against the current head.",
+        )}
       />
       <section className="surface-card review-card" aria-labelledby="correction-target-title">
-        <p className="card-label">Exact target</p>
+        <p className="card-label">{t("Exact target")}</p>
         <h2 id="correction-target-title">{fact.statement}</h2>
         <dl className="metadata-list">
           <div>
-            <dt>Stable target id</dt>
+            <dt>{t("Stable target id")}</dt>
             <dd>{fact.id}</dd>
           </div>
           <div>
-            <dt>Current scope</dt>
+            <dt>{t("Current scope")}</dt>
             <dd>{fact.scope}</dd>
           </div>
           <div>
-            <dt>Current Branch head</dt>
+            <dt>{t("Current Branch head")}</dt>
             <dd>{shortId(data.continuity.headCommitId)}</dd>
           </div>
         </dl>
       </section>
       <section className="surface-card" aria-labelledby="correction-effect-title">
-        <p className="card-label">Before / after</p>
-        <h2 id="correction-effect-title">What would change</h2>
+        <p className="card-label">{t("Before / after")}</p>
+        <h2 id="correction-effect-title">{t("What would change")}</h2>
         <div className="effect-grid">
           <div>
-            <span>Before</span>
+            <span>{t("Before")}</span>
             <p>{fact.statement}</p>
           </div>
           <div>
-            <span>{operation === "REMOVE_CONTINUITY" ? "After removal" : "After correction"}</span>
+            <span>
+              {operation === "REMOVE_CONTINUITY" ? t("After removal") : t("After correction")}
+            </span>
             <p>
               {operation === "REMOVE_CONTINUITY"
-                ? "This fact will no longer be active in current Continuity."
-                : after || "Write the exact replacement below."}
+                ? t("This fact will no longer be active in current Continuity.")
+                : after || t("Write the exact replacement below.")}
             </p>
           </div>
         </div>
-        <div className="operation-toggle" role="group" aria-label="Correction operation">
+        <div className="operation-toggle" role="group" aria-label={t("Correction operation")}>
           <button
             type="button"
             className={operation === "CORRECT_CONTINUITY" ? "selected" : ""}
             disabled={working}
             onClick={() => setOperation("CORRECT_CONTINUITY")}
           >
-            Replace statement
+            {t("Replace statement")}
           </button>
           <button
             type="button"
@@ -1917,12 +2042,12 @@ export function CorrectionReviewPage(): ReactElement {
             disabled={working}
             onClick={() => setOperation("REMOVE_CONTINUITY")}
           >
-            Remove fact
+            {t("Remove fact")}
           </button>
         </div>
         {operation === "CORRECT_CONTINUITY" ? (
           <label className="field-label" htmlFor="correction-after">
-            Exact replacement statement
+            {t("Exact replacement statement")}
             <textarea
               id="correction-after"
               value={after}
@@ -1933,7 +2058,7 @@ export function CorrectionReviewPage(): ReactElement {
           </label>
         ) : null}
         <label className="field-label" htmlFor="correction-reason">
-          Reason for this direct correction
+          {t("Reason for this direct correction")}
           <textarea
             id="correction-reason"
             value={reason}
@@ -1943,8 +2068,9 @@ export function CorrectionReviewPage(): ReactElement {
           />
         </label>
         <p className="muted-copy">
-          Scope and provenance are not widened or edited by this surface. This review creates a
-          protected Action; direct confirmation is still required.
+          {t(
+            "Scope and provenance are not widened or edited by this surface. This review creates a protected Action; direct confirmation is still required.",
+          )}
         </p>
       </section>
       {error ? (
@@ -1959,13 +2085,13 @@ export function CorrectionReviewPage(): ReactElement {
           disabled={working}
           onClick={() => void submit()}
         >
-          {working ? "Preparing review…" : "Review exact correction"}
+          {working ? t("Preparing review…") : t("Review exact correction")}
         </button>
         <Link
           className="secondary-action inline-action"
           to={`/continuities/${encodeURIComponent(continuityId)}/continuity`}
         >
-          Cancel without changing truth
+          {t("Cancel without changing truth")}
         </Link>
       </div>
     </div>
@@ -2003,15 +2129,17 @@ function StudioSecret({
           checked={howToFind !== null}
           onChange={(event) =>
             onChange(
-              event.target.checked ? "Searching the right place or asking the right person." : null,
+              event.target.checked
+                ? t("Searching the right place or asking the right person.")
+                : null,
             )
           }
         />{" "}
-        Can be discovered in play
+        {t("Can be discovered in play")}
       </label>
       {howToFind !== null ? (
         <label className="field-label" htmlFor={`studio-secret-${factId}`}>
-          How it could be found
+          {t("How it could be found")}
           <textarea
             id={`studio-secret-${factId}`}
             rows={2}
@@ -2080,7 +2208,7 @@ function fallbackOrientation(
       return {
         id: readText(record, "id") ?? `relationship-${index}`,
         description:
-          readText(record, "description") ?? "A relationship is present in current state.",
+          readText(record, "description") ?? t("A relationship is present in current state."),
         ...(current ? { state: current } : {}),
       };
     }),
@@ -2088,7 +2216,7 @@ function fallbackOrientation(
     ...(data.state.threads ? { threads: data.state.threads } : {}),
     nextParticipation: {
       expectedHeadCommitId: data.continuity.headCommitId,
-      label: "Continue from the current world state with your next Action.",
+      label: t("Continue from the current world state with your next Action."),
     },
     pendingActions: [],
     freshness: {
@@ -2107,10 +2235,10 @@ function fallbackOrientation(
 }
 
 function freshnessLabel(freshness: ProjectionFreshness): string {
-  if (freshness.status === "FRESH") return "Current projection";
+  if (freshness.status === "FRESH") return t("Current projection");
   if (freshness.status === "REBUILDING")
-    return `Rebuilding · ${freshness.headDistance} head behind`;
-  return `Stale · ${freshness.headDistance} head behind`;
+    return `${t("Rebuilding")} · ${freshness.headDistance} ${t("head behind")}`;
+  return `${t("Stale")} · ${freshness.headDistance} ${t("head behind")}`;
 }
 
 function shortId(value: string): string {
@@ -2204,7 +2332,7 @@ export function WorldStudioPage(): ReactElement {
     setLoading(true);
     const result = await readWorldStudio(worldId);
     if (!result.data) {
-      setError("This World is unavailable to this account. No local draft was published.");
+      setError(t("This World is unavailable to this account. No local draft was published."));
       setLoading(false);
       return;
     }
@@ -2248,7 +2376,9 @@ export function WorldStudioPage(): ReactElement {
     try {
       await work();
     } catch {
-      setError("The Studio request could not be completed. The current Draft remains unchanged.");
+      setError(
+        t("The Studio request could not be completed. The current Draft remains unchanged."),
+      );
     } finally {
       setBusy(null);
     }
@@ -2269,11 +2399,13 @@ export function WorldStudioPage(): ReactElement {
           setUnsentAvailable(true);
           await load();
           setMessage(
-            "This Draft changed elsewhere. Your unsent edits are kept locally; review the server Draft before saving again.",
+            t(
+              "This Draft changed elsewhere. Your unsent edits are kept locally; review the server Draft before saving again.",
+            ),
           );
           return;
         }
-        setError("The Draft could not be saved. Nothing was published.");
+        setError(t("The Draft could not be saved. Nothing was published."));
         return;
       }
       setDraft(result.data.document);
@@ -2287,27 +2419,29 @@ export function WorldStudioPage(): ReactElement {
       setRestoredKey(null);
       setRestoredRaw(null);
       setUnsentAvailable(false);
-      setMessage("Draft saved. Existing Continuities remain pinned to their earlier Revision.");
+      setMessage(t("Draft saved. Existing Continuities remain pinned to their earlier Revision."));
     });
   };
 
   const validate = async (): Promise<void> => {
     if (!worldId || !studio) return;
     if (dirty) {
-      setMessage("Save this Draft before checking playability.");
+      setMessage(t("Save this Draft before checking playability."));
       return;
     }
     await run("validate", async () => {
       const result = await validateWorldDraft(worldId);
       if (!result.data) {
-        setError("Playability findings are unavailable. The Draft was not changed.");
+        setError(t("Playability findings are unavailable. The Draft was not changed."));
         return;
       }
       setValidation(result.data);
       setMessage(
         result.data.outcome === "VALID"
-          ? "This Draft can become a playable World Revision. Review the optional warnings below."
-          : "The Draft needs the fixes below before a playable Revision can be created.",
+          ? t(
+              "This Draft can become a playable World Revision. Review the optional warnings below.",
+            )
+          : t("The Draft needs the fixes below before a playable Revision can be created."),
       );
     });
   };
@@ -2319,7 +2453,7 @@ export function WorldStudioPage(): ReactElement {
       validation?.draftRowVersion !== studio.draft.rowVersion ||
       validation.outcome !== "VALID"
     ) {
-      setMessage("Save and check this Draft before creating a playable Revision.");
+      setMessage(t("Save and check this Draft before creating a playable Revision."));
       return;
     }
     await run("revision", async () => {
@@ -2327,8 +2461,10 @@ export function WorldStudioPage(): ReactElement {
       if (!result.data) {
         setError(
           result.errorCode === "STALE_DRAFT"
-            ? "The Draft changed. Reload it and review the current version before creating a Revision."
-            : "The Revision was not created.",
+            ? t(
+                "The Draft changed. Reload it and review the current version before creating a Revision.",
+              )
+            : t("The Revision was not created."),
         );
         return;
       }
@@ -2348,7 +2484,7 @@ export function WorldStudioPage(): ReactElement {
       if (result.data) {
         await navigate(`/continuities/${encodeURIComponent(result.data.continuity.id)}`);
       } else {
-        setError("The playable Revision exists, but its Continuity could not be started.");
+        setError(t("The playable Revision exists, but its Continuity could not be started."));
       }
     });
   };
@@ -2371,7 +2507,7 @@ export function WorldStudioPage(): ReactElement {
         await navigate(`/worlds/${encodeURIComponent(result.data.worldId)}/studio`);
       } else {
         setError(
-          "The starter Draft could not be created. Complete the playable core and try again.",
+          t("The starter Draft could not be created. Complete the playable core and try again."),
         );
       }
     });
@@ -2380,8 +2516,8 @@ export function WorldStudioPage(): ReactElement {
   if (loading)
     return (
       <StatusPage
-        title="Opening World Studio…"
-        copy="Reading the durable Draft and its immutable Revisions."
+        title={t("Opening World Studio…")}
+        copy={t("Reading the durable Draft and its immutable Revisions.")}
       />
     );
 
@@ -2390,13 +2526,14 @@ export function WorldStudioPage(): ReactElement {
       <header className="surface-header studio-header">
         <div>
           <Link className="back-link" to="/">
-            ← Home
+            {t("← Home")}
           </Link>
-          <p className="eyebrow">World Studio</p>
-          <h1>{isNew ? "Start a playable world" : draft.title}</h1>
+          <p className="eyebrow">{t("World Studio")}</p>
+          <h1>{isNew ? t("Start a playable world") : draft.title}</h1>
           <p className="surface-copy">
-            Build the playable core first. Deeper structure is optional, and a new Revision never
-            silently changes an existing Continuity.
+            {t(
+              "Build the playable core first. Deeper structure is optional, and a new Revision never silently changes an existing Continuity.",
+            )}
           </p>
         </div>
         {!isNew ? (
@@ -2405,7 +2542,7 @@ export function WorldStudioPage(): ReactElement {
               className="secondary-action inline-action"
               to={`/worlds/${encodeURIComponent(worldId)}/trust`}
             >
-              Trust & lifecycle
+              {t("Trust & lifecycle")}
             </Link>
             {studio?.revisions[0] ? (
               <button
@@ -2415,10 +2552,10 @@ export function WorldStudioPage(): ReactElement {
                 onClick={() => void beginPlay()}
               >
                 {busy === "play"
-                  ? "Opening…"
+                  ? t("Opening…")
                   : studio.continuities.length
-                    ? "Resume pinned Continuity"
-                    : "Begin play"}
+                    ? t("Resume pinned Continuity")
+                    : t("Begin play")}
               </button>
             ) : null}
           </div>
@@ -2440,11 +2577,12 @@ export function WorldStudioPage(): ReactElement {
         <form className="studio-grid" onSubmit={(event) => void create(event)}>
           <StudioCoreFields draft={draft} setDraft={setDraft} />
           <section className="surface-card studio-safety" aria-labelledby="new-world-safety">
-            <p className="card-label">Before you begin</p>
-            <h2 id="new-world-safety">This is a Draft, not a hidden prompt</h2>
+            <p className="card-label">{t("Before you begin")}</p>
+            <h2 id="new-world-safety">{t("This is a Draft, not a hidden prompt")}</h2>
             <p>
-              These structured values become the source for a future immutable World Revision. No
-              model call or live provider is involved.
+              {t(
+                "These structured values become the source for a future immutable World Revision. No model call or live provider is involved.",
+              )}
             </p>
             {draftProblem ? (
               <p className="action-error" id="studio-draft-problem" aria-live="polite">
@@ -2457,7 +2595,7 @@ export function WorldStudioPage(): ReactElement {
               disabled={busy !== null || draftProblem !== null}
               aria-describedby={draftProblem ? "studio-draft-problem" : undefined}
             >
-              {busy === "create" ? "Creating Draft…" : "Create Draft"}
+              {busy === "create" ? t("Creating Draft…") : t("Create Draft")}
             </button>
           </section>
         </form>
@@ -2466,10 +2604,11 @@ export function WorldStudioPage(): ReactElement {
           {unsentAvailable ? (
             <section className="studio-unsent" aria-labelledby="unsent-title">
               <div>
-                <strong id="unsent-title">Unsent edits are available on this device.</strong>
+                <strong id="unsent-title">{t("Unsent edits are available on this device.")}</strong>
                 <span>
-                  They were kept after a conflict or interrupted save; the server Draft remains the
-                  safe source.
+                  {t(
+                    "They were kept after a conflict or interrupted save; the server Draft remains the safe source.",
+                  )}
                 </span>
               </div>
               <button
@@ -2484,7 +2623,9 @@ export function WorldStudioPage(): ReactElement {
                     setRestoredRaw(local.raw);
                     setUnsentAvailable(false);
                     setMessage(
-                      "Unsent edits restored locally. Save them intentionally after reviewing the current Draft.",
+                      t(
+                        "Unsent edits restored locally. Save them intentionally after reviewing the current Draft.",
+                      ),
                     );
                   } catch {
                     localStorage.removeItem(unsentKey);
@@ -2495,7 +2636,7 @@ export function WorldStudioPage(): ReactElement {
                   }
                 }}
               >
-                Restore unsent edits
+                {t("Restore unsent edits")}
               </button>
             </section>
           ) : null}
@@ -2505,11 +2646,12 @@ export function WorldStudioPage(): ReactElement {
               className="surface-card studio-readiness"
               aria-labelledby="studio-readiness-title"
             >
-              <p className="card-label">Readiness</p>
-              <h2 id="studio-readiness-title">Make the play effect visible</h2>
+              <p className="card-label">{t("Readiness")}</p>
+              <h2 id="studio-readiness-title">{t("Make the play effect visible")}</h2>
               <p>
-                Save the Draft, then run a server-side playability check. Findings explain what a
-                player will experience.
+                {t(
+                  "Save the Draft, then run a server-side playability check. Findings explain what a player will experience.",
+                )}
               </p>
               {draftProblem ? (
                 <p className="action-error" id="studio-draft-problem" aria-live="polite">
@@ -2524,7 +2666,7 @@ export function WorldStudioPage(): ReactElement {
                   aria-describedby={draftProblem ? "studio-draft-problem" : undefined}
                   onClick={() => void save()}
                 >
-                  {busy === "save" ? "Saving…" : "Save Draft"}
+                  {busy === "save" ? "Saving…" : t("Save Draft")}
                 </button>
                 <button
                   className="secondary-action"
@@ -2532,7 +2674,7 @@ export function WorldStudioPage(): ReactElement {
                   disabled={busy !== null || dirty}
                   onClick={() => void validate()}
                 >
-                  {busy === "validate" ? "Checking…" : "Check playability"}
+                  {busy === "validate" ? "Checking…" : t("Check playability")}
                 </button>
                 <button
                   className="primary-action"
@@ -2545,32 +2687,36 @@ export function WorldStudioPage(): ReactElement {
                   }
                   onClick={() => void createRevision()}
                 >
-                  {busy === "revision" ? "Creating Revision…" : "Create playable Revision"}
+                  {busy === "revision" ? t("Creating Revision…") : t("Create playable Revision")}
                 </button>
               </div>
               {validation ? (
                 <ValidationFindings validation={validation} />
               ) : (
-                <p className="empty-state">No check has been run for this Draft version yet.</p>
+                <p className="empty-state">
+                  {t("No check has been run for this Draft version yet.")}
+                </p>
               )}
             </section>
             <section
               className="surface-card studio-optional"
               aria-labelledby="studio-optional-title"
             >
-              <p className="card-label">Optional depth</p>
-              <h2 id="studio-optional-title">Reveal more control only when it helps play</h2>
+              <p className="card-label">{t("Optional depth")}</p>
+              <h2 id="studio-optional-title">{t("Reveal more control only when it helps play")}</h2>
               <details>
-                <summary>Preview the first scene</summary>
+                <summary>{t("Preview the first scene")}</summary>
                 <p>
-                  This local preview is read-only. It does not create a Continuity or call a model.
+                  {t(
+                    "This local preview is read-only. It does not create a Continuity or call a model.",
+                  )}
                 </p>
                 <button
                   className="secondary-action"
                   type="button"
                   onClick={() => setPreviewOpen((open) => !open)}
                 >
-                  {previewOpen ? "Hide preview" : "Preview playable start"}
+                  {previewOpen ? t("Hide preview") : t("Preview playable start")}
                 </button>
                 {previewOpen ? (
                   <div className="studio-preview">
@@ -2584,27 +2730,32 @@ export function WorldStudioPage(): ReactElement {
                 ) : null}
               </details>
               <p className="muted-copy">
-                Goals, sharing and professional engine controls are not part of this Studio path.
+                {t(
+                  "Goals, sharing and professional engine controls are not part of this Studio path.",
+                )}
               </p>
             </section>
             <section
               className="surface-card studio-revisions"
               aria-labelledby="studio-revisions-title"
             >
-              <p className="card-label">Change safety</p>
-              <h2 id="studio-revisions-title">Draft and playable versions stay distinct</h2>
+              <p className="card-label">{t("Change safety")}</p>
+              <h2 id="studio-revisions-title">{t("Draft and playable versions stay distinct")}</h2>
               <p>
-                Existing Continuities remain pinned to their recorded Revision. Creating a newer
-                Revision is an explicit future starting point.
+                {t(
+                  "Existing Continuities remain pinned to their recorded Revision. Creating a newer Revision is an explicit future starting point.",
+                )}
               </p>
               <ul className="revision-list">
                 {studio.revisions.length ? (
                   studio.revisions.map((revision) => (
                     <li key={revision.revisionId}>
-                      <strong>Revision {revision.revisionNumber}</strong>
+                      <strong>
+                        {t("Revision")} {revision.revisionNumber}
+                      </strong>
                       <span>
-                        Source Draft v{revision.sourceDraftRowVersion} · immutable playable
-                        definition
+                        {t("Source Draft v")}
+                        {revision.sourceDraftRowVersion} {t("· immutable playable definition")}
                       </span>
                       {studio.continuities
                         .filter((continuity) => continuity.worldRevisionId === revision.revisionId)
@@ -2613,7 +2764,7 @@ export function WorldStudioPage(): ReactElement {
                             key={continuity.continuityId}
                             to={`/continuities/${encodeURIComponent(continuity.continuityId)}`}
                           >
-                            Pinned Continuity · open current path
+                            {t("Pinned Continuity · open current path")}
                           </Link>
                         ))}
                       {!studio.continuities.some(
@@ -2626,15 +2777,15 @@ export function WorldStudioPage(): ReactElement {
                           onClick={() => void beginFromRevision(revision.revisionId)}
                         >
                           {busy === "play"
-                            ? "Opening…"
-                            : `Begin from Revision ${revision.revisionNumber}`}
+                            ? t("Opening…")
+                            : `${t("Begin from Revision")} ${revision.revisionNumber}`}
                         </button>
                       ) : null}
                     </li>
                   ))
                 ) : (
                   <li>
-                    <span>No playable Revision yet. The current Draft is not applied.</span>
+                    <span>{t("No playable Revision yet. The current Draft is not applied.")}</span>
                   </li>
                 )}
               </ul>
@@ -2686,7 +2837,7 @@ function StudioCoreFields({
         {
           id: crypto.randomUUID(),
           name: `Place ${current.locations.length + 1}`,
-          description: "Describe what makes this place matter to play.",
+          description: t("Describe what makes this place matter to play."),
         },
       ],
     }));
@@ -2714,10 +2865,10 @@ function StudioCoreFields({
         {
           id: crypto.randomUUID(),
           name: `Character ${current.characters.length + 1}`,
-          role: "A person with a reason to be here",
+          role: t("A person with a reason to be here"),
           locationId: current.locations[0]!.id,
-          motives: ["Act consistently with this role."],
-          stance: "May disagree or refuse when their motives require it.",
+          motives: [t("Act consistently with this role.")],
+          stance: t("May disagree or refuse when their motives require it."),
           knowledgeFactIds: [],
         },
       ],
@@ -2742,9 +2893,9 @@ function StudioCoreFields({
         ...current.facts,
         {
           id: crypto.randomUUID(),
-          statement: "A stable fact that should remain true at the start.",
+          statement: t("A stable fact that should remain true at the start."),
           scope: "SHARED",
-          provenance: "World creator Draft",
+          provenance: t("World creator Draft"),
           lifecycle: "ACTIVE",
         },
       ],
@@ -2810,7 +2961,11 @@ function StudioCoreFields({
         ...current,
         routineRoutes: [
           ...(current.routineRoutes ?? []),
-          { fromLocationId: from.id, toLocationId: to.id, label: "A route between these places." },
+          {
+            fromLocationId: from.id,
+            toLocationId: to.id,
+            label: t("A route between these places."),
+          },
         ],
       };
     });
@@ -2826,7 +2981,7 @@ function StudioCoreFields({
             id: crypto.randomUUID(),
             fromCharacterId: from.id,
             toCharacterId: to.id,
-            description: "Describe what connects these Characters.",
+            description: t("Describe what connects these Characters."),
           },
         ],
       };
@@ -2872,10 +3027,10 @@ function StudioCoreFields({
   };
   return (
     <section className="surface-card studio-core" aria-labelledby="studio-core-title">
-      <p className="card-label">Playable core</p>
-      <h2 id="studio-core-title">Edit only what matters for the first scene</h2>
+      <p className="card-label">{t("Playable core")}</p>
+      <h2 id="studio-core-title">{t("Edit only what matters for the first scene")}</h2>
       <label className="field-label" htmlFor="studio-title">
-        World title
+        {t("World title")}
         <input
           id="studio-title"
           value={draft.title}
@@ -2883,7 +3038,7 @@ function StudioCoreFields({
         />
       </label>
       <label className="field-label" htmlFor="studio-premise">
-        Premise
+        {t("Premise")}
         <textarea
           id="studio-premise"
           rows={3}
@@ -2892,7 +3047,7 @@ function StudioCoreFields({
         />
       </label>
       <label className="field-label" htmlFor="studio-situation">
-        Starting situation
+        {t("Starting situation")}
         <textarea
           id="studio-situation"
           rows={3}
@@ -2904,7 +3059,7 @@ function StudioCoreFields({
       </label>
       <div className="studio-field-grid">
         <label className="field-label" htmlFor="studio-role">
-          Your role
+          {t("Your role")}
           <input
             id="studio-role"
             value={draft.userRole.name}
@@ -2917,7 +3072,7 @@ function StudioCoreFields({
           />
         </label>
         <label className="field-label" htmlFor="studio-boundary">
-          Authority boundary
+          {t("Authority boundary")}
           <input
             id="studio-boundary"
             value={draft.userRole.authorityBoundary}
@@ -2931,16 +3086,18 @@ function StudioCoreFields({
         </label>
       </div>
       <details className="studio-details" open>
-        <summary>Places and Characters</summary>
+        <summary>{t("Places and Characters")}</summary>
         <p className="muted-copy">
-          Add only the structure that changes how the first scene can play.
+          {t("Add only the structure that changes how the first scene can play.")}
         </p>
         {draft.locations.map((location, index) => (
           <fieldset className="studio-repeatable" key={location.id}>
-            <legend>Place {index + 1}</legend>
+            <legend>
+              {t("Place")} {index + 1}
+            </legend>
             <div className="studio-field-grid">
               <label className="field-label" htmlFor={`studio-location-name-${location.id}`}>
-                Name
+                {t("Name")}
                 <input
                   id={`studio-location-name-${location.id}`}
                   value={location.name}
@@ -2948,7 +3105,7 @@ function StudioCoreFields({
                 />
               </label>
               <label className="field-label" htmlFor={`studio-location-description-${location.id}`}>
-                Description
+                {t("Description")}
                 <input
                   id={`studio-location-description-${location.id}`}
                   value={location.description}
@@ -2964,19 +3121,21 @@ function StudioCoreFields({
               disabled={draft.locations.length === 1}
               onClick={() => removeLocation(location.id)}
             >
-              Remove place
+              {t("Remove place")}
             </button>
           </fieldset>
         ))}
         <button className="secondary-action" type="button" onClick={addLocation}>
-          Add place
+          {t("Add place")}
         </button>
         {draft.characters.map((character, index) => (
           <fieldset className="studio-repeatable" key={character.id}>
-            <legend>Character {index + 1}</legend>
+            <legend>
+              {t("Character")} {index + 1}
+            </legend>
             <div className="studio-field-grid">
               <label className="field-label" htmlFor={`studio-character-name-${character.id}`}>
-                Name
+                {t("Name")}
                 <input
                   id={`studio-character-name-${character.id}`}
                   value={character.name}
@@ -2984,7 +3143,7 @@ function StudioCoreFields({
                 />
               </label>
               <label className="field-label" htmlFor={`studio-character-role-${character.id}`}>
-                Role
+                {t("Role")}
                 <input
                   id={`studio-character-role-${character.id}`}
                   value={character.role}
@@ -2993,7 +3152,7 @@ function StudioCoreFields({
               </label>
             </div>
             <label className="field-label" htmlFor={`studio-character-location-${character.id}`}>
-              Starts at
+              {t("Starts at")}
               <select
                 id={`studio-character-location-${character.id}`}
                 value={character.locationId}
@@ -3009,7 +3168,7 @@ function StudioCoreFields({
               </select>
             </label>
             <label className="field-label" htmlFor={`studio-character-motives-${character.id}`}>
-              Motives (one per line)
+              {t("Motives (one per line)")}
               <textarea
                 id={`studio-character-motives-${character.id}`}
                 rows={2}
@@ -3020,7 +3179,7 @@ function StudioCoreFields({
               />
             </label>
             <label className="field-label" htmlFor={`studio-character-stance-${character.id}`}>
-              Stance
+              {t("Stance")}
               <textarea
                 id={`studio-character-stance-${character.id}`}
                 rows={2}
@@ -3029,7 +3188,7 @@ function StudioCoreFields({
               />
             </label>
             <fieldset className="studio-checks">
-              <legend>Knowledge</legend>
+              <legend>{t("Knowledge")}</legend>
               {draft.facts.map((fact) => (
                 <label key={fact.id}>
                   <input
@@ -3053,21 +3212,23 @@ function StudioCoreFields({
               disabled={draft.characters.length === 1}
               onClick={() => removeCharacter(character.id)}
             >
-              Remove Character
+              {t("Remove Character")}
             </button>
           </fieldset>
         ))}
         <button className="secondary-action" type="button" onClick={addCharacter}>
-          Add Character
+          {t("Add Character")}
         </button>
       </details>
       <details className="studio-details">
-        <summary>Facts, routes, relationships and boundaries</summary>
+        <summary>{t("Facts, routes, relationships and boundaries")}</summary>
         {draft.facts.map((fact, index) => (
           <fieldset className="studio-repeatable" key={fact.id}>
-            <legend>Fact {index + 1}</legend>
+            <legend>
+              {t("Fact")} {index + 1}
+            </legend>
             <label className="field-label" htmlFor={`studio-fact-${fact.id}`}>
-              Statement
+              {t("Statement")}
               <textarea
                 id={`studio-fact-${fact.id}`}
                 rows={2}
@@ -3077,7 +3238,7 @@ function StudioCoreFields({
             </label>
             <div className="studio-field-grid">
               <label className="field-label" htmlFor={`studio-provenance-${fact.id}`}>
-                Provenance
+                {t("Provenance")}
                 <input
                   id={`studio-provenance-${fact.id}`}
                   value={fact.provenance}
@@ -3085,7 +3246,7 @@ function StudioCoreFields({
                 />
               </label>
               <label className="field-label" htmlFor={`studio-scope-${fact.id}`}>
-                Scope
+                {t("Scope")}
                 <select
                   id={`studio-scope-${fact.id}`}
                   value={fact.scope}
@@ -3093,9 +3254,9 @@ function StudioCoreFields({
                     updateFactScope(fact.id, event.target.value as typeof fact.scope)
                   }
                 >
-                  <option value="SHARED">Shared</option>
-                  <option value="CONTINUITY_PRIVATE">Continuity private</option>
-                  <option value="ACCOUNT_PRIVATE">Account private</option>
+                  <option value="SHARED">{t("Shared")}</option>
+                  <option value="CONTINUITY_PRIVATE">{t("Continuity private")}</option>
+                  <option value="ACCOUNT_PRIVATE">{t("Account private")}</option>
                 </select>
               </label>
             </div>
@@ -3115,19 +3276,20 @@ function StudioCoreFields({
               disabled={draft.facts.length === 1}
               onClick={() => removeFact(fact.id)}
             >
-              Remove fact
+              {t("Remove fact")}
             </button>
           </fieldset>
         ))}
         <button className="secondary-action" type="button" onClick={addFact}>
-          Add fact
+          {t("Add fact")}
         </button>
-        <h3>Routine routes</h3>
+        <h3>{t("Routine routes")}</h3>
         <fieldset className="studio-checks">
-          <legend>Who may move</legend>
+          <legend>{t("Who may move")}</legend>
           <p className="muted-copy">
-            Only the Characters you tick may move, and only along routes you open to them below. The
-            player's own role never moves on its own.
+            {t(
+              "Only the Characters you tick may move, and only along routes you open to them below. The player's own role never moves on its own.",
+            )}
           </p>
           {draft.characters.map((character) => (
             <label key={character.id}>
@@ -3154,10 +3316,12 @@ function StudioCoreFields({
             className="studio-repeatable"
             key={`${route.fromLocationId}-${route.toLocationId}-${index}`}
           >
-            <legend>Route {index + 1}</legend>
+            <legend>
+              {t("Route")} {index + 1}
+            </legend>
             <div className="studio-field-grid">
               <label className="field-label">
-                From
+                {t("From")}
                 <select
                   value={route.fromLocationId}
                   onChange={(event) =>
@@ -3179,7 +3343,7 @@ function StudioCoreFields({
                 </select>
               </label>
               <label className="field-label">
-                To
+                {t("To")}
                 <select
                   value={route.toLocationId}
                   onChange={(event) =>
@@ -3200,7 +3364,7 @@ function StudioCoreFields({
               </label>
             </div>
             <label className="field-label">
-              What changes along this route?
+              {t("What changes along this route?")}
               <input
                 value={route.label}
                 onChange={(event) =>
@@ -3228,7 +3392,7 @@ function StudioCoreFields({
                   }))
                 }
               />
-              Characters above may use this route on their own (one way:{" "}
+              {t("Characters above may use this route on their own (one way:")}{" "}
               {draft.locations.find((location) => location.id === route.fromLocationId)?.name ??
                 "from"}{" "}
               →{" "}
@@ -3247,7 +3411,7 @@ function StudioCoreFields({
                 }))
               }
             >
-              Remove route
+              {t("Remove route")}
             </button>
           </fieldset>
         ))}
@@ -3257,15 +3421,17 @@ function StudioCoreFields({
           disabled={draft.locations.length < 2}
           onClick={addRoute}
         >
-          Add route
+          {t("Add route")}
         </button>
-        <h3>Character relationships</h3>
+        <h3>{t("Character relationships")}</h3>
         {(draft.relationships ?? []).map((relationship, index) => (
           <fieldset className="studio-repeatable" key={relationship.id}>
-            <legend>Relationship {index + 1}</legend>
+            <legend>
+              {t("Relationship")} {index + 1}
+            </legend>
             <div className="studio-field-grid">
               <label className="field-label">
-                From
+                {t("From")}
                 <select
                   value={relationship.fromCharacterId}
                   onChange={(event) =>
@@ -3287,7 +3453,7 @@ function StudioCoreFields({
                 </select>
               </label>
               <label className="field-label">
-                To
+                {t("To")}
                 <select
                   value={relationship.toCharacterId}
                   onChange={(event) =>
@@ -3310,7 +3476,7 @@ function StudioCoreFields({
               </label>
             </div>
             <label className="field-label">
-              Description
+              {t("Description")}
               <input
                 value={relationship.description}
                 onChange={(event) =>
@@ -3326,7 +3492,7 @@ function StudioCoreFields({
               />
             </label>
             <fieldset className="studio-checks">
-              <legend>Changes during play</legend>
+              <legend>{t("Changes during play")}</legend>
               <label>
                 <input
                   type="radio"
@@ -3336,7 +3502,7 @@ function StudioCoreFields({
                     updateRelationship(index, () => ({ scale: undefined, initialState: undefined }))
                   }
                 />
-                No, it stays as described
+                {t("No, it stays as described")}
               </label>
               <label>
                 <input
@@ -3345,17 +3511,17 @@ function StudioCoreFields({
                   checked={Boolean(relationship.scale)}
                   onChange={() => setStart(index, 1, ["distant", "neutral", "close"])}
                 />
-                Yes, it can move between named states
+                {t("Yes, it can move between named states")}
               </label>
             </fieldset>
             {relationship.scale ? (
               <>
                 <fieldset className="studio-checks">
-                  <legend>States, in order</legend>
+                  <legend>{t("States, in order")}</legend>
                   {relationship.scale.map((state, stateIndex) => (
                     <div className="studio-field-grid" key={stateIndex}>
                       <label className="field-label">
-                        State {stateIndex + 1}
+                        {t("State")} {stateIndex + 1}
                         <input
                           value={state}
                           maxLength={60}
@@ -3368,7 +3534,7 @@ function StudioCoreFields({
                         disabled={relationship.scale!.length <= 2}
                         onClick={() => removeState(index, stateIndex)}
                       >
-                        Remove state {stateIndex + 1}
+                        {t("Remove state")} {stateIndex + 1}
                       </button>
                     </div>
                   ))}
@@ -3382,12 +3548,12 @@ function StudioCoreFields({
                       }))
                     }
                   >
-                    Add state
+                    {t("Add state")}
                   </button>
                 </fieldset>
                 <div className="studio-field-grid">
                   <label className="field-label">
-                    Starting state
+                    {t("Starting state")}
                     <select
                       value={relationship.initialState}
                       onChange={(event) =>
@@ -3396,13 +3562,13 @@ function StudioCoreFields({
                     >
                       {relationship.scale.map((state, stateIndex) => (
                         <option key={stateIndex} value={state}>
-                          {state || `State ${stateIndex + 1}`}
+                          {state || `${t("State")} ${stateIndex + 1}`}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label className="field-label">
-                    How a change is confirmed
+                    {t("How a change is confirmed")}
                     <select
                       value={relationship.protection ?? "PROTECTED"}
                       onChange={(event) =>
@@ -3411,9 +3577,11 @@ function StudioCoreFields({
                         }))
                       }
                     >
-                      <option value="ROUTINE">Routine: one step is an ordinary confirmation</option>
+                      <option value="ROUTINE">
+                        {t("Routine: one step is an ordinary confirmation")}
+                      </option>
                       <option value="PROTECTED">
-                        Protected: any change needs a high-consequence confirmation
+                        {t("Protected: any change needs a high-consequence confirmation")}
                       </option>
                     </select>
                   </label>
@@ -3432,7 +3600,7 @@ function StudioCoreFields({
                 }))
               }
             >
-              Remove relationship
+              {t("Remove relationship")}
             </button>
           </fieldset>
         ))}
@@ -3442,17 +3610,19 @@ function StudioCoreFields({
           disabled={draft.characters.length < 2}
           onClick={addRelationship}
         >
-          Add relationship
+          {t("Add relationship")}
         </button>
-        <h3>Story threads at the start</h3>
+        <h3>{t("Story threads at the start")}</h3>
         <p className="muted-copy">
-          Open questions the story can resolve during play. Each starts open.
+          {t("Open questions the story can resolve during play. Each starts open.")}
         </p>
         {(draft.threads ?? []).map((thread, index) => (
           <fieldset className="studio-repeatable" key={thread.id}>
-            <legend>Thread {index + 1}</legend>
+            <legend>
+              {t("Thread")} {index + 1}
+            </legend>
             <label className="field-label">
-              Title
+              {t("Title")}
               <input
                 value={thread.title}
                 maxLength={200}
@@ -3478,7 +3648,7 @@ function StudioCoreFields({
                 }))
               }
             >
-              Remove thread
+              {t("Remove thread")}
             </button>
           </fieldset>
         ))}
@@ -3490,23 +3660,26 @@ function StudioCoreFields({
               ...current,
               threads: [
                 ...(current.threads ?? []),
-                { id: crypto.randomUUID(), title: "A question the story can answer." },
+                { id: crypto.randomUUID(), title: t("A question the story can answer.") },
               ],
             }))
           }
         >
-          Add story thread
+          {t("Add story thread")}
         </button>
-        <h3>World rules</h3>
+        <h3>{t("World rules")}</h3>
         <p className="muted-copy">
-          When an Action runs into a rule, the world can turn the attempt into a different outcome
-          and open a new thread. You confirm it before it counts.
+          {t(
+            "When an Action runs into a rule, the world can turn the attempt into a different outcome and open a new thread. You confirm it before it counts.",
+          )}
         </p>
         {(draft.constraints ?? []).map((constraint, index) => (
           <fieldset className="studio-repeatable" key={constraint.id}>
-            <legend>Rule {index + 1}</legend>
+            <legend>
+              {t("Rule")} {index + 1}
+            </legend>
             <label className="field-label">
-              Rule
+              {t("Rule")}
               <textarea
                 rows={2}
                 maxLength={4000}
@@ -3533,7 +3706,7 @@ function StudioCoreFields({
                 }))
               }
             >
-              Remove rule
+              {t("Remove rule")}
             </button>
           </fieldset>
         ))}
@@ -3547,16 +3720,16 @@ function StudioCoreFields({
                 ...(current.constraints ?? []),
                 {
                   id: crypto.randomUUID(),
-                  statement: "Describe something this world does not allow.",
+                  statement: t("Describe something this world does not allow."),
                 },
               ],
             }))
           }
         >
-          Add world rule
+          {t("Add world rule")}
         </button>
         <label className="field-label" htmlFor="studio-paths">
-          Interaction paths
+          {t("Interaction paths")}
           <textarea
             id="studio-paths"
             rows={3}
@@ -3567,7 +3740,7 @@ function StudioCoreFields({
           />
         </label>
         <label className="field-label" htmlFor="studio-boundaries">
-          Interaction boundaries
+          {t("Interaction boundaries")}
           <textarea
             id="studio-boundaries"
             rows={3}
@@ -3581,7 +3754,7 @@ function StudioCoreFields({
           />
         </label>
         <label className="field-label" htmlFor="studio-objectives">
-          Optional objectives
+          {t("Optional objectives")}
           <textarea
             id="studio-objectives"
             rows={2}
@@ -3597,21 +3770,21 @@ function StudioCoreFields({
 }
 
 const findingAreas: Record<string, string> = {
-  characters: "Character",
-  locations: "Place",
-  facts: "Fact",
-  relationships: "Relationship",
-  threads: "Story thread",
-  constraints: "World rule",
-  objectives: "Goals",
-  routineRoutes: "Route",
-  routineMovers: "Who may move",
+  characters: t("Character"),
+  locations: t("Place"),
+  facts: t("Fact"),
+  relationships: t("Relationship"),
+  threads: t("Story thread"),
+  constraints: t("World rule"),
+  objectives: t("Goals"),
+  routineRoutes: t("Route"),
+  routineMovers: t("Who may move"),
 };
 
 /** PX-1: name the Studio area a finding is about, not its internal path. */
 function findingArea(path: string): string {
   const [area = "", index] = path.split(".");
-  const label = findingAreas[area] ?? "World";
+  const label = findingAreas[area] ?? t("World");
   return index !== undefined && /^\d+$/.test(index) ? `${label} ${Number(index) + 1}` : label;
 }
 
@@ -3620,24 +3793,26 @@ function ValidationFindings({ validation }: { validation: WorldValidationRespons
     <div className={`validation-findings validation-${validation.outcome.toLowerCase()}`}>
       <strong>
         {validation.outcome === "VALID"
-          ? "Playable shape accepted"
-          : "Playable shape needs attention"}
+          ? t("Playable shape accepted")
+          : t("Playable shape needs attention")}
       </strong>
       {validation.findings.length ? (
         <ul>
           {validation.findings.map((finding, index) => (
             <li key={`${finding.path}:${index}`}>
               <strong>
-                {finding.severity === "ERROR" ? "Blocks Revision" : "Optional warning"} ·{" "}
+                {finding.severity === "ERROR" ? t("Blocks Revision") : t("Optional warning")} ·{" "}
                 {findingArea(finding.path)}
               </strong>
               <span>{finding.message}</span>
-              <small>Play effect: {finding.playEffect}</small>
+              <small>
+                {t("Play effect:")} {finding.playEffect}
+              </small>
             </li>
           ))}
         </ul>
       ) : (
-        <p>No findings for this Draft version.</p>
+        <p>{t("No findings for this Draft version.")}</p>
       )}
     </div>
   );
@@ -3647,25 +3822,25 @@ function ValidationFindings({ validation }: { validation: WorldValidationRespons
 // stay the only validation truth for everything else.
 function studioDraftProblem(draft: WorldDocumentInput): string | null {
   if (draft.relationships.some((item) => item.scale?.some((state) => !state.trim())))
-    return "Name every relationship state before saving.";
+    return t("Name every relationship state before saving.");
   if (
     draft.relationships.some(
       (item) =>
         item.scale && new Set(item.scale.map((state) => state.trim())).size !== item.scale.length,
     )
   )
-    return "Give each relationship state a different name before saving.";
+    return t("Give each relationship state a different name before saving.");
   if (
     Boolean(draft.routineMovers?.length) !==
     Boolean(draft.routineRoutes?.some((route) => route.permitsRoutineMovement === true))
   )
     return draft.routineMovers?.length
-      ? "Open at least one route to the Characters who move on their own, or untick them."
-      : "Tick at least one Character who may use the open routes, or close the routes.";
+      ? t("Open at least one route to the Characters who move on their own, or untick them.")
+      : t("Tick at least one Character who may use the open routes, or close the routes.");
   if (draft.threads?.some((thread) => !thread.title.trim()))
-    return "Give every story thread a title before saving.";
+    return t("Give every story thread a title before saving.");
   if (draft.constraints?.some((rule) => !rule.statement.trim()))
-    return "Write every world rule before saving.";
+    return t("Write every world rule before saving.");
   return null;
 }
 
@@ -3675,51 +3850,53 @@ function starterWorld(): WorldDocumentInput {
   const factId = crypto.randomUUID();
   return {
     schemaVersion: 1,
-    title: "A new world",
-    premise: "A place with room for a continuing story.",
-    startingSituation: "Something has changed, and the first choice is yours.",
+    title: t("A new world"),
+    premise: t("A place with room for a continuing story."),
+    startingSituation: t("Something has changed, and the first choice is yours."),
     userRole: {
       name: "Witness",
-      authorityBoundary: "The world never authors my speech or commitments.",
+      authorityBoundary: t("The world never authors my speech or commitments."),
     },
     locations: [
       {
         id: locationId,
-        name: "The starting place",
-        description: "A place where the first scene can begin.",
+        name: t("The starting place"),
+        description: t("A place where the first scene can begin."),
       },
     ],
     characters: [
       {
         id: characterId,
-        name: "A local guide",
-        role: "A person who knows this place",
+        name: t("A local guide"),
+        role: t("A person who knows this place"),
         locationId,
-        motives: ["Act consistently with this role."],
-        stance: "May disagree or refuse when their motives require it.",
+        motives: [t("Act consistently with this role.")],
+        stance: t("May disagree or refuse when their motives require it."),
         knowledgeFactIds: [factId],
       },
     ],
     facts: [
       {
         id: factId,
-        statement: "The first scene is ready to unfold.",
+        statement: t("The first scene is ready to unfold."),
         scope: "SHARED",
-        provenance: "World creator Draft",
+        provenance: t("World creator Draft"),
         lifecycle: "ACTIVE",
       },
     ],
     relationships: [],
-    interactionPaths: ["Look around and choose what to follow."],
-    interactionBoundaries: ["The world never authors the user's speech, consent or commitments."],
+    interactionPaths: [t("Look around and choose what to follow.")],
+    interactionBoundaries: [
+      t("The world never authors the user's speech, consent or commitments."),
+    ],
     objectives: [],
   };
 }
 
 const consentLabels = {
-  TERMS: "Terms and ownership boundary",
-  PRIVACY: "Privacy and retention notice",
-  CONTENT_BOUNDARIES: "Content and participation boundaries",
+  TERMS: t("Terms and ownership boundary"),
+  PRIVACY: t("Privacy and retention notice"),
+  CONTENT_BOUNDARIES: t("Content and participation boundaries"),
 } as const;
 
 export function TrustLifecyclePage(): ReactElement {
@@ -3751,7 +3928,7 @@ export function TrustLifecyclePage(): ReactElement {
       setTrust(result.data);
       setError(null);
     } else {
-      setError("Trust and lifecycle information is unavailable. No World data was changed.");
+      setError(t("Trust and lifecycle information is unavailable. No World data was changed."));
     }
     setLoading(false);
   };
@@ -3771,7 +3948,7 @@ export function TrustLifecyclePage(): ReactElement {
     try {
       await work();
     } catch {
-      setError("The request could not be completed. Existing World state remains unchanged.");
+      setError(t("The request could not be completed. Existing World state remains unchanged."));
     } finally {
       setBusy(null);
     }
@@ -3783,7 +3960,7 @@ export function TrustLifecyclePage(): ReactElement {
     if (!result.data) return;
     // Storing the export settles its reservation on the server.
     if (result.data.status === "READY") {
-      setMessage("Export ready. The in-product World remains unchanged.");
+      setMessage(t("Export ready. The in-product World remains unchanged."));
     }
     setExported(result.data);
   };
@@ -3805,22 +3982,22 @@ export function TrustLifecyclePage(): ReactElement {
   }, [pendingExportId]);
 
   if (!worldId)
-    return <StatusPage title="This path is incomplete" copy="A World id is required." />;
+    return <StatusPage title={t("This path is incomplete")} copy={t("A World id is required.")} />;
   if (loading)
     return (
       <StatusPage
-        title="Opening Trust & lifecycle…"
-        copy="Reading current access, consent and ownership records."
+        title={t("Opening Trust & lifecycle…")}
+        copy={t("Reading current access, consent and ownership records.")}
       />
     );
   if (!trust)
     return (
       <StatusPage
-        title="Trust information is unavailable"
-        copy={error ?? "No lifecycle operation was performed."}
+        title={t("Trust information is unavailable")}
+        copy={error ?? t("No lifecycle operation was performed.")}
       >
         <Link className="secondary-action inline-action" to={`/worlds/${worldId}/studio`}>
-          Return to Studio
+          {t("Return to Studio")}
         </Link>
       </StatusPage>
     );
@@ -3830,13 +4007,14 @@ export function TrustLifecyclePage(): ReactElement {
       <header className="surface-header">
         <div>
           <Link className="back-link" to={`/worlds/${encodeURIComponent(worldId)}/studio`}>
-            ← Back to World Studio
+            {t("← Back to World Studio")}
           </Link>
-          <p className="eyebrow">Trust & lifecycle</p>
-          <h1>Ownership, portability and exit</h1>
+          <p className="eyebrow">{t("Trust & lifecycle")}</p>
+          <h1>{t("Ownership, portability and exit")}</h1>
           <p className="surface-copy">
-            Review who can act, what an export contains, and what deletion will close before making
-            a consequential choice.
+            {t(
+              "Review who can act, what an export contains, and what deletion will close before making a consequential choice.",
+            )}
           </p>
         </div>
       </header>
@@ -3854,32 +4032,35 @@ export function TrustLifecyclePage(): ReactElement {
 
       <div className="trust-grid">
         <section className="surface-card" aria-labelledby="access-title">
-          <p className="card-label">Current account and World</p>
-          <h2 id="access-title">Access is explicit</h2>
+          <p className="card-label">{t("Current account and World")}</p>
+          <h2 id="access-title">{t("Access is explicit")}</h2>
           <dl className="trust-facts">
             <div>
-              <dt>Eligibility</dt>
+              <dt>{t("Eligibility")}</dt>
               <dd>{trust.me.reasonCode?.replaceAll("_", " ") ?? trust.me.eligibility}</dd>
             </div>
             <div>
-              <dt>Access</dt>
+              <dt>{t("Access")}</dt>
               <dd>{trust.access.accessLevel}</dd>
             </div>
             <div>
-              <dt>Visibility</dt>
+              <dt>{t("Visibility")}</dt>
               <dd>{trust.access.visibility.replaceAll("_", " ")}</dd>
             </div>
           </dl>
           <p>{trust.access.explanation}</p>
           <p className="boundary-note">
-            World ownership or a World grant never grants another account access to a private
-            Continuity.
+            {t(
+              "World ownership or a World grant never grants another account access to a private Continuity.",
+            )}
           </p>
         </section>
 
         <section className="surface-card" aria-labelledby="consent-title">
-          <p className="card-label">Policy {trust.consents.policyVersion}</p>
-          <h2 id="consent-title">Consent records</h2>
+          <p className="card-label">
+            {t("Policy")} {trust.consents.policyVersion}
+          </p>
+          <h2 id="consent-title">{t("Consent records")}</h2>
           <ul className="trust-list">
             {Object.entries(consentLabels).map(([type, label]) => {
               const consentType = type as keyof typeof consentLabels;
@@ -3907,7 +4088,7 @@ export function TrustLifecyclePage(): ReactElement {
                           decision: current?.decision === "GRANTED" ? "WITHDRAWN" : "GRANTED",
                         });
                         if (!result.data) {
-                          setError("The consent record was not changed.");
+                          setError(t("The consent record was not changed."));
                           return;
                         }
                         await reload();
@@ -3915,7 +4096,7 @@ export function TrustLifecyclePage(): ReactElement {
                       })
                     }
                   >
-                    {current?.decision === "GRANTED" ? "Withdraw" : "Grant"}
+                    {current?.decision === "GRANTED" ? t("Withdraw") : t("Grant")}
                   </button>
                 </li>
               );
@@ -3924,15 +4105,15 @@ export function TrustLifecyclePage(): ReactElement {
         </section>
 
         <section className="surface-card trust-wide" aria-labelledby="export-title">
-          <p className="card-label">Selected-scope portable ZIP</p>
-          <h2 id="export-title">Export a readable copy</h2>
+          <p className="card-label">{t("Selected-scope portable ZIP")}</p>
+          <h2 id="export-title">{t("Export a readable copy")}</h2>
           <p>
-            The package includes only selected owner-authorized World data, a versioned manifest and
-            checksums. It excludes provider prompts, API keys and other accounts’ private data.
-            Secrets you wrote into your worlds are included, even ones not yet discovered in play.
+            {t(
+              "The package includes only selected owner-authorized World data, a versioned manifest and checksums. It excludes provider prompts, API keys and other accounts’ private data. Secrets you wrote into your worlds are included, even ones not yet discovered in play.",
+            )}
           </p>
           <fieldset className="trust-checks">
-            <legend>Include</legend>
+            <legend>{t("Include")}</legend>
             {Object.entries(include).map(([scope, selected]) => (
               <label key={scope}>
                 <input
@@ -3958,17 +4139,19 @@ export function TrustLifecyclePage(): ReactElement {
                     idempotencyKey: crypto.randomUUID(),
                     actionProfile: "EXPORT",
                   });
-                  if (!result.data) return setError("The export usage quote is unavailable.");
+                  if (!result.data) return setError(t("The export usage quote is unavailable."));
                   setQuote(result.data);
-                  setMessage("Usage reviewed. Creating this export consumes zero test units.");
+                  setMessage(t("Usage reviewed. Creating this export consumes zero test units."));
                 })
               }
             >
-              Review export usage
+              {t("Review export usage")}
             </button>
           ) : (
             <div className="trust-review">
-              <strong>{quote.costMode.replaceAll("_", " ")} · 0 units</strong>
+              <strong>
+                {quote.costMode.replaceAll("_", " ")} {t("· 0 units")}
+              </strong>
               <p>{quote.failureBehavior.terminalNoCommit}</p>
               <div className="review-actions">
                 <button
@@ -3982,7 +4165,8 @@ export function TrustLifecyclePage(): ReactElement {
                         schemaVersion: 1,
                         actionKey: `export:${idempotencyKey}`,
                       });
-                      if (!reserved.data) return setError("The usage reservation was not created.");
+                      if (!reserved.data)
+                        return setError(t("The usage reservation was not created."));
                       const result = await createExport({
                         schemaVersion: 1,
                         idempotencyKey,
@@ -3994,36 +4178,42 @@ export function TrustLifecyclePage(): ReactElement {
                         setExported(result.data);
                         setQuote(null);
                         return setMessage(
-                          "Export built and checksummed. Storage is delayed, so it is not downloadable yet; it will finish automatically. The in-product World remains unchanged.",
+                          t(
+                            "Export built and checksummed. Storage is delayed, so it is not downloadable yet; it will finish automatically. The in-product World remains unchanged.",
+                          ),
                         );
                       }
                       if (!result.data || result.data.status !== "READY") {
                         await releaseUsage(reserved.data.reservationId);
                         return setError(
-                          "The export artifact was not created; its zero-unit reservation was released. Retry creates a separate reviewed job.",
+                          t(
+                            "The export artifact was not created; its zero-unit reservation was released. Retry creates a separate reviewed job.",
+                          ),
                         );
                       }
                       setExported(result.data);
                       setQuote(null);
-                      setMessage("Export ready. The in-product World remains unchanged.");
+                      setMessage(t("Export ready. The in-product World remains unchanged."));
                     })
                   }
                 >
-                  Create selected export
+                  {t("Create selected export")}
                 </button>
                 <button className="secondary-action" type="button" onClick={() => setQuote(null)}>
-                  Cancel unchanged
+                  {t("Cancel unchanged")}
                 </button>
               </div>
             </div>
           )}
           {exported?.status === "PENDING" ? (
             <div className="trust-result">
-              <strong>Export storage delayed</strong>
-              <span>SHA-256 {exported.checksum}</span>
+              <strong>{t("Export storage delayed")}</strong>
+              <span>
+                {t("SHA-256")} {exported.checksum}
+              </span>
               <span>
                 {exported.delay?.message ??
-                  "The export is built and checksummed and is waiting to be stored."}
+                  t("The export is built and checksummed and is waiting to be stored.")}
               </span>
               <button
                 className="secondary-action inline-action"
@@ -4031,46 +4221,62 @@ export function TrustLifecyclePage(): ReactElement {
                 disabled={busy !== null}
                 onClick={() => void run("export-check", refreshPendingExport)}
               >
-                {busy === "export-check" ? "Checking…" : "Check export again"}
+                {busy === "export-check" ? "Checking…" : t("Check export again")}
               </button>
             </div>
           ) : exported && exported.status !== "READY" ? (
             <div className="trust-result">
-              <strong>Export not available</strong>
+              <strong>{t("Export not available")}</strong>
               <span>
                 {exported.status === "REVOKED"
-                  ? "This export was revoked, so it can no longer be downloaded. The in-product World is unaffected."
-                  : "This export could not be completed and cannot be downloaded. Create a new export to try again; the in-product World is unaffected."}
+                  ? t(
+                      "This export was revoked, so it can no longer be downloaded. The in-product World is unaffected.",
+                    )
+                  : t(
+                      "This export could not be completed and cannot be downloaded. Create a new export to try again; the in-product World is unaffected.",
+                    )}
               </span>
             </div>
           ) : exported ? (
             <div className="trust-result">
-              <strong>Export ready</strong>
-              <span>SHA-256 {exported.checksum}</span>
-              <span>Selected: {exported.selectedScopes.join(", ")}</span>
+              <strong>{t("Export ready")}</strong>
+              <span>
+                {t("SHA-256")} {exported.checksum}
+              </span>
+              <span>
+                {t("Selected:")} {exported.selectedScopes.join(", ")}
+              </span>
               <a
                 className="secondary-action inline-action"
                 href={`/v1/exports/${encodeURIComponent(exported.exportId)}/artifact`}
               >
-                Download ZIP
+                {t("Download ZIP")}
               </a>
             </div>
           ) : null}
         </section>
 
         <section className="surface-card" aria-labelledby="changes-title">
-          <p className="card-label">Material changes</p>
-          <h2 id="changes-title">What changed</h2>
+          <p className="card-label">{t("Material changes")}</p>
+          <h2 id="changes-title">{t("What changed")}</h2>
           <ul className="trust-list">
             {trust.changes.changes.map((change) => (
               <li key={change.id}>
                 <span>
                   <strong>{change.summary}</strong>
                   <small>{change.effect}</small>
-                  <small>Recovery: {change.recovery}</small>
-                  <small>Affected: {change.affectedScopes.join(", ")}</small>
-                  <small>Effective: {new Date(change.effectiveAt).toLocaleString()}</small>
-                  <small>Choices: {change.availableChoices.join(", ")}</small>
+                  <small>
+                    {t("Recovery:")} {change.recovery}
+                  </small>
+                  <small>
+                    {t("Affected:")} {change.affectedScopes.join(", ")}
+                  </small>
+                  <small>
+                    {t("Effective:")} {new Date(change.effectiveAt).toLocaleString()}
+                  </small>
+                  <small>
+                    {t("Choices:")} {change.availableChoices.join(", ")}
+                  </small>
                 </span>
               </li>
             ))}
@@ -4078,10 +4284,10 @@ export function TrustLifecyclePage(): ReactElement {
         </section>
 
         <section className="surface-card" aria-labelledby="appeal-title">
-          <p className="card-label">Recovery and review</p>
-          <h2 id="appeal-title">Open an appeal</h2>
+          <p className="card-label">{t("Recovery and review")}</p>
+          <h2 id="appeal-title">{t("Open an appeal")}</h2>
           <label className="field-label" htmlFor="appeal-summary">
-            What needs review?
+            {t("What needs review?")}
             <textarea
               id="appeal-summary"
               rows={3}
@@ -4103,7 +4309,7 @@ export function TrustLifecyclePage(): ReactElement {
                   subjectId: worldId,
                   summary: appealSummary,
                 });
-                if (!result.data) return setError("The appeal was not recorded.");
+                if (!result.data) return setError(t("The appeal was not recorded."));
                 setAppealSummary("");
                 setMessage(
                   `Appeal ${result.data.appealId.slice(0, 8)} is ${result.data.status.toLowerCase()}.`,
@@ -4111,17 +4317,17 @@ export function TrustLifecyclePage(): ReactElement {
               })
             }
           >
-            Open appeal
+            {t("Open appeal")}
           </button>
         </section>
 
         <section className="surface-card trust-wide danger-card" aria-labelledby="delete-title">
-          <p className="card-label">Separate lifecycle boundary</p>
-          <h2 id="delete-title">Delete this World</h2>
+          <p className="card-label">{t("Separate lifecycle boundary")}</p>
+          <h2 id="delete-title">{t("Delete this World")}</h2>
           <p>
-            Delete is not Restore, Branch or correction. Confirmation tombstones the World, blocks
-            new mutation, revokes grants and exported artifacts, and retains only the stated audit
-            boundary pending an approved purge policy.
+            {t(
+              "Delete is not Restore, Branch or correction. Confirmation tombstones the World, blocks new mutation, revokes grants and exported artifacts, and retains only the stated audit boundary pending an approved purge policy.",
+            )}
           </p>
           {!deletion && !deletionStatus ? (
             <button
@@ -4136,22 +4342,29 @@ export function TrustLifecyclePage(): ReactElement {
                     targetType: "WORLD",
                     targetId: worldId,
                   });
-                  if (!result.data) return setError("The deletion effect could not be calculated.");
+                  if (!result.data)
+                    return setError(t("The deletion effect could not be calculated."));
                   setDeletion(result.data);
-                  setMessage("Deletion effect calculated. Nothing has been deleted.");
+                  setMessage(t("Deletion effect calculated. Nothing has been deleted."));
                 })
               }
             >
-              Review deletion effect
+              {t("Review deletion effect")}
             </button>
           ) : null}
           {deletion ? (
             <div className="trust-review">
-              <strong>Exact deletion review</strong>
+              <strong>{t("Exact deletion review")}</strong>
               <ul>
-                <li>{deletion.affected.continuities} Continuities become unavailable.</li>
-                <li>{deletion.affected.grants} active grants are revoked.</li>
-                <li>{deletion.affected.exports} ready exports are revoked.</li>
+                <li>
+                  {deletion.affected.continuities} {t("Continuities become unavailable.")}
+                </li>
+                <li>
+                  {deletion.affected.grants} {t("active grants are revoked.")}
+                </li>
+                <li>
+                  {deletion.affected.exports} {t("ready exports are revoked.")}
+                </li>
               </ul>
               <p>{deletion.explanation}</p>
               <div className="review-actions">
@@ -4169,22 +4382,22 @@ export function TrustLifecyclePage(): ReactElement {
                       });
                       if (!result.data)
                         return setError(
-                          "Deletion was not confirmed; do not assume the World changed.",
+                          t("Deletion was not confirmed; do not assume the World changed."),
                         );
                       setDeletion(null);
                       setDeletionStatus(result.data);
-                      setMessage("World tombstoned. New World mutations are blocked.");
+                      setMessage(t("World tombstoned. New World mutations are blocked."));
                     })
                   }
                 >
-                  Confirm exact deletion
+                  {t("Confirm exact deletion")}
                 </button>
                 <button
                   className="secondary-action"
                   type="button"
                   onClick={() => setDeletion(null)}
                 >
-                  Cancel unchanged
+                  {t("Cancel unchanged")}
                 </button>
               </div>
             </div>
@@ -4192,14 +4405,16 @@ export function TrustLifecyclePage(): ReactElement {
           {deletionStatus ? (
             <div className="trust-result">
               <strong>{deletionStatus.status}</strong>
-              <span>Purge status: {deletionStatus.purgeStatus.replaceAll("_", " ")}</span>
+              <span>
+                {t("Purge status:")} {deletionStatus.purgeStatus.replaceAll("_", " ")}
+              </span>
               <small>
-                Confirmed means the World is tombstoned and blocked from further change. A
-                background purge worker is not part of this phase, so the stored data is retained
-                under minimal audit rather than erased.
+                {t(
+                  "Confirmed means the World is tombstoned and blocked from further change. A background purge worker is not part of this phase, so the stored data is retained under minimal audit rather than erased.",
+                )}
               </small>
               <button className="secondary-action" type="button" onClick={() => void navigate("/")}>
-                Return to Worlds
+                {t("Return to Worlds")}
               </button>
             </div>
           ) : null}
@@ -4211,9 +4426,12 @@ export function TrustLifecyclePage(): ReactElement {
 
 export function NotFoundPage(): ReactElement {
   return (
-    <StatusPage title="Route not found" copy="This production route has not been implemented yet.">
+    <StatusPage
+      title={t("Route not found")}
+      copy={t("This production route has not been implemented yet.")}
+    >
       <Link className="secondary-action inline-action" to="/">
-        Return home
+        {t("Return home")}
       </Link>
     </StatusPage>
   );

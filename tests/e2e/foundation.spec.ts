@@ -48,3 +48,16 @@ test("home shell remains keyboard reachable", async ({ page }) => {
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Simulora home" })).toBeFocused();
 });
+
+test.describe("in a Chinese browser", () => {
+  test.use({ locale: "zh-CN" });
+
+  test("home speaks Chinese and stays accessible", async ({ page }) => {
+    await page.route("**/v1/me/library", (route) => route.fulfill({ status: 503, body: "" }));
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("走进一个世界");
+    await expect(page.getByRole("link", { name: "打开世界工作室" })).toBeVisible();
+    await expectAccessible(page);
+  });
+});
