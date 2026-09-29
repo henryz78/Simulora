@@ -286,7 +286,7 @@ test("a caused change, a protected refusal and a correction agree across review,
   await page.getByRole("link", { name: /The western signal was relit at dusk/ }).click();
   const provenance = page.getByRole("region", { name: "Why it is available here" });
   await expect(provenance).toContainText(corrected[0]!.id.slice(0, 8));
-  await expect(provenance).toContainText("SHARED");
+  await expect(provenance).toContainText("Shared");
   await expect(provenance).toContainText("Current projection");
 
   // The Continuity history links each confirmed Action to its own Commit.
