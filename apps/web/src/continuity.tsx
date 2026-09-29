@@ -160,9 +160,9 @@ export async function readJson(url: string, init?: RequestInit): Promise<unknown
 }
 
 // SA-2 M1: the RE-2 refusal for an addressed Character, not any 422.
-const characterKnowledgeRefusal = t(
-  "The selected Character is unavailable or cannot know this Action target",
-);
+// The server's wire text: compared, never translated.
+const characterKnowledgeRefusal =
+  "The selected Character is unavailable or cannot know this Action target";
 
 function pendingHistory(history: BranchAction[]): BranchAction[] {
   return history.filter((entry) => !TERMINAL_ACTION_STATUSES.has(entry.status));
@@ -262,12 +262,21 @@ function ambiguousActionOutcome(
   current: ActionResponse | null,
 ): string {
   if (current?.status === "COMMITTED" || current?.status === "COMPLETED_NO_EFFECT") {
-    return `The ${operation} response was lost, but this Action is durably complete. Read current state before taking another Action.`;
+    return t(
+      "The {operation} response was lost, but this Action is durably complete. Read current state before taking another Action.",
+      { operation: t(operation) },
+    );
   }
   if (current && ["CONFLICT", "CANCELLED", "SUPERSEDED"].includes(current.status)) {
-    return `The ${operation} response was lost; the durable Action status is ${labelMode(current.status)}. Re-read current state before continuing.`;
+    return t(
+      "The {operation} response was lost; the durable Action status is {status}. Re-read current state before continuing.",
+      { operation: t(operation), status: labelMode(current.status) },
+    );
   }
-  return `The ${operation} outcome is unknown. Recover this Action's status before retrying; current truth may have changed.`;
+  return t(
+    "The {operation} outcome is unknown. Recover this Action's status before retrying; current truth may have changed.",
+    { operation: t(operation) },
+  );
 }
 
 export function ContinuityProvider({
@@ -907,7 +916,7 @@ function PendingActionRibbon({
         <strong>
           {pendingActionRefs.length === 1
             ? t("One Action still needs attention")
-            : `${pendingActionRefs.length} Actions still need attention`}
+            : t("{count} Actions still need attention", { count: pendingActionRefs.length })}
         </strong>
         <span>{t("Pending work remains visible while you inspect this path.")}</span>
       </div>
@@ -1074,7 +1083,7 @@ export function ActionStatusCard({
                 <dt>
                   {action.proposal.displayEffect.target.startsWith("constraint.")
                     ? t("The attempt fails")
-                    : "Current"}
+                    : t("Current")}
                 </dt>
                 <dd>{action.proposal.displayEffect.before}</dd>
               </div>
@@ -1638,7 +1647,7 @@ export function ActionComposer(): ReactElement {
             loadState.status !== "ready"
           }
         >
-          {working ? "Sending…" : t("Send Action")}
+          {working ? t("Sending…") : t("Send Action")}
         </button>
       </form>
       {hasUnresolvedAction ? (

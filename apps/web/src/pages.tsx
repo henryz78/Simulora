@@ -454,7 +454,7 @@ export function ReturnPage(): ReactElement {
                     <strong>{change.summary}</strong>
                     <span>
                       {labelMode(change.sourceClass)} {t("source ·")} {labelMode(change.eventType)}{" "}
-                      · {change.scope}
+                      · {labelMode(change.scope)}
                     </span>
                     <small>
                       {t("Commit")} {shortId(change.commitId)}
@@ -698,7 +698,7 @@ export function ContinuityPage(): ReactElement {
                   >
                     <strong>{fact.statement}</strong>
                     <span>
-                      {fact.scope} · {labelMode(fact.lifecycle ?? "ACTIVE")}
+                      {labelMode(fact.scope)} · {labelMode(fact.lifecycle ?? "ACTIVE")}
                     </span>
                   </Link>
                 </li>
@@ -868,7 +868,7 @@ export function FactLensPage(): ReactElement {
               </div>
               <div>
                 <dt>{t("Scope")}</dt>
-                <dd>{explanation.scope}</dd>
+                <dd>{labelMode(explanation.scope)}</dd>
               </div>
               <div>
                 <dt>{t("Freshness")}</dt>
@@ -1005,7 +1005,7 @@ export function ContextPage(): ReactElement {
                                   {event.targetId
                                     ? `${describeTarget(event.targetId, loadState.data)} · `
                                     : null}
-                                  {labelMode(event.type)} · {event.scope}
+                                  {labelMode(event.type)} · {labelMode(event.scope)}
                                 </small>
                               </li>
                             ))}
@@ -1266,7 +1266,7 @@ export function ParticipationPage(): ReactElement {
               disabled={busy}
               onClick={() => void apply()}
             >
-              {busy ? "Applying…" : t("Apply this exact contract")}
+              {busy ? t("Applying…") : t("Apply this exact contract")}
             </button>
             <button
               className="secondary-action"
@@ -1433,7 +1433,7 @@ export function RecoveryPage(): ReactElement {
               })
             }
           >
-            {busy === "point" ? "Recording…" : t("Create Safe Point")}
+            {busy === "point" ? t("Recording…") : t("Create Safe Point")}
           </button>
           {recovery?.recoveryPoints.length ? (
             <ul className="recovery-list">
@@ -1546,7 +1546,7 @@ export function RecoveryPage(): ReactElement {
               })
             }
           >
-            {busy === "branch" ? "Creating…" : t("Create separate Branch")}
+            {busy === "branch" ? t("Creating…") : t("Create separate Branch")}
           </button>
           <ul className="recovery-list branch-list">
             {recovery?.branches.map((branch) => (
@@ -1637,7 +1637,7 @@ export function RecoveryPage(): ReactElement {
               })
             }
           >
-            {busy === "review" ? "Comparing…" : t("Review Restore scope")}
+            {busy === "review" ? t("Comparing…") : t("Review Restore scope")}
           </button>
           {restore ? (
             <div className="restore-review" role="region" aria-label={t("Exact Restore review")}>
@@ -1773,7 +1773,7 @@ export function RecoveryPage(): ReactElement {
                     })
                   }
                 >
-                  {busy === "restore" ? "Recording…" : t("Confirm exact Restore")}
+                  {busy === "restore" ? t("Recording…") : t("Confirm exact Restore")}
                 </button>
               )}
             </div>
@@ -2000,7 +2000,7 @@ export function CorrectionReviewPage(): ReactElement {
           </div>
           <div>
             <dt>{t("Current scope")}</dt>
-            <dd>{fact.scope}</dd>
+            <dd>{labelMode(fact.scope)}</dd>
           </div>
           <div>
             <dt>{t("Current Branch head")}</dt>
@@ -2470,7 +2470,9 @@ export function WorldStudioPage(): ReactElement {
       }
       await load();
       setMessage(
-        `Revision ${result.data.revisionNumber} created. It is not applied to existing Continuities.`,
+        t("Revision {number} created. It is not applied to existing Continuities.", {
+          number: result.data.revisionNumber,
+        }),
       );
     });
   };
@@ -2666,7 +2668,7 @@ export function WorldStudioPage(): ReactElement {
                   aria-describedby={draftProblem ? "studio-draft-problem" : undefined}
                   onClick={() => void save()}
                 >
-                  {busy === "save" ? "Saving…" : t("Save Draft")}
+                  {busy === "save" ? t("Saving…") : t("Save Draft")}
                 </button>
                 <button
                   className="secondary-action"
@@ -2674,7 +2676,7 @@ export function WorldStudioPage(): ReactElement {
                   disabled={busy !== null || dirty}
                   onClick={() => void validate()}
                 >
-                  {busy === "validate" ? "Checking…" : t("Check playability")}
+                  {busy === "validate" ? t("Checking…") : t("Check playability")}
                 </button>
                 <button
                   className="primary-action"
@@ -3394,9 +3396,10 @@ function StudioCoreFields({
               />
               {t("Characters above may use this route on their own (one way:")}{" "}
               {draft.locations.find((location) => location.id === route.fromLocationId)?.name ??
-                "from"}{" "}
+                t("from")}{" "}
               →{" "}
-              {draft.locations.find((location) => location.id === route.toLocationId)?.name ?? "to"}
+              {draft.locations.find((location) => location.id === route.toLocationId)?.name ??
+                t("to")}
               )
             </label>
             <button
@@ -4071,7 +4074,7 @@ export function TrustLifecyclePage(): ReactElement {
                 <li key={type}>
                   <span>
                     <strong>{label}</strong>
-                    <small>{current?.decision ?? "NOT RECORDED"}</small>
+                    <small>{labelMode(current?.decision ?? "NOT_RECORDED")}</small>
                   </span>
                   <button
                     className="text-action"
@@ -4092,7 +4095,11 @@ export function TrustLifecyclePage(): ReactElement {
                           return;
                         }
                         await reload();
-                        setMessage(`Consent recorded as ${result.data.decision.toLowerCase()}.`);
+                        setMessage(
+                          t("Consent recorded as {decision}.", {
+                            decision: t(result.data.decision.toLowerCase()),
+                          }),
+                        );
                       })
                     }
                   >
@@ -4123,7 +4130,7 @@ export function TrustLifecyclePage(): ReactElement {
                     setInclude((current) => ({ ...current, [scope]: event.target.checked }))
                   }
                 />
-                {scope}
+                {labelMode(scope)}
               </label>
             ))}
           </fieldset>
@@ -4221,7 +4228,7 @@ export function TrustLifecyclePage(): ReactElement {
                 disabled={busy !== null}
                 onClick={() => void run("export-check", refreshPendingExport)}
               >
-                {busy === "export-check" ? "Checking…" : t("Check export again")}
+                {busy === "export-check" ? t("Checking…") : t("Check export again")}
               </button>
             </div>
           ) : exported && exported.status !== "READY" ? (
@@ -4312,7 +4319,10 @@ export function TrustLifecyclePage(): ReactElement {
                 if (!result.data) return setError(t("The appeal was not recorded."));
                 setAppealSummary("");
                 setMessage(
-                  `Appeal ${result.data.appealId.slice(0, 8)} is ${result.data.status.toLowerCase()}.`,
+                  t("Appeal {id} is {status}.", {
+                    id: result.data.appealId.slice(0, 8),
+                    status: t(result.data.status.toLowerCase().replaceAll("_", " ")),
+                  }),
                 );
               })
             }

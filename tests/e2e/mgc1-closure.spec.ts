@@ -418,3 +418,28 @@ test("SA-2: movement is offered only to movers, and an uninformed Character's re
   ).toBeVisible();
   await expectAccessible(page);
 });
+
+test.describe("in a Chinese browser", () => {
+  test.use({ locale: "zh-CN" });
+  test("the uninformed Character's refusal is still explained", async ({ page }) => {
+    await install(page);
+    await page.route(`**/v1/branches/${branchId}/actions`, (route) =>
+      route.request().method() === "POST"
+        ? route.fulfill({
+            status: 422,
+            contentType: "application/json",
+            body: JSON.stringify({
+              code: "WORLD_NOT_PLAYABLE",
+              message: "The selected Character is unavailable or cannot know this Action target",
+            }),
+          })
+        : route.fallback(),
+    );
+    await page.goto(`/continuities/${continuityId}`);
+    await page.getByLabel("对哪个角色说").selectOption("character.tavi");
+    await page.getByLabel("你的行动").fill("Ask Tavi what the tide will do.");
+    await page.getByRole("button", { name: "发送行动" }).click();
+    await expect(page.getByText("这个角色还不知道任何和这个行动相关的事。")).toBeVisible();
+    await expectAccessible(page);
+  });
+});
