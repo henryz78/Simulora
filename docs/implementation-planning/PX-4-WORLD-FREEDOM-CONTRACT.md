@@ -1,6 +1,7 @@
 # PX-4 World Freedom Contract
 
-**Date:** 2026-09-29 · **Status:** `IN PROGRESS`: PX-4a is being implemented; PX-4b has not started.
+**Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is implemented at `4dd4389` + `3b863dd` and is
+awaiting its independent Review. PX-4b has not started.
 Owner decisions were given in chat on 2026-09-29, after the Lantern Inn play-test. The track
 closes on an independent Review of an exact SHA with green CI.
 
@@ -65,7 +66,9 @@ reads it as personality, not obedience.
   - The server derives the impact level from the closed table, as it does today.
   - The effect context (relationships, open threads, constraints) is compiled for every
     such Action.
-  - The routine policy digest is bound whenever a policy exists.
+  - A story move is checked against the pinned routine policy by both
+    validators. The manifest binds no extra policy digest, and the model is
+    offered routes only for a Character that the policy lets move.
   - The explicit effects stay available unchanged.
 - **ADR-PX4-3: prompt version 11.**
   - **The player's own attempts.** These succeed when they are physically and socially
@@ -108,8 +111,7 @@ reads it as personality, not obedience.
    0055/0056:
    - `STORY_DECIDES` accepts the operations above;
    - `RESOLVE_THREAD` may name any open thread;
-   - the effect context applies;
-   - the evidence binds the routine policy digest when one exists.
+   - the effect context applies.
    Actions created before the epoch keep their exact WD-1b evidence.
 2. **Application parity:**
    - `compileEffectContext`;
