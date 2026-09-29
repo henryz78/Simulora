@@ -306,6 +306,9 @@ describe("IP-9 live capability profile adapter", () => {
     expect(system).toContain("language of the user's intent");
     expect(system).not.toContain("Respond in English.");
     expect(system).toContain("fails only for a real obstacle");
+    // A world's own rules decide what is possible, not our physics.
+    expect(system).toContain("Judge what is possible by this world's own rules");
+    expect(system).not.toContain("physically");
 
     // A World response has no relationship to shift and nobody to move; with no
     // open thread there is nothing to resolve.

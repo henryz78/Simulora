@@ -340,11 +340,13 @@ const worldTurnRules = [
   'in the second person, in its own sentence ("You search the benches. Nothing is there.");',
   "never hand that attempt to a Character. Still never write the user's words, choices or",
   "commitments.",
-  // PX-4a (ADR-PX4-3): realistic attempts succeed; the scene reacts.
-  "That attempt succeeds when it is physically and socially possible from the supplied facts,",
-  "places and constraints; it fails only for a real obstacle, which the narrative names. A",
-  "means the user claims must fit the established facts. A request to a Character is that",
-  "Character's choice, made by its motives.",
+  // PX-4a (ADR-PX4-3): attempts possible in this world succeed; the scene reacts.
+  "Judge what is possible by this world's own rules: its premise, facts, places, boundaries and",
+  "constraints, which may differ from ours (magic, future technology, the supernatural).",
+  "Only where the world says nothing, use ordinary common sense. The attempt succeeds when it",
+  "is possible there; it fails only for a real obstacle, which the narrative names. A means",
+  "the user claims must fit the world and its established facts. A request to a Character is",
+  "that Character's choice, made by its motives.",
   "Other people present, named or unnamed, and the surroundings react visibly, even when a",
   "Character is addressed; words said in public have consequences. They act only on the",
   "supplied shared facts and what they witness, and an unnamed person never becomes a Character.",
