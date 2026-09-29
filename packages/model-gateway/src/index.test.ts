@@ -213,7 +213,7 @@ describe("IP-9 live capability profile adapter", () => {
   });
 
   it("offers ADD_FACT first and any shared rewrite only for WD-1a Actions (prompt v9+)", () => {
-    expect(livePromptVersion).toBe(10);
+    expect(livePromptVersion).toBe(11);
     const skeletonOf = (request: WorldTurnRequest) => {
       const system = compileWorldTurnPrompt(request).system;
       const lines = system.split("\n");
@@ -227,7 +227,7 @@ describe("IP-9 live capability profile adapter", () => {
     expect(shared.operation.type).toBe("ADD_FACT");
     expect(shared.system).toContain("Prefer ADD_FACT");
     expect(shared.lines.some((line) => line.includes('"UPDATE_CANONICAL_FACT"'))).toBe(true);
-    expect(shared.system).toContain("unnamed people already in the scene");
+    expect(shared.system).toContain("Other people present, named or unnamed");
     const legacy = skeletonOf({ ...base, requestedEffect: "FACT_REWRITE" });
     expect(legacy.operation.type).toBe("UPDATE_CANONICAL_FACT");
     expect(legacy.system).not.toContain("ADD_FACT");
@@ -264,6 +264,64 @@ describe("IP-9 live capability profile adapter", () => {
     expect(secret.system).toContain('"REVEAL_FACT"');
     expect(secret.system).toContain("Only when the");
     expect(secret.system).not.toContain('"UPDATE_CANONICAL_FACT"');
+  });
+
+  it("lets a PX-4a story choose any closed operation it can use (prompt v11)", () => {
+    const story: WorldTurnRequest = {
+      ...base,
+      requestedEffect: "STORY_DECIDES",
+      sharedWorld: true,
+      storyFreedom: true,
+      character: { ...base.character!, locationId: "location.observatory" },
+      routineRoutes: [
+        { fromLocationId: "location.observatory", toLocationId: "location.harbor", label: "path" },
+      ],
+      effectContext: {
+        relationships: [
+          {
+            id: "relationship.iora-tavi",
+            fromCharacterId: "character.iora",
+            toCharacterId: "character.tavi",
+            protection: "ROUTINE",
+            scale: ["wary", "cordial"],
+            state: "wary",
+          },
+        ],
+        openThreads: [{ id: "thread.vessel", title: "Why the vessel waits" }],
+        constraints: [],
+      },
+    };
+    const system = compileWorldTurnPrompt(story).system;
+    for (const type of [
+      "ADD_FACT",
+      "UPDATE_CANONICAL_FACT",
+      "OPEN_THREAD",
+      "RESOLVE_THREAD",
+      "SHIFT_RELATIONSHIP",
+      "MOVE_CHARACTER",
+    ]) {
+      expect(system).toContain(`"type":"${type}"`);
+    }
+    expect(system).not.toContain("Never change an existing fact here.");
+    expect(system).toContain("language of the user's intent");
+    expect(system).not.toContain("Respond in English.");
+    expect(system).toContain("fails only for a real obstacle");
+
+    // A World response has no relationship to shift and nobody to move; with no
+    // open thread there is nothing to resolve.
+    const world = compileWorldTurnPrompt({
+      ...story,
+      character: null,
+      effectContext: { relationships: [], openThreads: [], constraints: [] },
+    }).system;
+    expect(world).toContain('"type":"UPDATE_CANONICAL_FACT"');
+    expect(world).toContain('"type":"OPEN_THREAD"');
+    expect(world).not.toContain('"type":"RESOLVE_THREAD"');
+    expect(world).not.toContain('"type":"SHIFT_RELATIONSHIP"');
+    expect(world).not.toContain('"type":"MOVE_CHARACTER"');
+    // Without the epoch the v10 story rules stand.
+    const earlier = compileWorldTurnPrompt({ ...story, storyFreedom: false }).system;
+    expect(earlier).toContain("Never change an existing fact here.");
   });
 
   it("sends rules and data as separate messages and returns an untrusted draft", async () => {

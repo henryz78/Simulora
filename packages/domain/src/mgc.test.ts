@@ -350,4 +350,44 @@ describe("MGC-1 closure operations", () => {
     ]);
     expect(compileEffectContext(world, state, null, "THREAD_EFFECT")?.relationships).toEqual([]);
   });
+  it("PX-4a: lets the story rewrite, shift, open or resolve only after the epoch", () => {
+    const story = { ...options, requestedEffect: "STORY_DECIDES" as const };
+    const free = { ...story, storyFreedom: true };
+    const rewrite = candidate({
+      type: "UPDATE_CANONICAL_FACT",
+      targetFactId: "fact.western-signal-dim",
+      beforeStatement: state.facts[0]!.statement,
+      afterStatement: "The western signal burns bright again.",
+      scope: "SHARED",
+      provenance: `Confirmed Action ${actionId}`,
+      causalFactIds: undefined,
+    });
+    delete (rewrite.operation as Record<string, unknown>).causalFactIds;
+    const resolveAny = candidate({
+      type: "RESOLVE_THREAD",
+      threadId: "thread.vessel",
+      resolution: "The pilot explains why she waits.",
+    });
+    const cases = [
+      [rewrite, "L3"],
+      [shift("relationship.iora-tavi", "wary", "cordial"), "L2"],
+      [candidate({ type: "OPEN_THREAD", title: "Who hid the ledger" }), "L2"],
+      [resolveAny, "L2"],
+    ] as const;
+    for (const [input, impact] of cases) {
+      expect(() => validateActionCandidate(input, story)).toThrow();
+      expect(validateActionCandidate(input, free).impact).toBe(impact);
+    }
+    // The explicit thread effect still resolves only its target.
+    expect(() => validateActionCandidate(resolveAny, threadOptions)).toThrow();
+    expect(compileEffectContext(world, state, null, "STORY_DECIDES", true)).not.toBeNull();
+    expect(
+      compileEffectContext(
+        lanternReachSeed,
+        createInitialState(lanternReachSeed, state.participation),
+        null,
+        "STORY_DECIDES",
+      ),
+    ).toBeNull();
+  });
 });

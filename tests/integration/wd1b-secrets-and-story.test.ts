@@ -242,7 +242,9 @@ suite("WD-1b secrets and STORY_DECIDES against PostgreSQL", () => {
     expect(restored.state.facts).toEqual(continuity.state.facts);
   });
 
-  it("lets the story add a fact at L2 and never rewrite one", async () => {
+  // PX-4a (ADR-PX4-2) superseded "never rewrite" for Actions after 0057; the
+  // pre-0057 rule is kept by the 0056 to 0057 upgrade test.
+  it("lets the story add a fact at L2, and after 0057 propose a rewrite at L3", async () => {
     const continuity = await start();
     const added = await submit(continuity);
     const proposed = await repository.processAction(
@@ -274,7 +276,7 @@ suite("WD-1b secrets and STORY_DECIDES against PostgreSQL", () => {
         "You relight the signal.",
       ),
     );
-    expect(refused?.proposal ?? null).toBeNull();
+    expect(refused?.proposal?.impact).toBe("L3");
   });
 
   it("refuses forged reveals at the database, beside a control that seals", async () => {

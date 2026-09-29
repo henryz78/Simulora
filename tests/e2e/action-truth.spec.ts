@@ -440,51 +440,92 @@ test("a keyboard-only person can send, review and confirm an exact Action", asyn
   await expectAccessible(page);
 });
 
-test("PX-2a quick play confirms a small change without a click, and Undo restores [L2]", async ({
-  page,
-}) => {
+// PX-4a (ADR-PX4-1): these run in the product default, direct play. The rest of
+// the suite starts in Strict mode (see playwright.config.ts) to exercise review.
+test.describe("in direct play", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("PX-4a direct play confirms a change without a click, and Undo restores [L2]", async ({
+    page,
+  }) => {
+    await page.goto(`/continuities/${continuityId}`);
+    const strict = page.getByLabel("Strict mode: confirm every change myself");
+    await expect(strict).not.toBeChecked();
+    await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Applied at once. You can undo this turn.")).toBeVisible();
+    await expect(page.getByText("This turn changed:")).toBeVisible();
+    const context = page.getByLabel("Current world context");
+    await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
+    // Exactly the confirmation the button would send, once.
+    expect(confirmRequests).toEqual([
+      {
+        proposalId: "31000000-0000-4000-8000-000000000001",
+        proposalDigest: "1".repeat(64),
+        expectedHeadCommitId: initialHead,
+      },
+    ]);
+    await expectAccessible(page);
+
+    // Undo restores the head before the change, through the Restore endpoints.
+    await page.getByRole("button", { name: "Undo this turn" }).click();
+    await expect(context.getByText("Present at the observatory.", { exact: true })).toBeVisible();
+    expect(restoreRequests).toEqual([
+      { step: "prepare", sourceCommitId: initialHead },
+      {
+        step: "confirm",
+        proposalId: "34000000-0000-4000-8000-000000000001",
+        digest: "d".repeat(64),
+        expectedHeadCommitId: "32000000-0000-4000-8000-000000000001",
+      },
+    ]);
+    // The head has moved on, so the turn is no longer offered for Undo, and the
+    // story says the world went back while keeping what was said.
+    await expect(page.getByRole("button", { name: "Undo this turn" })).toHaveCount(0);
+    await expect(page.getByText("Undone. The world is back to how it was")).toBeVisible();
+    const story = page.getByRole("heading", { name: "Story so far" }).locator("..");
+    await expect(story.getByText("Undone: the world went back to before this.")).toBeVisible();
+    await expectAccessible(page);
+
+    // Strict mode is the player's and survives a reload.
+    await strict.check();
+    await page.reload();
+    await expect(page.getByLabel("Strict mode: confirm every change myself")).toBeChecked();
+  });
+
+  test("PX-4a direct play applies an important change too", async ({ page }) => {
+    await page.goto(`/continuities/${continuityId}`);
+    await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
+    await page.getByLabel("Your Action").fill("Relight the western signal with Iora.");
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Applied at once. You can undo this turn.")).toBeVisible();
+    expect(confirmRequests).toHaveLength(1);
+  });
+
+  test("PX-4a Undo that the server refuses leaves the world and says why [L2] [stale]", async ({
+    page,
+  }) => {
+    await page.goto(`/continuities/${continuityId}`);
+    await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Applied at once. You can undo this turn.")).toBeVisible();
+    await page.getByRole("button", { name: "Undo this turn" }).click();
+    await expect(page.getByRole("alert")).toContainText("The change could not be undone.");
+    const context = page.getByLabel("Current world context");
+    await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Undone: the world went back to before this.")).toHaveCount(0);
+  });
+});
+
+test("PX-4a Strict mode leaves every change to the player", async ({ page }) => {
   await page.goto(`/continuities/${continuityId}`);
-  const quickPlay = page.getByLabel("Quick play: apply small changes at once");
-  await expect(quickPlay).not.toBeChecked();
-  await quickPlay.check();
-  await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
+  await expect(page.getByLabel("Strict mode: confirm every change myself")).toBeChecked();
+  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
+  await page.getByLabel("Your Action").fill("Relight the western signal with Iora.");
   await page.getByRole("button", { name: "Send Action" }).click();
-  await expect(page.getByText("Applied automatically by quick play.")).toBeVisible();
-  const context = page.getByLabel("Current world context");
-  await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
-  // Exactly the confirmation the button would send, once.
-  expect(confirmRequests).toEqual([
-    {
-      proposalId: "31000000-0000-4000-8000-000000000001",
-      proposalDigest: "1".repeat(64),
-      expectedHeadCommitId: initialHead,
-    },
-  ]);
-  await expectAccessible(page);
-
-  // Undo restores the head before the change, through the Restore endpoints.
-  await page.getByRole("button", { name: "Undo this change" }).click();
-  await expect(context.getByText("Present at the observatory.", { exact: true })).toBeVisible();
-  expect(restoreRequests).toEqual([
-    { step: "prepare", sourceCommitId: initialHead },
-    {
-      step: "confirm",
-      proposalId: "34000000-0000-4000-8000-000000000001",
-      digest: "d".repeat(64),
-      expectedHeadCommitId: "32000000-0000-4000-8000-000000000001",
-    },
-  ]);
-  // The head has moved on, so the change is no longer offered for Undo, and the
-  // story says the world went back while keeping what was said.
-  await expect(page.getByRole("button", { name: "Undo this change" })).toHaveCount(0);
-  await expect(page.getByText("Undone. The world is back to how it was")).toBeVisible();
-  const story = page.getByRole("heading", { name: "Story so far" }).locator("..");
-  await expect(story.getByText("Undone: the world went back to before this.")).toBeVisible();
-  await expectAccessible(page);
-
-  // The setting is the player's and survives a reload.
-  await page.reload();
-  await expect(page.getByLabel("Quick play: apply small changes at once")).toBeChecked();
+  await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
+  await expect(page.getByText("An important change — review it carefully")).toBeVisible();
+  expect(confirmRequests).toEqual([]);
 });
 
 test("WD-1a a new fact reads as new in the world, not as a before and after [added]", async ({
@@ -525,30 +566,4 @@ test("WD-1b the story decides by default, and a revealed secret reads as discove
   await page.getByRole("button", { name: "Confirm this exact change" }).click();
   await expect(page.getByText("Done. This is now part of your story.")).toBeVisible();
   await expect(context.getByText(ledger, { exact: true })).toBeVisible();
-});
-
-test("PX-2a quick play still leaves an important change to the player", async ({ page }) => {
-  await page.goto(`/continuities/${continuityId}`);
-  await page.getByLabel("Quick play: apply small changes at once").check();
-  await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
-  await page.getByLabel("Your Action").fill("Relight the western signal with Iora.");
-  await page.getByRole("button", { name: "Send Action" }).click();
-  await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
-  await expect(page.getByText("An important change — review it carefully")).toBeVisible();
-  expect(confirmRequests).toEqual([]);
-});
-
-test("PX-2a Undo that the server refuses leaves the world and says why [L2] [stale]", async ({
-  page,
-}) => {
-  await page.goto(`/continuities/${continuityId}`);
-  await page.getByLabel("Quick play: apply small changes at once").check();
-  await page.getByLabel("Your Action").fill("Ask Iora to inspect the harbor.");
-  await page.getByRole("button", { name: "Send Action" }).click();
-  await expect(page.getByText("Applied automatically by quick play.")).toBeVisible();
-  await page.getByRole("button", { name: "Undo this change" }).click();
-  await expect(page.getByRole("alert")).toContainText("The change could not be undone.");
-  const context = page.getByLabel("Current world context");
-  await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
-  await expect(page.getByText("Undone: the world went back to before this.")).toHaveCount(0);
 });

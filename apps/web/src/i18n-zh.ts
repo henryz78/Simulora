@@ -708,13 +708,11 @@ export const zh: Record<string, string> = {
   "An important change — review it carefully": "一个重要的改变，请仔细查看",
   "Undone. The world is back to how it was before this change; what was said stays in the story.":
     "已撤销。世界回到了这个改变之前的样子；说过的话仍然留在故事里。",
-  "Applied automatically by quick play. You can undo it.": "已由快速游玩自动应用，你可以撤销。",
   "Nothing in the world changed": "世界里没有任何改变",
   "Source:": "来源：",
   "Confirm this exact change": "确认这个改变",
   "Cancel Action": "取消行动",
   "Retry this Action": "重试这个行动",
-  "Undo this change": "撤销这个改变",
   "Undo returns the world to how it was before this change. What was said stays in the story.":
     "撤销会让世界回到这个改变之前的样子，说过的话仍然留在故事里。",
   "Close stale Action": "关闭过时的行动",
@@ -753,11 +751,6 @@ export const zh: Record<string, string> = {
   "Change how this character relates to someone": "改变这个角色和别人的关系",
   "Start a new story thread": "开启一条新的剧情线",
   "Work toward resolving:": "推进解决：",
-  "Talking changes nothing. Small changes happen at once and can be undone; important ones wait for your confirmation.":
-    "交谈不会改变任何东西。小的改变会立即生效并且可以撤销，重要的改变会等你确认。",
-  "Talking changes nothing. A change to the world waits for your confirmation.":
-    "交谈不会改变任何东西。对世界的改变会等你确认。",
-  "Quick play: apply small changes at once": "快速游玩：小的改变立即生效",
   "Your Action": "你的行动",
   "Describe one action in the current world…": "描述你在当前世界里做的一件事…",
   "Send Action": "发送行动",
@@ -937,4 +930,12 @@ export const zh: Record<string, string> = {
   "Thread resolved": "剧情线已了结",
   "Transform failure": "失败后果",
   "Update canonical fact": "修改事实",
+  "Applied at once. You can undo this turn.": "已立即生效，你可以撤销这一回合。",
+  "Undo this turn": "撤销这一回合",
+  "What you do changes the world at once. You can undo the latest turn.":
+    "你做的事会立即改变世界，可以撤销最近一回合。",
+  "Strict mode: every change to the world waits for your confirmation.":
+    "严格模式：对世界的每个改变都会等你确认。",
+  "Strict mode: confirm every change myself": "严格模式：每个改变都由我确认",
+  "This turn changed:": "这回合改变了：",
 };

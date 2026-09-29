@@ -9,6 +9,17 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
+    // PX-4a: the product plays directly by default. These journeys review each
+    // change, so they start in Strict mode; direct-play tests clear this.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: "http://127.0.0.1:4173",
+          localStorage: [{ name: "simulora.strictMode", value: "on" }],
+        },
+      ],
+    },
   },
   // IP-9.8: the same journeys on each engine and form factor the product supports.
   projects: [

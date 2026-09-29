@@ -591,7 +591,8 @@ export const requestedEffectSchema = z.enum([
   "NO_WORLD_EFFECT",
   "RELATIONSHIP_EFFECT",
   "THREAD_EFFECT",
-  // WD-1b: the model chooses a response, ADD_FACT, REVEAL_FACT or a declared failure.
+  // WD-1b: the model chooses a response, ADD_FACT, REVEAL_FACT or a declared failure;
+  // PX-4a: after 0057 it may choose any closed operation (ADR-PX4-2).
   "STORY_DECIDES",
 ]);
 export type RequestedEffect = z.infer<typeof requestedEffectSchema>;
@@ -653,6 +654,8 @@ export function compileEffectContext(
   state: StateRevisionDocument,
   characterId: string | null,
   requestedEffect: RequestedEffect,
+  /** PX-4a: a story Action created after 0057 may use every closed operation. */
+  storyFreedom = false,
 ): {
   relationships: Array<
     RelationshipPolicy & { fromCharacterId: string; toCharacterId: string; state: string }
@@ -664,6 +667,7 @@ export function compileEffectContext(
   const applies =
     requestedEffect === "RELATIONSHIP_EFFECT" ||
     requestedEffect === "THREAD_EFFECT" ||
+    (requestedEffect === "STORY_DECIDES" && storyFreedom) ||
     (requestedEffect !== "NO_WORLD_EFFECT" && constraints.length > 0);
   if (!applies) return null;
   const policies = relationshipPoliciesFor(world);
@@ -776,6 +780,15 @@ export type ValidatedActionCandidate = {
   };
 };
 
+/** PX-4a (ADR-PX4-2): the operations STORY_DECIDES gains after 0057. */
+const storyFreedomOperations: ReadonlySet<string> = new Set([
+  "UPDATE_CANONICAL_FACT",
+  "MOVE_CHARACTER",
+  "SHIFT_RELATIONSHIP",
+  "OPEN_THREAD",
+  "RESOLVE_THREAD",
+]);
+
 export function validateActionCandidate(
   candidateInput: unknown,
   expected: {
@@ -805,6 +818,8 @@ export function validateActionCandidate(
     allowAddFact?: boolean;
     /** WD-1b: facts this generation may reveal under STORY_DECIDES. */
     revealableFactIds?: readonly string[];
+    /** PX-4a (ADR-PX4-2): STORY_DECIDES may choose any closed operation (after 0057). */
+    storyFreedom?: boolean;
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -855,7 +870,19 @@ export function validateActionCandidate(
     operation.type === "REVEAL_FACT" &&
     requestedEffect === "STORY_DECIDES" &&
     (expected.revealableFactIds ?? []).includes(operation.factId);
-  if (operation.type !== envelopeOperation && !transformedFailure && !addedFact && !revealedFact) {
+  // PX-4a: the story may also rewrite, move, shift, open or resolve; each
+  // operation keeps its own validation below.
+  const storyOperation =
+    requestedEffect === "STORY_DECIDES" &&
+    expected.storyFreedom === true &&
+    storyFreedomOperations.has(operation.type);
+  if (
+    operation.type !== envelopeOperation &&
+    !transformedFailure &&
+    !addedFact &&
+    !revealedFact &&
+    !storyOperation
+  ) {
     throw new Error("Candidate effect does not match the requested closed effect envelope");
   }
   const allowedContext = new Set(expected.authorizedContextFactIds);
@@ -1116,7 +1143,13 @@ function validateClosureOperation(
   }
   if (operation.type === "RESOLVE_THREAD") {
     const thread = expected.state.threads?.find((item) => item.id === operation.threadId);
-    if (!thread || operation.threadId !== expected.targetThreadId || thread.status !== "OPEN") {
+    // PX-4a: the story may resolve any open thread; THREAD_EFFECT only its target.
+    const storyChoice = expected.requestedEffect === "STORY_DECIDES" && expected.storyFreedom;
+    if (
+      !thread ||
+      (!storyChoice && operation.threadId !== expected.targetThreadId) ||
+      thread.status !== "OPEN"
+    ) {
       throw new Error("Only the open thread the user targeted can be resolved");
     }
     return {

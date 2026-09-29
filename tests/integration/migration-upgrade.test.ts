@@ -10,7 +10,10 @@ import {
 } from "../../packages/database/src/index.js";
 import { runMigrations } from "../../packages/database/src/migrations.js";
 import { lanternReachSeed } from "../../packages/domain/src/index.js";
-import { DeterministicModelGateway } from "../../packages/model-gateway/src/index.js";
+import {
+  DeterministicModelGateway,
+  type WorldTurnRequest,
+} from "../../packages/model-gateway/src/index.js";
 
 const connectionString = process.env.SIMULORA_DATABASE_URL;
 const suite = connectionString ? describe.sequential : describe.skip;
@@ -458,6 +461,122 @@ suite("populated prior-schema upgrade against real PostgreSQL", () => {
         "fact.western-signal-dim",
         "fact.red-pennant",
       ]);
+    } finally {
+      await pool?.end();
+      await dropDatabaseAfterDisconnect(admin, databaseName);
+      await admin.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
+  it("keeps pre-0057 story Actions on the WD-1b rules across 0056 to 0057", async () => {
+    if (!connectionString) throw new Error("SIMULORA_DATABASE_URL is required");
+    const databaseName = `simulora_px4_upgrade_${randomUUID().replaceAll("-", "")}`;
+    const admin = createDatabasePool(connectionString);
+    const directory = await mkdtemp(path.join(tmpdir(), "simulora-px4-prior-"));
+    const url = new URL(connectionString);
+    url.pathname = `/${databaseName}`;
+    let pool: ReturnType<typeof createDatabasePool> | undefined;
+    try {
+      await admin.query(`create database ${databaseName} template template0 encoding 'UTF8'`);
+      const migrations = path.resolve("db/migrations");
+      const files = (await readdir(migrations)).filter((file) => file.endsWith(".sql")).sort();
+      expect(files[56]).toBe("0057_px4_story_freedom.sql");
+      for (const file of files.slice(0, 56))
+        await copyFile(path.join(migrations, file), path.join(directory, file));
+      await runMigrations(url.toString(), directory);
+      pool = createDatabasePool(url.toString());
+      const db = pool;
+      const repository = new AuthoritativeWorldRepository(db);
+      const account = { accountId: randomUUID(), eligibility: "adult" as const };
+      const world = await repository.createWorld(account, lanternReachSeed);
+      const revision = await repository.createRevision(account, world.worldId, world.rowVersion);
+      const start = () =>
+        repository.startContinuity(account, revision.revisionId, {
+          initiativeMode: "GUIDED",
+          structureMode: "OPEN_ENDED",
+        });
+      const submit = (continuity: Awaited<ReturnType<typeof start>>) =>
+        repository.submitAction(account, continuity.branchId, {
+          schemaVersion: 1,
+          idempotencyKey: randomUUID(),
+          expectedHeadCommitId: continuity.headCommitId,
+          participationExpectation: continuity.state.participation,
+          intent: "I relight the western signal.",
+          requestedEffect: "STORY_DECIDES",
+        });
+      const lead = lanternReachSeed.facts[0]!;
+      const scripted =
+        (operation: (request: WorldTurnRequest) => Record<string, unknown>) =>
+        (request: WorldTurnRequest) => {
+          const narrative = "You work at the signal lamp.";
+          const responseSource = { type: "WORLD" } as const;
+          return Promise.resolve({
+            narrative,
+            responseSource,
+            candidate: {
+              schemaVersion: 1,
+              actionId: request.actionId,
+              expectedHeadCommitId: request.expectedHeadCommitId,
+              narrative,
+              responseSource,
+              operation: operation(request),
+            },
+          });
+        };
+      const rewrite = scripted((request) => ({
+        type: "UPDATE_CANONICAL_FACT",
+        targetFactId: lead.id,
+        beforeStatement: lead.statement,
+        afterStatement: "The western signal burns bright again.",
+        scope: "SHARED",
+        provenance: `Confirmed Action ${request.actionId}`,
+      }));
+      const addFact = scripted(() => ({
+        type: "ADD_FACT",
+        statement: "Soot blackens the lamp glass.",
+        causalFactIds: [lead.id],
+      }));
+      const manifest = async (actionId: string) =>
+        (
+          await db.query<{ manifest: Record<string, unknown> }>(
+            `select context_manifest as manifest from simulora.generation_attempts
+             where action_id = $1 order by attempt_number desc limit 1`,
+            [actionId],
+          )
+        ).rows[0]!.manifest;
+
+      // Before 0057: one sealed story proposal and one unprocessed story Action.
+      const sealedPath = await start();
+      const sealed = await repository.processAction((await submit(sealedPath)).id, addFact, "px4");
+      expect(sealed?.proposal?.impact).toBe("L2");
+      const earlyPath = await start();
+      const early = await submit(earlyPath);
+
+      await runMigrations(url.toString(), migrations);
+
+      // The sealed proposal still confirms on its original evidence.
+      const committed = await repository.confirmAction(account, sealed!.id, {
+        proposalId: sealed!.proposal!.id,
+        proposalDigest: sealed!.proposal!.digest,
+        expectedHeadCommitId: sealed!.proposal!.expectedHeadCommitId,
+      });
+      expect(committed.status).toBe("COMMITTED");
+      // An Action created before 0057 keeps WD-1b: no rewrite, no effect context.
+      const refused = await repository.processAction(early.id, rewrite, "px4");
+      expect(refused?.proposal ?? null).toBeNull();
+      expect(await manifest(early.id)).not.toHaveProperty("effectContextDigest");
+
+      // After 0057 the same story Action may rewrite at L3 and binds its context.
+      const latePath = await start();
+      const late = await repository.processAction((await submit(latePath)).id, rewrite, "px4");
+      expect(late?.proposal?.impact).toBe("L3");
+      expect(await manifest(late!.id)).toHaveProperty("effectContextDigest");
+      const lateCommitted = await repository.confirmAction(account, late!.id, {
+        proposalId: late!.proposal!.id,
+        proposalDigest: late!.proposal!.digest,
+        expectedHeadCommitId: late!.proposal!.expectedHeadCommitId,
+      });
+      expect(lateCommitted.status).toBe("COMMITTED");
     } finally {
       await pool?.end();
       await dropDatabaseAfterDisconnect(admin, databaseName);

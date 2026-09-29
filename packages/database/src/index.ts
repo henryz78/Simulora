@@ -659,6 +659,8 @@ export type ActionGenerator = (request: {
   character: ActionGenerationContext["character"];
   targetFact: ActionGenerationContext["targetFact"];
   sharedWorld?: boolean;
+  /** PX-4a: the story may choose any closed operation (after 0057). */
+  storyFreedom?: boolean;
   context?: Readonly<Record<string, unknown>>;
   priorDialogue?: ReadonlyArray<ActionDialogueRecord>;
 }) => Promise<{
@@ -1196,6 +1198,20 @@ async function sharedWorldApplies(client: PoolClient, actionId: string): Promise
   if (!installed.rows[0]?.installed) return false;
   const result = await client.query<{ applies: boolean }>(
     "select simulora.wd1_shared_world_apply(created_at) as applies from simulora.actions where id = $1",
+    [actionId],
+  );
+  return result.rows[0]?.applies ?? false;
+}
+
+// PX-4a: a story Action may choose any closed operation once 0057 is installed
+// and the Action was created after it (ADR-PX4-2).
+async function storyFreedomApplies(client: PoolClient, actionId: string): Promise<boolean> {
+  const installed = await client.query<{ installed: boolean }>(
+    "select to_regprocedure('simulora.px4_story_freedom_apply(timestamp with time zone)') is not null as installed",
+  );
+  if (!installed.rows[0]?.installed) return false;
+  const result = await client.query<{ applies: boolean }>(
+    "select simulora.px4_story_freedom_apply(created_at) as applies from simulora.actions where id = $1",
     [actionId],
   );
   return result.rows[0]?.applies ?? false;
@@ -2804,6 +2820,7 @@ export class AuthoritativeWorldRepository {
             : {}),
           relationshipPolicies: relationshipPoliciesFor(world),
           constraintIds: (world.constraints ?? []).map((constraint) => constraint.id),
+          storyFreedom: await storyFreedomApplies(client, actionId),
         });
         nextState = applyValidatedActionCandidate(expectedState, validated);
         if (!validated.displayEffect)
@@ -5035,11 +5052,13 @@ export class AuthoritativeWorldRepository {
         });
       }
       // MGC-1: bind the declared effect context only when this Action can use it.
+      const storyFreedom = await storyFreedomApplies(client, actionId);
       const effectContext = compileEffectContext(
         world,
         state,
         generationContext.character?.id ?? null,
         requestedEffectSchema.parse(action.operation_payload.requestedEffect ?? "FACT_REWRITE"),
+        storyFreedom,
       );
       if (effectContext) {
         Object.assign(contextManifest, { effectContextDigest: contentHash(effectContext) });
@@ -5090,6 +5109,7 @@ export class AuthoritativeWorldRepository {
         world,
         effectContext,
         routinePolicy,
+        storyFreedom,
         state,
         generationContext,
         context,
@@ -5219,11 +5239,19 @@ export class AuthoritativeWorldRepository {
         requestedEffect,
         ...(targetThreadId ? { targetThreadId } : {}),
         ...(prepared.effectContext ? { effectContext: prepared.effectContext } : {}),
-        routineRoutes: prepared.routinePolicy?.routes ?? [],
+        // PX-4a: the story is offered a move only for a Character the policy lets move.
+        routineRoutes:
+          requestedEffect === "STORY_DECIDES" &&
+          !prepared.routinePolicy?.npcIds.includes(prepared.generationContext.character?.id ?? "")
+            ? []
+            : (prepared.routinePolicy?.routes ?? []),
         participation: prepared.generationContext.participation,
         character: prepared.generationContext.character,
         targetFact: prepared.generationContext.targetFact,
         ...(prepared.generationContext.sharedWorld ? { sharedWorld: true } : {}),
+        ...(prepared.storyFreedom && requestedEffect === "STORY_DECIDES"
+          ? { storyFreedom: true }
+          : {}),
         ...(prepared.context ? { context: prepared.context } : {}),
         ...(prepared.priorDialogue.length ? { priorDialogue: prepared.priorDialogue } : {}),
       });
@@ -5263,6 +5291,7 @@ export class AuthoritativeWorldRepository {
         ...(targetThreadId ? { targetThreadId } : {}),
         relationshipPolicies: relationshipPoliciesFor(prepared.world),
         constraintIds: (prepared.world.constraints ?? []).map((constraint) => constraint.id),
+        storyFreedom: prepared.storyFreedom,
       });
       if (generated.narrative !== candidate.candidate.narrative) {
         throw new Error("Generated narrative does not match the candidate narrative");

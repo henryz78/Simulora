@@ -257,6 +257,9 @@ function mergeBranchHistory(current: BranchAction[], incoming: BranchAction[]): 
   return [...merged, ...currentById.values()];
 }
 
+/** PX-4a: one Strict mode preference for this browser, for every Continuity. */
+export const strictModeKey = "simulora.strictMode";
+
 function ambiguousActionOutcome(
   operation: "confirmation" | "cancellation" | "retry",
   current: ActionResponse | null,
@@ -319,28 +322,25 @@ export function ContinuityProvider({
     setHistory(nextHistory);
   }, []);
 
-  // PX-2a: a per-viewer convenience kept in this browser; it must never be the
-  // only record of anything, so a failed read simply starts with it off.
-  const quickPlayKey = `simulora.quickPlay.${continuityId}`;
+  // PX-4a (ADR-PX4-1): direct play is the default; Strict mode is a per-viewer
+  // preference kept in this browser. It must never be the only record of
+  // anything, so a failed read simply starts in direct play.
   const [quickPlay, setQuickPlayState] = useState(() => {
     try {
-      return window.localStorage.getItem(quickPlayKey) === "on";
+      return window.localStorage.getItem(strictModeKey) !== "on";
     } catch {
-      return false;
+      return true;
     }
   });
-  const setQuickPlay = useCallback(
-    (enabled: boolean) => {
-      setQuickPlayState(enabled);
-      try {
-        if (enabled) window.localStorage.setItem(quickPlayKey, "on");
-        else window.localStorage.removeItem(quickPlayKey);
-      } catch {
-        // Storage unavailable: the setting lasts for this page only.
-      }
-    },
-    [quickPlayKey],
-  );
+  const setQuickPlay = useCallback((enabled: boolean) => {
+    setQuickPlayState(enabled);
+    try {
+      if (enabled) window.localStorage.removeItem(strictModeKey);
+      else window.localStorage.setItem(strictModeKey, "on");
+    } catch {
+      // Storage unavailable: the setting lasts for this page only.
+    }
+  }, []);
   const [autoConfirmedIds, setAutoConfirmedIds] = useState<ReadonlySet<string>>(new Set());
   const [undoneIds, setUndoneIds] = useState<ReadonlySet<string>>(new Set());
   const autoConfirmAttempted = useRef(new Set<string>());
@@ -619,13 +619,14 @@ export function ContinuityProvider({
     [readAction, refresh, upsertAction],
   );
 
-  // PX-2a quick play: the same exact confirmation the button sends, for L2 only.
+  // PX-4a direct play: the same exact confirmation the button sends, for every
+  // proposal, unless Strict mode is on.
   useEffect(() => {
     if (!quickPlay) return;
     for (const action of pendingActions) {
       if (
         action.status !== "AWAITING_CONFIRMATION" ||
-        action.proposal?.impact !== "L2" ||
+        !action.proposal ||
         autoConfirmAttempted.current.has(action.id)
       )
         continue;
@@ -1119,7 +1120,7 @@ export function ActionStatusCard({
         </p>
       ) : null}
       {appliedAutomatically && action.status === "COMMITTED" ? (
-        <p className="action-note">{t("Applied automatically by quick play. You can undo it.")}</p>
+        <p className="action-note">{t("Applied at once. You can undo this turn.")}</p>
       ) : null}
       {action.proposal && action.status === "COMMITTED" ? (
         <div className="proposal-review">
@@ -1131,6 +1132,24 @@ export function ActionStatusCard({
             </p>
           ) : null}
           <p>{action.proposal.narrative}</p>
+          {/* PX-4a: with no confirmation step, the result names what changed. */}
+          <p className="turn-change">
+            <strong>{t("This turn changed:")}</strong>{" "}
+            {action.proposal.displayEffect.target === `fact.${action.id}` ? (
+              <>
+                {t("New in the world")}: {action.proposal.displayEffect.after}
+              </>
+            ) : isRevealProposal(action.proposal, world?.world) ? (
+              <>
+                {t("Discovered")}: {action.proposal.displayEffect.after}
+              </>
+            ) : (
+              <>
+                {describeTarget(action.proposal.displayEffect.target, world)}:{" "}
+                {action.proposal.displayEffect.before} → {action.proposal.displayEffect.after}
+              </>
+            )}
+          </p>
         </div>
       ) : null}
       {action.dialogue && action.status === "COMPLETED_NO_EFFECT" ? (
@@ -1217,7 +1236,7 @@ export function ActionStatusCard({
               });
             }}
           >
-            {t("Undo this change")}
+            {t("Undo this turn")}
           </button>
           <p className="muted-copy">
             {t(
@@ -1609,18 +1628,16 @@ export function ActionComposer(): ReactElement {
         </select>
         <p className="field-help">
           {quickPlay
-            ? t(
-                "Talking changes nothing. Small changes happen at once and can be undone; important ones wait for your confirmation.",
-              )
-            : t("Talking changes nothing. A change to the world waits for your confirmation.")}
+            ? t("What you do changes the world at once. You can undo the latest turn.")
+            : t("Strict mode: every change to the world waits for your confirmation.")}
         </p>
         <label className="quick-play-toggle">
           <input
             type="checkbox"
-            checked={quickPlay}
-            onChange={(event) => setQuickPlay(event.target.checked)}
+            checked={!quickPlay}
+            onChange={(event) => setQuickPlay(!event.target.checked)}
           />
-          {t("Quick play: apply small changes at once")}
+          {t("Strict mode: confirm every change myself")}
         </label>
         <label htmlFor="world-action">{t("Your Action")}</label>
         <textarea
