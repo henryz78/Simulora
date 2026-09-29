@@ -29,9 +29,11 @@ reads it as personality, not obedience.
 - **D1.** Loosen play; it must not be rigid.
 - **D2.** Changes apply without a confirmation click by default. A "Strict mode" restores
   confirming each change. Restore and Undo are the safety net.
-- **D3.** What the player does succeeds when it is realistically possible. It fails when the
-  world makes it impossible (heavy snow means no walking to the burger shop), unless the
-  player names a plausible means that fits the world (a sled).
+- **D3.** What the player does succeeds when it is possible **in that world**. It fails when
+  the world makes it impossible (heavy snow means no walking to the burger shop), unless the
+  player names a plausible means that fits the world (a sled). A world's own rules decide
+  what is possible: in a world of magic, flying on a broom succeeds. Ordinary common sense
+  applies only where the world says nothing.
 - **D4.** The model answers in the player's language.
 - **D5.** A turn may make several changes, capped at 4.
 - **D6.** Characters may still refuse what the player asks of them.
@@ -71,8 +73,9 @@ reads it as personality, not obedience.
     offered routes only for a Character that the policy lets move.
   - The explicit effects stay available unchanged.
 - **ADR-PX4-3: prompt version 11.**
-  - **The player's own attempts.** These succeed when they are physically and socially
-    possible given the facts, locations and declared constraints. The outcome is recorded
+  - **The player's own attempts.** These succeed when they are possible by the world's own
+    rules: its premise, facts, locations, boundaries and declared constraints. Common sense
+    fills in only where the world says nothing. The outcome is recorded
     with the operation that best fits it. An impossible attempt fails because of its real
     obstacle, using `TRANSFORM_FAILURE` when a declared constraint applies.
   - **Means the player names.** A means must not contradict established facts, and the
