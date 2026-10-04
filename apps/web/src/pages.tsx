@@ -620,7 +620,10 @@ function PendingOrientationNotice({
   );
 }
 
-/** The newest commits of the current head's path, read again when the head moves. */
+/**
+ * The newest commits of the current head's path, read again when the head moves.
+ * A trace read for another head is never used: the line falls back instead.
+ */
 function useHeadTrace(loadState: ReturnType<typeof useContinuity>["loadState"]): TraceCommit[] {
   const [commits, setCommits] = useState<TraceCommit[]>([]);
   const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
@@ -635,7 +638,7 @@ function useHeadTrace(loadState: ReturnType<typeof useContinuity>["loadState"]):
       active = false;
     };
   }, [branchId, head]);
-  return commits;
+  return commits[0]?.id === head ? commits : [];
 }
 
 export function ContinuityPage(): ReactElement {

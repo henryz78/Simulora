@@ -496,18 +496,20 @@ test("WD-2 the current situation is the shared fact changed last, until a Restor
 }) => {
   const state = worldResponse();
   const document = state.state as Record<string, unknown>;
+  const fact = (id: string, statement: string, scope = "SHARED") => ({
+    id,
+    statement,
+    scope,
+    lifecycle: "ACTIVE",
+  });
   document.facts = [
-    { id: factId, statement: "The western signal is dim.", scope: "SHARED", lifecycle: "ACTIVE" },
-    { id: "fact.rope", statement: "The bell rope is cut.", scope: "SHARED", lifecycle: "ACTIVE" },
-    {
-      id: "fact.mud",
-      statement: "Fresh mud marks the stairs.",
-      scope: "SHARED",
-      lifecycle: "ACTIVE",
-    },
+    fact(factId, "The western signal is dim."),
+    fact("fact.rope", "The bell rope is cut."),
+    fact("fact.mud", "Fresh mud marks the stairs."),
+    fact("fact.secret", "A hidden key waits.", "CONTINUITY_PRIVATE"),
   ];
-  const turn = (kind: string, events: Array<[string, string]>) => ({
-    id: crypto.randomUUID(),
+  const turn = (id: string, kind: string, events: Array<[string, string]>) => ({
+    id,
     parentCommitId: null,
     kind,
     sourceClass: "USER",
@@ -521,29 +523,55 @@ test("WD-2 the current situation is the shared fact changed last, until a Restor
       scope: "SHARED",
     })),
   });
-  // Newest first; within a commit, the last change leads.
-  let commits = [
-    turn("ACTION_COMMITTED", [
-      ["FACT_ADDED", "fact.mud"],
-      ["FACT_ADDED", "fact.rope"],
-      ["THREAD_OPENED", "thread.rope"],
-    ]),
-    ...(traceResponse().commits as unknown[]),
-  ];
+  const older = traceResponse().commits as unknown[];
+  let commits: unknown[] = [];
   await installRoutes(page, { state });
   await page.route(`**/v1/branches/${branchId}/commits**`, (route) =>
     json(route, { ...traceResponse(), commits }),
   );
-  await page.goto(`/continuities/${continuityId}`);
-  await expect(page.locator(".situation-card")).toContainText("The bell rope is cut.");
+  const situation = async (expected: string) => {
+    await page.goto(`/continuities/${continuityId}`);
+    await expect(page.locator(".situation-card")).toContainText(expected);
+  };
+
+  // Newest first; within a commit, the last change leads.
+  commits = [
+    turn(initialHead, "ACTION_COMMITTED", [
+      ["FACT_ADDED", "fact.mud"],
+      ["FACT_ADDED", "fact.rope"],
+      ["THREAD_OPENED", "thread.rope"],
+    ]),
+    ...older,
+  ];
+  await situation("The bell rope is cut.");
   await page.getByRole("link", { name: "Continuity", exact: true }).click();
   await expect(page.getByRole("region", { name: "What currently holds" })).toContainText(
     "The bell rope is cut.",
   );
 
-  commits = [turn("RESTORE_COMMITTED", []), ...commits];
-  await page.goto(`/continuities/${continuityId}`);
-  await expect(page.locator(".situation-card")).toContainText("The western signal is dim.");
+  // A private fact never leads; a reveal does.
+  commits = [
+    turn(initialHead, "ACTION_COMMITTED", [["FACT_ADDED", "fact.secret"]]),
+    turn(crypto.randomUUID(), "ACTION_COMMITTED", [["FACT_REVEALED", "fact.mud"]]),
+    ...older,
+  ];
+  await situation("Fresh mud marks the stairs.");
+  await expect(page.locator(".situation-card")).not.toContainText("hidden key");
+
+  // A trace read for another head is not used.
+  commits = [
+    turn(crypto.randomUUID(), "ACTION_COMMITTED", [["FACT_ADDED", "fact.rope"]]),
+    ...older,
+  ];
+  await situation("The western signal is dim.");
+
+  // A Restore ends the search.
+  commits = [
+    turn(initialHead, "RESTORE_COMMITTED", []),
+    turn(crypto.randomUUID(), "ACTION_COMMITTED", [["FACT_ADDED", "fact.rope"]]),
+    ...older,
+  ];
+  await situation("The western signal is dim.");
 });
 
 test("World, Continuity and Return fallback use current shared facts, not earlier threads", async ({
