@@ -1967,7 +1967,7 @@ started: PX-4b" line of §70.
 - **Not started:** the owner's play-test of PX-4a and PX-4b.
 - **Not authorized:** provider approval, beta, launch or production live model.
 
-## 72. WD-2 current situation and prompt v13: reviewed, awaiting CI
+## 72. WD-2 current situation and prompt v13: CLOSED
 
 On 2026-10-04 the owner asked for the open fixes to be made.
 
@@ -1986,5 +1986,10 @@ On 2026-10-04 the owner asked for the open fixes to be made.
 - **Review:** Sonnet 5.5 Reviewer. WD-2: `PASS WITH ISSUES` (0B/1I/3M), then
   (0B/0I/2M), then (0B/0I/1M, a docs fix). Prompt v13: (0B/0I/3M), then
   `PASS` (0B/0I/0M). Approved behavior SHA `d8cebd5`.
-- **Pending:** CI on the latest commit, and the owner's live play-test, which
-  is the only check of whether v13 is enough.
+- **CI:** exact-SHA run `37186238604` on `d8cebd5` succeeded.
+- **CI LFS:** `f98e2f6` stops CI from fetching Git LFS media. The 998 LFS
+  files (about 1.5 GB of research and archive media under `docs/` and
+  `prototypes/`) were downloaded on every run and used up the account's LFS
+  bandwidth. No check reads them.
+- **Pending:** the owner's live play-test, the only check of whether v13 is
+  enough.

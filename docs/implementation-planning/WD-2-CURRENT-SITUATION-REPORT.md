@@ -1,7 +1,7 @@
 # WD-2 Current Situation Report
 
-**Date:** 2026-10-04 · **Status:** Review `PASS WITH ISSUES` (0B/0I/1M, fixed), approved
-behavior SHA `d8cebd5`, awaiting CI.
+**Date:** 2026-10-04 · **Status:** `CLOSED`. Review `PASS WITH ISSUES` (0B/0I/1M, fixed),
+approved behavior SHA `d8cebd5`, exact-SHA CI `37186238604` succeeded.
 The options are in the [WD-2 Current Situation Proposal](WD-2-CURRENT-SITUATION-PROPOSAL.md).
 
 ## Decision
