@@ -32,8 +32,9 @@ commit, so it never changes the line.
 - **Server:** `currentSituation` in `packages/database/src/index.ts` feeds the Return
   projection, from the same source head as its state.
 - **Web:** `apps/web/src/pages.tsx` mirrors the rule for the World and Continuity pages. It
-  reads the trace again when the head moves, and uses a trace only when its newest commit is
-  the current head. Until then, or if the read fails, it shows the fallback.
+  reads the trace again when the head moves. The line uses a trace only when its newest
+  commit is the current head; until then, or if the read fails, it shows the fallback. The
+  Continuity page's action-to-commit links keep using the last trace read.
 - **Return fallback:** when the Return projection cannot be read, the page's local fallback
   shows the first current shared fact, as before. It does not read the trace.
 - **Trace:** `FACT_ADDED` and `FACT_REVEALED` Events carry `factId`. The trace now reports it
@@ -68,14 +69,25 @@ The Reviewer was Sonnet 5.5, read-only.
      changed last never does. Server and web parity is by review; the e2e and the
      integration test check the same rule.
    - **M-3.** The trace page now names the fact for added and revealed facts. Stated above.
+2. **Focused re-review of `f109f6b` + `e24a591`: `PASS WITH ISSUES` (0B/0I/2M).** I-1 is
+   closed.
+   - **M-A.** The gate also emptied the Continuity page's action-to-commit links after each
+     head change. `d8cebd5` keeps them on the last trace; only the line is gated.
+   - **M-B.** This section and the evidence below now name every commit and the re-run.
+
+The same re-review covered prompt v13; see the [PX-4 contract](PX-4-WORLD-FREEDOM-CONTRACT.md)
+Known limits.
 
 ## Commits and evidence
 
-- **Behavior:** `5f2d704`, and the review fix after it.
+- **Behavior:** `5f2d704`, review fixes `f109f6b` and `d8cebd5`. Prompt v13 (`979f700`,
+  `d8cebd5`) is a separate change recorded in the PX-4 contract.
 - **Local runs (not CI evidence):**
   - PGlite `px4b-multi-change` 8/8, including the new WD-2 test, and `ip4-adversarial`;
   - `ip4-return-continuity`: 13 passed, plus 2 lock-order tests that also fail on PGlite
     without this change;
   - e2e `ip4-continuity`, `action-truth` and `mgc1-closure` 124/124 on Chromium, mobile and
     WebKit (Firefox is not installed locally);
+  - after `d8cebd5`: the same e2e 93/93 on Chromium, mobile and WebKit, and domain plus
+    gateway 77/77;
   - typecheck for both configs and eslint are clean.
