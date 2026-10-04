@@ -135,13 +135,16 @@ reads it as personality, not obedience.
    - prompt compilation;
    - browser tests for the default, Strict mode and Undo.
 
-## PX-4b design (revised after design Review, awaiting re-review)
+## PX-4b design (revised after two design Reviews)
 
 ADR-PX4-4 lets one turn make up to 4 changes. This section is the design that ADR asked
 for.
 - **Round 1:** the design Review of `2b13b0c` returned `DESIGN PASS WITH CHANGES`, with
   9 required and 3 recommended changes. All of them are folded in below, tagged as `[Rn]`.
-- **Gate:** implementation starts only after the re-review passes.
+- **Round 2:** the re-review of `53a1dc5` also returned `DESIGN PASS WITH CHANGES`. It
+  asked for six specification fixes, tagged as `[Sn]`, and said it would pass the design
+  once they were in.
+- **Gate:** implementation starts once those are folded in.
 
 ### Scope
 
@@ -165,8 +168,9 @@ for.
   - No two operations share a target key.
   - No operation names, as a cause, a fact that another operation rewrites or reveals.
   - `NO_WORLD_EFFECT` never appears in v2.
-  - `TRANSFORM_FAILURE` may be combined only with `ADD_FACT` and `OPEN_THREAD`, which
-    record the consequences of the failure.
+  - At most one `TRANSFORM_FAILURE`, combined only with `ADD_FACT` entries that record
+    what followed. The failure already opens its own thread, so it is never paired with
+    `OPEN_THREAD` `[S3]`.
   - At most one `MOVE_CHARACTER`.
 
 ### Meaning
@@ -210,7 +214,11 @@ for.
 What is reused, and what is new `[R12]`:
 - **Reused unchanged:** the v1 *effect* validators (the 0057 → 0056 → 0048/0055 → 0032 →
   legacy chain).
-- **Refactored:** the generation evidence and the state function, as described below.
+- **Refactored:** the generation evidence, the state function, and the model-context
+  history aggregate `[S4]`.
+  - The aggregate lives in `re2_generation_context_pre_tb1` (0055) under the 0056 wrapper.
+  - Its events are ordered by `ordinal`, and both the generator and the evidence check
+    recompute the context digest with that ordering.
 
 How it works:
 - **Dispatcher.**
@@ -222,6 +230,13 @@ How it works:
   - Each virtual proposal is tried at L2, then at L3; at most one passes. The envelope
     requires the stored impact to equal the maximum `[R6]`.
   - The envelope then checks:
+    - the stored v2 candidate itself `[S1]`:
+      - its exact key set is `{schemaVersion, actionId, expectedHeadCommitId, narrative,
+        responseSource, operations}`;
+      - `schemaVersion = 2`;
+      - `actionId` and `expectedHeadCommitId` equal the Action row;
+      - the responseSource equals the computed one;
+      - `display_effects` has exactly one entry per operation;
     - the operation count (2–4);
     - the combination rules;
     - the epoch;
@@ -238,7 +253,11 @@ How it works:
   - For a virtual proposal, the core function receives:
     - `expected_output` built from the stored v2 candidate;
     - as disclosed, the union of every `REVEAL` in the turn.
-  - TypeScript mirrors this union.
+  - The core refuses a virtual operation that is not, at that position, one of the stored
+    operations `[S1]`.
+  - The disclosed union applies to the narrative only. Operation texts stay strict, so a
+    statement that mentions a fact revealed in the same turn is refused `[S2]`.
+  - TypeScript mirrors both rules.
 - **State `[R4]`.**
   - Pure per-operation delta functions, `(document, operation, actionId, position)`, in
     both SQL and TypeScript. They are applied in candidate order, followed by one clock
@@ -256,7 +275,11 @@ How it works:
   1. the combination rules;
   2. each operation through the v1 path, with the turn's disclosed union;
   3. the per-operation impact.
+- **Domain schema.** A v2 candidate schema, as a discriminated union on `schemaVersion`.
+  The gateway's output parser accepts it `[S5]`.
 - **Database repository.** It writes the folded state and the ordered Events.
+  `closureEventFor` and the confirm path's single-Event insert loop over operations and
+  write `ordinal` `[S5]`.
 - **Gateway.** Prompt v12 offers 1–4 changes under story freedom, together with the
   combination rules. One change is still returned as v1.
 - **Web.** It lists every change. Direct play and Strict mode are unchanged.
@@ -271,12 +294,18 @@ How it works:
   - `OPEN` plus `RESOLVE`;
   - `TRANSFORM` plus `OPEN`.
 - An L3 impact from a PROTECTED shift inside a v2 turn.
+- For each operation type, the virtual trial passes at exactly one level: `UPDATE` only at
+  L3, `MOVE` only at L2. The dispatcher refuses if both levels pass `[S6]`.
+- A `TRANSFORM_FAILURE` plus `ADD_FACT` turn, with distinct derived ids.
 - Forged v2 proposals refused, using the rolled-back forgery pattern of PX-4a, each with a
   positive control:
   - a v2 proposal before the epoch;
   - a v2 proposal with an underived id;
   - a v2 proposal with a wrong impact;
-  - a hand-made virtual proposal.
+  - a hand-made virtual proposal;
+  - a stored v2 candidate with an extra key, or with a mismatched `actionId` `[S1]`;
+  - a narrative that mentions a fact revealed in the turn passes, while an `ADD_FACT`
+    statement that mentions it is refused `[S2]`.
 - The model-context digest is stable when a commit has several Events.
 - Prompt compilation.
 - Browser:
@@ -286,8 +315,9 @@ How it works:
 ### Risks
 
 - **Size.** This is the largest SQL change since MGC-1.
-  - It adds a column and a constraint swap on `domain_events`, an evidence refactor and a
-    state refactor.
+  - It adds a column and a constraint swap on `domain_events`.
+  - It refactors the evidence and the state function.
+  - It copies and edits the roughly 100-line generation-context function `[S4]`.
   - The v1 effect validators stay untouched, but the evidence and state functions do not.
 - **Model quality.** More operations per turn give the model more room to be wrong. Each
   operation is still validated individually. Whether the owner wants 4 or fewer is a
