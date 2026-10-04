@@ -75,7 +75,7 @@ The Reviewer was Sonnet 5.5, read-only.
 ## Evidence
 
 - **Approved behavior SHA:** `b253308`.
-- **CI:** run `37180344015` on `eb1241f`, a docs-only commit on top of `b253308`. It was still running when the owner chose to close PX-4a; its result is to be recorded when known.
+- **CI:** run `37180344015` on `eb1241f`, a docs-only commit on top of `b253308`. It succeeded. The owner had closed PX-4a before it finished.
   The earlier exact-SHA runs for `4dd4389`, `3b863dd`, `87f739a` and `32f7191` all succeeded.
 - **Local runs (not CI evidence):**
   - PGlite `px4-story-freedom` 7/7;

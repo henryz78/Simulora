@@ -1935,7 +1935,7 @@ See the [PX-4 contract](PX-4-WORLD-FREEDOM-CONTRACT.md) and the
     this turn", and keeps Strict mode as a per-browser setting.
   - **Prompt v11.**
 - **Approved behavior SHA:** `b253308`. CI run `37180344015` on `eb1241f`
-  (docs-only on top) was still running at closure; the owner closed PX-4a without waiting for it.
+  (docs-only on top) succeeded. The owner closed PX-4a before the run finished.
 - **Review:** Sonnet 5.5 Reviewer, `PASS WITH ISSUES` (0B/2I/4M). After the
   fixes in `b253308`, the focused re-review returned `PASS` (0B/0I/0M).
 - **Not started:** PX-4b (up to 4 changes per turn, which needs its own
