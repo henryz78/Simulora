@@ -1,7 +1,8 @@
 # PX-4 World Freedom Contract
 
 **Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is `CLOSED`: Review `PASS` after fixes, approved behavior
-SHA `b253308` (see the [PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md)). PX-4b has not started.
+SHA `b253308` (see the [PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md)). PX-4b is implemented at
+`7233013` and awaits its independent code Review.
 Owner decisions were given in chat on 2026-09-29, after the Lantern Inn play-test. The track
 closes on an independent Review of an exact SHA with green CI.
 
@@ -203,7 +204,11 @@ for.
 
 - **Events `[R1]`.**
   - `domain_events` gains `ordinal integer not null default 1`.
-  - `unique (commit_id, event_type)` becomes `unique (commit_id, ordinal)`.
+  - `unique (commit_id, event_type)` becomes `unique (commit_id, event_type, ordinal)`.
+    **Changed at implementation:** `(commit_id, ordinal)` would break existing tests, and any
+    existing data, where one commit carries several Events of different types, all at the
+    default ordinal 1. The wider key still separates two Events of one type. One Event per
+    ordinal in a multi-change Commit is enforced by the materialization check.
   - Every reader orders by `(created_at, ordinal, id)`: the repository's history,
     projection and export readers.
   - The history aggregate in the model context orders by `ordinal`, so the context digest
@@ -329,6 +334,9 @@ How it works:
   - It refactors the evidence and the state function.
   - It copies and edits the roughly 100-line generation-context function `[S4]`.
   - The v1 effect validators stay untouched, but the evidence and state functions do not.
+- **Not covered by a test.** There is no upgrade test that queues an Action before 0058
+  and processes it after. The epoch gate is covered by the rolled-back forgery that moves
+  the 0058 ledger time.
 - **Model quality.** More operations per turn give the model more room to be wrong. Each
   operation is still validated individually. Whether the owner wants 4 or fewer is a
   play-test question, and the cap is one constant.
