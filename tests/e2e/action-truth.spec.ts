@@ -20,6 +20,8 @@ test.beforeEach(async ({ page }, testInfo) => {
   const added = testInfo.title.includes("[added]");
   // WD-1b: the World reveals an author's secret at L2.
   const revealed = testInfo.title.includes("[revealed]");
+  // PX-4b: the story records two changes in one turn, at L2.
+  const multi = testInfo.title.includes("[multi]");
   let characterLocation = "location.tidal-observatory";
   observedIdempotencyKeys = [];
   confirmRequests = [];
@@ -167,6 +169,20 @@ test.beforeEach(async ({ page }, testInfo) => {
     const actionId = `30000000-0000-4000-8000-${String(actionNumber).padStart(12, "0")}`;
     const proposalId = `31000000-0000-4000-8000-${String(actionNumber).padStart(12, "0")}`;
     const proposalDigest = String(actionNumber).repeat(64).slice(0, 64);
+    const changes = [
+      {
+        target: `fact.${actionId}.1`,
+        before: "Nothing recorded yet.",
+        after: "The bell rope is cut.",
+        scope: "SHARED",
+      },
+      {
+        target: `thread.${actionId}.2`,
+        before: "No thread",
+        after: "Who cut the rope",
+        scope: "SHARED",
+      },
+    ];
     const base = {
       id: actionId,
       continuityId,
@@ -185,33 +201,36 @@ test.beforeEach(async ({ page }, testInfo) => {
         id: proposalId,
         digest: proposalDigest,
         expectedHeadCommitId: input.expectedHeadCommitId,
-        impact: routine || added || revealed ? "L2" : "L3",
+        impact: routine || added || revealed || multi ? "L2" : "L3",
         expiresAt: new Date(Date.now() + 60_000).toISOString(),
         narrative: `Iora studies the consequence of: ${input.intent}`,
         responseSource:
-          added || revealed
+          added || revealed || multi
             ? { type: "WORLD" }
             : { type: "CHARACTER", characterId: "character.iora" },
-        displayEffect: revealed
-          ? {
-              target: "fact.ledger",
-              before: "Hidden until now.",
-              after: ledger,
-              scope: "SHARED",
-            }
-          : added
+        ...(multi ? { displayEffects: changes } : {}),
+        displayEffect: multi
+          ? changes[0]
+          : revealed
             ? {
-                target: `fact.${actionId}`,
-                before: "Nothing recorded yet.",
-                after: "A second hull rides low behind the waiting vessel.",
+                target: "fact.ledger",
+                before: "Hidden until now.",
+                after: ledger,
                 scope: "SHARED",
               }
-            : {
-                target: routine ? "character.iora" : "fact.signal",
-                before: routine ? characterLocation : fact,
-                after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
-                scope: "SHARED",
-              },
+            : added
+              ? {
+                  target: `fact.${actionId}`,
+                  before: "Nothing recorded yet.",
+                  after: "A second hull rides low behind the waiting vessel.",
+                  scope: "SHARED",
+                }
+              : {
+                  target: routine ? "character.iora" : "fact.signal",
+                  before: routine ? characterLocation : fact,
+                  after: routine ? "location.harbor" : `Recorded consequence ${actionNumber}.`,
+                  scope: "SHARED",
+                },
       },
       commit: null,
     };
@@ -493,6 +512,22 @@ test.describe("in direct play", () => {
     await expect(page.getByLabel("Strict mode: confirm every change myself")).toBeChecked();
   });
 
+  test("PX-4b direct play applies every change of a turn, and Undo restores [multi]", async ({
+    page,
+  }) => {
+    await page.goto(`/continuities/${continuityId}`);
+    await page.getByLabel("Your Action").fill("I cut the bell rope and slip away.");
+    await page.getByRole("button", { name: "Send Action" }).click();
+    await expect(page.getByText("Applied at once. You can undo this turn.")).toBeVisible();
+    const changed = page.locator(".turn-change");
+    await expect(changed).toContainText("New in the world: The bell rope is cut.");
+    await expect(changed).toContainText("Who cut the rope");
+    expect(confirmRequests).toHaveLength(1);
+    await page.getByRole("button", { name: "Undo this turn" }).click();
+    await expect(page.getByText("Undone. The world is back to how it was")).toBeVisible();
+    expect(restoreRequests.map((item) => item.step)).toEqual(["prepare", "confirm"]);
+  });
+
   test("PX-4a direct play applies an important change too", async ({ page }) => {
     await page.goto(`/continuities/${continuityId}`);
     await page.getByLabel("Desired outcome").selectOption("FACT_REWRITE");
@@ -515,6 +550,22 @@ test.describe("in direct play", () => {
     await expect(context.getByText("Present at Harbor.", { exact: true })).toBeVisible();
     await expect(page.getByText("Undone: the world went back to before this.")).toHaveCount(0);
   });
+});
+
+test("PX-4b a turn with several changes lists each one for review [multi]", async ({ page }) => {
+  await page.goto(`/continuities/${continuityId}`);
+  await page.getByLabel("Your Action").fill("I cut the bell rope and slip away.");
+  await page.getByRole("button", { name: "Send Action" }).click();
+  const review = page.locator("ol.turn-changes");
+  await expect(review.getByRole("listitem")).toHaveCount(2);
+  await expect(review).toContainText("New in the world: The bell rope is cut.");
+  await expect(review).toContainText("Who cut the rope");
+  await expect(page.getByText("A small, everyday change")).toBeVisible();
+  await expectAccessible(page);
+  await page.getByRole("button", { name: "Confirm this exact change" }).click();
+  const changed = page.locator(".turn-change");
+  await expect(changed).toContainText("New in the world: The bell rope is cut.");
+  await expect(changed).toContainText("Who cut the rope");
 });
 
 test("PX-4a Strict mode leaves every change to the player", async ({ page }) => {

@@ -1059,8 +1059,27 @@ export function ActionStatusCard({
             </p>
           ) : null}
           <p>{action.proposal.narrative}</p>
-          {action.proposal.displayEffect.target === `fact.${action.id}` ||
-          isRevealProposal(action.proposal, world?.world) ? (
+          {action.proposal.displayEffects ? (
+            // PX-4b: a turn with several changes lists each one.
+            <>
+              <ol className="turn-changes">
+                {action.proposal.displayEffects.map((effect) => (
+                  <li key={effect.target}>{describeEffect(effect, action.id, world)}</li>
+                ))}
+              </ol>
+              <dl>
+                <div>
+                  <dt>{t("Size of change")}</dt>
+                  <dd>
+                    {action.proposal.impact === "L3"
+                      ? t("An important change — review it carefully")
+                      : t("A small, everyday change")}
+                  </dd>
+                </div>
+              </dl>
+            </>
+          ) : action.proposal.displayEffect.target === `fact.${action.id}` ||
+            isRevealProposal(action.proposal, world?.world) ? (
             // WD-1a/WD-1b: an added or revealed fact has no earlier state to show.
             <dl>
               <div>
@@ -1137,7 +1156,14 @@ export function ActionStatusCard({
           {/* PX-4a: with no confirmation step, the result names what changed. */}
           <p className="turn-change">
             <strong>{t("This turn changed:")}</strong>{" "}
-            {action.proposal.displayEffect.target === `fact.${action.id}` ? (
+            {action.proposal.displayEffects ? (
+              action.proposal.displayEffects.map((effect, index) => (
+                <span key={effect.target}>
+                  {index > 0 ? "; " : null}
+                  {describeEffect(effect, action.id, world)}
+                </span>
+              ))
+            ) : action.proposal.displayEffect.target === `fact.${action.id}` ? (
               <>
                 {t("New in the world")}: {action.proposal.displayEffect.after}
               </>
@@ -1424,6 +1450,40 @@ export function isHiddenSecret(world: AuthoritativeStateResponse["world"], fact:
   return (
     item?.scope === "CONTINUITY_PRIVATE" &&
     (world.discoverableFacts ?? []).some((secret) => secret.factId === id)
+  );
+}
+
+/**
+ * PX-4b: one change of a multi-change turn, in the words the single-change
+ * line uses. A new fact carries its position (`fact.<action>.<n>`); a reveal
+ * shows no earlier statement.
+ */
+function describeEffect(
+  effect: { target: string; before: string; after: string },
+  actionId: string,
+  world: AuthoritativeStateResponse | null,
+): ReactNode {
+  if (effect.target.startsWith(`fact.${actionId}.`)) {
+    return (
+      <>
+        {t("New in the world")}: {effect.after}
+      </>
+    );
+  }
+  if (
+    effect.before === "Hidden until now." &&
+    (world?.world?.discoverableFacts ?? []).some((secret) => secret.factId === effect.target)
+  ) {
+    return (
+      <>
+        {t("Discovered")}: {effect.after}
+      </>
+    );
+  }
+  return (
+    <>
+      {describeTarget(effect.target, world)}: {effect.before} → {effect.after}
+    </>
   );
 }
 

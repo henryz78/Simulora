@@ -668,6 +668,13 @@ export const submitActionRequestSchema = z.object({
     .optional(),
 });
 
+const displayEffectSchema = z.object({
+  target: z.string().min(1),
+  before: nonEmptyTextSchema,
+  after: nonEmptyTextSchema,
+  scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
+});
+
 export const actionProposalSchema = z.object({
   id: stableIdSchema,
   digest: z.string().regex(/^[0-9a-f]{64}$/),
@@ -681,12 +688,9 @@ export const actionProposalSchema = z.object({
       z.object({ type: z.literal("CHARACTER"), characterId: z.string().min(1).max(120) }).strict(),
     ])
     .nullable(),
-  displayEffect: z.object({
-    target: z.string().min(1),
-    before: nonEmptyTextSchema,
-    after: nonEmptyTextSchema,
-    scope: z.enum(["ACCOUNT_PRIVATE", "CONTINUITY_PRIVATE", "SHARED"]),
-  }),
+  displayEffect: displayEffectSchema,
+  /** PX-4b: every change of a multi-change turn, in order; displayEffect is the first. */
+  displayEffects: z.array(displayEffectSchema).min(2).max(4).optional(),
 });
 
 export const actionCommitSchema = z.object({

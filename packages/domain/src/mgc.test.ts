@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyRestorableState,
   applyValidatedActionCandidate,
+  applyValidatedMultiActionCandidate,
   compileEffectContext,
   createInitialState,
   lanternReachSeed,
@@ -10,6 +11,7 @@ import {
   stateRevisionDocumentSchema,
   threadIdForAction,
   validateActionCandidate,
+  validateMultiActionCandidate,
   worldDocumentSchema,
 } from "./index.js";
 
@@ -389,5 +391,150 @@ describe("MGC-1 closure operations", () => {
         "STORY_DECIDES",
       ),
     ).toBeNull();
+  });
+
+  describe("PX-4b several changes in one turn", () => {
+    const story = {
+      ...options,
+      requestedEffect: "STORY_DECIDES" as const,
+      storyFreedom: true,
+      allowAddFact: true,
+    };
+    const lead = ["fact.western-signal-dim"];
+    const turn = (operations: Array<Record<string, unknown>>, narrative = "The room stirs.") => ({
+      schemaVersion: 2,
+      actionId,
+      expectedHeadCommitId: head,
+      narrative,
+      responseSource: iora,
+      operations,
+    });
+    const add = (statement: string) => ({ type: "ADD_FACT", statement, causalFactIds: lead });
+    const open = (title: string) => ({ type: "OPEN_THREAD", title, causalFactIds: lead });
+    const oath = {
+      type: "SHIFT_RELATIONSHIP",
+      relationshipId: "relationship.iora-oath",
+      beforeState: "unsworn",
+      afterState: "sworn",
+      causalFactIds: lead,
+    };
+
+    it("applies every change once, with ids by position and the highest impact", () => {
+      const validated = validateMultiActionCandidate(
+        turn([add("The bell rope is cut."), open("Who cut the rope"), oath]),
+        story,
+      );
+      // A PROTECTED oath is L3, so the turn is L3.
+      expect(validated.impact).toBe("L3");
+      expect(validated.displayEffects.map((item) => item.target)).toEqual([
+        `fact.${actionId}.1`,
+        `thread.${actionId}.2`,
+        "relationship.iora-oath",
+      ]);
+      const next = applyValidatedMultiActionCandidate(state, validated);
+      expect(next.worldClock.turn).toBe(state.worldClock.turn + 1);
+      expect(next.openThreads).toEqual([...state.openThreads, "The room stirs."]);
+      expect(next.facts.at(-1)).toMatchObject({ id: `fact.${actionId}.1`, scope: "SHARED" });
+      expect(next.threads?.at(-1)).toMatchObject({ id: `thread.${actionId}.2`, status: "OPEN" });
+      expect(next.relationships.find((item) => item.id === "relationship.iora-oath")?.state).toBe(
+        "sworn",
+      );
+    });
+
+    it("is only for a story turn after the epoch, with two to four changes", () => {
+      const two = turn([add("The bell rope is cut."), open("Who cut the rope")]);
+      expect(validateMultiActionCandidate(two, story).impact).toBe("L2");
+      expect(() => validateMultiActionCandidate(two, { ...story, storyFreedom: false })).toThrow();
+      expect(() =>
+        validateMultiActionCandidate(two, { ...story, requestedEffect: "FACT_REWRITE" }),
+      ).toThrow();
+      expect(() => validateMultiActionCandidate(turn([add("One.")]), story)).toThrow();
+      expect(() =>
+        validateMultiActionCandidate(
+          turn([add("A."), add("B."), add("C."), add("D."), add("E.")]),
+          story,
+        ),
+      ).toThrow();
+      expect(() =>
+        validateMultiActionCandidate(
+          turn([add("A."), { type: "NO_WORLD_EFFECT", reason: "Nothing.", causalFactIds: lead }]),
+          story,
+        ),
+      ).toThrow();
+    });
+
+    it("refuses changes that collide or depend on each other", () => {
+      const refused = [
+        // The same relationship twice.
+        [oath, { ...oath, afterState: "unsworn", beforeState: "sworn" }],
+        // A cause the same turn rewrites.
+        [
+          {
+            type: "UPDATE_CANONICAL_FACT",
+            targetFactId: "fact.western-signal-dim",
+            beforeStatement: state.facts[0]!.statement,
+            afterStatement: "The western signal burns bright again.",
+            scope: "SHARED",
+            provenance: `Confirmed Action ${actionId}`,
+          },
+          add("The keeper relights it."),
+        ],
+        // A failure opens its own thread, and is joined only by facts.
+        [
+          {
+            type: "TRANSFORM_FAILURE",
+            constraintId: "constraint.flood",
+            outcome: "The causeway is under water.",
+            newThreadTitle: "Waiting for low tide",
+            causalFactIds: lead,
+          },
+          open("Another way across"),
+        ],
+      ];
+      for (const operations of refused) {
+        expect(() => validateMultiActionCandidate(turn(operations), story)).toThrow();
+      }
+      const failure = validateMultiActionCandidate(
+        turn([
+          {
+            type: "TRANSFORM_FAILURE",
+            constraintId: "constraint.flood",
+            outcome: "The causeway is under water.",
+            newThreadTitle: "Waiting for low tide",
+            causalFactIds: lead,
+          },
+          add("Your boots are soaked."),
+        ]),
+        story,
+      );
+      const after = applyValidatedMultiActionCandidate(state, failure);
+      expect(after.threads?.at(-1)?.id).toBe(`thread.${actionId}.1`);
+      expect(after.facts.at(-1)?.id).toBe(`fact.${actionId}.2`);
+    });
+
+    it("lets only the narrative name a fact the turn reveals", () => {
+      const hidden = {
+        id: "fact.hidden-key",
+        statement: "The spare key is inside the lamp.",
+        scope: "CONTINUITY_PRIVATE" as const,
+        provenance: "Seed",
+        lifecycle: "ACTIVE" as const,
+      };
+      const secret = { ...story, state: { ...state, facts: [...state.facts, hidden] } };
+      const reveal = { type: "REVEAL_FACT", factId: hidden.id, causalFactIds: lead };
+      const told = "Iora tips the lamp: the spare key is inside the lamp.";
+      expect(
+        validateMultiActionCandidate(turn([reveal, add("Iora pockets it.")], told), {
+          ...secret,
+          revealableFactIds: [hidden.id],
+        }).displayEffects,
+      ).toHaveLength(2);
+      expect(() =>
+        validateMultiActionCandidate(
+          turn([reveal, add("The spare key is inside the lamp, and now it is gone.")], told),
+          { ...secret, revealableFactIds: [hidden.id] },
+        ),
+      ).toThrow();
+    });
   });
 });

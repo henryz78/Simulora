@@ -123,6 +123,8 @@ export type WorldTurnRequest = {
   sharedWorld?: boolean;
   /** PX-4a (ADR-PX4-2): under STORY_DECIDES the model may choose any closed operation. */
   storyFreedom?: boolean;
+  /** PX-4b (ADR-PX4-4): the story may make two to four changes (after 0058). */
+  multiOperation?: boolean;
 };
 
 export type WorldTurnDraft = {
@@ -320,7 +322,7 @@ export class UnsafeModelContextError extends Error {
   override readonly name = "UnsafeModelContextError";
 }
 
-export const livePromptVersion = 11;
+export const livePromptVersion = 12;
 const maxPromptCharacters = 48_000;
 
 // System rules travel separately from the compiled request. Creator-authored text
@@ -561,8 +563,16 @@ function storyFreedomRules(
     JSON.stringify({ ...operation, causalFactIds }),
   ];
   return [
-    "You decide what the action achieves, as the world would. Record its most important lasting",
-    "change as one operation; keep NO_WORLD_EFFECT only when nothing in the world changed.",
+    ...(request.multiOperation
+      ? [
+          "You decide what the action achieves, as the world would. Record each lasting change",
+          "it made, up to 4; keep NO_WORLD_EFFECT, alone, only when nothing in the world changed.",
+        ]
+      : [
+          "You decide what the action achieves, as the world would. Record its most important",
+          "lasting change as one operation; keep NO_WORLD_EFFECT only when nothing in the world",
+          "changed.",
+        ]),
     ...(request.sharedWorld
       ? offer("If it creates one new concrete detail:", {
           type: "ADD_FACT",
@@ -621,6 +631,16 @@ function storyFreedomRules(
         })
       : []),
     "causalFactIds are 1-4 ids from context.current.facts.",
+    // PX-4b (ADR-PX4-4): two to four changes travel as a schemaVersion 2 candidate.
+    ...(request.multiOperation
+      ? [
+          "For one change return the candidate as shown. For two to four, return the same object",
+          'with "schemaVersion": 2 and "operations": [...] (each one of the operations above) in',
+          'place of "operation". Never let two operations touch the same fact, relationship,',
+          "thread or Character, and never cite as a cause a fact another operation rewrites or",
+          "reveals. A TRANSFORM_FAILURE may be joined only by ADD_FACT. At most one MOVE_CHARACTER.",
+        ]
+      : []),
   ];
 }
 

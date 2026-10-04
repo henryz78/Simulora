@@ -213,7 +213,7 @@ describe("IP-9 live capability profile adapter", () => {
   });
 
   it("offers ADD_FACT first and any shared rewrite only for WD-1a Actions (prompt v9+)", () => {
-    expect(livePromptVersion).toBe(11);
+    expect(livePromptVersion).toBe(12);
     const skeletonOf = (request: WorldTurnRequest) => {
       const system = compileWorldTurnPrompt(request).system;
       const lines = system.split("\n");
@@ -325,6 +325,23 @@ describe("IP-9 live capability profile adapter", () => {
     // Without the epoch the v10 story rules stand.
     const earlier = compileWorldTurnPrompt({ ...story, storyFreedom: false }).system;
     expect(earlier).toContain("Never change an existing fact here.");
+    // Without PX-4b the story still records one change.
+    expect(system).toContain("most important");
+    expect(system).not.toContain('"schemaVersion": 2');
+  });
+
+  it("lets a PX-4b story record up to four changes as a v2 candidate (prompt v12)", () => {
+    const system = compileWorldTurnPrompt({
+      ...base,
+      requestedEffect: "STORY_DECIDES",
+      sharedWorld: true,
+      storyFreedom: true,
+      multiOperation: true,
+    }).system;
+    expect(system).toContain("Record each lasting change");
+    expect(system).toContain('"schemaVersion": 2 and "operations"');
+    expect(system).toContain("A TRANSFORM_FAILURE may be joined only by ADD_FACT");
+    expect(system).not.toContain("most important");
   });
 
   it("sends rules and data as separate messages and returns an untrusted draft", async () => {

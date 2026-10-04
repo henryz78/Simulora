@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   applyParticipationContractChange,
   applyValidatedActionCandidate,
+  applyValidatedMultiActionCandidate,
   assertGeneratedNarrativeDoesNotAuthorUser,
   applyRestorableState,
   applyValidatedDirectCorrectionCandidate,
@@ -16,11 +17,14 @@ import {
   restoreSectionsFor,
   threadIdForAction,
   factIdForAction,
+  factIdForPosition,
+  threadIdForPosition,
   revealableFacts,
   routinePolicySchema,
   stateRevisionDocumentSchema,
   validateDirectCorrectionCandidate,
   validateActionCandidate,
+  validateMultiActionCandidate,
   worldDocumentSchema,
   type ActionStatus,
   type ValidatedActionCandidate,
@@ -310,6 +314,8 @@ export type ActionProposalRecord = {
     scope: "ACCOUNT_PRIVATE" | "CONTINUITY_PRIVATE" | "SHARED";
     operation?: "UPDATE_CANONICAL_FACT" | "CORRECT_CONTINUITY" | "REMOVE_CONTINUITY";
   };
+  /** PX-4b: every change of a multi-change turn, in order; displayEffect is the first. */
+  displayEffects?: Array<ActionProposalRecord["displayEffect"]>;
 };
 
 export type ActionCommitRecord = {
@@ -661,6 +667,8 @@ export type ActionGenerator = (request: {
   sharedWorld?: boolean;
   /** PX-4a: the story may choose any closed operation (after 0057). */
   storyFreedom?: boolean;
+  /** PX-4b (ADR-PX4-4): the story may make two to four changes (after 0058). */
+  multiOperation?: boolean;
   context?: Readonly<Record<string, unknown>>;
   priorDialogue?: ReadonlyArray<ActionDialogueRecord>;
 }) => Promise<{
@@ -810,6 +818,7 @@ function isGeneratorEligibleFact(fact: StateRevisionDocument["facts"][number]): 
 function closureEventFor(
   actionId: string,
   operation: ValidatedActionCandidate["candidate"]["operation"],
+  ids = { factId: factIdForAction(actionId), threadId: threadIdForAction(actionId) },
 ): { type: string; payload: Record<string, unknown> } | null {
   if (operation.type === "SHIFT_RELATIONSHIP") {
     return {
@@ -828,7 +837,7 @@ function closureEventFor(
       type: "THREAD_OPENED",
       payload: {
         actionId,
-        threadId: threadIdForAction(actionId),
+        threadId: ids.threadId,
         title: operation.title,
         causalFactIds: operation.causalFactIds,
       },
@@ -856,7 +865,7 @@ function closureEventFor(
       type: "FACT_ADDED",
       payload: {
         actionId,
-        factId: factIdForAction(actionId),
+        factId: ids.factId,
         statement: operation.statement,
         causalFactIds: operation.causalFactIds,
       },
@@ -869,12 +878,39 @@ function closureEventFor(
         actionId,
         constraintId: operation.constraintId,
         outcome: operation.outcome,
-        threadId: threadIdForAction(actionId),
+        threadId: ids.threadId,
         causalFactIds: operation.causalFactIds,
       },
     };
   }
   return null;
+}
+
+/** PX-4b: the typed Event one change of a multi-change turn commits with. */
+function multiChangeEventFor(
+  actionId: string,
+  operation: ValidatedActionCandidate["candidate"]["operation"],
+  position: number,
+  display: { target: string },
+): { type: string; payload: Record<string, unknown> } {
+  const closure = closureEventFor(actionId, operation, {
+    factId: factIdForPosition(actionId, position),
+    threadId: threadIdForPosition(actionId, position),
+  });
+  if (closure) return closure;
+  if (operation.type === "MOVE_CHARACTER") {
+    return {
+      type: "CHARACTER_MOVED",
+      payload: {
+        actionId,
+        characterId: operation.characterId,
+        beforeLocationId: operation.beforeLocationId,
+        afterLocationId: operation.afterLocationId,
+        causalFactIds: operation.causalFactIds,
+      },
+    };
+  }
+  return { type: "ACTION_RECORDED", payload: { actionId, target: display.target } };
 }
 
 /** WD-1b: which declared discoverable facts this generation may reveal. */
@@ -1212,6 +1248,20 @@ async function storyFreedomApplies(client: PoolClient, actionId: string): Promis
   if (!installed.rows[0]?.installed) return false;
   const result = await client.query<{ applies: boolean }>(
     "select simulora.px4_story_freedom_apply(created_at) as applies from simulora.actions where id = $1",
+    [actionId],
+  );
+  return result.rows[0]?.applies ?? false;
+}
+
+// PX-4b: a story Action may make several changes once 0058 is installed and
+// the Action was created after it (ADR-PX4-4).
+async function multiChangeApplies(client: PoolClient, actionId: string): Promise<boolean> {
+  const installed = await client.query<{ installed: boolean }>(
+    "select to_regprocedure('simulora.px4b_multi_apply(timestamp with time zone)') is not null as installed",
+  );
+  if (!installed.rows[0]?.installed) return false;
+  const result = await client.query<{ applies: boolean }>(
+    "select simulora.px4b_multi_apply(created_at) as applies from simulora.actions where id = $1",
     [actionId],
   );
   return result.rows[0]?.applies ?? false;
@@ -2707,9 +2757,10 @@ export class AuthoritativeWorldRepository {
         expires_at: Date;
         display_effect: unknown;
         generation_attempt_id: string | null;
+        schema_version: number;
       }>(
         `select id, candidate_transition, proposal_digest, expected_head_commit_id,
-                expires_at, display_effect, generation_attempt_id
+                expires_at, display_effect, generation_attempt_id, schema_version
          from simulora.action_proposals where id = $1 and action_id = $2 and status = 'ACTIVE' for update`,
         [request.proposalId, actionId],
       );
@@ -2762,6 +2813,11 @@ export class AuthoritativeWorldRepository {
       > | null = null;
       let responseSource: ActionResponseSource | null = null;
       let closureEvent: { type: string; payload: Record<string, unknown> } | null = null;
+      let multiChangeEvents: Array<{
+        type: string;
+        payload: Record<string, unknown>;
+        scope: string;
+      }> | null = null;
       if (action.operation_type === "CHANGE_PARTICIPATION_CONTRACT") {
         throw new ConflictError("DIRECT_PARTICIPATION_CHANGE_IS_ALREADY_AUTHORIZED");
       }
@@ -2793,7 +2849,7 @@ export class AuthoritativeWorldRepository {
         const routinePolicy = policyResult.rows[0]
           ? routinePolicySchema.parse(policyResult.rows[0].document)
           : null;
-        const validated = validateActionCandidate(proposal.candidate_transition, {
+        const validationOptions = {
           actionId,
           expectedHeadCommitId: request.expectedHeadCommitId,
           state: expectedState,
@@ -2821,16 +2877,44 @@ export class AuthoritativeWorldRepository {
           relationshipPolicies: relationshipPoliciesFor(world),
           constraintIds: (world.constraints ?? []).map((constraint) => constraint.id),
           storyFreedom: await storyFreedomApplies(client, actionId),
-        });
-        nextState = applyValidatedActionCandidate(expectedState, validated);
-        if (!validated.displayEffect)
-          throw new Error("Committed Action is missing an effect display");
-        displayEffect = validated.displayEffect;
-        candidateNarrative = validated.candidate.narrative;
-        if (validated.candidate.operation.type === "MOVE_CHARACTER")
-          movement = validated.candidate.operation;
-        closureEvent = closureEventFor(actionId, validated.candidate.operation);
-        responseSource = validated.candidate.responseSource;
+        };
+        if (proposal.schema_version === 2) {
+          // PX-4b: every change of the turn, applied in order, one Event each.
+          if (!(await multiChangeApplies(client, actionId))) {
+            throw new Error("A multi-change proposal needs the PX-4b epoch");
+          }
+          const validated = validateMultiActionCandidate(
+            proposal.candidate_transition,
+            validationOptions,
+          );
+          nextState = applyValidatedMultiActionCandidate(expectedState, validated);
+          displayEffect = validated.displayEffects[0]!;
+          candidateNarrative = validated.candidate.narrative;
+          multiChangeEvents = validated.candidate.operations.map((operation, index) => ({
+            ...multiChangeEventFor(
+              actionId,
+              operation,
+              index + 1,
+              validated.displayEffects[index]!,
+            ),
+            scope: validated.displayEffects[index]!.scope,
+          }));
+          responseSource = validated.candidate.responseSource;
+        } else {
+          const validated = validateActionCandidate(
+            proposal.candidate_transition,
+            validationOptions,
+          );
+          nextState = applyValidatedActionCandidate(expectedState, validated);
+          if (!validated.displayEffect)
+            throw new Error("Committed Action is missing an effect display");
+          displayEffect = validated.displayEffect;
+          candidateNarrative = validated.candidate.narrative;
+          if (validated.candidate.operation.type === "MOVE_CHARACTER")
+            movement = validated.candidate.operation;
+          closureEvent = closureEventFor(actionId, validated.candidate.operation);
+          responseSource = validated.candidate.responseSource;
+        }
       } else {
         const validated = validateDirectCorrectionCandidate(proposal.candidate_transition, {
           actionId,
@@ -2892,50 +2976,69 @@ export class AuthoritativeWorldRepository {
          values ($1, $2, $3, 1, $4::jsonb, $5)`,
         [nextStateRevisionId, action.branch_id, commitId, JSON.stringify(nextState), nextHash],
       );
-      await client.query(
-        `insert into simulora.domain_events
+      for (const [index, event] of (multiChangeEvents ?? []).entries()) {
+        await client.query(
+          `insert into simulora.domain_events
+            (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope,
+             cause_action_id, ordinal)
+            values ($1, $2, $3, $4, $5::jsonb, 'USER', $6, $7, $8)`,
+          [
+            randomUUID(),
+            action.branch_id,
+            commitId,
+            event.type,
+            JSON.stringify(event.payload),
+            event.scope,
+            actionId,
+            index + 1,
+          ],
+        );
+      }
+      if (!multiChangeEvents)
+        await client.query(
+          `insert into simulora.domain_events
           (id, branch_id, commit_id, event_type, payload, source_type, visibility_scope, cause_action_id)
           values ($1, $2, $3, $4, $5::jsonb, 'USER', $6, $7)`,
-        [
-          eventId,
-          action.branch_id,
-          commitId,
-          action.operation_type === "PARTICIPATE"
-            ? closureEvent
-              ? closureEvent.type
-              : movement
-                ? "CHARACTER_MOVED"
-                : "ACTION_RECORDED"
-            : action.operation_type === "CORRECT_CONTINUITY"
-              ? "CONTINUITY_ITEM_CORRECTED"
-              : "CONTINUITY_ITEM_REMOVED",
-          JSON.stringify(
+          [
+            eventId,
+            action.branch_id,
+            commitId,
             action.operation_type === "PARTICIPATE"
               ? closureEvent
-                ? closureEvent.payload
+                ? closureEvent.type
                 : movement
-                  ? {
-                      actionId,
-                      characterId: movement.characterId,
-                      beforeLocationId: movement.beforeLocationId,
-                      afterLocationId: movement.afterLocationId,
-                      causalFactIds: movement.causalFactIds,
-                    }
-                  : { actionId, target: displayEffect.target }
-              : {
-                  actionId,
-                  targetFactId: displayEffect.target,
-                  operation: action.operation_type,
-                  before: displayEffect.before,
-                  after: displayEffect.after,
-                  scope: displayEffect.scope,
-                  reason: action.operation_payload.reason,
-                },
-          ),
-          displayEffect.scope,
-          actionId,
-        ],
-      );
+                  ? "CHARACTER_MOVED"
+                  : "ACTION_RECORDED"
+              : action.operation_type === "CORRECT_CONTINUITY"
+                ? "CONTINUITY_ITEM_CORRECTED"
+                : "CONTINUITY_ITEM_REMOVED",
+            JSON.stringify(
+              action.operation_type === "PARTICIPATE"
+                ? closureEvent
+                  ? closureEvent.payload
+                  : movement
+                    ? {
+                        actionId,
+                        characterId: movement.characterId,
+                        beforeLocationId: movement.beforeLocationId,
+                        afterLocationId: movement.afterLocationId,
+                        causalFactIds: movement.causalFactIds,
+                      }
+                    : { actionId, target: displayEffect.target }
+                : {
+                    actionId,
+                    targetFactId: displayEffect.target,
+                    operation: action.operation_type,
+                    before: displayEffect.before,
+                    after: displayEffect.after,
+                    scope: displayEffect.scope,
+                    reason: action.operation_payload.reason,
+                  },
+            ),
+            displayEffect.scope,
+            actionId,
+          ],
+        );
       await client.query(
         `insert into simulora.conversation_entries
          (id, commit_id, branch_id, ordinal, role, content, speaker_character_id)
@@ -4349,7 +4452,7 @@ export class AuthoritativeWorldRepository {
            join simulora.world_commits c on c.id = e.commit_id
            where e.branch_id = $1 and e.commit_id in (select id from ancestors)
              and (e.payload->>'targetFactId' = $2 or e.payload->>'target' = $2)
-           order by e.created_at desc, e.id desc limit 1`,
+           order by e.created_at desc, e.ordinal desc, e.id desc limit 1`,
           [branchId, targetId, branch.head_commit_id],
         );
         const event = eventResult.rows[0];
@@ -4735,7 +4838,7 @@ export class AuthoritativeWorldRepository {
                     end as event_scope
              from simulora.domain_events e
              where e.commit_id = any($1::uuid[]) and e.branch_id = $2
-             order by e.created_at, e.id`,
+             order by e.created_at, e.ordinal, e.id`,
             [commitIds, branchId],
           )
         ).rows
@@ -5053,6 +5156,10 @@ export class AuthoritativeWorldRepository {
       }
       // MGC-1: bind the declared effect context only when this Action can use it.
       const storyFreedom = await storyFreedomApplies(client, actionId);
+      const multiChange =
+        storyFreedom &&
+        action.operation_payload.requestedEffect === "STORY_DECIDES" &&
+        (await multiChangeApplies(client, actionId));
       const effectContext = compileEffectContext(
         world,
         state,
@@ -5110,6 +5217,7 @@ export class AuthoritativeWorldRepository {
         effectContext,
         routinePolicy,
         storyFreedom,
+        multiChange,
         state,
         generationContext,
         context,
@@ -5252,6 +5360,7 @@ export class AuthoritativeWorldRepository {
         ...(prepared.storyFreedom && requestedEffect === "STORY_DECIDES"
           ? { storyFreedom: true }
           : {}),
+        ...(prepared.multiChange ? { multiOperation: true } : {}),
         ...(prepared.context ? { context: prepared.context } : {}),
         ...(prepared.priorDialogue.length ? { priorDialogue: prepared.priorDialogue } : {}),
       });
@@ -5268,7 +5377,7 @@ export class AuthoritativeWorldRepository {
           (character) => character.id === prepared.generationContext.character?.id,
         )?.name,
       );
-      const candidate = validateActionCandidate(generated.candidate, {
+      const validationOptions = {
         actionId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         state: prepared.state,
@@ -5292,7 +5401,18 @@ export class AuthoritativeWorldRepository {
         relationshipPolicies: relationshipPoliciesFor(prepared.world),
         constraintIds: (prepared.world.constraints ?? []).map((constraint) => constraint.id),
         storyFreedom: prepared.storyFreedom,
-      });
+      };
+      // PX-4b: a v2 candidate is allowed only for a story turn after the epoch.
+      const multi =
+        (generated.candidate as { schemaVersion?: unknown } | null)?.schemaVersion === 2;
+      if (multi && !prepared.multiChange) {
+        throw new Error("This turn may not make several changes");
+      }
+      const candidate = multi
+        ? validateMultiActionCandidate(generated.candidate, validationOptions)
+        : validateActionCandidate(generated.candidate, validationOptions);
+      const display =
+        "displayEffects" in candidate ? candidate.displayEffects : candidate.displayEffect;
       if (generated.narrative !== candidate.candidate.narrative) {
         throw new Error("Generated narrative does not match the candidate narrative");
       }
@@ -5303,7 +5423,7 @@ export class AuthoritativeWorldRepository {
         actorAccountId: prepared.actorAccountId,
         expectedHeadCommitId: prepared.expectedHeadCommitId,
         candidate: candidate.candidate,
-        displayEffect: candidate.displayEffect,
+        displayEffect: display,
         expiresAt: expiresAt.toISOString(),
       });
 
@@ -5374,7 +5494,7 @@ export class AuthoritativeWorldRepository {
           `insert into simulora.action_proposals
            (id, action_id, generation_attempt_id, expected_head_commit_id, schema_version,
             candidate_transition, impact_level, proposal_digest, display_effect, status, expires_at)
-           values ($1, $2, $3, $4, 1, $5::jsonb, $6, $7, $8::jsonb, 'ACTIVE', $9)`,
+           values ($1, $2, $3, $4, $10, $5::jsonb, $6, $7, $8::jsonb, 'ACTIVE', $9)`,
           [
             proposalId,
             actionId,
@@ -5383,8 +5503,9 @@ export class AuthoritativeWorldRepository {
             JSON.stringify(candidate.candidate),
             candidate.impact,
             digest,
-            JSON.stringify(candidate.displayEffect ?? {}),
+            JSON.stringify(display ?? {}),
             expiresAt,
+            multi ? 2 : 1,
           ],
         );
         await client.query(
@@ -5403,7 +5524,9 @@ export class AuthoritativeWorldRepository {
           proposalId,
           proposalDigest: digest,
           expiresAt: expiresAt.toISOString(),
-          effect: candidate.displayEffect,
+          ...(Array.isArray(display)
+            ? { effect: display[0], effects: display }
+            : { effect: display }),
         });
         await client.query(
           `update simulora.durable_jobs set status = 'SUCCEEDED', lease_owner = null,
@@ -5620,7 +5743,8 @@ export class AuthoritativeWorldRepository {
       proposal_expires: Date | null;
       proposal_narrative: string | null;
       proposal_response_source: ActionResponseSource | null;
-      display_effect: ActionProposalRecord["displayEffect"] | null;
+      display_effect:
+        ActionProposalRecord["displayEffect"] | Array<ActionProposalRecord["displayEffect"]> | null;
       commit_id: string | null;
       commit_head: string | null;
       commit_state: string | null;
@@ -5692,7 +5816,9 @@ export class AuthoritativeWorldRepository {
               expiresAt: row.proposal_expires.toISOString(),
               narrative: row.proposal_narrative,
               responseSource: row.proposal_response_source,
-              displayEffect: row.display_effect,
+              ...(Array.isArray(row.display_effect)
+                ? { displayEffect: row.display_effect[0]!, displayEffects: row.display_effect }
+                : { displayEffect: row.display_effect }),
             }
           : null,
       commit:
@@ -6573,7 +6699,7 @@ export class AuthoritativeWorldRepository {
            join simulora.world_revisions r on r.id = co.world_revision_id
            left join simulora.domain_events e on e.commit_id = c.id
            where r.world_id = $1 and co.owner_account_id = $2
-           order by c.created_at, c.id, e.event_type`,
+           order by c.created_at, c.id, e.ordinal, e.event_type`,
             [request.worldId, account.accountId],
           );
           const lines = history.rows.map((row) =>

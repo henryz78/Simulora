@@ -494,93 +494,120 @@ export const actionStatusSchema = z.enum([
   "SUPERSEDED",
 ]);
 
+const responseSourceSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("WORLD") }).strict(),
+  z.object({ type: z.literal("CHARACTER"), characterId: stableIdSchema }).strict(),
+]);
+
+/** The closed operations one Action may make (v1: one; PX-4b v2: two to four). */
+const actionOperationSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("UPDATE_CANONICAL_FACT"),
+      targetFactId: stableIdSchema,
+      beforeStatement: nonEmptyTextSchema,
+      afterStatement: nonEmptyTextSchema,
+      scope: factScopeSchema,
+      provenance: nonEmptyTextSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("MOVE_CHARACTER"),
+      characterId: stableIdSchema,
+      beforeLocationId: stableIdSchema,
+      afterLocationId: stableIdSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("NO_WORLD_EFFECT"),
+      reason: nonEmptyTextSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("SHIFT_RELATIONSHIP"),
+      relationshipId: stableIdSchema,
+      beforeState: relationshipStateLabelSchema,
+      afterState: relationshipStateLabelSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("OPEN_THREAD"),
+      title: threadTitleSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("RESOLVE_THREAD"),
+      threadId: stableIdSchema,
+      resolution: boundedTextSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  // WD-1b: reveal one author-declared discoverable fact (it becomes SHARED).
+  z
+    .object({
+      type: z.literal("REVEAL_FACT"),
+      factId: stableIdSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  // WD-1a: record one new SHARED fact; id and provenance are server-derived.
+  z
+    .object({
+      type: z.literal("ADD_FACT"),
+      statement: boundedTextSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("TRANSFORM_FAILURE"),
+      constraintId: stableIdSchema,
+      outcome: boundedTextSchema,
+      newThreadTitle: threadTitleSchema,
+      causalFactIds: z.array(stableIdSchema).min(1).max(4),
+    })
+    .strict(),
+]);
+
 export const actionCandidateSchema = z
   .object({
     schemaVersion: z.literal(1),
     actionId: z.string().uuid(),
     expectedHeadCommitId: z.string().uuid(),
     narrative: nonEmptyTextSchema,
-    responseSource: z.discriminatedUnion("type", [
-      z.object({ type: z.literal("WORLD") }).strict(),
-      z.object({ type: z.literal("CHARACTER"), characterId: stableIdSchema }).strict(),
-    ]),
-    operation: z.discriminatedUnion("type", [
-      z
-        .object({
-          type: z.literal("UPDATE_CANONICAL_FACT"),
-          targetFactId: stableIdSchema,
-          beforeStatement: nonEmptyTextSchema,
-          afterStatement: nonEmptyTextSchema,
-          scope: factScopeSchema,
-          provenance: nonEmptyTextSchema,
-        })
-        .strict(),
-      z
-        .object({
-          type: z.literal("MOVE_CHARACTER"),
-          characterId: stableIdSchema,
-          beforeLocationId: stableIdSchema,
-          afterLocationId: stableIdSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      z
-        .object({
-          type: z.literal("NO_WORLD_EFFECT"),
-          reason: nonEmptyTextSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      z
-        .object({
-          type: z.literal("SHIFT_RELATIONSHIP"),
-          relationshipId: stableIdSchema,
-          beforeState: relationshipStateLabelSchema,
-          afterState: relationshipStateLabelSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      z
-        .object({
-          type: z.literal("OPEN_THREAD"),
-          title: threadTitleSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      z
-        .object({
-          type: z.literal("RESOLVE_THREAD"),
-          threadId: stableIdSchema,
-          resolution: boundedTextSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      // WD-1b: reveal one author-declared discoverable fact (it becomes SHARED).
-      z
-        .object({
-          type: z.literal("REVEAL_FACT"),
-          factId: stableIdSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      // WD-1a: record one new SHARED fact; id and provenance are server-derived.
-      z
-        .object({
-          type: z.literal("ADD_FACT"),
-          statement: boundedTextSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-      z
-        .object({
-          type: z.literal("TRANSFORM_FAILURE"),
-          constraintId: stableIdSchema,
-          outcome: boundedTextSchema,
-          newThreadTitle: threadTitleSchema,
-          causalFactIds: z.array(stableIdSchema).min(1).max(4),
-        })
-        .strict(),
-    ]),
+    responseSource: responseSourceSchema,
+    operation: actionOperationSchema,
+  })
+  .strict();
+
+/**
+ * PX-4b (ADR-PX4-4): a story turn after 0058 may make two to four changes. One
+ * change, or none, stays a v1 candidate. NO_WORLD_EFFECT never appears here.
+ */
+export const multiOperationLimit = 4;
+export const actionCandidateV2Schema = z
+  .object({
+    schemaVersion: z.literal(2),
+    actionId: z.string().uuid(),
+    expectedHeadCommitId: z.string().uuid(),
+    narrative: nonEmptyTextSchema,
+    responseSource: responseSourceSchema,
+    operations: z
+      .array(actionOperationSchema)
+      .min(2)
+      .max(multiOperationLimit)
+      .refine((items) => items.every((item) => item.type !== "NO_WORLD_EFFECT"), {
+        message: "A multi-change turn cannot include a no-world-effect operation",
+      }),
   })
   .strict();
 
@@ -634,6 +661,14 @@ export function revealableFacts(
 /** The server-derived identity of a thread opened by an Action. */
 export function threadIdForAction(actionId: string): string {
   return `thread.${actionId}`;
+}
+
+/** PX-4b: in a multi-change turn every new id carries its 1-based position. */
+export function factIdForPosition(actionId: string, position: number): string {
+  return `${factIdForAction(actionId)}.${position}`;
+}
+export function threadIdForPosition(actionId: string, position: number): string {
+  return `${threadIdForAction(actionId)}.${position}`;
 }
 
 /** Declared relationship bounds the validator reads from the pinned World Revision. */
@@ -820,6 +855,11 @@ export function validateActionCandidate(
     revealableFactIds?: readonly string[];
     /** PX-4a (ADR-PX4-2): STORY_DECIDES may choose any closed operation (after 0057). */
     storyFreedom?: boolean;
+    /**
+     * PX-4b: facts the whole turn reveals. Only the narrative may name them;
+     * operation texts stay strict.
+     */
+    turnDisclosedFactIds?: readonly string[];
   },
 ): ValidatedActionCandidate {
   const candidate = actionCandidateSchema.parse(candidateInput);
@@ -895,6 +935,7 @@ export function validateActionCandidate(
   const disclosedFactIds = [
     ...expected.authorizedContextFactIds,
     ...(operation.type === "REVEAL_FACT" ? [operation.factId] : []),
+    ...(expected.turnDisclosedFactIds ?? []),
   ];
   assertGeneratedTextDoesNotLeakExcludedFacts(
     [candidate.narrative, operation.type === "NO_WORLD_EFFECT" ? operation.reason : ""],
@@ -1039,8 +1080,9 @@ export function validateActionCandidate(
   if (target.statement !== factOperation.beforeStatement || target.scope !== factOperation.scope) {
     throw new Error("Candidate before-state or scope does not match the expected head");
   }
+  // The narrative was checked above; the new statement stays strictly in context.
   assertGeneratedTextDoesNotLeakExcludedFacts(
-    [candidate.narrative, factOperation.afterStatement],
+    [factOperation.afterStatement],
     expected.state,
     expected.authorizedContextFactIds,
   );
@@ -1058,6 +1100,140 @@ export function validateActionCandidate(
       scope: target.scope,
     },
   };
+}
+
+export type ActionCandidateV2 = z.infer<typeof actionCandidateV2Schema>;
+export type ActionOperation = ActionCandidate["operation"];
+export type DisplayEffect = NonNullable<ValidatedActionCandidate["displayEffect"]>;
+
+export type ValidatedMultiActionCandidate = {
+  candidate: ActionCandidateV2;
+  impact: ConsequenceImpact;
+  requiresExactConfirmation: true;
+  /** One entry per operation, in order, carrying the derived ids. */
+  displayEffects: DisplayEffect[];
+};
+
+/** The facts a multi-change turn reveals; only its narrative may name them. */
+export function turnRevealedFactIds(operations: readonly ActionOperation[]): string[] {
+  return operations.flatMap((operation) =>
+    operation.type === "REVEAL_FACT" ? [operation.factId] : [],
+  );
+}
+
+/** PX-4b: the thing an operation changes; no two in a turn may share one. */
+function operationTarget(operation: ActionOperation, position: number): string {
+  switch (operation.type) {
+    case "UPDATE_CANONICAL_FACT":
+      return `fact:${operation.targetFactId}`;
+    case "REVEAL_FACT":
+      return `fact:${operation.factId}`;
+    case "SHIFT_RELATIONSHIP":
+      return `relationship:${operation.relationshipId}`;
+    case "RESOLVE_THREAD":
+      return `thread:${operation.threadId}`;
+    case "MOVE_CHARACTER":
+      return `character:${operation.characterId}`;
+    default:
+      // A new fact or thread gets its own derived id, so it never collides.
+      return `new:${position}`;
+  }
+}
+
+/**
+ * PX-4b combination rules (ADR-PX4-4). Targets are disjoint, so each operation
+ * is valid against the head exactly when the same v1 operation would be.
+ */
+export function assertOperationsCombine(operations: readonly ActionOperation[]): void {
+  const targets = new Set(
+    operations.map((operation, index) => operationTarget(operation, index + 1)),
+  );
+  if (targets.size !== operations.length) {
+    throw new Error("Two changes in one turn target the same thing");
+  }
+  const changedFact = (operation: ActionOperation) =>
+    operation.type === "UPDATE_CANONICAL_FACT"
+      ? operation.targetFactId
+      : operation.type === "REVEAL_FACT"
+        ? operation.factId
+        : null;
+  if (
+    operations.some(
+      (operation, index) =>
+        "causalFactIds" in operation &&
+        operations.some(
+          (other, otherIndex) =>
+            otherIndex !== index &&
+            changedFact(other) !== null &&
+            operation.causalFactIds.includes(changedFact(other)!),
+        ),
+    )
+  ) {
+    throw new Error("A change cannot be caused by a fact the same turn changes");
+  }
+  const failures = operations.filter((operation) => operation.type === "TRANSFORM_FAILURE");
+  if (
+    failures.length > 1 ||
+    (failures.length === 1 &&
+      operations.some((item) => item.type !== "TRANSFORM_FAILURE" && item.type !== "ADD_FACT"))
+  ) {
+    throw new Error("A failed attempt may only be joined by facts recording what followed");
+  }
+  if (operations.filter((operation) => operation.type === "MOVE_CHARACTER").length > 1) {
+    throw new Error("A turn may move at most one Character");
+  }
+}
+
+/**
+ * PX-4b: validate a v2 candidate as its v1 parts. Each operation runs through
+ * validateActionCandidate as a one-change candidate with the v1 base ids; the
+ * derived ids are then checked absent and put into the display.
+ */
+export function validateMultiActionCandidate(
+  candidateInput: unknown,
+  expected: Parameters<typeof validateActionCandidate>[1],
+): ValidatedMultiActionCandidate {
+  const candidate = actionCandidateV2Schema.parse(candidateInput);
+  if (expected.requestedEffect !== "STORY_DECIDES" || !expected.storyFreedom) {
+    throw new Error("Only a story turn may make several changes");
+  }
+  assertOperationsCombine(candidate.operations);
+  const turnDisclosedFactIds = turnRevealedFactIds(candidate.operations);
+  const displayEffects: DisplayEffect[] = [];
+  let impact: ConsequenceImpact = "L2";
+  candidate.operations.forEach((operation, index) => {
+    const position = index + 1;
+    const part = validateActionCandidate(
+      {
+        schemaVersion: 1,
+        actionId: candidate.actionId,
+        expectedHeadCommitId: candidate.expectedHeadCommitId,
+        narrative: candidate.narrative,
+        responseSource: candidate.responseSource,
+        operation,
+      },
+      { ...expected, turnDisclosedFactIds },
+    );
+    if (!part.displayEffect) throw new Error("A multi-change turn part has no effect");
+    if (part.impact === "L3") impact = "L3";
+    let display = part.displayEffect;
+    if (operation.type === "ADD_FACT") {
+      const id = factIdForPosition(candidate.actionId, position);
+      if (expected.state.facts.some((fact) => fact.id === id)) {
+        throw new Error("Added fact identity already exists at the expected head");
+      }
+      display = { ...display, target: id };
+    }
+    if (operation.type === "OPEN_THREAD" || operation.type === "TRANSFORM_FAILURE") {
+      const id = threadIdForPosition(candidate.actionId, position);
+      if (expected.state.threads?.some((thread) => thread.id === id)) {
+        throw new Error("Thread already exists at the expected head");
+      }
+      if (operation.type === "OPEN_THREAD") display = { ...display, target: id };
+    }
+    displayEffects.push(display);
+  });
+  return { candidate, impact, requiresExactConfirmation: true, displayEffects };
 }
 
 type ClosureOperation = Extract<
@@ -1720,152 +1896,175 @@ export function applyValidatedDirectCorrectionCandidate(
   });
 }
 
-export function applyValidatedActionCandidate(
-  stateInput: StateRevisionDocument,
-  validated: ValidatedActionCandidate,
+/**
+ * PX-4b: one operation's change to the state, without the turn's clock and
+ * narrative. PostgreSQL mirrors each case (`simulora.px4b_operation_delta`).
+ */
+function applyOperationDelta(
+  state: StateRevisionDocument,
+  operation: ActionOperation,
+  actionId: string,
+  ids: { factId: string; threadId: string },
 ): StateRevisionDocument {
-  const state = stateRevisionDocumentSchema.parse(stateInput);
-  const operation = validated.candidate.operation;
-  if (operation.type === "NO_WORLD_EFFECT") {
-    throw new Error("A no-world-effect candidate cannot mutate World state");
-  }
-  if (
-    operation.type === "SHIFT_RELATIONSHIP" ||
-    operation.type === "OPEN_THREAD" ||
-    operation.type === "RESOLVE_THREAD" ||
-    operation.type === "TRANSFORM_FAILURE"
-  ) {
-    const turn = state.worldClock.turn + 1;
-    const next = {
-      ...state,
-      worldClock: { turn, label: `After action ${turn}` },
-      openThreads: [...state.openThreads, validated.candidate.narrative],
-    };
-    const threads = state.threads ?? [];
-    if (operation.type === "SHIFT_RELATIONSHIP") {
+  const threads = state.threads ?? [];
+  switch (operation.type) {
+    case "NO_WORLD_EFFECT":
+      throw new Error("A no-world-effect candidate cannot mutate World state");
+    case "SHIFT_RELATIONSHIP": {
       const current = state.relationships.find((item) => item.id === operation.relationshipId);
       if (current?.state !== operation.beforeState) {
         throw new Error("Validated relationship state is no longer current");
       }
-      return stateRevisionDocumentSchema.parse({
-        ...next,
+      return {
+        ...state,
         relationships: state.relationships.map((item) =>
           item.id === operation.relationshipId ? { ...item, state: operation.afterState } : item,
         ),
-      });
+      };
     }
-    if (operation.type === "RESOLVE_THREAD") {
+    case "RESOLVE_THREAD":
       if (!threads.some((item) => item.id === operation.threadId && item.status === "OPEN")) {
         throw new Error("Validated thread is no longer open");
       }
-      return stateRevisionDocumentSchema.parse({
-        ...next,
+      return {
+        ...state,
         threads: threads.map((item) =>
           item.id === operation.threadId
             ? { ...item, status: "RESOLVED" as const, resolution: operation.resolution }
             : item,
         ),
-      });
+      };
+    case "OPEN_THREAD":
+    case "TRANSFORM_FAILURE":
+      return {
+        ...state,
+        threads: [
+          ...threads,
+          {
+            id: ids.threadId,
+            title: operation.type === "OPEN_THREAD" ? operation.title : operation.newThreadTitle,
+            status: "OPEN" as const,
+          },
+        ],
+      };
+    case "REVEAL_FACT":
+      if (
+        !state.facts.some(
+          (fact) =>
+            fact.id === operation.factId &&
+            fact.lifecycle === "ACTIVE" &&
+            fact.scope === "CONTINUITY_PRIVATE",
+        )
+      ) {
+        throw new Error("Validated revealed fact is no longer private");
+      }
+      return {
+        ...state,
+        facts: state.facts.map((fact) =>
+          fact.id === operation.factId ? { ...fact, scope: "SHARED" as const } : fact,
+        ),
+      };
+    case "ADD_FACT":
+      if (state.facts.some((fact) => fact.id === ids.factId)) {
+        throw new Error("Validated added fact already exists");
+      }
+      return {
+        ...state,
+        facts: [
+          ...state.facts,
+          {
+            id: ids.factId,
+            statement: operation.statement,
+            scope: "SHARED" as const,
+            provenance: `Confirmed Action ${actionId}`,
+            lifecycle: "ACTIVE" as const,
+          },
+        ],
+      };
+    case "MOVE_CHARACTER": {
+      const character = state.characters.find((item) => item.id === operation.characterId);
+      if (!character || character.locationId !== operation.beforeLocationId) {
+        throw new Error("Validated Character location is no longer current");
+      }
+      const destination = state.locations.find((item) => item.id === operation.afterLocationId);
+      if (!destination) throw new Error("Validated destination is no longer present");
+      return {
+        ...state,
+        characters: state.characters.map((item) =>
+          item.id === operation.characterId
+            ? {
+                ...item,
+                locationId: destination.id,
+                currentState: `Present at ${destination.name}.`,
+              }
+            : item,
+        ),
+      };
     }
-    const title = operation.type === "OPEN_THREAD" ? operation.title : operation.newThreadTitle;
-    return stateRevisionDocumentSchema.parse({
-      ...next,
-      threads: [
-        ...threads,
-        { id: threadIdForAction(validated.candidate.actionId), title, status: "OPEN" as const },
-      ],
-    });
+    case "UPDATE_CANONICAL_FACT":
+      if (
+        !state.facts.some(
+          (fact) => fact.id === operation.targetFactId && fact.lifecycle === "ACTIVE",
+        )
+      ) {
+        throw new Error("Validated target fact is no longer present");
+      }
+      return {
+        ...state,
+        facts: state.facts.map((fact) =>
+          fact.id === operation.targetFactId
+            ? {
+                ...fact,
+                statement: operation.afterStatement,
+                scope: operation.scope,
+                provenance: operation.provenance,
+              }
+            : fact,
+        ),
+      };
   }
-  if (operation.type === "REVEAL_FACT") {
-    const turn = state.worldClock.turn + 1;
-    if (
-      !state.facts.some(
-        (fact) =>
-          fact.id === operation.factId &&
-          fact.lifecycle === "ACTIVE" &&
-          fact.scope === "CONTINUITY_PRIVATE",
-      )
-    ) {
-      throw new Error("Validated revealed fact is no longer private");
-    }
-    return stateRevisionDocumentSchema.parse({
-      ...state,
-      worldClock: { turn, label: `After action ${turn}` },
-      facts: state.facts.map((fact) =>
-        fact.id === operation.factId ? { ...fact, scope: "SHARED" as const } : fact,
-      ),
-      openThreads: [...state.openThreads, validated.candidate.narrative],
-    });
-  }
-  if (operation.type === "ADD_FACT") {
-    const id = factIdForAction(validated.candidate.actionId);
-    if (state.facts.some((fact) => fact.id === id)) {
-      throw new Error("Validated added fact already exists");
-    }
-    const turn = state.worldClock.turn + 1;
-    return stateRevisionDocumentSchema.parse({
-      ...state,
-      worldClock: { turn, label: `After action ${turn}` },
-      facts: [
-        ...state.facts,
-        {
-          id,
-          statement: operation.statement,
-          scope: "SHARED" as const,
-          provenance: `Confirmed Action ${validated.candidate.actionId}`,
-          lifecycle: "ACTIVE" as const,
-        },
-      ],
-      openThreads: [...state.openThreads, validated.candidate.narrative],
-    });
-  }
-  if (operation.type === "MOVE_CHARACTER") {
-    const character = state.characters.find((item) => item.id === operation.characterId);
-    if (!character || character.locationId !== operation.beforeLocationId) {
-      throw new Error("Validated Character location is no longer current");
-    }
-    const destination = state.locations.find((item) => item.id === operation.afterLocationId);
-    if (!destination) throw new Error("Validated destination is no longer present");
-    return stateRevisionDocumentSchema.parse({
-      ...state,
-      worldClock: {
-        turn: state.worldClock.turn + 1,
-        label: `After action ${state.worldClock.turn + 1}`,
-      },
-      characters: state.characters.map((item) =>
-        item.id === operation.characterId
-          ? { ...item, locationId: destination.id, currentState: `Present at ${destination.name}.` }
-          : item,
-      ),
-      openThreads: [...state.openThreads, validated.candidate.narrative],
-    });
-  }
-  if (operation.type !== "UPDATE_CANONICAL_FACT") {
-    throw new Error("Unsupported validated action operation");
-  }
-  const found = state.facts.some(
-    (fact) => fact.id === operation.targetFactId && fact.lifecycle === "ACTIVE",
-  );
-  if (!found) throw new Error("Validated target fact is no longer present");
+}
 
+/** One turn advances the clock once and records its narrative once. */
+function advanceTurn(state: StateRevisionDocument, narrative: string): StateRevisionDocument {
+  const turn = state.worldClock.turn + 1;
   return stateRevisionDocumentSchema.parse({
     ...state,
-    worldClock: {
-      turn: state.worldClock.turn + 1,
-      label: `After action ${state.worldClock.turn + 1}`,
-    },
-    facts: state.facts.map((fact) =>
-      fact.id === operation.targetFactId
-        ? {
-            ...fact,
-            statement: operation.afterStatement,
-            scope: operation.scope,
-            provenance: operation.provenance,
-          }
-        : fact,
-    ),
-    openThreads: [...state.openThreads, validated.candidate.narrative],
+    worldClock: { turn, label: `After action ${turn}` },
+    openThreads: [...state.openThreads, narrative],
   });
+}
+
+export function applyValidatedActionCandidate(
+  stateInput: StateRevisionDocument,
+  validated: ValidatedActionCandidate,
+): StateRevisionDocument {
+  const state = stateRevisionDocumentSchema.parse(stateInput);
+  const { actionId, narrative, operation } = validated.candidate;
+  return advanceTurn(
+    applyOperationDelta(state, operation, actionId, {
+      factId: factIdForAction(actionId),
+      threadId: threadIdForAction(actionId),
+    }),
+    narrative,
+  );
+}
+
+/** PX-4b: the operations in candidate order, then one clock step and narrative. */
+export function applyValidatedMultiActionCandidate(
+  stateInput: StateRevisionDocument,
+  validated: ValidatedMultiActionCandidate,
+): StateRevisionDocument {
+  const { actionId, narrative, operations } = validated.candidate;
+  const changed = operations.reduce(
+    (state, operation, index) =>
+      applyOperationDelta(state, operation, actionId, {
+        factId: factIdForPosition(actionId, index + 1),
+        threadId: threadIdForPosition(actionId, index + 1),
+      }),
+    stateRevisionDocumentSchema.parse(stateInput),
+  );
+  return advanceTurn(changed, narrative);
 }
 
 export const participationCombinations: readonly ParticipationContract[] =
