@@ -688,6 +688,39 @@ test("a lost confirmation response reports an unknown outcome instead of false u
   expect(confirmAttempted).toBe(true);
 });
 
+// PX-4a (ADR-PX4-1): direct play confirms play proposals only. A correction
+// stays the player's own explicit act, even in the product default.
+test.describe("in direct play", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("PX-4a a pending correction still waits for the player's click", async ({ page }) => {
+    const action = correctionAction();
+    await installRoutes(page, {
+      actions: new Map([[action.id, action]]),
+      history: [
+        {
+          id: action.id,
+          status: action.status,
+          intent: action.intent,
+          acknowledgedAt: now,
+          committedAt: null,
+          narrative: null,
+        },
+      ],
+    });
+    let confirmAttempted = false;
+    await page.route(`**/v1/actions/${action.id}/confirm`, async (route) => {
+      confirmAttempted = true;
+      await route.abort("connectionreset");
+    });
+    await page.goto(`/continuities/${continuityId}`);
+    await expect(page.getByLabel("Strict mode: confirm every change myself")).not.toBeChecked();
+    await page.goto(`/continuities/${continuityId}/actions/${action.id}`);
+    await expect(page.getByRole("button", { name: "Confirm this exact change" })).toBeVisible();
+    expect(confirmAttempted).toBe(false);
+  });
+});
+
 test("repeated same-status Action events do not reopen the SSE subscription", async ({ page }) => {
   const action = pendingAction(
     "40000000-0000-4000-8000-000000000051",

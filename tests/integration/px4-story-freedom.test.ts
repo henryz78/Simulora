@@ -131,6 +131,97 @@ suite("PX-4a story freedom against PostgreSQL", () => {
     return result.rows[0]!.valid;
   }
 
+  /**
+   * Forges a pending proposal into another operation the way a writer with
+   * database access could: the digest and the generation output are rewritten
+   * to match, inside a transaction that is rolled back. Only the SQL gate under
+   * test can then refuse it, and `evidence` shows the generation proof held.
+   */
+  async function forgedValid(
+    proposalId: string,
+    forged: { operation: Record<string, unknown>; display: Record<string, unknown> },
+    { beforeEpoch = false } = {},
+  ) {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query("set local session_replication_role = replica");
+      if (beforeEpoch)
+        await client.query(
+          "update app_meta.schema_migrations set applied_at = now() + interval '1 day' where name = '0057_px4_story_freedom.sql'",
+        );
+      const operation = JSON.stringify(forged.operation);
+      await client.query(
+        `update simulora.generation_attempts g
+            set output = jsonb_set(g.output, '{candidate,operation}', $2::jsonb)
+           from simulora.action_proposals p where p.id = $1 and g.id = p.generation_attempt_id`,
+        [proposalId, operation],
+      );
+      await client.query(
+        `update simulora.action_proposals
+            set candidate_transition = jsonb_set(candidate_transition, '{operation}', $2::jsonb),
+                display_effect = $3::jsonb
+          where id = $1`,
+        [proposalId, operation, JSON.stringify(forged.display)],
+      );
+      await client.query(
+        `update simulora.action_proposals p
+            set proposal_digest = encode(sha256(convert_to(simulora.canonical_jsonb_text(
+              jsonb_build_object('actionId', a.id, 'actorAccountId', a.actor_account_id,
+                'expectedHeadCommitId', a.expected_head_commit_id,
+                'candidate', p.candidate_transition, 'displayEffect', p.display_effect,
+                'expiresAt', to_char(p.expires_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))),
+              'UTF8')), 'hex')
+           from simulora.actions a where p.id = $1 and a.id = p.action_id`,
+        [proposalId],
+      );
+      const result = await client.query<{ valid: boolean; evidence: boolean }>(
+        `select simulora.action_proposal_effect_is_valid(p) as valid,
+                simulora.action_generation_evidence_is_valid(p) as evidence
+           from simulora.action_proposals p where p.id = $1`,
+        [proposalId],
+      );
+      return result.rows[0]!;
+    } finally {
+      await client.query("rollback");
+      client.release();
+    }
+  }
+
+  const moveTo = (characterId: string, beforeLocationId: string) => ({
+    operation: {
+      type: "MOVE_CHARACTER",
+      characterId,
+      beforeLocationId,
+      afterLocationId: "location.harbor",
+      causalFactIds: [lead],
+    },
+    display: {
+      target: characterId,
+      before: beforeLocationId,
+      after: "location.harbor",
+      scope: "SHARED",
+    },
+  });
+
+  const resolve = (threadId: string) => ({
+    operation: {
+      type: "RESOLVE_THREAD",
+      threadId,
+      resolution: "It is settled.",
+      causalFactIds: [lead],
+    },
+    display: { target: threadId, before: "OPEN", after: "RESOLVED", scope: "SHARED" },
+  });
+
+  const shift = scripted(() => ({
+    type: "SHIFT_RELATIONSHIP",
+    relationshipId: "relationship.iora-tavi",
+    beforeState: "wary",
+    afterState: "cordial",
+    causalFactIds: [lead],
+  }));
+
   async function confirm(action: Awaited<ReturnType<typeof story>>) {
     if (!action.proposal) throw new Error(`Expected a proposal, got ${action.status}`);
     const committed = await repository.confirmAction(account, action.id, {
@@ -286,5 +377,76 @@ suite("PX-4a story freedom against PostgreSQL", () => {
     );
     expect(offered?.effectContext).toEqual({ relationships: [], openThreads: [], constraints: [] });
     expect(talk.status).toBe("COMPLETED_NO_EFFECT");
+  });
+
+  it("SQL refuses a forged story move for a Character outside the policy, or before 0057", async () => {
+    const tavi = await story(await fixture(), shift, "character.tavi");
+    const observatory = "location.tidal-observatory";
+    // The forgery itself is sound: the same move for Tavi passes.
+    expect(await forgedValid(tavi.proposal!.id, moveTo("character.tavi", observatory))).toEqual({
+      valid: true,
+      evidence: true,
+    });
+    // Before the 0057 epoch a story Action may not move anyone.
+    expect(
+      await forgedValid(tavi.proposal!.id, moveTo("character.tavi", observatory), {
+        beforeEpoch: true,
+      }),
+    ).toEqual({ valid: false, evidence: true });
+
+    const start = await fixture();
+    const ioraAt = start.state.characters.find((item) => item.id === "character.iora")?.locationId;
+    expect(ioraAt).toBe(observatory);
+    const iora = await story(start, shift, "character.iora");
+    expect(await forgedValid(iora.proposal!.id, moveTo("character.iora", observatory))).toEqual({
+      valid: false,
+      evidence: true,
+    });
+  });
+
+  it("SQL refuses a forged story resolve of a resolved thread, or a shift with no Character", async () => {
+    const start = await fixture();
+    const opened = await story(
+      start,
+      scripted(() => ({ type: "OPEN_THREAD", title: "The sewn ledger", causalFactIds: [lead] })),
+    );
+    await confirm(opened);
+    await confirm(
+      await story(
+        await current(start.continuityId),
+        scripted(() => resolve("thread.vessel").operation),
+      ),
+    );
+    const world = await story(
+      await current(start.continuityId),
+      scripted(() => ({ type: "OPEN_THREAD", title: "Who comes next", causalFactIds: [lead] })),
+    );
+    // Resolving the thread that is still open passes; the resolved one does not.
+    expect(await forgedValid(world.proposal!.id, resolve(`thread.${opened.id}`))).toEqual({
+      valid: true,
+      evidence: true,
+    });
+    expect(await forgedValid(world.proposal!.id, resolve("thread.vessel"))).toEqual({
+      valid: false,
+      evidence: true,
+    });
+    // A World response has no selected Character whose relationship could shift.
+    expect(
+      await forgedValid(world.proposal!.id, {
+        operation: {
+          type: "SHIFT_RELATIONSHIP",
+          relationshipId: "relationship.iora-tavi",
+          beforeState: "wary",
+          afterState: "cordial",
+          causalFactIds: [lead],
+        },
+        display: {
+          target: "relationship.iora-tavi",
+          before: "wary",
+          after: "cordial",
+          scope: "SHARED",
+        },
+      }),
+    ).toEqual({ valid: false, evidence: true });
   });
 });

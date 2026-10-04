@@ -620,11 +620,13 @@ export function ContinuityProvider({
   );
 
   // PX-4a direct play: the same exact confirmation the button sends, for every
-  // proposal, unless Strict mode is on.
+  // play proposal, unless Strict mode is on. Corrections and removals always
+  // wait for the player's own click (ADR-PX4-1).
   useEffect(() => {
     if (!quickPlay) return;
     for (const action of pendingActions) {
       if (
+        action.operationType !== "PARTICIPATE" ||
         action.status !== "AWAITING_CONFIRMATION" ||
         !action.proposal ||
         autoConfirmAttempted.current.has(action.id)

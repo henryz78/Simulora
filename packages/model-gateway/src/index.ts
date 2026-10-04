@@ -341,8 +341,8 @@ const worldTurnRules = [
   "never hand that attempt to a Character. Still never write the user's words, choices or",
   "commitments.",
   // PX-4a (ADR-PX4-3): attempts possible in this world succeed; the scene reacts.
-  "Judge what is possible by this world's own rules: its premise, facts, places, boundaries and",
-  "constraints, which may differ from ours (magic, future technology, the supernatural).",
+  "Judge what is possible by this world's own rules: its premise, facts, places and its",
+  "declared constraints, which may differ from ours (magic, future technology, the supernatural).",
   "Only where the world says nothing, use ordinary common sense. The attempt succeeds when it",
   "is possible there; it fails only for a real obstacle, which the narrative names. A means",
   "the user claims must fit the world and its established facts. A request to a Character is",
