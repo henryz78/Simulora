@@ -24,6 +24,7 @@ import {
   type ParticipationContract,
   type RecoveryResponse,
   type RestoreProposal,
+  type TraceCommit,
   type UsageQuote,
   type WorldDocumentInput,
   type WorldStudioResponse,
@@ -247,6 +248,7 @@ export function WorldPage(): ReactElement {
     autoConfirmedIds,
     undoneIds,
   } = useContinuity();
+  const trace = useHeadTrace(loadState);
   if (loadState.status === "loading") {
     return (
       <StatusPage
@@ -286,7 +288,7 @@ export function WorldPage(): ReactElement {
           </p>
           <div className="situation-card">
             <p className="card-label">{t("Current situation")}</p>
-            <p>{currentSituation(data)}</p>
+            <p>{currentSituation(data, trace)}</p>
           </div>
 
           <ActionComposer />
@@ -618,29 +620,31 @@ function PendingOrientationNotice({
   );
 }
 
-export function ContinuityPage(): ReactElement {
-  const { loadState, history, actions } = useContinuity();
-  // Action → its Commit on this path, from the trace, so links survive a reload.
-  const [commitByAction, setCommitByAction] = useState<ReadonlyMap<string, string>>(new Map());
+/** The newest commits of the current head's path, read again when the head moves. */
+function useHeadTrace(loadState: ReturnType<typeof useContinuity>["loadState"]): TraceCommit[] {
+  const [commits, setCommits] = useState<TraceCommit[]>([]);
   const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
   const head = loadState.status === "ready" ? loadState.data.continuity.headCommitId : null;
   useEffect(() => {
     if (!branchId || !head) return;
     let active = true;
     void readBranchTrace(branchId).then((result) => {
-      if (active && result.data)
-        setCommitByAction(
-          new Map(
-            result.data.commits.flatMap((commit) =>
-              commit.reason ? [[commit.reason, commit.id] as const] : [],
-            ),
-          ),
-        );
+      if (active && result.data) setCommits(result.data.commits);
     });
     return () => {
       active = false;
     };
   }, [branchId, head]);
+  return commits;
+}
+
+export function ContinuityPage(): ReactElement {
+  const { loadState, history, actions } = useContinuity();
+  const trace = useHeadTrace(loadState);
+  // Action → its Commit on this path, from the trace, so links survive a reload.
+  const commitByAction = new Map(
+    trace.flatMap((commit) => (commit.reason ? [[commit.reason, commit.id] as const] : [])),
+  );
   if (loadState.status !== "ready") {
     return (
       <StatusPage title={t("Opening Continuity…")} copy={t("Reading the current Branch head.")} />
@@ -668,7 +672,7 @@ export function ContinuityPage(): ReactElement {
         <div>
           <p className="card-label">{t("Current state")}</p>
           <h2 id="continuity-current-title">{t("What currently holds")}</h2>
-          <p>{currentSituation(data)}</p>
+          <p>{currentSituation(data, trace)}</p>
         </div>
         <dl className="metadata-list">
           <div>
@@ -2098,14 +2102,24 @@ export function CorrectionReviewPage(): ReactElement {
   );
 }
 
-function currentSituation(data: AuthoritativeStateResponse): string {
-  // Match the Return projection: historical thread text is not the current lead.
-  return (
-    data.state.facts
-      .filter(isCurrentFactValue)
-      .map(currentFact)
-      .find((fact) => fact?.scope === "SHARED")?.statement ?? data.state.worldClock.label
-  );
+/**
+ * WD-2: the shared fact changed most recently on this path, by the rule of the
+ * Return projection (`currentSituation` in `packages/database`). Historical
+ * thread text is never the lead.
+ */
+function currentSituation(data: AuthoritativeStateResponse, commits: TraceCommit[]): string {
+  const shared = data.state.facts
+    .filter(isCurrentFactValue)
+    .map(currentFact)
+    .filter((fact): fact is CurrentFact => fact?.scope === "SHARED");
+  for (const commit of commits.slice(0, 10)) {
+    if (commit.kind === "RESTORE_COMMITTED") break;
+    for (const event of [...commit.events].reverse()) {
+      const fact = shared.find((item) => item.id === event.targetId);
+      if (fact) return fact.statement;
+    }
+  }
+  return shared[0]?.statement ?? data.state.worldClock.label;
 }
 
 /**
@@ -2196,7 +2210,7 @@ function fallbackOrientation(
       worldRevisionId: data.continuity.worldRevisionId,
     },
     current: {
-      situation: currentSituation(data),
+      situation: currentSituation(data, []),
       locationId: null,
       worldClock: data.state.worldClock,
     },

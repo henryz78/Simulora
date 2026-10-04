@@ -234,6 +234,55 @@ suite("PX-4b several changes in one turn against PostgreSQL", () => {
     expect(next.proposal?.impact).toBe("L2");
   });
 
+  it("WD-2 leads Return with the shared fact changed last, until a Restore", async () => {
+    const start = await fixture();
+    const situation = async () =>
+      (await repository.rebuildReturnOrientation(account, start.branchId)).current.situation;
+    const opening = start.state.facts.find(
+      (fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED",
+    )!.statement;
+    expect(await situation()).toBe(opening);
+
+    await confirm(
+      await story(
+        start,
+        scripted(
+          () => [
+            { type: "REVEAL_FACT", factId: "fact.key", causalFactIds: [lead] },
+            add("The door hinge squeals."),
+          ],
+          `Behind the door you find it: ${hiddenKey}`,
+        ),
+      ),
+    );
+    expect(await situation()).toBe("The door hinge squeals.");
+
+    // A turn that changes no fact keeps the lead.
+    await confirm(
+      await story(
+        await current(start.continuityId),
+        scripted(() => open("Who oiled it")),
+      ),
+    );
+    expect(await situation()).toBe("The door hinge squeals.");
+
+    await confirm(
+      await story(
+        await current(start.continuityId),
+        scripted(() => add("A gull lands.")),
+      ),
+    );
+    expect(await situation()).toBe("A gull lands.");
+
+    const restore = await repository.prepareRestore(account, start.branchId, start.headCommitId);
+    await repository.confirmRestore(account, start.branchId, {
+      proposalId: restore.id,
+      digest: restore.digest,
+      expectedHeadCommitId: restore.expectedHeadCommitId,
+    });
+    expect(await situation()).toBe(opening);
+  });
+
   it("lets the narrative name a fact the turn reveals, but not a new statement", async () => {
     const start = await fixture();
     const told = `Behind the door you find it: ${hiddenKey}`;

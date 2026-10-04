@@ -491,6 +491,61 @@ test("completed response-only dialogue is visible without confirmation controls"
   await expect(page.getByRole("button", { name: /Confirm|Cancel|Retry/ })).toHaveCount(0);
 });
 
+test("WD-2 the current situation is the shared fact changed last, until a Restore", async ({
+  page,
+}) => {
+  const state = worldResponse();
+  const document = state.state as Record<string, unknown>;
+  document.facts = [
+    { id: factId, statement: "The western signal is dim.", scope: "SHARED", lifecycle: "ACTIVE" },
+    { id: "fact.rope", statement: "The bell rope is cut.", scope: "SHARED", lifecycle: "ACTIVE" },
+    {
+      id: "fact.mud",
+      statement: "Fresh mud marks the stairs.",
+      scope: "SHARED",
+      lifecycle: "ACTIVE",
+    },
+  ];
+  const turn = (kind: string, events: Array<[string, string]>) => ({
+    id: crypto.randomUUID(),
+    parentCommitId: null,
+    kind,
+    sourceClass: "USER",
+    reason: null,
+    createdAt: now,
+    events: events.map(([type, targetId]) => ({
+      id: crypto.randomUUID(),
+      type,
+      summary: type,
+      targetId,
+      scope: "SHARED",
+    })),
+  });
+  // Newest first; within a commit, the last change leads.
+  let commits = [
+    turn("ACTION_COMMITTED", [
+      ["FACT_ADDED", "fact.mud"],
+      ["FACT_ADDED", "fact.rope"],
+      ["THREAD_OPENED", "thread.rope"],
+    ]),
+    ...(traceResponse().commits as unknown[]),
+  ];
+  await installRoutes(page, { state });
+  await page.route(`**/v1/branches/${branchId}/commits**`, (route) =>
+    json(route, { ...traceResponse(), commits }),
+  );
+  await page.goto(`/continuities/${continuityId}`);
+  await expect(page.locator(".situation-card")).toContainText("The bell rope is cut.");
+  await page.getByRole("link", { name: "Continuity", exact: true }).click();
+  await expect(page.getByRole("region", { name: "What currently holds" })).toContainText(
+    "The bell rope is cut.",
+  );
+
+  commits = [turn("RESTORE_COMMITTED", []), ...commits];
+  await page.goto(`/continuities/${continuityId}`);
+  await expect(page.locator(".situation-card")).toContainText("The western signal is dim.");
+});
+
 test("World, Continuity and Return fallback use current shared facts, not earlier threads", async ({
   page,
 }) => {

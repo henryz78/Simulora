@@ -984,6 +984,28 @@ export function compileActionGenerationContext(
   };
 }
 
+/**
+ * WD-2: the derived current-situation line, display only. It is the current
+ * statement of the shared fact changed most recently on this path: newest
+ * commit first, and the last change of a commit first. A Restore ends the
+ * search. With no such fact it is the first current shared fact, then the
+ * clock. `apps/web/src/pages.tsx` mirrors this rule.
+ */
+function currentSituation(state: StateRevisionDocument, commits: TraceCommit[]): string {
+  const shared = state.facts.filter(
+    (fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED",
+  );
+  // ponytail: reads the ten newest commits, the window the Return trace loads.
+  for (const commit of commits.slice(0, 10)) {
+    if (commit.kind === "RESTORE_COMMITTED") break;
+    for (const event of [...commit.events].reverse()) {
+      const fact = shared.find((item) => item.id === event.targetId);
+      if (fact) return fact.statement;
+    }
+  }
+  return shared[0]?.statement ?? state.worldClock.label;
+}
+
 function orientationPayload(
   continuityId: string,
   branchId: string,
@@ -997,11 +1019,7 @@ function orientationPayload(
   const payload: OrientationResponse = {
     continuity: { id: continuityId, branchId, worldRevisionId },
     current: {
-      // ponytail: one source-head shared fact, not a complete scene summary;
-      // structured current threads can replace this lead when the runtime supports them.
-      situation:
-        state.facts.find((fact) => fact.lifecycle === "ACTIVE" && fact.scope === "SHARED")
-          ?.statement ?? state.worldClock.label,
+      situation: currentSituation(state, commits),
       locationId: state.locations[0]?.id ?? null,
       worldClock: state.worldClock,
     },
@@ -4907,6 +4925,7 @@ export class AuthoritativeWorldRepository {
         const targetId = [
           payload.targetFactId,
           payload.target,
+          payload.factId,
           payload.relationshipId,
           payload.constraintId,
           payload.threadId,
