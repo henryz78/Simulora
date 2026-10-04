@@ -1,7 +1,8 @@
 # PX-4 World Freedom Contract
 
-**Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is implemented at `4dd4389` + `3b863dd` and is
-awaiting its independent Review. PX-4b has not started.
+**Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is implemented at `4dd4389` + `3b863dd` + `0017715`.
+Its independent Review returned `PASS WITH ISSUES` (0B/2I/4M); the fixes are in `b253308`,
+awaiting a focused re-review. PX-4b has not started.
 Owner decisions were given in chat on 2026-09-29, after the Lantern Inn play-test. The track
 closes on an independent Review of an exact SHA with green CI.
 
@@ -45,8 +46,10 @@ reads it as personality, not obedience.
   - The player's standing choice of direct play is the confirmation. As soon as a valid
     proposal arrives, the client sends the same exact confirmation request (proposal digest
     included) that the button sends.
-  - Strict mode is kept per Continuity in the browser. With it on, every proposal waits for
-    the button, as before.
+  - Strict mode is one setting per browser, for every Continuity. With it on, every proposal
+    waits for the button, as before. A browser with no stored setting starts in direct play.
+  - Direct play confirms only play Actions. A correction or removal always waits for the
+    player's own click.
   - The server's Commit rule and the L2/L3 table (ADR-005, ADR-018) do not change. L3 still
     needs an exact confirmation; direct play only changes who sends it.
   - Each turn shows what it changed, and offers "Undo this turn" while that turn is still the
@@ -140,4 +143,10 @@ reads it as personality, not obedience.
   the model.
 - **The dialogue-attribution normalisation recognises only Latin names.** A Chinese narrative
   quoting a Character can still be refused by the agency guard. The live check records this.
+- **Only Latin and Chinese narratives pass the authority guard.** It refuses any other script
+  (kana, Hangul, Cyrillic, Arabic), so a player writing in those languages gets retries, not
+  replies. Chinese Character speech that pairs 你 with an authority word can also be refused.
+  Both fail safe.
+- **The manifest does not record which routes the model was offered.** The pinned policy is
+  immutable and both validators re-check every move against it, so this is traceability only.
 - **PX-4a is still one change per turn.** PX-4b lifts that.
