@@ -687,6 +687,22 @@ describe("IP-6 participation and character authority", () => {
     }
   });
 
+  it("passes Chinese narration that keeps the user's sentence apart, as prompt v13 asks", () => {
+    // One sentence holding 你 and anyone's speech is refused; split at 。 it passes.
+    for (const [joined, split] of [
+      ["你推开门，店主抬头说：“欢迎回来。”", "你推开门。店主抬头说：“欢迎回来。”"],
+      ["你问 Iora 灯塔的事，她说她不知道。", "你问 Iora 灯塔的事。她说她不知道。"],
+      [
+        'You push the door open and the keeper says, "Welcome back."',
+        'You push the door open. The keeper says, "Welcome back."',
+      ],
+    ] as const) {
+      expect(() => assertGeneratedNarrativeDoesNotAuthorUser(joined, "旅人", "Iora")).toThrow();
+      expect(() => assertGeneratedNarrativeDoesNotAuthorUser(split, "旅人", "Iora")).not.toThrow();
+    }
+    expect(() => assertGeneratedNarrativeDoesNotAuthorUser("你同意了。", "旅人", "Iora")).toThrow();
+  });
+
   it("permits explicit Character deference but keeps continued commitments blocked", () => {
     for (const narrative of [
       "I won't choose for you.",

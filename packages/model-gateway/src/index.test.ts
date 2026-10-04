@@ -213,7 +213,9 @@ describe("IP-9 live capability profile adapter", () => {
   });
 
   it("offers ADD_FACT first and any shared rewrite only for WD-1a Actions (prompt v9+)", () => {
-    expect(livePromptVersion).toBe(12);
+    expect(livePromptVersion).toBe(13);
+    // Prompt v13: the user's sentence ends before anyone speaks or decides.
+    expect(compileWorldTurnPrompt(base).system).toContain("in Chinese 。, not ，");
     const skeletonOf = (request: WorldTurnRequest) => {
       const system = compileWorldTurnPrompt(request).system;
       const lines = system.split("\n");

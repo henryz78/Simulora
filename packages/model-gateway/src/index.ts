@@ -322,7 +322,7 @@ export class UnsafeModelContextError extends Error {
   override readonly name = "UnsafeModelContextError";
 }
 
-export const livePromptVersion = 12;
+export const livePromptVersion = 13;
 const maxPromptCharacters = 48_000;
 
 // System rules travel separately from the compiled request. Creator-authored text
@@ -342,6 +342,12 @@ const worldTurnRules = [
   'in the second person, in its own sentence ("You search the benches. Nothing is there.");',
   "never hand that attempt to a Character. Still never write the user's words, choices or",
   "commitments.",
+  // Prompt v13: the authority guard reads a whole sentence, so a sentence naming the
+  // user that also holds anyone's speech or decision is refused, in any language.
+  'A sentence that names the user ("you", 你) never also holds a word of speech or choice',
+  "(say, agree, decide, choose, accept, refuse; 说, 同意, 决定, 选择, 接受, 拒绝), even another",
+  "person's. End the user's sentence with a full stop (in Chinese 。, not ，) before anyone",
+  "speaks or decides, and keep you/你 out of a Character's quoted words that use such a word.",
   // PX-4a (ADR-PX4-3): attempts possible in this world succeed; the scene reacts.
   "Judge what is possible by this world's own rules: its premise, facts, places and its",
   "declared constraints, which may differ from ours (magic, future technology, the supernatural).",
