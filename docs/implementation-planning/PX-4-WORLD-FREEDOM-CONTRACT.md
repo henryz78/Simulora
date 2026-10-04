@@ -248,13 +248,20 @@ How it works:
   - The 0056 evidence function is factored into a core function that takes
     `expected_output` and the set of disclosed facts. The v1 function calls it with v1
     values.
-  - A proposal counts as virtual exactly when its `schema_version` is 1 and the stored
-    proposal for that Action has `schema_version` 2. This is safe because
-    `unique(action_id)` means a stored v1 row cannot coexist, and virtual rows are never
-    inserted.
+  - **Correction found at implementation.** The proposal is validated in a `BEFORE INSERT`
+    trigger (`validate_action_proposal_binding`, 0015), when the v2 row is not yet stored.
+    So "virtual" is identified from the Generation Attempt instead, which is immutable and
+    written before the proposal:
+    - A proposal counts as virtual exactly when its `schema_version` is 1 and its
+      attempt's output candidate has `schemaVersion` 2.
+    - The top-level validator refuses a stored v1 proposal whose attempt output is v2.
+      Only the v2 dispatcher, which calls the inner chain directly, can produce a virtual
+      proposal, so no partial turn can be stored.
+    - The dispatcher also requires the attempt output to equal
+      `{narrative, responseSource, candidate}` of the stored v2 proposal.
   - For a virtual proposal, the core function receives:
-    - `expected_output` built from the stored v2 candidate;
-    - as disclosed, the union of every `REVEAL` in the turn.
+    - `expected_output` as the attempt output;
+    - as disclosed, the union of every `REVEAL` in that output.
   - The core refuses a virtual operation that is not equal to one of the stored
     operations `[S1]`.
   - The disclosed union applies to the narrative only. Operation texts stay strict, so a
