@@ -594,4 +594,218 @@ suite("PX-4b several changes in one turn against PostgreSQL", () => {
     });
     expect(virtual).toEqual({ valid: false, inner: true });
   });
+
+  it("refuses forged turns that break a combination rule, beside controls that pass", async () => {
+    const start = await fixture();
+    const lead_ = start.state.facts.find((fact) => fact.id === lead)!;
+    const action = await story(
+      start,
+      scripted(() => [add("The bell rope is cut."), open("Who cut the rope")]),
+    );
+    const id = action.proposal!.id;
+    const display = {
+      add: (statement: string, position: number) => ({
+        target: `fact.${action.id}.${position}`,
+        before: "Nothing recorded yet.",
+        after: statement,
+        scope: "SHARED",
+      }),
+      open: (title: string, position: number) => ({
+        target: `thread.${action.id}.${position}`,
+        before: "No thread",
+        after: title,
+        scope: "SHARED",
+      }),
+      resolve: { target: "thread.vessel", before: "OPEN", after: "RESOLVED", scope: "SHARED" },
+      rewrite: {
+        target: lead,
+        before: lead_.statement,
+        after: "The western signal burns bright again.",
+        scope: "SHARED",
+      },
+      failure: {
+        target: "constraint.flood",
+        before: "The causeway is under water.",
+        after: "Waiting for low tide",
+        scope: "SHARED",
+      },
+    };
+    const resolve: Operation = {
+      type: "RESOLVE_THREAD",
+      threadId: "thread.vessel",
+      resolution: "The pilot admits why she waits.",
+      causalFactIds: [lead],
+    };
+    const rewrite: Operation = {
+      type: "UPDATE_CANONICAL_FACT",
+      targetFactId: lead,
+      beforeStatement: lead_.statement,
+      afterStatement: "The western signal burns bright again.",
+      scope: "SHARED",
+      provenance: `Confirmed Action ${action.id}`,
+    };
+    const failure: Operation = {
+      type: "TRANSFORM_FAILURE",
+      constraintId: "constraint.flood",
+      outcome: "The causeway is under water.",
+      newThreadTitle: "Waiting for low tide",
+      causalFactIds: [lead],
+    };
+    const turn = (operations: Operation[], shown: unknown[], impact = "L2") =>
+      forged(id, {
+        candidate: (candidate) => ({ ...candidate, operations }),
+        display: () => shown,
+        impact,
+      });
+    const bell = { ...add("A bell rings."), causalFactIds: ["fact.harbor-bell"] };
+    type Check = () => Promise<{ valid: boolean }>;
+    const cases: Array<[string, Check, Check]> = [
+      [
+        "the same thread twice",
+        () => turn([resolve, resolve], [display.resolve, display.resolve]),
+        () =>
+          turn([resolve, add("A bell rings.")], [display.resolve, display.add("A bell rings.", 2)]),
+      ],
+      [
+        "a cause the turn rewrites",
+        () =>
+          turn(
+            [rewrite, add("A bell rings.")],
+            [display.rewrite, display.add("A bell rings.", 2)],
+            "L3",
+          ),
+        () => turn([rewrite, bell], [display.rewrite, display.add("A bell rings.", 2)], "L3"),
+      ],
+      [
+        "a failure joined by a thread",
+        () =>
+          turn([failure, open("Another way")], [display.failure, display.open("Another way", 2)]),
+        () =>
+          turn([failure, add("A bell rings.")], [display.failure, display.add("A bell rings.", 2)]),
+      ],
+      [
+        "one change only",
+        () => turn([add("A bell rings.")], [display.add("A bell rings.", 1)]),
+        () =>
+          turn(
+            [add("A bell rings."), add("A gull cries.")],
+            [display.add("A bell rings.", 1), display.add("A gull cries.", 2)],
+          ),
+      ],
+      [
+        "five changes",
+        () =>
+          turn(
+            [1, 2, 3, 4, 5].map((n) => add(`Sign ${n}.`)),
+            [1, 2, 3, 4, 5].map((n) => display.add(`Sign ${n}.`, n)),
+          ),
+        () =>
+          turn(
+            [1, 2, 3, 4].map((n) => add(`Sign ${n}.`)),
+            [1, 2, 3, 4].map((n) => display.add(`Sign ${n}.`, n)),
+          ),
+      ],
+      [
+        "a no-effect part",
+        () =>
+          turn(
+            [
+              add("A bell rings."),
+              { type: "NO_WORLD_EFFECT", reason: "Talk.", causalFactIds: [lead] },
+            ],
+            [display.add("A bell rings.", 1), display.add("Talk.", 2)],
+          ),
+        () =>
+          turn(
+            [add("A bell rings."), open("Who rang")],
+            [display.add("A bell rings.", 1), display.open("Who rang", 2)],
+          ),
+      ],
+    ];
+    for (const [name, refused, control] of cases) {
+      expect([name, (await refused()).valid]).toEqual([name, false]);
+      expect([name, (await control()).valid]).toEqual([name, true]);
+    }
+  });
+
+  /**
+   * Confirms through a pool that rewrites the multi-change Event inserts, so
+   * the Commit check is the only thing that can refuse. Real PostgreSQL only:
+   * PGlite cannot recover from the deferred error.
+   */
+  it("refuses a multi-change Commit whose Events are missing or wrong", async () => {
+    type Tamper = (params: unknown[]) => unknown[] | null;
+    const tampering = (tamper: Tamper) =>
+      new Proxy(pool, {
+        get(target, property) {
+          if (property === "connect") {
+            return async () => {
+              const client = await target.connect();
+              return new Proxy(client, {
+                get(inner, key) {
+                  if (key === "query") {
+                    return (sql: unknown, params?: unknown[]) => {
+                      if (
+                        typeof sql === "string" &&
+                        sql.includes("insert into simulora.domain_events") &&
+                        params?.length === 8
+                      ) {
+                        const next = tamper(params);
+                        if (!next) return Promise.resolve({ rows: [], rowCount: 0 });
+                        return inner.query(sql, next);
+                      }
+                      return inner.query(sql as string, params);
+                    };
+                  }
+                  const value = Reflect.get(inner, key) as unknown;
+                  return typeof value === "function"
+                    ? (value as (this: unknown) => unknown).bind(inner)
+                    : value;
+                },
+              });
+            };
+          }
+          const value = Reflect.get(target, property) as unknown;
+          return typeof value === "function"
+            ? (value as (this: unknown) => unknown).bind(target)
+            : value;
+        },
+      });
+    const second =
+      (change: (params: unknown[]) => unknown[] | null): Tamper =>
+      (params) =>
+        params[7] === 2 ? change(params) : params;
+    const tampers: Array<[string, Tamper]> = [
+      ["a missing Event", second(() => null)],
+      ["a wrong ordinal", second((params) => params.with(7, 3))],
+      [
+        "a base thread id",
+        second((params) => {
+          const payload = JSON.parse(params[4] as string) as Record<string, unknown>;
+          return params.with(
+            4,
+            JSON.stringify({ ...payload, threadId: `thread.${String(payload.actionId)}` }),
+          );
+        }),
+      ],
+      ["no tampering", (params) => params],
+    ];
+    for (const [name, tamper] of tampers) {
+      const action = await story(
+        await fixture(),
+        scripted(() => [add("The bell rope is cut."), open("Who cut the rope")]),
+      );
+      const confirm = new AuthoritativeWorldRepository(tampering(tamper)).confirmAction(
+        account,
+        action.id,
+        {
+          proposalId: action.proposal!.id,
+          proposalDigest: action.proposal!.digest,
+          expectedHeadCommitId: action.proposal!.expectedHeadCommitId,
+        },
+      );
+      if (name === "no tampering") expect((await confirm).status).toBe("COMMITTED");
+      else await expect(confirm, name).rejects.toThrow(/one typed Event per change/);
+    }
+  });
 });
