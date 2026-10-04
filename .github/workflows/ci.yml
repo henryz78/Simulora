@@ -38,9 +38,9 @@ jobs:
       SIMULORA_TEST_S3_SECRET_KEY: change-me-local-only
 
     steps:
+      # LFS holds only research and archive media under docs/ and prototypes/, about
+      # 1.5 GB that no check reads. Fetching it on every run used up the LFS bandwidth.
       - uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - uses: pnpm/action-setup@v4
         with:
