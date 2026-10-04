@@ -1899,3 +1899,45 @@ See the [PX-3 report](PX-3-IMPLEMENTATION-REPORT.md).
   `PASS WITH ISSUES` (0B/1I/1M), then `PASS` (0B/0I/0M).
 - **Superseded:** the `frontend-design` branch proposals (§54, Task 4).
 - **Not claimed:** human enjoyment or usability of the new look.
+
+## 69. Chinese interface: CLOSED
+
+See the [Chinese Interface Report](I18N-ZH-REPORT.md).
+
+- **Decision:** the owner asked for the interface to follow the browser
+  language. Chinese browsers get Simplified Chinese; all others get English.
+- **Commits:** `863d423`, `64a00fb`, `9487173`, `c284c11`. Exact-SHA CI
+  `36504751629` (`c284c11`) succeeded.
+- **Review:** Sonnet 5.5 Reviewer, `PASS WITH ISSUES` (0B/3I/7M), then
+  `PASS WITH ISSUES` (0B/0I/3M). Everything is fixed or accepted, and the report
+  lists what was accepted.
+- **Scope:** interface copy only. No API, domain, SQL or model change. Three
+  English casing changes are declared.
+
+## 70. PX-4a world freedom: CLOSED
+
+See the [PX-4 contract](PX-4-WORLD-FREEDOM-CONTRACT.md) and the
+[PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md).
+
+- **Decision:** after the Lantern Inn play-test, the owner chose D1–D6:
+  - loosen play;
+  - apply changes directly by default, with Strict mode;
+  - an attempt succeeds when it is possible by the world's own rules;
+  - the model uses the player's language;
+  - up to 4 changes per turn (PX-4b);
+  - Characters may refuse.
+- **What it does:**
+  - **Successor 0057:** under "Let the story decide", the story may rewrite a
+    shared fact (L3), move the selected policy Character, shift its
+    relationship, open a thread or resolve any open thread. Actions created
+    before the epoch keep WD-1b.
+  - **Direct play by default:** confirms play proposals only, offers "Undo
+    this turn", and keeps Strict mode as a per-browser setting.
+  - **Prompt v11.**
+- **Approved behavior SHA:** `b253308`. CI run `37180344015` on `eb1241f`
+  (docs-only on top) was still running at closure; the owner closed PX-4a without waiting for it.
+- **Review:** Sonnet 5.5 Reviewer, `PASS WITH ISSUES` (0B/2I/4M). After the
+  fixes in `b253308`, the focused re-review returned `PASS` (0B/0I/0M).
+- **Not started:** PX-4b (up to 4 changes per turn, which needs its own
+  contract section and review), and the owner's play-test of PX-4a.
+- **Not authorized:** provider approval, beta, launch or production live model.

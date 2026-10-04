@@ -1,8 +1,7 @@
 # PX-4 World Freedom Contract
 
-**Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is implemented at `4dd4389` + `3b863dd` + `0017715`.
-Its independent Review returned `PASS WITH ISSUES` (0B/2I/4M); the fixes are in `b253308`,
-awaiting a focused re-review. PX-4b has not started.
+**Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is `CLOSED`: Review `PASS` after fixes, approved behavior
+SHA `b253308` (see the [PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md)). PX-4b has not started.
 Owner decisions were given in chat on 2026-09-29, after the Lantern Inn play-test. The track
 closes on an independent Review of an exact SHA with green CI.
 
