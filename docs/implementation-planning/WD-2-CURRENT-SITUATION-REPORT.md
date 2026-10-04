@@ -1,6 +1,7 @@
 # WD-2 Current Situation Report
 
-**Date:** 2026-10-04 · **Status:** `IMPLEMENTED`, awaiting independent Review and CI.
+**Date:** 2026-10-04 · **Status:** Review `PASS WITH ISSUES` (0B/0I/1M, fixed), approved
+behavior SHA `d8cebd5`, awaiting CI.
 The options are in the [WD-2 Current Situation Proposal](WD-2-CURRENT-SITUATION-PROPOSAL.md).
 
 ## Decision
@@ -74,6 +75,10 @@ The Reviewer was Sonnet 5.5, read-only.
    - **M-A.** The gate also emptied the Continuity page's action-to-commit links after each
      head change. `d8cebd5` keeps them on the last trace; only the line is gated.
    - **M-B.** This section and the evidence below now name every commit and the re-run.
+3. **Final focused check of `d8cebd5` + `3ed23a7`: `PASS WITH ISSUES` (0B/0I/1M).** M-A
+   and M-B are closed.
+   - **M-F.** The evidence counts were ambiguous. The lines below now name the browser
+     projects behind each count.
 
 The same re-review covered prompt v13; see the [PX-4 contract](PX-4-WORLD-FREEDOM-CONTRACT.md)
 Known limits.
@@ -86,8 +91,9 @@ Known limits.
   - PGlite `px4b-multi-change` 8/8, including the new WD-2 test, and `ip4-adversarial`;
   - `ip4-return-continuity`: 13 passed, plus 2 lock-order tests that also fail on PGlite
     without this change;
-  - e2e `ip4-continuity`, `action-truth` and `mgc1-closure` 124/124 on Chromium, mobile and
-    WebKit (Firefox is not installed locally);
-  - after `d8cebd5`: the same e2e 93/93 on Chromium, mobile and WebKit, and domain plus
-    gateway 77/77;
+  - e2e `ip4-continuity`, `action-truth` and `mgc1-closure` before the review: 124 passed
+    across all four projects. The 31 Firefox runs failed only because Firefox is not
+    installed locally;
+  - after `d8cebd5`: the same three files on the desktop-chromium, mobile-390x844 and
+    mobile-webkit-390x844 projects only, 93/93; domain plus gateway 77/77;
   - typecheck for both configs and eslint are clean.

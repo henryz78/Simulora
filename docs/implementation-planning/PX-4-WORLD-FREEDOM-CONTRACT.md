@@ -370,7 +370,8 @@ How it works:
   a full stop before anyone speaks or decides; the guard is unchanged. The Reviewer's focused
   re-review returned `PASS WITH ISSUES` (0B/0I/3M): the rule now names speech, choice,
   consent, payment and sharing words, the role name as a user subject, and the joiners the
-  guard does not split on (`d8cebd5`). Whether that is enough is a live-play question.
+  guard does not split on (`d8cebd5`). The final focused check returned `PASS` (0B/0I/0M).
+  Whether that is enough is a live-play question.
 - **The manifest does not record which routes the model was offered.** The pinned policy is
   immutable and both validators re-check every move against it, so this is traceability only.
 - **PX-4a is still one change per turn.** PX-4b lifts that to 4.

@@ -1966,3 +1966,25 @@ started: PX-4b" line of §70.
   returned `PASS` (0B/0I/0M). M-2 to M-5 are accepted in the contract.
 - **Not started:** the owner's play-test of PX-4a and PX-4b.
 - **Not authorized:** provider approval, beta, launch or production live model.
+
+## 72. WD-2 current situation and prompt v13: reviewed, awaiting CI
+
+On 2026-10-04 the owner asked for the open fixes to be made.
+
+- **WD-2:** see the [WD-2 report](WD-2-CURRENT-SITUATION-REPORT.md). Option B
+  of the proposal: the current-situation line on the World, Continuity and
+  Return pages is the shared fact changed last on this path. A Restore ends
+  the search, and the fallback is the first shared fact, then the clock. It
+  is display only, with no API shape, SQL or authority change.
+- **Prompt v13:** the authority guard refuses a sentence that holds the user
+  and anyone's speech or decision, so comma-joined Chinese second-person
+  narration was refused. v13 asks the model to end the user's sentence with a
+  full stop first. The guard is unchanged. See the PX-4 contract's Known
+  limits.
+- **Commits:** behavior `5f2d704`, `979f700`, `f109f6b`, `d8cebd5`; docs
+  `44746dc`, `e24a591`, `3ed23a7` and this one.
+- **Review:** Sonnet 5.5 Reviewer. WD-2: `PASS WITH ISSUES` (0B/1I/3M), then
+  (0B/0I/2M), then (0B/0I/1M, a docs fix). Prompt v13: (0B/0I/3M), then
+  `PASS` (0B/0I/0M). Approved behavior SHA `d8cebd5`.
+- **Pending:** CI on the latest commit, and the owner's live play-test, which
+  is the only check of whether v13 is enough.
