@@ -1,6 +1,6 @@
 # WD-2：Current Situation 保持新鲜的提案
 
-**状态：提案，未获实施授权**
+**状态：提案，未获实施授权**（2026-10-04 更新：采用选项 B 并已实施，见 [WD-2 Current Situation Report](WD-2-CURRENT-SITUATION-REPORT.md)）
 **日期：2026-09-27**
 **背景：** WD-1b、Track B §3.9
 
