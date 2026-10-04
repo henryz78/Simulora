@@ -135,92 +135,160 @@ reads it as personality, not obedience.
    - prompt compilation;
    - browser tests for the default, Strict mode and Undo.
 
-## PX-4b design (proposed, awaiting design Review)
+## PX-4b design (revised after design Review, awaiting re-review)
 
 ADR-PX4-4 lets one turn make up to 4 changes. This section is the design that ADR asked
-for. Implementation starts only after an independent design Review.
+for.
+- **Round 1:** the design Review of `2b13b0c` returned `DESIGN PASS WITH CHANGES`, with
+  9 required and 3 recommended changes. All of them are folded in below, tagged as `[Rn]`.
+- **Gate:** implementation starts only after the re-review passes.
 
 ### Scope
 
-- **Where it applies:** only `STORY_DECIDES` Actions created after a new ledger epoch, in a
-  successor migration `0058`. Explicit effects, corrections, removals and older Actions keep
-  schema version 1 exactly.
-- **What the model returns:** a candidate `schemaVersion: 2` with `operations` (1–4 items)
-  in place of `operation`. Each item uses an existing v1 operation shape.
-  `narrative` and `responseSource` are unchanged.
-- **What may be combined:**
-  - `NO_WORLD_EFFECT` may only stand alone.
-  - At most one `TRANSFORM_FAILURE`.
-  - At most one `MOVE_CHARACTER`, because a move needs the selected Character.
-  - No two operations may target the same fact, relationship, thread or Character.
-  - An operation may not name, as a cause, a fact that another operation in the turn
-    rewrites or reveals.
+- **Epoch.** The rules apply only to `STORY_DECIDES` Actions created after a new ledger
+  epoch: `px4b_multi_apply(created_at)` in successor `0058`, in the style of 0055–0057
+  `[R10]`.
+  - Explicit effects, corrections, removals and older Actions keep schema version 1
+    exactly.
+  - Actions queued before the epoch stay v1.
+- **Schema version 2 is only for 2–4 operations `[R5]`.**
+  - One change, or a response-only turn, stays a v1 candidate.
+  - A v2 candidate carries `operations` (2–4 items, each an existing v1 operation shape)
+    in place of `operation`. `narrative` and `responseSource` are unchanged.
+  - The generator request gets a manifest-neutral `multiOperation` flag.
+- **Combination rules `[R8]`.**
+  - Target keys:
+    - a fact id (the `UPDATE` target, the `REVEAL` factId);
+    - a relationship id;
+    - a thread id (the `RESOLVE` threadId, and the derived id of every thread opened);
+    - a Character id (`MOVE`).
+  - No two operations share a target key.
+  - No operation names, as a cause, a fact that another operation rewrites or reveals.
+  - `NO_WORLD_EFFECT` never appears in v2.
+  - `TRANSFORM_FAILURE` may be combined only with `ADD_FACT` and `OPEN_THREAD`, which
+    record the consequences of the failure.
+  - At most one `MOVE_CHARACTER`.
 
 ### Meaning
 
-- **Validation.** With disjoint targets, every operation is validated against the
-  expected head exactly as the same v1 operation would be. Disjointness makes the order
-  irrelevant, so there is no sequential state to reason about.
-- **Server-derived ids.**
-  - The first `ADD_FACT` is `fact.<actionId>`; later ones are `fact.<actionId>.<n>`.
-  - A thread opened by `OPEN_THREAD` or `TRANSFORM_FAILURE` follows the same rule, as
-    `thread.<actionId>`, then `thread.<actionId>.<n>`.
-  - The suffix `n` is the operation's 1-based position.
-- **Impact.** The proposal's impact is the highest of its operations' impacts.
-- **Display.** `displayEffect` becomes an ordered list with one entry per operation, and the
-  turn line lists them all.
+- **Order.** Order is the candidate's order. Arrays (facts, threads), derived ids and
+  Events follow it `[R4]`.
+- **Validation.** With disjoint targets, each operation is valid against the expected
+  head exactly when the same v1 operation would be. The Review checked every operation
+  pair.
+- **Derived ids, for v2 always by 1-based position `[R5]`:**
+  - `fact.<actionId>.<pos>` and `thread.<actionId>.<pos>`;
+  - each one is checked not to exist at the head.
+- **Impact** is the highest of the per-operation impacts `[R6]`.
+- **Display `[R7]`.**
+  - v1 keeps `displayEffect` as an object.
+  - v2 adds a separate ordered `displayEffects` array in contracts, in the database record
+    and on progress events. Any reader handles both.
+  - The Strict-mode review and the turn line list every change; `isRevealProposal` reads
+    both shapes.
 - **Commit.**
   - One Commit and one state revision per turn.
-  - The world clock advances once, and the narrative is recorded once.
-  - There is one typed Event per operation, in order. Each Event payload is the v1 payload,
-    with the derived ids above.
-- **Undo.** Undo is unchanged: Restore of the previous head reverses the whole turn.
+  - The world clock advances once, and the narrative is appended once `[R4]`.
+  - There is one typed Event per operation, carrying its position as `ordinal`. Each
+    payload is the v1 payload with the derived ids.
+- **Undo** is unchanged: Restore of the previous head reverses the whole turn.
 
-### SQL parity, without rewriting the v1 validators
+### Database changes in 0058
 
-- **Dispatcher.** A `schema_version = 2` proposal is split into virtual v1 proposals, one
-  per operation.
-  - Each virtual proposal carries that operation and its display entry, with a digest
-    recomputed by the v1 formula.
-  - Each runs through the existing `action_proposal_effect_is_valid` chain unchanged.
-  - The v2 envelope adds its own checks: the operation list, the combination rules, the
-    impact being the maximum, and the v2 digest.
-- **Generation evidence.** A wrapper accepts a virtual proposal only when the stored v2
-  proposal for the same Action contains exactly that operation at that position. That
-  stored proposal's own evidence must also be valid against the v2 output. A forged
-  virtual proposal therefore cannot pass on its own.
-- **State.** A new `expected_action_state` branch for v2 folds the operations over the
-  parent document. Each step is the v1 state change of that operation.
-  - The parity test is one equivalence check. For every operation type, a one-operation
-    v2 turn must produce the same state revision and the same Event as the v1 Action.
-  - Mixed turns are then tested against the application.
-- **Materialization.** For v2, the check expects one Event per operation, with matching
-  type and payload, in order.
+- **Events `[R1]`.**
+  - `domain_events` gains `ordinal integer not null default 1`.
+  - `unique (commit_id, event_type)` becomes `unique (commit_id, ordinal)`.
+  - Every reader orders by `(created_at, ordinal, id)`: the repository's history,
+    projection and export readers.
+  - The history aggregate in the model context orders by `ordinal`, so the context digest
+    is deterministic `[R9]`.
+- **Proposals `[R2]`.** `action_proposals.schema_version` may be 1 or 2. Virtual proposals
+  stay 1.
+
+### SQL parity
+
+What is reused, and what is new `[R12]`:
+- **Reused unchanged:** the v1 *effect* validators (the 0057 → 0056 → 0048/0055 → 0032 →
+  legacy chain).
+- **Refactored:** the generation evidence and the state function, as described below.
+
+How it works:
+- **Dispatcher.**
+  - A stored `schema_version = 2` proposal is split into virtual v1 proposals, one per
+    operation, each run through the unchanged effect chain.
+  - In each virtual proposal, the derived id is replaced by the v1 base id
+    (`fact.<actionId>`, `thread.<actionId>`). The envelope separately checks that the
+    stored display entries and Event payloads carry the derived ids `[R5]`.
+  - Each virtual proposal is tried at L2, then at L3; at most one passes. The envelope
+    requires the stored impact to equal the maximum `[R6]`.
+  - The envelope then checks:
+    - the operation count (2–4);
+    - the combination rules;
+    - the epoch;
+    - the v2 digest. Its payload is fixed in both TypeScript (`contentHash`) and SQL
+      (`canonical_jsonb_text`) `[R10]`.
+- **Generation evidence `[R3]`.**
+  - The 0056 evidence function is factored into a core function that takes
+    `expected_output` and the set of disclosed facts. The v1 function calls it with v1
+    values.
+  - A proposal counts as virtual exactly when its `schema_version` is 1 and the stored
+    proposal for that Action has `schema_version` 2. This is safe because
+    `unique(action_id)` means a stored v1 row cannot coexist, and virtual rows are never
+    inserted.
+  - For a virtual proposal, the core function receives:
+    - `expected_output` built from the stored v2 candidate;
+    - as disclosed, the union of every `REVEAL` in the turn.
+  - TypeScript mirrors this union.
+- **State `[R4]`.**
+  - Pure per-operation delta functions, `(document, operation, actionId, position)`, in
+    both SQL and TypeScript. They are applied in candidate order, followed by one clock
+    bump and one narrative append.
+  - Parity test: for every operation type, the delta plus one bump equals v1
+    `expected_action_state` for the same v1 Action.
+- **Materialization `[R9]`.**
+  - The v2 branch expects N Events with ordinals 1..N.
+  - Each Event's type, payload (with derived ids) and visibility come from its own
+    display entry.
 
 ### Application, model and play
 
-- **Domain.** `validateActionCandidate` validates v2 by checking the combination rules,
-  then each operation through the v1 path.
-- **Database.** The repository writes the folded state and the Events.
-- **Gateway.** Prompt v12 offers "1–4 operations" under story freedom, with the
-  combination rules.
-- **Web.** The turn line lists every change. Direct play and Strict mode are unchanged.
+- **Domain.** `validateActionCandidate` validates v2 in three steps:
+  1. the combination rules;
+  2. each operation through the v1 path, with the turn's disclosed union;
+  3. the per-operation impact.
+- **Database repository.** It writes the folded state and the ordered Events.
+- **Gateway.** Prompt v12 offers 1–4 changes under story freedom, together with the
+  combination rules. One change is still returned as v1.
+- **Web.** It lists every change. Direct play and Strict mode are unchanged.
 
-### Tests before closure
+### Tests before closure `[R11]`
 
 - Domain combination rules.
-- v2-vs-v1 equivalence on real PostgreSQL for every operation type.
-- Mixed-turn Commits with ordered Events.
-- Forged v2 and forged virtual proposals refused, with positive controls.
-- Pre-epoch Actions rejected as v2.
+- On real PostgreSQL, delta-plus-bump equivalence with v1 for every operation type.
+- Mixed turns, with ordered Events and ordinals:
+  - two `ADD_FACT`;
+  - `REVEAL` plus `ADD`, with the narrative mentioning the revealed fact;
+  - `OPEN` plus `RESOLVE`;
+  - `TRANSFORM` plus `OPEN`.
+- An L3 impact from a PROTECTED shift inside a v2 turn.
+- Forged v2 proposals refused, using the rolled-back forgery pattern of PX-4a, each with a
+  positive control:
+  - a v2 proposal before the epoch;
+  - a v2 proposal with an underived id;
+  - a v2 proposal with a wrong impact;
+  - a hand-made virtual proposal.
+- The model-context digest is stable when a commit has several Events.
 - Prompt compilation.
-- Browser: a multi-change turn and its Undo.
+- Browser:
+  - a multi-change turn and its Undo;
+  - an old v1 Action page still renders.
 
 ### Risks
 
-- **Size.** This is the largest SQL change since MGC-1. The virtual-proposal design keeps
-  every v1 validator untouched, so the risk sits in the new dispatcher, the evidence
-  wrapper and the fold.
+- **Size.** This is the largest SQL change since MGC-1.
+  - It adds a column and a constraint swap on `domain_events`, an evidence refactor and a
+    state refactor.
+  - The v1 effect validators stay untouched, but the evidence and state functions do not.
 - **Model quality.** More operations per turn give the model more room to be wrong. Each
   operation is still validated individually. Whether the owner wants 4 or fewer is a
   play-test question, and the cap is one constant.
