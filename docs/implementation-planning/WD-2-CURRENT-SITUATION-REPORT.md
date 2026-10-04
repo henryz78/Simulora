@@ -32,9 +32,13 @@ commit, so it never changes the line.
 - **Server:** `currentSituation` in `packages/database/src/index.ts` feeds the Return
   projection, from the same source head as its state.
 - **Web:** `apps/web/src/pages.tsx` mirrors the rule for the World and Continuity pages. It
-  reads the trace again when the head moves. Until the trace arrives, it shows the fallback.
+  reads the trace again when the head moves, and uses a trace only when its newest commit is
+  the current head. Until then, or if the read fails, it shows the fallback.
+- **Return fallback:** when the Return projection cannot be read, the page's local fallback
+  shows the first current shared fact, as before. It does not read the trace.
 - **Trace:** `FACT_ADDED` and `FACT_REVEALED` Events carry `factId`. The trace now reports it
-  as the Event's `targetId`, which the field already allowed.
+  as the Event's `targetId`, which the field already allowed. As a side effect, the trace
+  page now names the World fact for these Events, as it already did for rewrites.
 
 ## Unchanged
 
@@ -50,9 +54,24 @@ built.
   back.
 - **After an Undo the line falls back** until a later turn changes a fact.
 
+## Review
+
+The Reviewer was Sonnet 5.5, read-only.
+
+1. **Review of `5f2d704` + `44746dc`: `PASS WITH ISSUES` (0B/1I/3M).**
+   - **I-1.** The web kept a trace across head changes, so after a Restore, a commit or a
+     failed read it could pair the new state with an older head's trace. Fixed: a trace is
+     used only when its newest commit is the current head. The e2e serves a trace for
+     another head and expects the fallback.
+   - **M-1.** The Return fallback reads no trace. Accepted and stated above.
+   - **M-2.** Test gaps. The e2e now shows that a reveal leads and that a private fact
+     changed last never does. Server and web parity is by review; the e2e and the
+     integration test check the same rule.
+   - **M-3.** The trace page now names the fact for added and revealed facts. Stated above.
+
 ## Commits and evidence
 
-- **Behavior:** `5f2d704`.
+- **Behavior:** `5f2d704`, and the review fix after it.
 - **Local runs (not CI evidence):**
   - PGlite `px4b-multi-change` 8/8, including the new WD-2 test, and `ip4-adversarial`;
   - `ip4-return-continuity`: 13 passed, plus 2 lock-order tests that also fail on PGlite

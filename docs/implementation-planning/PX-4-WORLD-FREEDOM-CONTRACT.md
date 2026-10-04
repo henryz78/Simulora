@@ -364,7 +364,11 @@ How it works:
 - **Only Latin and Chinese narratives pass the authority guard.** It refuses any other script
   (kana, Hangul, Cyrillic, Arabic), so a player writing in those languages gets retries, not
   replies. Chinese Character speech that pairs 你 with an authority word can also be refused.
-  Both fail safe.
+  Both fail safe. The guard reads a whole sentence, so a comma-joined Chinese sentence such as
+  你推开门，店主说 is refused too (so is the English "You push the door open and the keeper
+  says"). Prompt v13 (`979f700`, 2026-10-04) asks the model to end the user's sentence with
+  a full stop before anyone speaks or decides; the guard is unchanged. Whether that is enough
+  is a live-play question.
 - **The manifest does not record which routes the model was offered.** The pinned policy is
   immutable and both validators re-check every move against it, so this is traceability only.
 - **PX-4a is still one change per turn.** PX-4b lifts that to 4.
