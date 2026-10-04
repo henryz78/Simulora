@@ -511,7 +511,8 @@ suite("PX-4b several changes in one turn against PostgreSQL", () => {
       );
       let candidate =
         change.candidate?.(row.rows[0]!.candidate_transition) ?? row.rows[0]!.candidate_transition;
-      let display = change.display?.(row.rows[0]!.display_effect) ?? row.rows[0]!.display_effect;
+      let display: unknown =
+        change.display?.(row.rows[0]!.display_effect) ?? row.rows[0]!.display_effect;
       if (change.virtual) {
         // A stored one-change row cut from the v2 turn.
         const { operations, ...rest } = candidate as { operations: unknown[] };
