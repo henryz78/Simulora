@@ -1941,3 +1941,28 @@ See the [PX-4 contract](PX-4-WORLD-FREEDOM-CONTRACT.md) and the
 - **Not started:** PX-4b (up to 4 changes per turn, which needs its own
   contract section and review), and the owner's play-test of PX-4a.
 - **Not authorized:** provider approval, beta, launch or production live model.
+
+## 71. PX-4b several changes per turn: CLOSED
+
+See the [PX-4 contract](PX-4-WORLD-FREEDOM-CONTRACT.md) and the
+[PX-4b report](PX-4B-IMPLEMENTATION-REPORT.md). This supersedes the "Not
+started: PX-4b" line of §70.
+
+- **Decision:** owner decision D5, up to 4 changes per turn.
+- **What it does:**
+  - **Successor 0058:** under "Let the story decide", a turn may return a v2
+    candidate with 2–4 closed operations. Each is validated as its v1
+    operation, under combination rules shared by TypeScript and SQL. The
+    impact is the highest part. A Commit holds one Event per change, ordered
+    by a new `domain_events.ordinal`.
+  - **Successor 0059:** the committed outcomes in the model context follow
+    that order.
+  - **Prompt v12.** The web lists every change; direct play, Strict mode and
+    Undo are unchanged.
+- **Approved behavior SHA:** `59a6b8a`. CI run `37183431146` on `ee33742`
+  (a test-only type annotation on top, not reviewed) succeeded.
+- **Review:** Sonnet 5.5 Reviewer. Design `DESIGN PASS` after two rounds.
+  Code `PASS WITH ISSUES` (0B/1I/5M); after the fixes, the focused re-review
+  returned `PASS` (0B/0I/0M). M-2 to M-5 are accepted in the contract.
+- **Not started:** the owner's play-test of PX-4a and PX-4b.
+- **Not authorized:** provider approval, beta, launch or production live model.

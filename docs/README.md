@@ -79,6 +79,7 @@ This directory separates the frozen WorldOS research record from external-Agent 
 - [Chinese Interface Report](implementation-planning/I18N-ZH-REPORT.md)
 - [PX-4 World Freedom Contract](implementation-planning/PX-4-WORLD-FREEDOM-CONTRACT.md)
 - [PX-4a Implementation Report](implementation-planning/PX-4A-IMPLEMENTATION-REPORT.md)
+- [PX-4b Implementation Report](implementation-planning/PX-4B-IMPLEMENTATION-REPORT.md)
 - [Parallel Agent Handoff](implementation-planning/PARALLEL-AGENT-HANDOFF.md)
 - [RE-1–RE-3 Product Reality Closure Handoff](implementation-planning/RE-1-RE-3-PRODUCT-REALITY-CLOSURE-HANDOFF.md)
 - [Final AI World Goal and Direction Guardrails](implementation-planning/PRODUCT_DIRECTION_GUARDRAILS.md)

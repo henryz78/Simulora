@@ -1,9 +1,10 @@
 # PX-4 World Freedom Contract
 
-**Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is `CLOSED`: Review `PASS` after fixes, approved behavior
-SHA `b253308` (see the [PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md)). PX-4b is implemented at
-`7233013`. Its code Review returned `PASS WITH ISSUES` (0B/1I/5M); the fixes are in `59a6b8a`
-(successor 0059), awaiting a focused re-review.
+**Date:** 2026-09-29 · **Status:** `CLOSED`. PX-4a is `CLOSED`: Review `PASS` after fixes, approved behavior
+SHA `b253308` (see the [PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md)). PX-4b is `CLOSED`: code
+Review `PASS WITH ISSUES` (0B/1I/5M), fixes in `59a6b8a` (successor 0059), focused re-review
+`PASS` (0B/0I/0M), approved behavior SHA `59a6b8a`, CI `37183431146` on `ee33742` succeeded
+(see the [PX-4b report](PX-4B-IMPLEMENTATION-REPORT.md)).
 Owner decisions were given in chat on 2026-09-29, after the Lantern Inn play-test. The track
 closes on an independent Review of an exact SHA with green CI.
 
@@ -366,4 +367,4 @@ How it works:
   Both fail safe.
 - **The manifest does not record which routes the model was offered.** The pinned policy is
   immutable and both validators re-check every move against it, so this is traceability only.
-- **PX-4a is still one change per turn.** PX-4b lifts that.
+- **PX-4a is still one change per turn.** PX-4b lifts that to 4.
