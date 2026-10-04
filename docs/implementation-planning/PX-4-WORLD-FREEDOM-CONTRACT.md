@@ -135,6 +135,96 @@ reads it as personality, not obedience.
    - prompt compilation;
    - browser tests for the default, Strict mode and Undo.
 
+## PX-4b design (proposed, awaiting design Review)
+
+ADR-PX4-4 lets one turn make up to 4 changes. This section is the design that ADR asked
+for. Implementation starts only after an independent design Review.
+
+### Scope
+
+- **Where it applies:** only `STORY_DECIDES` Actions created after a new ledger epoch, in a
+  successor migration `0058`. Explicit effects, corrections, removals and older Actions keep
+  schema version 1 exactly.
+- **What the model returns:** a candidate `schemaVersion: 2` with `operations` (1–4 items)
+  in place of `operation`. Each item uses an existing v1 operation shape.
+  `narrative` and `responseSource` are unchanged.
+- **What may be combined:**
+  - `NO_WORLD_EFFECT` may only stand alone.
+  - At most one `TRANSFORM_FAILURE`.
+  - At most one `MOVE_CHARACTER`, because a move needs the selected Character.
+  - No two operations may target the same fact, relationship, thread or Character.
+  - An operation may not name, as a cause, a fact that another operation in the turn
+    rewrites or reveals.
+
+### Meaning
+
+- **Validation.** With disjoint targets, every operation is validated against the
+  expected head exactly as the same v1 operation would be. Disjointness makes the order
+  irrelevant, so there is no sequential state to reason about.
+- **Server-derived ids.**
+  - The first `ADD_FACT` is `fact.<actionId>`; later ones are `fact.<actionId>.<n>`.
+  - A thread opened by `OPEN_THREAD` or `TRANSFORM_FAILURE` follows the same rule, as
+    `thread.<actionId>`, then `thread.<actionId>.<n>`.
+  - The suffix `n` is the operation's 1-based position.
+- **Impact.** The proposal's impact is the highest of its operations' impacts.
+- **Display.** `displayEffect` becomes an ordered list with one entry per operation, and the
+  turn line lists them all.
+- **Commit.**
+  - One Commit and one state revision per turn.
+  - The world clock advances once, and the narrative is recorded once.
+  - There is one typed Event per operation, in order. Each Event payload is the v1 payload,
+    with the derived ids above.
+- **Undo.** Undo is unchanged: Restore of the previous head reverses the whole turn.
+
+### SQL parity, without rewriting the v1 validators
+
+- **Dispatcher.** A `schema_version = 2` proposal is split into virtual v1 proposals, one
+  per operation.
+  - Each virtual proposal carries that operation and its display entry, with a digest
+    recomputed by the v1 formula.
+  - Each runs through the existing `action_proposal_effect_is_valid` chain unchanged.
+  - The v2 envelope adds its own checks: the operation list, the combination rules, the
+    impact being the maximum, and the v2 digest.
+- **Generation evidence.** A wrapper accepts a virtual proposal only when the stored v2
+  proposal for the same Action contains exactly that operation at that position. That
+  stored proposal's own evidence must also be valid against the v2 output. A forged
+  virtual proposal therefore cannot pass on its own.
+- **State.** A new `expected_action_state` branch for v2 folds the operations over the
+  parent document. Each step is the v1 state change of that operation.
+  - The parity test is one equivalence check. For every operation type, a one-operation
+    v2 turn must produce the same state revision and the same Event as the v1 Action.
+  - Mixed turns are then tested against the application.
+- **Materialization.** For v2, the check expects one Event per operation, with matching
+  type and payload, in order.
+
+### Application, model and play
+
+- **Domain.** `validateActionCandidate` validates v2 by checking the combination rules,
+  then each operation through the v1 path.
+- **Database.** The repository writes the folded state and the Events.
+- **Gateway.** Prompt v12 offers "1–4 operations" under story freedom, with the
+  combination rules.
+- **Web.** The turn line lists every change. Direct play and Strict mode are unchanged.
+
+### Tests before closure
+
+- Domain combination rules.
+- v2-vs-v1 equivalence on real PostgreSQL for every operation type.
+- Mixed-turn Commits with ordered Events.
+- Forged v2 and forged virtual proposals refused, with positive controls.
+- Pre-epoch Actions rejected as v2.
+- Prompt compilation.
+- Browser: a multi-change turn and its Undo.
+
+### Risks
+
+- **Size.** This is the largest SQL change since MGC-1. The virtual-proposal design keeps
+  every v1 validator untouched, so the risk sits in the new dispatcher, the evidence
+  wrapper and the fold.
+- **Model quality.** More operations per turn give the model more room to be wrong. Each
+  operation is still validated individually. Whether the owner wants 4 or fewer is a
+  play-test question, and the cap is one constant.
+
 ## Known limits
 
 - **The excluded-fact disclosure guard is lexical.** A narrative in another language is not
