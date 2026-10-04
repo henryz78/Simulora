@@ -2,7 +2,8 @@
 
 **Date:** 2026-09-29 · **Status:** `IN PROGRESS`. PX-4a is `CLOSED`: Review `PASS` after fixes, approved behavior
 SHA `b253308` (see the [PX-4a report](PX-4A-IMPLEMENTATION-REPORT.md)). PX-4b is implemented at
-`7233013` and awaits its independent code Review.
+`7233013`. Its code Review returned `PASS WITH ISSUES` (0B/1I/5M); the fixes are in `59a6b8a`
+(successor 0059), awaiting a focused re-review.
 Owner decisions were given in chat on 2026-09-29, after the Lantern Inn play-test. The track
 closes on an independent Review of an exact SHA with green CI.
 
@@ -337,6 +338,17 @@ How it works:
 - **Not covered by a test.** There is no upgrade test that queues an Action before 0058
   and processes it after. The epoch gate is covered by the rolled-back forgery that moves
   the 0058 ledger time.
+- **Code Review notes, accepted:**
+  - **Rollout order.** The repository reads `domain_events.ordinal`, so migrations must run
+    before the new application, as for every successor.
+  - **The cap is set in two places.** It is 4 in TypeScript (`multiOperationLimit`) and in
+    SQL (`ordinal between 1 and 4`, `between 2 and 4`). Changing it needs a successor
+    migration too.
+  - **Validation cost.** Each operation of a stored turn is checked twice, at L2 and at L3.
+    This can be narrowed to the one level each type allows, if latency shows a need.
+  - **Inner functions accept virtual parts.** `action_proposal_effect_is_valid_pre_px4b` and
+    `action_generation_evidence_is_valid` accept a virtual part. Only the top-level
+    validator refuses a stored one, so no trigger may call the inner functions directly.
 - **Model quality.** More operations per turn give the model more room to be wrong. Each
   operation is still validated individually. Whether the owner wants 4 or fewer is a
   play-test question, and the cap is one constant.
