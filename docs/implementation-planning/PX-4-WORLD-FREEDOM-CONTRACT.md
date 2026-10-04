@@ -135,7 +135,7 @@ reads it as personality, not obedience.
    - prompt compilation;
    - browser tests for the default, Strict mode and Undo.
 
-## PX-4b design (revised after two design Reviews)
+## PX-4b design (DESIGN PASS)
 
 ADR-PX4-4 lets one turn make up to 4 changes. This section is the design that ADR asked
 for.
@@ -144,7 +144,9 @@ for.
 - **Round 2:** the re-review of `53a1dc5` also returned `DESIGN PASS WITH CHANGES`. It
   asked for six specification fixes, tagged as `[Sn]`, and said it would pass the design
   once they were in.
-- **Gate:** implementation starts once those are folded in.
+- **Design Review result:** `DESIGN PASS`, once three text corrections from the final
+  check were made in the commit that adds this line.
+- **Gate:** implementation may start. The track closes on an independent Review of the code.
 
 ### Scope
 
@@ -253,7 +255,7 @@ How it works:
   - For a virtual proposal, the core function receives:
     - `expected_output` built from the stored v2 candidate;
     - as disclosed, the union of every `REVEAL` in the turn.
-  - The core refuses a virtual operation that is not, at that position, one of the stored
+  - The core refuses a virtual operation that is not equal to one of the stored
     operations `[S1]`.
   - The disclosed union applies to the narrative only. Operation texts stay strict, so a
     statement that mentions a fact revealed in the same turn is refused `[S2]`.
@@ -273,7 +275,8 @@ How it works:
 
 - **Domain.** `validateActionCandidate` validates v2 in three steps:
   1. the combination rules;
-  2. each operation through the v1 path, with the turn's disclosed union;
+  2. each operation through the v1 path. The turn's disclosed union applies to the
+     narrative only `[S2]`;
   3. the per-operation impact.
 - **Domain schema.** A v2 candidate schema, as a discriminated union on `schemaVersion`.
   The gateway's output parser accepts it `[S5]`.
@@ -292,11 +295,11 @@ How it works:
   - two `ADD_FACT`;
   - `REVEAL` plus `ADD`, with the narrative mentioning the revealed fact;
   - `OPEN` plus `RESOLVE`;
-  - `TRANSFORM` plus `OPEN`.
 - An L3 impact from a PROTECTED shift inside a v2 turn.
 - For each operation type, the virtual trial passes at exactly one level: `UPDATE` only at
   L3, `MOVE` only at L2. The dispatcher refuses if both levels pass `[S6]`.
-- A `TRANSFORM_FAILURE` plus `ADD_FACT` turn, with distinct derived ids.
+- A `TRANSFORM_FAILURE` plus `ADD_FACT` turn, with distinct derived ids. A
+  `TRANSFORM_FAILURE` plus `OPEN_THREAD` turn is refused.
 - Forged v2 proposals refused, using the rolled-back forgery pattern of PX-4a, each with a
   positive control:
   - a v2 proposal before the epoch;
