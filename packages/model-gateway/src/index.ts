@@ -344,10 +344,12 @@ const worldTurnRules = [
   "commitments.",
   // Prompt v13: the authority guard reads a whole sentence, so a sentence naming the
   // user that also holds anyone's speech or decision is refused, in any language.
-  'A sentence that names the user ("you", 你) never also holds a word of speech or choice',
-  "(say, agree, decide, choose, accept, refuse; 说, 同意, 决定, 选择, 接受, 拒绝), even another",
-  "person's. End the user's sentence with a full stop (in Chinese 。, not ，) before anyone",
-  "speaks or decides, and keep you/你 out of a Character's quoted words that use such a word.",
+  'A sentence that names the user ("you", 你, or the user\'s role name) never also holds any',
+  "word of speech, choice, consent, payment or sharing (for example say, agree, decide, choose,",
+  "accept, refuse, promise, pay, share; 说, 同意, 答应, 决定, 选择, 接受, 拒绝, 承诺, 允许, 支付,",
+  "分享), even another person's. End the user's sentence with a full stop (in Chinese 。), not a",
+  'comma, semicolon, colon, dash or "and", before anyone speaks or decides; keep the user out',
+  "of a Character's quoted words that use such a word.",
   // PX-4a (ADR-PX4-3): attempts possible in this world succeed; the scene reacts.
   "Judge what is possible by this world's own rules: its premise, facts, places and its",
   "declared constraints, which may differ from ours (magic, future technology, the supernatural).",

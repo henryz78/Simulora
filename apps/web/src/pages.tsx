@@ -248,7 +248,7 @@ export function WorldPage(): ReactElement {
     autoConfirmedIds,
     undoneIds,
   } = useContinuity();
-  const trace = useHeadTrace(loadState);
+  const trace = useHeadTrace(loadState).forHead;
   if (loadState.status === "loading") {
     return (
       <StatusPage
@@ -622,9 +622,14 @@ function PendingOrientationNotice({
 
 /**
  * The newest commits of the current head's path, read again when the head moves.
- * A trace read for another head is never used: the line falls back instead.
+ * `forHead` is empty unless the trace was read for the current head, so the
+ * situation line falls back instead of pairing state with another head's trace.
+ * `commits` keeps the last trace read; its action-to-commit links stay valid.
  */
-function useHeadTrace(loadState: ReturnType<typeof useContinuity>["loadState"]): TraceCommit[] {
+function useHeadTrace(loadState: ReturnType<typeof useContinuity>["loadState"]): {
+  commits: TraceCommit[];
+  forHead: TraceCommit[];
+} {
   const [commits, setCommits] = useState<TraceCommit[]>([]);
   const branchId = loadState.status === "ready" ? loadState.data.continuity.branchId : null;
   const head = loadState.status === "ready" ? loadState.data.continuity.headCommitId : null;
@@ -638,15 +643,15 @@ function useHeadTrace(loadState: ReturnType<typeof useContinuity>["loadState"]):
       active = false;
     };
   }, [branchId, head]);
-  return commits[0]?.id === head ? commits : [];
+  return { commits, forHead: commits[0]?.id === head ? commits : [] };
 }
 
 export function ContinuityPage(): ReactElement {
   const { loadState, history, actions } = useContinuity();
-  const trace = useHeadTrace(loadState);
+  const { commits, forHead: trace } = useHeadTrace(loadState);
   // Action → its Commit on this path, from the trace, so links survive a reload.
   const commitByAction = new Map(
-    trace.flatMap((commit) => (commit.reason ? [[commit.reason, commit.id] as const] : [])),
+    commits.flatMap((commit) => (commit.reason ? [[commit.reason, commit.id] as const] : [])),
   );
   if (loadState.status !== "ready") {
     return (

@@ -692,6 +692,7 @@ describe("IP-6 participation and character authority", () => {
     for (const [joined, split] of [
       ["你推开门，店主抬头说：“欢迎回来。”", "你推开门。店主抬头说：“欢迎回来。”"],
       ["你问 Iora 灯塔的事，她说她不知道。", "你问 Iora 灯塔的事。她说她不知道。"],
+      ["你推开门；店主分享了他的故事。", "你推开门。店主分享了他的故事。"],
       [
         'You push the door open and the keeper says, "Welcome back."',
         'You push the door open. The keeper says, "Welcome back."',

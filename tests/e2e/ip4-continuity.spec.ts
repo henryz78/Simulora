@@ -491,7 +491,7 @@ test("completed response-only dialogue is visible without confirmation controls"
   await expect(page.getByRole("button", { name: /Confirm|Cancel|Retry/ })).toHaveCount(0);
 });
 
-test("WD-2 the current situation is the shared fact changed last, until a Restore", async ({
+test("WD-2 the current situation is the shared fact changed last, for this head only", async ({
   page,
 }) => {
   const state = worldResponse();
