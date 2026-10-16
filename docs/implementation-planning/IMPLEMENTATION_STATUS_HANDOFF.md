@@ -1993,3 +1993,26 @@ On 2026-10-04 the owner asked for the open fixes to be made.
   bandwidth. No check reads them.
 - **Pending:** the owner's live play-test, the only check of whether v13 is
   enough.
+
+## 73. Proxy play on 2026-10-16: findings, nothing changed
+
+The owner asked the agent to play in their place. See the
+[proxy play report](PROXY-PLAY-REPORT-2026-10-16.md): a new Chinese World,
+six turns, with `grok-4.7` on the local PGlite play database. Agent-operated,
+not human validation. No product code changed.
+
+- **Worked:** Studio flow, Character voice, a Character move, a secret
+  revealed, and WD-2 following the reveal.
+- **Blocks play, provider:** world-change turns run past the aggregator's
+  ~120 s gateway limit (HTTP 524). `reasoning_effort: "low"` in the local
+  launcher brought them to 25–64 s.
+- **Blocks play, guard:** the Chinese authority guard refuses ordinary
+  narration where 你 is an object. Since `0028`, the SQL guard also checks the
+  whole Chinese narrative as one string, so it refuses text that the
+  application guard accepts. Prompt v13 cannot fix the SQL side. A fix
+  changes the guard and needs the owner's decision.
+- **Shown to the player:** raw IDs and English in the change summary, Return
+  and Continuity; misleading "needs another attempt" copy after 10 s.
+- **Pending:** the owner's decisions on the guard and the provider setting;
+  human play.
+
