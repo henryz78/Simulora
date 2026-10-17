@@ -9,10 +9,11 @@ export function Home() {
   const load = () => api.worlds().then(setWorlds, (e: Error) => setError(e.message));
   useEffect(() => void load(), []);
 
-  const play = async (worldId: string) => {
-    const save = await api.startSave(worldId);
-    location.hash = `#/play/${save.id}`;
-  };
+  const play = (world: World) =>
+    api.startSave(world.id, `${world.title} · ${new Date().toLocaleString()}`).then(
+      (save) => (location.hash = `#/play/${save.id}`),
+      (e: Error) => setError(e.message),
+    );
   const removeWorld = async (id: string) => {
     if (confirm(t("Delete this world and all its saves?"))) await api.deleteWorld(id).then(load);
   };
@@ -52,7 +53,7 @@ export function Home() {
                   ))}
               </ul>
               <div className="row">
-                <button className="primary" onClick={() => play(world.id)}>
+                <button className="primary" onClick={() => play(world)}>
                   {t("New save")}
                 </button>
                 <a className="button" href={`#/studio/${world.id}`}>

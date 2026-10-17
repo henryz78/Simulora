@@ -72,6 +72,12 @@ const zh: Record<string, string> = {
   "Edit world": "编辑世界",
   "Branched into a new save.": "已分出新存档。",
   "Loading…": "加载中…",
+  "Changes only apply to new saves": "改动只对新存档生效",
+  Rename: "改名",
+  "Name this save": "给这个存档起个名字",
+  Branch: "分支",
+  "Couldn't record what changed in this turn.": "这一回合的变化没能记下来。",
+  "Record again": "重新记录",
 };
 
 const chinese = navigator.language.toLowerCase().startsWith("zh");

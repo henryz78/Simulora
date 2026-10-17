@@ -115,6 +115,8 @@ export interface TurnNode {
   changes: Change[];
   hooks: string[];
   state: WorldState;
+  /** The story was kept but its changes could not be read; the player can ask again. */
+  recordsFailed?: boolean;
   createdAt: string;
 }
 

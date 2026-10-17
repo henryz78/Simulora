@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, existsSync } from "node:fs";
 import { createServer } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, join, normalize, resolve, sep } from "node:path";
 import { createApi } from "./app.ts";
 import { Store } from "./db.ts";
 import { fakeModel, openAICompatibleModel } from "./model.ts";
@@ -43,13 +43,26 @@ const vite = prod
       appType: "spa",
     });
 
+// Only this machine's own names: a page on another site that rebinds its domain to 127.0.0.1 is refused.
+const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+
 createServer((req, res) => {
+  if (!hosts.has(req.headers.host ?? "")) {
+    res.writeHead(403);
+    return void res.end();
+  }
   if (req.url?.startsWith("/api/")) return void api(req, res);
   if (vite) return vite.middlewares(req, res);
-  const file = normalize(join(dist, decodeURIComponent(new URL(req.url ?? "/", "http://local").pathname)));
-  const target = file.startsWith(dist) && existsSync(file) && extname(file) ? file : join(dist, "index.html");
-  res.writeHead(200, { "content-type": types[extname(target)] ?? "application/octet-stream" });
-  res.end(readFileSync(target));
+  try {
+    const file = normalize(join(dist, decodeURIComponent(new URL(req.url ?? "/", "http://local").pathname)));
+    const target = file.startsWith(dist + sep) && existsSync(file) && extname(file) ? file : join(dist, "index.html");
+    const body = readFileSync(target);
+    res.writeHead(200, { "content-type": types[extname(target)] ?? "application/octet-stream" });
+    res.end(body);
+  } catch {
+    res.writeHead(404);
+    res.end("Not found (run npm run build first?)");
+  }
 }).listen(port, "127.0.0.1", () => {
   console.log(`Simulora on http://127.0.0.1:${port}${fake ? " (fake model)" : ` (story: ${storyModel})`}`);
 });

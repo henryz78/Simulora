@@ -17,13 +17,15 @@ export const api = {
   createWorld: (draft: WorldDraft) => call<World>("POST", "/worlds", draft),
   updateWorld: (id: string, draft: WorldDraft) => call<World>("PUT", `/worlds/${id}`, draft),
   deleteWorld: (id: string) => call<object>("DELETE", `/worlds/${id}`),
-  startSave: (worldId: string) => call<Save>("POST", "/saves", { worldId }),
+  startSave: (worldId: string, title: string) => call<Save>("POST", "/saves", { worldId, title }),
   save: (id: string) => call<SaveView>("GET", `/saves/${id}`),
   deleteSave: (id: string) => call<object>("DELETE", `/saves/${id}`),
   moveHead: (id: string, headId: string) => call<SaveView>("PATCH", `/saves/${id}`, { headId }),
   settings: (id: string, settings: Partial<Settings>) => call<SaveView>("PATCH", `/saves/${id}`, { settings }),
-  branch: (id: string, nodeId: string) => call<Save>("POST", `/saves/${id}/branch`, { nodeId }),
+  rename: (id: string, title: string) => call<SaveView>("PATCH", `/saves/${id}`, { title }),
+  branch: (id: string, nodeId: string, title: string) => call<Save>("POST", `/saves/${id}/branch`, { nodeId, title }),
   hooks: (id: string) => call<TurnNode>("POST", `/saves/${id}/hooks`),
+  records: (id: string) => call<SaveView>("POST", `/saves/${id}/records`),
 };
 
 /** Plays one turn, reporting the story as it is written. Resolves with the finished turn. */

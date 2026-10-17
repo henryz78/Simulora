@@ -75,6 +75,16 @@ export function Play({ saveId }: { saveId: string }) {
 
   const load = () => api.save(saveId).then(setView, (e: Error) => setError(e.message));
   useEffect(() => void load(), [saveId]);
+  const report = (e: Error) => setError(e.message);
+  // A new save opens with suggestions too, like every later turn.
+  const openingId = view && view.path.length === 1 && view.path[0]!.hooks.length === 0 ? view.path[0]!.id : null;
+  const asked = useRef<string | null>(null); // StrictMode runs effects twice; ask once
+  useEffect(() => {
+    if (openingId && asked.current !== openingId) {
+      asked.current = openingId;
+      void suggest();
+    }
+  }, [openingId]);
   useEffect(() => {
     // Newer browsers return a Promise here; an effect must not return it.
     void bottom.current?.scrollIntoView({ block: "end" });
@@ -92,6 +102,7 @@ export function Play({ saveId }: { saveId: string }) {
   async function send(text: string, as = current) {
     setPending({ actor: as, input: text, story: "", phase: "story", error: "" });
     setInput("");
+    setError("");
     try {
       await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
@@ -100,25 +111,37 @@ export function Play({ saveId }: { saveId: string }) {
       await load();
       setPending(null);
     } catch (e) {
-      setPending((p) => p && { ...p, error: (e as Error).message });
+      // The connection can drop after the server already saved the turn; then there is nothing to retry.
+      const fresh = await api.save(saveId).catch(() => null);
+      if (fresh && fresh.path.at(-1)!.parentId === head.id) {
+        setView(fresh);
+        setPending(null);
+      } else setPending((p) => p && { ...p, error: (e as Error).message });
     }
   }
 
-  const goTo = async (nodeId: string) => setView(await api.moveHead(saveId, nodeId));
-  const branch = async (nodeId: string) => {
-    const created = await api.branch(saveId, nodeId);
-    location.hash = `#/play/${created.id}`;
+  const goTo = (nodeId: string) => api.moveHead(saveId, nodeId).then(setView, report);
+  const branch = (nodeId: string) =>
+    api
+      .branch(saveId, nodeId, `${world.title} · ${t("Branch")} ${new Date().toLocaleString()}`)
+      .then((created) => (location.hash = `#/play/${created.id}`), report);
+  const rename = () => {
+    const title = prompt(t("Name this save"), save.title)?.trim();
+    if (title) api.rename(saveId, title).then(setView, report);
   };
-  const changeSettings = async (patch: Partial<Settings>) => setView(await api.settings(saveId, patch));
-  const suggest = async () => {
+  const changeSettings = (patch: Partial<Settings>) => api.settings(saveId, patch).then(setView, report);
+  const recordAgain = () => api.records(saveId).then(setView, report);
+  async function suggest() {
     setSuggesting(true);
     try {
       await api.hooks(saveId);
       await load();
+    } catch (e) {
+      report(e as Error);
     } finally {
       setSuggesting(false);
     }
-  };
+  }
 
   const placeName = (id: string | null) => state.places.find((p) => p.id === id)?.name;
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
@@ -135,7 +158,8 @@ export function Play({ saveId }: { saveId: string }) {
           <span className="muted"> · {save.title}</span>
         </span>
         <span className="row">
-          <a className="button" href={`#/studio/${world.id}`}>
+          <button onClick={rename}>{t("Rename")}</button>
+          <a className="button" href={`#/studio/${world.id}`} title={t("Changes only apply to new saves")}>
             {t("Edit world")}
           </a>
           <button onClick={() => setShowSettings(!showSettings)}>{t("Settings")}</button>
@@ -178,6 +202,8 @@ export function Play({ saveId }: { saveId: string }) {
         </section>
       )}
 
+      {error && <p className="error">{error}</p>}
+
       <div className="layout">
         <section className="story">
           {path.map((node: TurnNode, i) => {
@@ -192,6 +218,14 @@ export function Play({ saveId }: { saveId: string }) {
                   </p>
                 )}
                 <Paragraphs text={node.story} />
+                {node.recordsFailed && node === head && (
+                  <p className="error small">
+                    {t("Couldn't record what changed in this turn.")}{" "}
+                    <button disabled={busy} onClick={recordAgain}>
+                      {t("Record again")}
+                    </button>
+                  </p>
+                )}
                 {node.changes.length > 0 && (
                   <ul className="changes">
                     {node.changes.map((c, j) => (

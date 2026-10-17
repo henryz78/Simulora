@@ -102,6 +102,7 @@ const parseHooks = (raw: unknown) =>
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   let body = "";
+  req.setEncoding("utf8"); // keeps a character split across chunks whole
   for await (const chunk of req) {
     body += chunk;
     if (body.length > 1_000_000) throw new HttpError(413, "Request too large");
@@ -161,6 +162,19 @@ export function createApi(store: Store, model: Model) {
     return s;
   }
 
+  /** Reads what a passage changed. Two tries; the story stands even if both fail. */
+  async function record(w: World, before: TurnNode["state"], story: string) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const report = (await model.json(changeMessages(w, before, story))) as Record<string, unknown>;
+        return { changes: parseChanges(report.changes), hooks: parseHooks(report.hooks), failed: false };
+      } catch (error) {
+        console.warn("changes.failed", error instanceof Error ? error.message : error);
+      }
+    }
+    return { changes: [] as Change[], hooks: [] as string[], failed: true };
+  }
+
   async function turn(req: IncomingMessage, res: ServerResponse, saveId: string) {
     const s = save(saveId);
     const body = await readJson(req);
@@ -194,15 +208,7 @@ export function createApi(store: Store, model: Model) {
       event("phase", { phase: "changes" });
 
       // The story is never lost: if reading the changes fails, the turn keeps the story alone.
-      let changes: Change[] = [];
-      let hooks: string[] = [];
-      try {
-        const report = (await model.json(changeMessages(w, head.state, story))) as Record<string, unknown>;
-        changes = parseChanges(report.changes);
-        hooks = parseHooks(report.hooks);
-      } catch (error) {
-        console.warn("changes.failed", error instanceof Error ? error.message : error);
-      }
+      const { changes, hooks, failed } = await record(w, head.state, story);
       console.log(
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );
@@ -217,6 +223,7 @@ export function createApi(store: Store, model: Model) {
         changes: applied,
         hooks,
         state,
+        ...(failed && { recordsFailed: true }),
         createdAt: now(),
       };
       store.putNode(node);
@@ -237,6 +244,9 @@ export function createApi(store: Store, model: Model) {
     const route = `${req.method} /${parts.map((p, i) => (i % 2 === 1 ? ":id" : p)).join("/")}`;
     const id = parts[1] ?? "";
     try {
+      // A plain cross-site form or no-cors fetch cannot send this header without asking first.
+      if (req.method !== "GET" && !req.headers["content-type"]?.startsWith("application/json"))
+        fail(415, "Expected JSON");
       switch (route) {
         case "GET /worlds":
           return send(
@@ -309,11 +319,33 @@ export function createApi(store: Store, model: Model) {
           return await turn(req, res, id);
         case "POST /saves/:id/hooks": {
           const s = save(id);
+          if (busy.has(s.id)) fail(409, "A turn is being written");
           const path = store.path(s.headId);
           const report = (await model.json(hookMessages(world(s.worldId), path))) as Record<string, unknown>;
-          const head = { ...path.at(-1)!, hooks: parseHooks(report.hooks) };
+          const hooks = parseHooks(report.hooks);
+          if (hooks.length === 0) fail(502, "The model gave no suggestions");
+          const head = { ...path.at(-1)!, hooks };
           store.putNode(head);
           return send(res, 200, head);
+        }
+        case "POST /saves/:id/records": {
+          const s = save(id);
+          const head = store.node(s.headId)!;
+          const parent = head.parentId ? store.node(head.parentId) : undefined;
+          if (!head.recordsFailed || !parent) fail(400, "Nothing to record again");
+          if (busy.has(s.id)) fail(409, "A turn is being written");
+          busy.add(s.id);
+          try {
+            const { changes, hooks, failed } = await record(world(s.worldId), parent.state, head.story);
+            if (failed) fail(502, "Could not record the changes");
+            const { state, applied } = applyChanges(parent.state, changes);
+            const { recordsFailed: _, ...rest } = head;
+            const node: TurnNode = { ...rest, changes: applied, hooks, state };
+            store.putNode(node);
+            return send(res, 200, view(save(s.id)));
+          } finally {
+            busy.delete(s.id);
+          }
         }
         default:
           return send(res, 404, { error: "Not found" });
