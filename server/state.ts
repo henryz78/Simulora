@@ -225,11 +225,12 @@ export function describeState(state: WorldState): string {
     );
   }
   lines.push("", "Facts the player knows:");
-  for (const f of state.facts.filter((f) => !f.secret || f.revealed)) lines.push(`- [${f.id}] ${f.text}`);
+  for (const f of state.facts.filter((f) => (!f.secret || f.revealed) && !f.archived))
+    lines.push(`- [${f.id}] ${f.text}`);
   lines.push("", "Secrets the player has NOT discovered (true in the world):");
   for (const f of state.facts.filter((f) => f.secret && !f.revealed)) lines.push(`- [${f.id}] ${f.text}`);
   lines.push("", "Open threads:");
-  for (const t of state.threads.filter((t) => !t.resolved)) lines.push(`- [${t.id}] ${t.title}`);
+  for (const t of state.threads.filter((t) => !t.resolved && !t.archived)) lines.push(`- [${t.id}] ${t.title}`);
   lines.push("", "Relationships:");
   for (const r of state.relationships) lines.push(`- ${charName(r.a)} / ${charName(r.b)}: ${r.text}`);
   return lines.join("\n");

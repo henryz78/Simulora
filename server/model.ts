@@ -166,6 +166,15 @@ export function parseJsonObject(text: string): unknown {
 export function fakeModel(): Model {
   return {
     async *stream(messages) {
+      if (messages[0]?.content.includes("long-term memory")) {
+        const turns = [...(messages.at(-1)?.content ?? "").matchAll(/\[Turn (\d+)\]/g)].map((m) => Number(m[1]));
+        yield JSON.stringify({
+          memory: [{ turn: Math.max(0, ...turns), text: `Remembered ${turns.length} turns.` }],
+          dropFacts: [],
+          closeThreads: [],
+        });
+        return;
+      }
       const last = messages.at(-1)?.content ?? "";
       const action = /Player's action: (.*)/.exec(last)?.[1] ?? "";
       const changes = JSON.stringify([{ type: "clock", text: "A little later", note: "Time passes." }]);

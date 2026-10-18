@@ -28,6 +28,8 @@ export interface Fact {
   source: "author" | "ai" | "story";
   /** How the story brought a secret out, in a sentence for the discovery book. */
   revealNote?: string;
+  /** Folded into the memory: kept for the player, no longer sent to the model. */
+  archived?: boolean;
 }
 
 export interface Thread {
@@ -35,6 +37,8 @@ export interface Thread {
   title: string;
   resolved: boolean;
   resolution: string;
+  /** Faded out when the memory was written: kept for the player, no longer sent to the model. */
+  archived?: boolean;
 }
 
 export interface Relationship {
@@ -122,7 +126,18 @@ export interface TurnNode {
   state: WorldState;
   /** The story was kept but its changes could not be read; the player can ask again. */
   recordsFailed?: boolean;
+  /**
+   * Set when the story grew too long for the model: notes on every turn up to `through`, whose text is no longer
+   * sent. Later turns find it by walking back along their path.
+   */
+  memory?: { notes: MemoryNote[]; through: string };
   createdAt: string;
+}
+
+/** One thing worth remembering from earlier turns, dated by the turn it last changed in. */
+export interface MemoryNote {
+  turn: number;
+  text: string;
 }
 
 /** The small form of a node, enough to draw the history tree. */

@@ -348,6 +348,13 @@ button.on {
   border-radius: 4px;
   padding: 8px 12px;
 }
+.memory ul {
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+.memory li {
+  margin-bottom: 6px;
+}
 .book li {
   margin-bottom: 8px;
 }

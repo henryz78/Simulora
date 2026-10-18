@@ -23,7 +23,10 @@ import {
   changeMessages,
   draftMessages,
   hookMessages,
+  memoryMessages,
   narrationMessages,
+  storySince,
+  tokensOf,
   type PlainDraft,
 } from "./prompts.ts";
 import { applyChanges, bury, carrySecrets, newId, parseChanges } from "./state.ts";
@@ -181,10 +184,16 @@ function send(res: ServerResponse, status: number, value: unknown) {
 }
 
 /**
- * `model` streams the story and keeps the records. `thinker` streams the story for saves with thinking on;
- * `writer` drafts worlds, where speed matters more than care.
+ * `model` streams the story and keeps the records. `thinker` streams the story for saves with thinking on and
+ * writes the memory; `writer` drafts worlds, where speed matters more than care. When the story the model would
+ * read passes `memoryAt` tokens (about 128K), the oldest turns are folded into the memory until about `memoryKeep`
+ * tokens of story are left; at 128K the first words still came in about 7 s (2026-10-18).
  */
-export function createApi(store: Store, model: Model, { thinker = model, writer = model } = {}) {
+export function createApi(
+  store: Store,
+  model: Model,
+  { thinker = model, writer = model, memoryAt = 128_000, memoryKeep = 32_000 } = {},
+) {
   const busy = new Set<string>();
   // Saves whose secrets are being buried. Burying takes the model a minute or more, so nobody waits for it.
   const burying = new Set<string>();
@@ -271,6 +280,36 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
       }
     }
     return { changes: [] as Change[], hooks: [] as string[], failed: true };
+  }
+
+  /**
+   * Folds the oldest turns of `path` into the memory on its last node, until about `memoryKeep` tokens of story
+   * are left. Facts and threads the memory takes over leave the world state the model reads.
+   */
+  /** How many turns of `path` to fold so about `memoryKeep` tokens of story are left; `from` when none. */
+  function foldPoint(path: TurnNode[]) {
+    const { from } = storySince(path);
+    let fold = from;
+    let left = path.slice(from).reduce((n, turn) => n + tokensOf(turn.story + turn.input), 0);
+    while (left > memoryKeep && fold < path.length - 1) left -= tokensOf(path[fold]!.story + path[fold++]!.input);
+    return { from, fold };
+  }
+
+  async function remember(w: World, path: TurnNode[], fold: number) {
+    const node = path.at(-1)!;
+    let reply = "";
+    for await (const piece of thinker.stream(memoryMessages(w, path, fold), { json: true })) reply += piece;
+    const report = parseJsonObject(reply) as Record<string, unknown>;
+    const notes = list(report.memory)
+      .map((n) => ({ turn: typeof n.turn === "number" ? Math.round(n.turn) : 0, text: str(n.text, 600).trim() }))
+      .filter((n) => n.text)
+      .slice(0, 60);
+    if (notes.length === 0) throw new Error("The memory came back empty");
+    const drop = new Set(Array.isArray(report.dropFacts) ? report.dropFacts : []);
+    const close = new Set(Array.isArray(report.closeThreads) ? report.closeThreads : []);
+    node.memory = { notes, through: path[fold - 1]!.id };
+    node.state.facts = node.state.facts.map((f) => (drop.has(f.id) && !f.secret ? { ...f, archived: true } : f));
+    node.state.threads = node.state.threads.map((t) => (close.has(t.id) ? { ...t, archived: true } : t));
   }
 
   /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
@@ -378,8 +417,22 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
           console.warn("hooks.failed", error instanceof Error ? error.message : error);
         }
       }
+      // When the story nears the model's reach, the player waits while the memory is written (it is rare).
+      const next = [...path, node];
+      const { from, fold } = foldPoint(next);
+      const size = tokensOf(narrationMessages(w, next, actor, "", s.settings).map((m) => m.content).join(""));
+      if (size > memoryAt && fold > from) {
+        event("phase", { phase: "memory" });
+        const at = Date.now();
+        try {
+          await remember(w, next, fold);
+          console.log(`memory.timing ${Date.now() - at}ms notes=${node.memory?.notes.length}`);
+        } catch (error) {
+          console.warn("memory.failed", error instanceof Error ? error.message : error); // tried again next turn
+        }
+      }
       // Secrets buried in the turn this one grows from while it was being written come along.
-      node.state = carrySecrets(store.node(head.id)!.state, changed);
+      node.state = carrySecrets(store.node(head.id)!.state, node.state);
       store.putNode(node);
       store.putSave({ ...save(s.id), headId: node.id, updatedAt: now() });
       event("done", { node });

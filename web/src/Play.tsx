@@ -11,7 +11,7 @@ interface Pending {
   actor: string;
   input: string;
   story: string;
-  phase: "story" | "changes";
+  phase: "story" | "changes" | "memory";
   error: string;
   since: number;
 }
@@ -132,7 +132,7 @@ export function Play({ saveId }: { saveId: string }) {
     try {
       const node = await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
-        phase: () => setPending((p) => p && { ...p, phase: "changes" }),
+        phase: (name) => setPending((p) => p && { ...p, phase: name === "memory" ? "memory" : "changes" }),
       });
       await load();
       setPending(null);
@@ -186,6 +186,7 @@ export function Play({ saveId }: { saveId: string }) {
   const placeName = (id: string | null) => state.places.find((p) => p.id === id)?.name;
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
   const known = state.facts.filter((f) => !f.secret);
+  const memory = path.findLast((n) => n.memory)?.memory;
   const secrets = state.facts.filter((f) => f.secret);
   const hidden = secrets.filter((f) => !f.revealed);
 
@@ -297,7 +298,11 @@ export function Play({ saveId }: { saveId: string }) {
             <Paragraphs text={pending.story} />
             {!pending.error && (
               <p className="muted small">
-                {pending.phase === "changes" ? (
+                {pending.phase === "memory" ? (
+                  <>
+                    {t("The story has grown long: writing it into memory…")} <Elapsed since={pending.since} />
+                  </>
+                ) : pending.phase === "changes" ? (
                   t("Recording what changed…")
                 ) : pending.story ? (
                   t("Writing…")
@@ -395,6 +400,21 @@ export function Play({ saveId }: { saveId: string }) {
             </button>
           </div>
 
+          {panel === "history" && memory && (
+            <section className="memory">
+              <h3>{t("Memory")}</h3>
+              <ul>
+                {memory.notes.map((note, i) => (
+                  <li key={i}>
+                    <span className="muted small">
+                      {t("Turn")} {note.turn} {t("turn")}
+                    </span>{" "}
+                    {note.text}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {panel === "history" && path.slice(0, -1).map(turnView)}
 
           {panel === "world" && (

@@ -1,4 +1,4 @@
-import type { Settings, TurnNode, World, WorldState } from "../shared/types.ts";
+import type { MemoryNote, Settings, TurnNode, World, WorldState } from "../shared/types.ts";
 import type { Message } from "./model.ts";
 import { describeState } from "./state.ts";
 
@@ -21,17 +21,34 @@ function actorName(state: WorldState, actor: string): string | null {
   return actor === "director" ? null : (state.characters.find((c) => c.id === actor)?.name ?? null);
 }
 
+/** A turn's text as the model reads it, numbered so newer can win over older. */
+function turnText(node: TurnNode, turn: number, state: WorldState): string {
+  const who = actorName(state, node.actor);
+  const action = node.input ? `[${who ? `${who} (played by the player)` : "Director"}: ${node.input}]\n` : "";
+  return `[Turn ${turn}]\n${action}${node.story}`;
+}
+
 function recentStory(path: TurnNode[], state: WorldState): string {
   return path
     .slice(-RECENT_TURNS)
-    .map((node) => {
-      const who = actorName(state, node.actor);
-      const action = node.input
-        ? `[${who ? `${who} (played by the player)` : "Director"}: ${node.input}]\n`
-        : "";
-      return `${action}${node.story}`;
-    })
+    .map((node) => turnText(node, path.indexOf(node), state))
     .join("\n\n");
+}
+
+/**
+ * Where the story stands for the model: the latest memory on the path, and every turn after the last one it
+ * covers. Until the first memory is written, that is every turn since the opening.
+ */
+export function storySince(path: TurnNode[]): { notes: MemoryNote[]; from: number } {
+  const memory = path.findLast((node) => node.memory)?.memory;
+  if (!memory) return { notes: [], from: 0 };
+  return { notes: memory.notes, from: path.findIndex((node) => node.id === memory.through) + 1 };
+}
+
+/** A rough token count: about 0.7 per Chinese character and 0.3 per other character. */
+export function tokensOf(text: string): number {
+  const cjk = text.match(/[\u3000-\u9fff\uff00-\uffef]/g)?.length ?? 0;
+  return Math.round(cjk * 0.7 + (text.length - cjk) * 0.3);
 }
 
 function worldHeader(world: World, state: WorldState): string {
@@ -135,11 +152,25 @@ export function narrationMessages(
     hooksFor(state, actor),
   ].join("\n");
   const action = input.trim() || "(no action: let the story move on by itself)";
+  // The whole story goes in until it nears the model's reach; then the memory stands in for the oldest turns.
+  const { notes, from } = storySince(path);
+  const memory = notes.length
+    ? [
+        "Memory of the earlier turns (a newer note wins over an older one; the story below and the world state " +
+          "win over both):",
+        ...notes.map((note) => `- [Turn ${note.turn}] ${note.text}`),
+        "",
+      ]
+    : [];
   const user = [
     worldHeader(world, state),
     "",
-    "Story so far (most recent last):",
-    recentStory(path, state),
+    ...memory,
+    notes.length ? "The story since then (most recent last):" : "The story so far (most recent last):",
+    path
+      .slice(from)
+      .map((node, i) => turnText(node, from + i, state))
+      .join("\n\n"),
     "",
     `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
   ].join("\n");
@@ -178,6 +209,50 @@ export function hookMessages(world: World, path: TurnNode[]): Message[] {
     {
       role: "user",
       content: `${worldHeader(world, state)}\n\nStory so far:\n${recentStory(path, state)}`,
+    },
+  ];
+}
+
+// Written with the model's full thinking, so it is careful: what it drops is gone for good.
+const MEMORY_GOALS = `You keep the long-term memory of a story world. The story has grown too long to read whole, so
+the oldest turns below will no longer be read. Write the memory the story needs from them.
+
+Return one JSON object: {"memory": [{"turn": number, "text": "..."}], "dropFacts": [fact ids], "closeThreads": [thread ids]}.
+
+"memory" is the whole memory from now on: the earlier notes, revised, plus what matters from the turns below.
+- Keep what the story will need later: the main events in order; the player's choices and their consequences;
+  promises, debts, plans, grudges and favours; where important things are and who has them; who knows what;
+  how the relationships turned; clues found; injuries and losses; anything still unresolved.
+- Leave out the ordinary: scenery, small talk, moments that changed nothing.
+- When something changed, keep only how it stands now and date the note by the turn it last changed. Newer
+  turns win over older notes. Merge notes about the same thing; drop notes that no longer matter.
+- Never write a secret the player has not discovered; the secrets in the world state stay secrets.
+- At most 40 notes, one or two sentences each, in the world's own language, oldest first.
+
+"dropFacts": ids of known facts (not secrets) the memory now holds or that no longer matter.
+"closeThreads": ids of open threads that no longer matter.`;
+
+export function memoryMessages(
+  world: World,
+  path: TurnNode[],
+  fold: number,
+): Message[] {
+  const state = path.at(-1)!.state;
+  const { notes, from } = storySince(path);
+  const turns = path.slice(from, fold).map((node, i) => turnText(node, from + i, state));
+  return [
+    { role: "system", content: `${MEMORY_GOALS}\n${CONTENT_LINE}` },
+    {
+      role: "user",
+      content: [
+        worldHeader(world, state),
+        "",
+        "The earlier notes:",
+        ...(notes.length ? notes.map((note) => `- [Turn ${note.turn}] ${note.text}`) : ["(none yet)"]),
+        "",
+        "The turns to remember:",
+        turns.join("\n\n"),
+      ].join("\n"),
     },
   ];
 }
