@@ -10,6 +10,8 @@ const CONTENT_LINE =
 
 // The last sentence: told "I know where she went", the model used to fill the claim in from the secrets
 // (2026-10-18, both DeepSeek and Gemini).
+// A world whose rules said "the world moves on without the player" made the story send the player's letter for
+// them and jump to the next morning (2026-10-18): the rules preface keeps the stopping rule first.
 const SECRETS =
   "Secrets are true but the player has not found them. Never state one in the story, the changes or the hooks " +
   "unless the story earns it (a search, evidence, a confession); hints are welcome. A character knows only what " +
@@ -192,7 +194,9 @@ export function narrationMessages(
           "",
           "The author's rules for this world. Follow them. Where they ask for a layout of the reply (status panels, " +
             "option lists, menus), leave it out: the reply format below is fixed, and the game shows the state and " +
-            "the next steps itself; where they describe kinds of options, the hooks follow them.",
+            "the next steps itself; where they describe kinds of options, the hooks follow them. They never undo " +
+            "the stopping rule: a world that moves on without the player moves through what others do, never by " +
+            "deciding for the player's character or jumping past the next moment they could act.",
           world.rules.trim(),
         ]
       : []),
