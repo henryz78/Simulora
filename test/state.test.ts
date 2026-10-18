@@ -64,3 +64,17 @@ test("buries secrets the characters can know, skipping blanks and repeats", () =
   const revealed = applyChanges(state, [{ type: "reveal", fact: buried[0]!.id, note: "Qing found the letter." }]);
   assert.equal(revealed.state.facts.at(-1)!.revealNote, "Qing found the letter.");
 });
+
+test("a lasting change in someone rewrites who they are; only what is given changes", () => {
+  const { state } = applyChanges(
+    world(),
+    parseChanges([
+      { type: "persona", character: "Zhou", persona: "Bitter since the fire, trusts no one.", note: "" },
+      { type: "persona", character: "Qing", goals: "Find her brother.", note: "" },
+      { type: "persona", character: "Qing", note: "" },
+    ]),
+  );
+  assert.equal(state.characters[0]!.persona, "Bitter since the fire, trusts no one.");
+  assert.equal(state.characters[0]!.goals, "");
+  assert.deepEqual([state.characters[1]!.persona, state.characters[1]!.goals], ["", "Find her brother."]);
+});

@@ -35,6 +35,15 @@ export function parseChanges(raw: unknown): Change[] {
       case "status":
         changes.push({ type: "status", character: text(v.character), notes: text(v.notes), note });
         break;
+      case "persona":
+        changes.push({
+          type: "persona",
+          character: text(v.character),
+          persona: text(v.persona),
+          goals: text(v.goals),
+          note,
+        });
+        break;
       case "fact":
         changes.push({ type: "fact", text: text(v.text), note });
         break;
@@ -117,6 +126,14 @@ export function applyChanges(
         who.notes = change.notes;
         break;
       }
+      case "persona": {
+        // A lasting change in who someone is or what they want: it becomes their persona, which is never trimmed.
+        const who = character(change.character);
+        if (!who || (!change.persona && !change.goals)) continue;
+        if (change.persona) who.persona = change.persona;
+        if (change.goals) who.goals = change.goals;
+        break;
+      }
       case "fact": {
         if (!change.text) continue;
         state.facts.push({
@@ -196,6 +213,29 @@ export function bury(before: WorldState, raw: unknown): { state: WorldState; bur
     }
   }
   return { state, buried };
+}
+
+/**
+ * What the model stops reading when the turns up to the one whose state is `told` are trimmed: the facts and threads
+ * the story added by then go (the timeline and the memory tell them now), and so do they from what each character
+ * knows; those the world started with (`world`) stay. A
+ * revealed secret stays for the discovery book but is no longer sent; a secret still hidden stays as it is. Dropping
+ * them, not just hiding them, keeps every turn's state from growing with the whole story.
+ */
+export function trimState(state: WorldState, told: WorldState, world: WorldState): WorldState {
+  // The world's own facts and opening questions are its backbone: they stay.
+  const own = new Set([...world.facts, ...world.threads].map((x) => x.id));
+  const old = new Set([...told.facts, ...told.threads].map((x) => x.id).filter((id) => !own.has(id)));
+  const facts = state.facts
+    .filter((f) => f.secret || !old.has(f.id))
+    .map((f) => (f.secret && f.revealed && old.has(f.id) ? { ...f, archived: true } : f));
+  const kept = new Set(facts.map((f) => f.id));
+  return {
+    ...state,
+    facts,
+    threads: state.threads.filter((t) => !old.has(t.id)),
+    characters: state.characters.map((c) => ({ ...c, knows: c.knows.filter((id) => kept.has(id)) })),
+  };
 }
 
 /** Secrets the AI buried in `from` that `into` lacks, carried over along with who knows them. */

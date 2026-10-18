@@ -1,4 +1,4 @@
-import type { MemoryNote, Settings, TurnNode, World, WorldState } from "../shared/types.ts";
+import type { MemoryNote, Settings, TimelineEntry, TurnNode, World, WorldState } from "../shared/types.ts";
 import type { Message } from "./model.ts";
 import { describeState } from "./state.ts";
 
@@ -35,14 +35,20 @@ function recentStory(path: TurnNode[], state: WorldState): string {
     .join("\n\n");
 }
 
+/** The first turn of `path` the model still reads in full: the one after the last trim, or the opening. */
+export function storyFrom(path: TurnNode[]): number {
+  const trimmed = path.findLast((node) => node.trimmed)?.trimmed;
+  return trimmed ? path.findIndex((node) => node.id === trimmed) + 1 : 0;
+}
+
 /**
- * Where the story stands for the model: the latest memory on the path, and every turn after the last one it
- * covers. Until the first memory is written, that is every turn since the opening.
+ * The latest memory and timeline on the path, and the last turn they cover (-1 before the first ones). Saves from
+ * before 2026-10-18 kept an older kind of memory, not an array; it is passed over.
  */
-export function storySince(path: TurnNode[]): { notes: MemoryNote[]; from: number } {
-  const memory = path.findLast((node) => node.memory)?.memory;
-  if (!memory) return { notes: [], from: 0 };
-  return { notes: memory.notes, from: path.findIndex((node) => node.id === memory.through) + 1 };
+export function chronicleOf(path: TurnNode[]): { notes: MemoryNote[]; timeline: TimelineEntry[]; at: number } {
+  const at = path.findLastIndex((node) => Array.isArray(node.timeline));
+  const node = path[at];
+  return { notes: node?.memory ?? [], timeline: node?.timeline ?? [], at };
 }
 
 /** A rough token count: about 0.7 per Chinese, Japanese or Korean character, 0.5 per other non-Latin one, 0.3 else. */
@@ -56,17 +62,21 @@ function worldHeader(world: World, state: WorldState, options?: { secrets?: bool
   return `World: ${world.title}\nPremise: ${world.premise}\n\n${describeState(state, options)}`;
 }
 
-/** The memory as the model reads it, or nothing before the first one. */
-function memoryLines(path: TurnNode[]): string[] {
-  const { notes } = storySince(path);
-  return notes.length
-    ? [
-        "Memory of the earlier turns (a newer note wins over an older one; the story below and the world state " +
-          "win over both):",
-        ...notes.map((note) => `- [Turn ${note.turn}] ${note.text}`),
-        "",
-      ]
-    : [];
+const noteLine = (note: MemoryNote) => `- [Turn ${note.turn}] ${note.text}`;
+
+const entryLine = (entry: TimelineEntry) => `- [Turns ${entry.from}-${entry.to}] ${entry.text}`;
+
+/** The memory and the timeline as the model reads them, or nothing before the first ones. */
+function chronicleLines(path: TurnNode[]): string[] {
+  const { notes, timeline } = chronicleOf(path);
+  return [
+    ...(notes.length
+      ? ["Memory: the most important things, as they stand now (the story below wins over it):", ...notes.map(noteLine), ""]
+      : []),
+    ...(timeline.length
+      ? ["Timeline: what happened before, in order (the older, the briefer):", ...timeline.map(entryLine), ""]
+      : []),
+  ];
 }
 
 const pace: Record<Settings["pace"], string> = {
@@ -101,6 +111,8 @@ and places by name, to facts and threads by [id], keep every text short, and use
 - {"type":"move","character":name,"place":name}  (a new place name creates the place)
 - {"type":"character","name":...,"persona":...,"place":name}  (someone new appears)
 - {"type":"status","character":name,"notes":"how they are now, a few words"}
+- {"type":"persona","character":name,"persona":"who they are now","goals":"what they want now"}  (only a lasting
+  change in who someone is or what they want; the whole new text, either key may be left out)
 - {"type":"fact","text":"one short sentence"}  (something new and lasting became known)
 - {"type":"reveal","fact":id,"note":"how it came out, one sentence"}  (only when the story makes the secret plain)
 - {"type":"learn","character":name,"fact":id}
@@ -114,9 +126,11 @@ as actions in the world's language.`;
 /** Hooks are moves for whoever the player is playing, not for the story's main character. */
 function hooksFor(state: WorldState, actor: string): string {
   const name = actorName(state, actor);
-  return name
+  const who = name
     ? `The player is playing ${name}: write each hook as something ${name} could do next.`
     : "The player is the director: hooks can be moves by any character or events in the world.";
+  // The player reads the hooks: one that names a secret gives it away (a play-test on 2026-10-18 did).
+  return `${who} A hook builds only on what the player has seen, never on a secret.`;
 }
 
 /** The shape of a whole reply. Shown in full, it keeps the model from stopping after the story. */
@@ -159,20 +173,20 @@ export function narrationMessages(
     // One JSON reply, like WorldOS (2026-10-18), story first so its first words come in 3-5 s. Told to give all
     // three keys and shown a whole reply, the model kept the record in 6 of 6 turns (3 of 5 were cut short
     // before). The server reads the story out of the reply as it streams; a missing record is filled in.
-    'Reply with one JSON object, keys in this order: {"story": "plain prose, paragraphs split by blank lines", ' +
-      '"changes": [...], "hooks": [...]}. Always give all three keys, like this:',
+    'Reply with one JSON object, keys in this order: {"story": "plain prose, paragraphs split by blank lines, ' +
+      'speech in “” or 「」", "changes": [...], "hooks": [...]}. Always give all three keys, like this:',
     REPLY_SAMPLE,
     RECORD_FORMAT,
     hooksFor(state, actor),
   ].join("\n");
   const action = input.trim() || "(no action: let the story move on by itself)";
-  // The whole story goes in until it nears the model's reach; then the memory stands in for the oldest turns.
-  const { notes, from } = storySince(path);
+  // The whole story goes in until it nears the model's reach; then the timeline stands in for the oldest turns.
+  const from = storyFrom(path);
   const user = [
     worldHeader(world, state),
     "",
-    ...memoryLines(path),
-    notes.length ? "The story since then (most recent last):" : "The story so far (most recent last):",
+    ...chronicleLines(path),
+    from ? "The story since then (most recent last):" : "The story so far (most recent last):",
     path
       .slice(from)
       .map((node, i) => turnText(node, from + i, state))
@@ -219,53 +233,110 @@ export function hookMessages(world: World, path: TurnNode[]): Message[] {
   ];
 }
 
-// Written with the model's full thinking, so it is careful: what it drops is gone for good.
-const MEMORY_GOALS = `You keep the long-term memory of a story world. The story has grown too long to read whole, so
-the oldest turns below will no longer be read. Write the memory the story needs from them.
+/** Every this many turns the timeline gets an entry and the memory is checked, while the player plays on. */
+export const CHRONICLE_TURNS = 10;
+/** When the timeline grows past this many tokens, its oldest entries are merged into one. */
+export const TIMELINE_TOKENS = 10_000;
+export const MERGE_ENTRIES = 5;
 
-Return one JSON object: {"memory": [{"turn": number, "text": "..."}], "dropFacts": [fact ids], "closeThreads": [thread ids]}.
+// What the memory keeps, most important first. In a 150-turn mystery the memory, left to choose, kept clue after
+// clue and dropped where the heirloom ring was (2026-10-18).
+const MEMORY_KINDS = `What to keep, most important first; when there is no room, the last go first:
+1. where important things are and who has them; promises, debts and meetings still pending;
+2. turning points: a decisive choice, a vow, a change of heart, a break or a bond, and why;
+3. who knows a secret or a truth that matters;
+4. a few questions still open, one short question each. Clues are not kept one by one: only what they add up to.`;
 
-"memory" is the whole memory from now on: the earlier notes, revised, plus what matters from the turns below.
-- Keep what the story will need later: the main events in order; the player's choices and their consequences;
-  promises, debts, plans, grudges and favours; where important things are and who has them; who knows what;
-  how the relationships turned; clues found; injuries and losses; anything still unresolved.
-- Leave out the ordinary: scenery, small talk, moments that changed nothing.
-- One note per thing. When a later turn changes where something is, who has it, or how something stands, write
-  one note with how it stands now, dated by the turn it last changed, and drop the older note: a key moved from
-  a tin to a box is one note saying it is in the box. Newer turns win over older notes. Drop notes that no
-  longer matter.
-- Write only what the player has seen or been told.
-- At most 40 notes, one or two sentences each, in the world's own language, oldest first.
+// The player's design (2026-10-18): the memory keeps state and turning points, checks every old note first and
+// rather changes or drops than adds; the timeline tells what happened and is never changed. At first the memory
+// also kept one-off events, 13 notes for the first 10 turns. One request writes both from the same turns.
+const CHRONICLE_GOALS = `You keep the timeline and the long-term memory of a story world. Read the new turns below.
 
-"dropFacts": ids of known facts (not secrets) the memory now holds or that no longer matter.
-"closeThreads": ids of open threads that no longer matter.`;
+Return one JSON object: {"timeline": "...", "memory": ["[Turn 12] ...", "[Turn 30] ..."]}.
 
-export function memoryMessages(
-  world: World,
-  path: TurnNode[],
-  fold: number,
-): Message[] {
-  const state = path.at(-1)!.state;
-  const { notes, from } = storySince(path);
-  const turns = path.slice(from, fold).map((node, i) => turnText(node, from + i, state));
+"timeline": what happened in the new turns, in order, as one short paragraph of plain prose: at most 200 Chinese
+characters (or 150 words), however much happened. The events big and small: who did what, where, what was said that
+matters, what was promised, given, found or lost. No scenery. It is added after the timeline below and never
+changed, so tell only the new turns.
+
+"memory": what is worth keeping for the long run, as it stands now; the whole memory from now on. ${MEMORY_KINDS}
+Leave out what has its own place: what merely happened (the timeline tells it), and who each character is, what
+they want, how they are and how they stand with each other (the world state above keeps all of that). A note
+that only repeats one of those is wasted.
+First go through the earlier notes one by one against the new turns:
+- still true and still important: keep it as it is;
+- changed: rewrite it as things stand now, dated by the turn it last changed (a key moved from a tin to a box is
+  one note saying it is in the box);
+- no longer true, or no longer important: drop it.
+Then add what is new. Rather change or drop than add: fold a new thing into a note it belongs to, and add a note
+only for something truly new. One note per thing, one sentence of at most about 60 Chinese characters (or 40
+words), at most 20 notes, oldest first, each starting with the one turn it last changed in: "[Turn 12] ...". Most
+stretches of ten turns add one or two notes, some none.
+
+Write in the world's own language, and only what the player has seen or been told.`;
+
+/** Asks for the timeline entry and the memory after the `count` turns that follow what `path` has chronicled. */
+export function chronicleMessages(world: World, path: TurnNode[], count: number): Message[] {
+  const { notes, timeline, at } = chronicleOf(path);
+  const end = at + count;
+  const state = path[end]!.state;
+  const turns = path.slice(at + 1, end + 1).map((node, i) => turnText(node, at + 1 + i, state));
   return [
-    { role: "system", content: `${MEMORY_GOALS}\n${CONTENT_LINE}` },
+    { role: "system", content: `${CHRONICLE_GOALS}\n${CONTENT_LINE}` },
     {
       role: "user",
       content: [
         worldHeader(world, state, { secrets: false }),
         "",
-        "The earlier notes:",
-        ...(notes.length ? notes.map((note) => `- [Turn ${note.turn}] ${note.text}`) : ["(none yet)"]),
+        "The timeline so far:",
+        ...(timeline.length ? timeline.map(entryLine) : ["(none yet)"]),
         "",
-        "The turns to remember:",
+        "The earlier notes:",
+        ...(notes.length ? notes.map(noteLine) : ["(none yet)"]),
+        "",
+        `The new turns (Turn ${at + 1} to ${end}):`,
         turns.join("\n\n"),
       ].join("\n"),
     },
   ];
 }
 
-/** How many turns pass between the times the AI buries new secrets, and how many may wait undiscovered. */
+/** The most notes the memory keeps; a reply with more is asked to fold them. */
+export const MAX_NOTES = 20;
+
+/** Asks for the memory folded down to `MAX_NOTES` notes. */
+export function foldMessages(world: World, notes: MemoryNote[]): Message[] {
+  return [
+    {
+      role: "system",
+      content:
+        `You keep the long-term memory of a story world. It has ${notes.length} notes; keep at most ${MAX_NOTES}, ` +
+        `each one sentence of at most about 60 Chinese characters. Fold notes about the same thing together. ` +
+        `${MEMORY_KINDS}\nReturn one JSON object: ` +
+        '{"memory": ["[Turn 12] ...", ...]}, oldest first, each starting with the one turn it last changed in. ' +
+        "Write in the world's own language.\n" +
+        CONTENT_LINE,
+    },
+    { role: "user", content: `World: ${world.title}\n\nThe notes:\n${notes.map(noteLine).join("\n")}` },
+  ];
+}
+
+/** Asks for one entry in place of the oldest `MERGE_ENTRIES` entries of the timeline. */
+export function mergeMessages(world: World, entries: TimelineEntry[]): Message[] {
+  return [
+    {
+      role: "system",
+      content:
+        "You keep the timeline of a story world. It has grown long, so its oldest entries become one. Return one " +
+        'JSON object: {"text": "..."}: what happened across these entries, in order, as one short paragraph of ' +
+        "plain prose, about 150 to 250 Chinese characters (or 120 to 200 words). Keep the main events and what " +
+        "still shapes the story; let the small things go. Write in the world's own language.\n" +
+        CONTENT_LINE,
+    },
+    { role: "user", content: `World: ${world.title}\n\nThe entries:\n${entries.map(entryLine).join("\n")}` },
+  ];
+}
+
 export const BURY_EVERY = 4;
 export const MAX_HIDDEN = 5;
 
@@ -291,7 +362,7 @@ export function buryMessages(world: World, path: TurnNode[]): Message[] {
       role: "system",
       content: `You are the co-author of a story world and you hide its secrets. ${task}\n\n${BURY_FORMAT}\n${CONTENT_LINE}`,
     },
-    { role: "user", content: [worldHeader(world, state), "", ...memoryLines(path), story].join("\n") },
+    { role: "user", content: [worldHeader(world, state), "", ...chronicleLines(path), story].join("\n") },
   ];
 }
 
@@ -311,7 +382,7 @@ export interface PlainDraft {
 const DRAFT_FORMAT = `Return one JSON object:
 {"title": ..., "premise": "two or three sentences", "opening": "one vivid paragraph: the first moment of the story",
  "clock": "the time when the story starts", "places": [{"name": ..., "description": ...}],
- "characters": [{"name": ..., "persona": "who they are, how they act", "goals": "what they want", "place": a place name}],
+ "characters": [{"name": ..., "persona": "who they are (man or woman), how they act", "goals": "what they want", "place": a place name}],
  "facts": ["things everyone knows"], "threads": ["open questions that pull the story"],
  "relationships": [{"a": name, "b": name, "text": "how they stand"}]}
 Give three to five characters whose goals pull against each other, two to four places, a few facts and one or two

@@ -5,11 +5,13 @@ import {
   type Change,
   type Character,
   type Fact,
+  type MemoryNote,
   type Place,
   type Save,
   type SaveView,
   type Settings,
   type Thread,
+  type TimelineEntry,
   type TurnNode,
   type World,
   type WorldDraft,
@@ -18,18 +20,25 @@ import type { Store } from "./db.ts";
 import { parseJsonObject, readString, type Model } from "./model.ts";
 import {
   BURY_EVERY,
+  CHRONICLE_TURNS,
   MAX_HIDDEN,
+  MAX_NOTES,
+  MERGE_ENTRIES,
+  TIMELINE_TOKENS,
   buryMessages,
   changeMessages,
   draftMessages,
   hookMessages,
-  memoryMessages,
+  chronicleMessages,
+  chronicleOf,
+  foldMessages,
+  mergeMessages,
   narrationMessages,
-  storySince,
+  storyFrom,
   tokensOf,
   type PlainDraft,
 } from "./prompts.ts";
-import { applyChanges, bury, carrySecrets, newId, parseChanges } from "./state.ts";
+import { applyChanges, bury, carrySecrets, newId, parseChanges, trimState } from "./state.ts";
 
 class HttpError extends Error {
   status: number;
@@ -158,6 +167,22 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
   };
 }
 
+/**
+ * Memory notes, each dated "[Turn 12]". The model also wrote "[Turn 8-11]", "[Turn 1/8]" and dates at the end of
+ * a note; those count by their last turn.
+ */
+function parseNotes(raw: unknown, last: number): MemoryNote[] {
+  return (Array.isArray(raw) ? raw : [])
+    .map((note) => {
+      const text = str(note, 700);
+      const date = /\[Turns? ([\d\s,/、–-]+)\]/.exec(text);
+      const turn = date ? Math.max(0, ...date[1]!.split(/\D+/).filter(Boolean).map(Number)) : 0;
+      return { turn: Math.min(turn, last), text: (date ? text.replace(date[0], "") : text).trim() };
+    })
+    .filter((n) => n.text)
+    .sort((a, b) => a.turn - b.turn);
+}
+
 const parseHooks = (raw: unknown) =>
   Array.isArray(raw)
     ? raw.filter((h): h is string => typeof h === "string" && h.trim() !== "").slice(0, 3).map((h) => h.trim().slice(0, 300))
@@ -185,18 +210,30 @@ function send(res: ServerResponse, status: number, value: unknown) {
 
 /**
  * `model` streams the story and keeps the records. `thinker` streams the story for saves with thinking on and
- * writes the memory; `writer` drafts worlds, where speed matters more than care. When the story the model would
- * read passes `memoryAt` tokens (about 128K), the oldest turns are folded into the memory until about `memoryKeep`
- * tokens of story are left; at 128K the first words still came in about 7 s (2026-10-18).
+ * writes the timeline and the memory; `writer` drafts worlds, where speed matters more than care. Every
+ * `chronicleTurns` turns the timeline gets an entry and the memory is checked. When what the model would read passes
+ * `trimAt` tokens (128K), the turns the timeline already tells are no longer sent, but for the newest `keepTurns`;
+ * at 128K the first words still came in about 7 s (2026-10-18).
  */
 export function createApi(
   store: Store,
   model: Model,
-  { thinker = model, writer = model, memoryAt = 128_000, memoryKeep = 32_000 } = {},
+  {
+    thinker = model,
+    writer = model,
+    trimAt = 128_000,
+    keepTurns = 30,
+    keepStates = 10,
+    chronicleTurns = CHRONICLE_TURNS,
+    timelineTokens = TIMELINE_TOKENS,
+  } = {},
 ) {
   const busy = new Set<string>();
   // Saves whose secrets are being buried. Burying takes the model a minute or more, so nobody waits for it.
   const burying = new Set<string>();
+  // Saves whose timeline and memory are being written, likewise, and when it last failed.
+  const chronicling = new Set<string>();
+  const chronicleFailed = new Map<string, number>();
 
   function buryLater(saveId: string) {
     if (burying.has(saveId)) return;
@@ -211,7 +248,7 @@ export function createApi(
       // The secrets go into the turn they were written for and every turn grown from it since, whatever the
       // player undid or branched meanwhile. A turn still being written carries them over when it is saved.
       const node = store.node(origin);
-      if (!node) return;
+      if (!node?.state) return;
       const { state, buried } = bury(node.state, report.secrets);
       if (buried.length === 0) return;
       store.putNode({ ...node, state });
@@ -219,7 +256,7 @@ export function createApi(
       for (let i = 0, grown = [origin]; i < grown.length; i++) {
         for (const child of tree.filter((n) => n.parentId === grown[i])) {
           const later = store.node(child.id)!;
-          store.putNode({ ...later, state: carrySecrets(state, later.state) });
+          if (later.state) store.putNode({ ...later, state: carrySecrets(state, later.state) });
           grown.push(child.id);
         }
       }
@@ -234,12 +271,48 @@ export function createApi(
   function fail(status: number, message: string): never {
     throw new HttpError(status, message);
   }
-  const view = (s: Save): SaveView => ({
-    save: s,
-    world: world(s.worldId),
-    path: store.path(s.headId),
-    tree: store.tree(s.worldId),
-  });
+  /** What the browser shows: see `SaveView` for what is left out. */
+  function view(s: Save): SaveView {
+    const path = store.path(s.headId);
+    const latest = path.findLastIndex((n) => Array.isArray(n.timeline));
+    return {
+      save: s,
+      world: world(s.worldId),
+      path: path.map((node, i) => (i === latest ? { ...node, memory: node.memory, timeline: node.timeline } : node)),
+      tree: store.tree(s.worldId),
+    };
+  }
+
+  /**
+   * Lets the turns of a world go of whole states no longer needed. Kept: the opening, the last turn of each timeline
+   * step (a point to go back to, and what a trim reads), the newest `keepStates` turns of every save, and the last
+   * turn of a path left by an undo (where "other paths" lands). Saves from before 2026-10-18 kept every state; they
+   * shrink on their next turn.
+   */
+  function forgetOldStates(worldId: string) {
+    const tree = store.tree(worldId);
+    const parent = new Map(tree.map((n) => [n.id, n.parentId]));
+    const depths = new Map<string, number>();
+    const depth = (id: string) => {
+      const chain: string[] = [];
+      let at: string | null | undefined = id;
+      while (at && !depths.has(at)) {
+        chain.push(at);
+        at = parent.get(at);
+      }
+      let d = at ? depths.get(at)! : -1;
+      for (const up of chain.reverse()) depths.set(up, ++d);
+      return depths.get(id)!;
+    };
+    const leaves = new Set(tree.map((n) => n.id));
+    for (const n of tree) if (n.parentId) leaves.delete(n.parentId);
+    const kept = new Set(store.saves(worldId).flatMap((s) => store.path(s.headId).slice(-keepStates).map((n) => n.id)));
+    const forget = tree.filter((n) => {
+      if (!n.resumable || !n.parentId || kept.has(n.id) || leaves.has(n.id)) return false;
+      return depth(n.id) % chronicleTurns !== chronicleTurns - 1;
+    });
+    store.forgetStates(forget.map((n) => n.id));
+  }
 
   function startSave(w: World, title: string): Save {
     const root: TurnNode = {
@@ -282,56 +355,99 @@ export function createApi(
     return { changes: [] as Change[], hooks: [] as string[], failed: true };
   }
 
-  /** How many turns of `path` to fold so about `memoryKeep` tokens of story are left; `from` when none. */
-  function foldPoint(path: TurnNode[]) {
-    const { from } = storySince(path);
-    const size = (turn: TurnNode) => tokensOf(turn.story + turn.input);
-    let fold = from;
-    let left = path.slice(from).reduce((n, turn) => n + size(turn), 0);
-    while (left > memoryKeep && fold < path.length - 1) {
-      left -= size(path[fold]!);
-      fold++;
+  /** Asks the thinking model; if that fails (a slow provider can time out), once more without thinking. */
+  async function carefully<T>(ask: (by: Model) => Promise<T>): Promise<T> {
+    try {
+      return await ask(thinker);
+    } catch (error) {
+      console.warn("chronicle.retry", error instanceof Error ? error.message : error);
+      return ask(writer);
     }
-    return { from, fold };
+  }
+
+  async function streamJson(by: Model, messages: ReturnType<typeof mergeMessages>) {
+    let reply = "";
+    for await (const piece of by.stream(messages, { json: true })) reply += piece;
+    try {
+      return parseJsonObject(reply) as Record<string, unknown>;
+    } catch (error) {
+      console.warn("chronicle.reply", reply.length, JSON.stringify(reply.slice(0, 120)));
+      throw error;
+    }
   }
 
   /**
-   * Folds the oldest turns of `path` into the memory on its last node, until about `memoryKeep` tokens of story
-   * are left. Facts and threads the memory takes over leave the world state the model reads. Written with full
-   * thinking; if that fails (a slow provider can pass the 180 s limit), once more without, so a failing memory
-   * does not make the player wait on every turn after.
+   * Writes the timeline entry and the memory for the `chronicleTurns` turns after what `path` has chronicled, and
+   * merges the oldest entries while the timeline is too long.
    */
-  async function remember(w: World, path: TurnNode[], fold: number) {
-    const node = path.at(-1)!;
-    const before = storySince(path).notes;
-    const write = async (by: Model) => {
-      let reply = "";
-      for await (const piece of by.stream(memoryMessages(w, path, fold), { json: true })) reply += piece;
-      const report = parseJsonObject(reply) as Record<string, unknown>;
-      const notes = list(report.memory)
-        .map((n) => ({ turn: Number(n.turn), text: str(n.text, 600).trim() }))
-        .map((n) => ({ ...n, turn: Number.isFinite(n.turn) ? Math.max(0, Math.round(n.turn)) : 0 }))
-        .filter((n) => n.text)
-        .sort((a, b) => a.turn - b.turn)
-        .slice(-60);
-      // The new memory replaces the old one, so a reply that lost most of it is refused rather than kept.
-      if (notes.length === 0 || notes.length < before.length / 2)
-        throw new Error(`The memory came back with ${notes.length} notes for ${before.length} earlier ones`);
-      return { notes, report };
-    };
-    let written;
-    try {
-      written = await write(thinker);
-    } catch (error) {
-      console.warn("memory.retry", error instanceof Error ? error.message : error);
-      written = await write(writer);
+  async function chronicleStep(w: World, path: TurnNode[]) {
+    const { notes: before, timeline: earlier, at } = chronicleOf(path);
+    const end = at + chronicleTurns;
+    let { text, notes } = await carefully(async (by) => {
+      const report = await streamJson(by, chronicleMessages(w, path, chronicleTurns));
+      const text = str(report.timeline, 2000).trim();
+      const notes = parseNotes(report.memory, end);
+      if (!text) throw new Error("The timeline entry came back empty");
+      // The memory may shrink when old notes are folded together, but a reply that lost most of it is broken.
+      if (notes.length < before.length / 4) throw new Error(`The memory came back with ${notes.length} notes`);
+      return { text, notes };
+    });
+    // Told "at most 20", the model still wrote 17 notes for the first ten turns (2026-10-18); a long list is folded.
+    if (notes.length > MAX_NOTES) {
+      const folded = await carefully(async (by) =>
+        parseNotes((await streamJson(by, foldMessages(w, notes))).memory, end),
+      ).catch(() => []);
+      notes = (folded.length ? folded : notes).slice(-MAX_NOTES);
     }
-    const { notes, report } = written;
-    const drop = new Set(Array.isArray(report.dropFacts) ? report.dropFacts : []);
-    const close = new Set(Array.isArray(report.closeThreads) ? report.closeThreads : []);
-    node.memory = { notes, through: path[fold - 1]!.id };
-    node.state.facts = node.state.facts.map((f) => (drop.has(f.id) && !f.secret ? { ...f, archived: true } : f));
-    node.state.threads = node.state.threads.map((t) => (close.has(t.id) ? { ...t, archived: true } : t));
+    let timeline = [...earlier, { from: at + 1, to: end, text }];
+    // Merged five of the same span at a time, like carrying digits, so an entry is retold only once per level: merging
+    // the oldest five every time retold the first entry at every merge.
+    while (tokensOf(timeline.map((e) => e.text).join("")) > timelineTokens) {
+      const span = (e: TimelineEntry) => e.to - e.from;
+      const start = timeline.findIndex(
+        (e, i) => i + MERGE_ENTRIES <= timeline.length && timeline.slice(i, i + MERGE_ENTRIES).every((x) => span(x) === span(e)),
+      );
+      if (start < 0) break;
+      const run = timeline.slice(start, start + MERGE_ENTRIES);
+      const merged = await carefully(async (by) => {
+        const text = str((await streamJson(by, mergeMessages(w, run))).text, 2000).trim();
+        if (!text) throw new Error("The merged entry came back empty");
+        return text;
+      });
+      timeline.splice(start, MERGE_ENTRIES, { from: run[0]!.from, to: run.at(-1)!.to, text: merged });
+    }
+    return { notes, timeline };
+  }
+
+  /**
+   * Catches the timeline and the memory up with the save while the player plays on, a few turns at a time (an old
+   * save may be far behind). Each step is written on the last turn it covers; later turns find it by walking back
+   * along their path.
+   */
+  function chronicleLater(saveId: string) {
+    // After a failure, a few minutes pass before the next try: each try is two model requests.
+    if (chronicling.has(saveId) || Date.now() - (chronicleFailed.get(saveId) ?? 0) < 5 * 60_000) return;
+    chronicling.add(saveId);
+    void (async () => {
+      const s = store.save(saveId);
+      const w = s && store.world(s.worldId);
+      if (!s || !w) return;
+      const path = store.path(s.headId);
+      for (;;) {
+        const end = chronicleOf(path).at + chronicleTurns;
+        if (end > path.length - 1) break;
+        const { notes, timeline } = await chronicleStep(w, path);
+        // Read the turn again: secrets may have been buried in it meanwhile.
+        path[end] = { ...store.node(path[end]!.id)!, memory: notes, timeline };
+        store.putNode(path[end]!);
+        console.log(`chronicle.written to=${end} notes=${notes.length} entries=${timeline.length}`);
+      }
+    })()
+      .catch((error) => {
+        console.warn("chronicle.failed", error instanceof Error ? error.message : error);
+        chronicleFailed.set(saveId, Date.now());
+      })
+      .finally(() => chronicling.delete(saveId));
   }
 
   /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
@@ -394,8 +510,10 @@ export function createApi(
             }
           }
         } catch (error) {
-          // A whole story the player has already read stays; the record is read from it below.
-          if (!closed) throw error;
+          // A whole story the player has already read stays (a quote at the very end closed it); the record is read
+          // from it below.
+          const ends = (rest: string) => readString(reply + rest, "story").done;
+          if (!closed && !ends("}") && !ends(' "hooks": []}')) throw error;
           console.warn("reply.cut", error instanceof Error ? error.message : error);
         }
       }
@@ -439,18 +557,26 @@ export function createApi(
           console.warn("hooks.failed", error instanceof Error ? error.message : error);
         }
       }
-      // When the story nears the model's reach, the player waits while the memory is written (it is rare).
+      // When the story nears the model's reach, the turns the timeline already tells are no longer sent, but for
+      // the newest ones. Nothing has to be written, so nobody waits.
       const next = [...path, node];
-      const { from, fold } = foldPoint(next);
       const size = tokensOf(narrationMessages(w, next, actor, "", s.settings).map((m) => m.content).join(""));
-      if (size > memoryAt && fold > from) {
-        event("phase", { phase: "memory" });
-        const at = Date.now();
+      if (size > trimAt) {
         try {
-          await remember(w, next, fold);
-          console.log(`memory.timing ${Date.now() - at}ms notes=${node.memory?.notes.length}`);
+          // A whole timeline step at a time, so the turn before the cut is one that keeps its state.
+          const newest = Math.floor((next.length - keepTurns) / chronicleTurns) * chronicleTurns;
+          const told = chronicleOf(next).at + 1;
+          // Should the timeline fall far behind (a provider that keeps failing), the story is trimmed all the same
+          // before it outgrows the model, which still read 254K in 16 s (2026-10-18); but only what the timeline
+          // tells leaves the state.
+          const cut = size > trimAt * 1.25 ? newest : Math.min(told, newest);
+          if (cut > storyFrom(next)) {
+            node.trimmed = next[cut - 1]!.id;
+            const known = Math.min(cut, told);
+            if (known > 0) node.state = trimState(node.state, next[known - 1]!.state, w.state);
+          } else console.warn("trim.waiting", "the timeline has not caught up yet");
         } catch (error) {
-          console.warn("memory.failed", error instanceof Error ? error.message : error); // tried again next turn
+          console.warn("trim.failed", error instanceof Error ? error.message : error); // the story is kept whole
         }
       }
       // Secrets buried in the turn this one grows from while it was being written come along.
@@ -461,6 +587,13 @@ export function createApi(
       // Every few turns the AI buries new secrets in what has happened, unless plenty still wait.
       const hidden = node.state.facts.filter((f) => f.secret && !f.revealed).length;
       if (path.length % BURY_EVERY === 0 && hidden < MAX_HIDDEN) buryLater(s.id);
+      if (next.length - 1 - chronicleOf(next).at >= chronicleTurns) chronicleLater(s.id);
+      // ponytail: a sweep of the whole tree every ten turns; a per-turn single forget if the tree gets huge.
+      try {
+        if (next.length % chronicleTurns === 0) forgetOldStates(w.id);
+      } catch (error) {
+        console.warn("forget.failed", error instanceof Error ? error.message : error);
+      }
     } catch (error) {
       console.warn("turn.failed", error instanceof Error ? error.message : error);
       event("error", { message: error instanceof Error ? error.message : "The turn failed" });
@@ -533,6 +666,7 @@ export function createApi(
           if (body.headId !== undefined) {
             const target = store.node(str(body.headId, 64));
             if (!target || target.worldId !== s.worldId) fail(400, "Unknown turn");
+            if (!target.state) fail(400, "That turn is too far back to resume; go back to a nearby saved point");
             next.headId = target.id;
           }
           store.putSave(next);
@@ -547,6 +681,7 @@ export function createApi(
           const body = await readJson(req);
           const target = store.node(str(body.nodeId, 64) || s.headId);
           if (!target || target.worldId !== s.worldId) fail(400, "Unknown turn");
+          if (!target.state) fail(400, "That turn is too far back to resume; go back to a nearby saved point");
           const branch: Save = {
             ...s,
             id: randomUUID(),
@@ -582,15 +717,20 @@ export function createApi(
           if (busy.has(s.id)) fail(409, "A turn is being written");
           busy.add(s.id);
           try {
-            const { changes, hooks, failed } = await record(world(s.worldId), parent.state, head.story, head.actor);
+            // A turn that failed to record kept its parent's state, should the parent have let go of it.
+            const before = parent.state ?? head.state;
+            const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor);
             if (failed) fail(502, "Could not record the changes");
-            const { state, applied } = applyChanges(parent.state, changes);
+            const { applied, state: changed } = applyChanges(before, changes);
             const { recordsFailed: _, ...rest } = store.node(head.id)!;
-            // What a memory written on this turn took over stays out of what the model reads.
-            const archived = new Set([...rest.state.facts, ...rest.state.threads].filter((x) => x.archived).map((x) => x.id));
-            state.facts = state.facts.map((f) => (archived.has(f.id) ? { ...f, archived: true } : f));
-            state.threads = state.threads.map((t) => (archived.has(t.id) ? { ...t, archived: true } : t));
-            const node: TurnNode = { ...rest, changes: applied, hooks, state: carrySecrets(rest.state, state) };
+            // What a trim on this turn took out stays out: as in `turn`, what the timeline told by the cut.
+            const path = store.path(head.id);
+            const known = rest.trimmed
+              ? Math.min(path.findIndex((n) => n.id === rest.trimmed) + 1, chronicleOf(path).at + 1)
+              : 0;
+            const told = known > 0 ? path[known - 1]!.state : undefined;
+            const state = carrySecrets(rest.state, told ? trimState(changed, told, world(s.worldId).state) : changed);
+            const node: TurnNode = { ...rest, changes: applied, hooks, state };
             store.putNode(node);
             return send(res, 200, view(save(s.id)));
           } finally {

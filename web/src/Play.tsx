@@ -11,7 +11,7 @@ interface Pending {
   actor: string;
   input: string;
   story: string;
-  phase: "story" | "changes" | "memory";
+  phase: "story" | "changes";
   error: string;
   since: number;
 }
@@ -30,6 +30,8 @@ function describe(c: Change): string {
       return c.name;
     case "status":
       return `${c.character}${sep}${c.notes}`;
+    case "persona":
+      return `${c.character}${sep}${c.persona || c.goals}`;
     case "fact":
       return c.text;
     case "reveal":
@@ -132,7 +134,7 @@ export function Play({ saveId }: { saveId: string }) {
     try {
       const node = await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
-        phase: (name) => setPending((p) => p && { ...p, phase: name === "memory" ? "memory" : "changes" }),
+        phase: () => setPending((p) => p && { ...p, phase: "changes" }),
       });
       await load();
       setPending(null);
@@ -186,24 +188,29 @@ export function Play({ saveId }: { saveId: string }) {
   const placeName = (id: string | null) => state.places.find((p) => p.id === id)?.name;
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
   const known = state.facts.filter((f) => !f.secret);
-  const memory = path.findLast((n) => n.memory)?.memory;
+  const chronicled = path.findLast((n) => Array.isArray(n.timeline));
+  // Older turns keep only their story; one every ten, and the newest ten, can still be returned to.
+  const byId = new Map(tree.map((n) => [n.id, n]));
+  const children = Map.groupBy(tree, (n) => n.parentId);
+  const resumable = (id: string) => byId.get(id)?.resumable ?? false;
+  const span = (from: number, to: number) => (lang === "zh" ? `第 ${from}–${to} 回合` : `Turns ${from}–${to}`);
   const secrets = state.facts.filter((f) => f.secret);
   const hidden = secrets.filter((f) => !f.revealed);
 
   const turnView = (node: TurnNode, i: number) => {
     const next = path[i + 1];
-    const others = tree.filter((n) => n.parentId === node.id && n.id !== next?.id);
+    const others = (children.get(node.id) ?? []).filter((n) => n.id !== next?.id);
     return (
       <article className="turn" key={node.id}>
         {i > 0 && (
           <p className="action">
-            <strong>{actorLabel(path[i - 1]!.state, node.actor)}</strong>
+            <strong>{actorLabel(state, node.actor)}</strong>
             {node.input ? `${sep}${node.input}` : ` · ${t("Let it unfold")}`}
           </p>
         )}
         <Paragraphs text={node.story} />
         {node.changes.map((c) => {
-          const found = c.type === "reveal" && node.state.facts.find((f) => f.id === c.fact);
+          const found = c.type === "reveal" && state.facts.find((f) => f.id === c.fact);
           return (
             found && (
               <p className="found" key={c.fact}>
@@ -234,14 +241,16 @@ export function Play({ saveId }: { saveId: string }) {
         )}
         {!busy && (
           <div className="turn-tools">
-            {node !== head && (
+            {node !== head && resumable(node.id) && (
               <button className="link" onClick={() => goTo(node.id)}>
                 {t("Go back here")}
               </button>
             )}
-            <button className="link" onClick={() => branch(node.id)}>
-              {t("Branch from here")}
-            </button>
+            {resumable(node.id) && (
+              <button className="link" onClick={() => branch(node.id)}>
+                {t("Branch from here")}
+              </button>
+            )}
             {others.length > 0 && (
               <span className="muted small">
                 {t("Other paths")}:
@@ -298,11 +307,7 @@ export function Play({ saveId }: { saveId: string }) {
             <Paragraphs text={pending.story} />
             {!pending.error && (
               <p className="muted small">
-                {pending.phase === "memory" ? (
-                  <>
-                    {t("The story has grown long: writing it into memory…")} <Elapsed since={pending.since} />
-                  </>
-                ) : pending.phase === "changes" ? (
+                {pending.phase === "changes" ? (
                   t("Recording what changed…")
                 ) : pending.story ? (
                   t("Writing…")
@@ -382,7 +387,7 @@ export function Play({ saveId }: { saveId: string }) {
             <button className="primary" type="submit" disabled={busy && !canQueue}>
               {busy ? t("Send when ready") : input.trim() ? t("Send") : t("Let it unfold")}
             </button>
-            {head.parentId && (
+            {head.parentId && resumable(head.parentId) && (
               <button type="button" className="link" disabled={busy} onClick={() => goTo(head.parentId!)}>
                 {t("Undo last turn")}
               </button>
@@ -400,11 +405,11 @@ export function Play({ saveId }: { saveId: string }) {
             </button>
           </div>
 
-          {panel === "history" && memory && (
+          {panel === "history" && chronicled?.memory?.length ? (
             <section className="memory">
               <h3>{t("Memory")}</h3>
               <ul>
-                {memory.notes.map((note, i) => (
+                {chronicled.memory.map((note, i) => (
                   <li key={i}>
                     <span className="muted small">{lang === "zh" ? `第 ${note.turn} 回合` : `Turn ${note.turn}`}</span>{" "}
                     {note.text}
@@ -412,7 +417,19 @@ export function Play({ saveId }: { saveId: string }) {
                 ))}
               </ul>
             </section>
-          )}
+          ) : null}
+          {panel === "history" && chronicled?.timeline?.length ? (
+            <details className="memory">
+              <summary>{t("Timeline")}</summary>
+              <ul>
+                {chronicled.timeline.map((entry) => (
+                  <li key={entry.from}>
+                    <span className="muted small">{span(entry.from, entry.to)}</span> {entry.text}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
           {panel === "history" && path.slice(0, -1).map(turnView)}
 
           {panel === "world" && (

@@ -28,7 +28,7 @@ export interface Fact {
   source: "author" | "ai" | "story";
   /** How the story brought a secret out, in a sentence for the discovery book. */
   revealNote?: string;
-  /** Folded into the memory: kept for the player, no longer sent to the model. */
+  /** Its turns were trimmed from what the model reads: kept for the player, no longer sent. */
   archived?: boolean;
 }
 
@@ -37,7 +37,7 @@ export interface Thread {
   title: string;
   resolved: boolean;
   resolution: string;
-  /** Faded out when the memory was written: kept for the player, no longer sent to the model. */
+  /** Its turns were trimmed from what the model reads: kept for the player, no longer sent. */
   archived?: boolean;
 }
 
@@ -102,6 +102,7 @@ export type Change =
   | { type: "place"; name: string; description: string; note: string }
   | { type: "character"; name: string; persona: string; place: string; note: string }
   | { type: "status"; character: string; notes: string; note: string }
+  | { type: "persona"; character: string; persona: string; goals: string; note: string }
   | { type: "fact"; text: string; note: string }
   | { type: "reveal"; fact: string; note: string }
   | { type: "learn"; character: string; fact: string; note: string }
@@ -127,11 +128,21 @@ export interface TurnNode {
   /** The story was kept but its changes could not be read; the player can ask again. */
   recordsFailed?: boolean;
   /**
-   * Set when the story grew too long for the model: notes on every turn up to `through`, whose text is no longer
-   * sent. Later turns find it by walking back along their path.
+   * Written every few turns on the last turn they cover: the memory (the most important things, as they stand now)
+   * and the timeline (what happened, in order). Later turns find the latest by walking back along their path.
    */
-  memory?: { notes: MemoryNote[]; through: string };
+  memory?: MemoryNote[];
+  timeline?: TimelineEntry[];
+  /** Set when the story grew too long for the model: the turns up to this one are no longer sent, only the timeline. */
+  trimmed?: string;
   createdAt: string;
+}
+
+/** What happened in turns `from` to `to`, told briefly. Older entries are merged into fewer, briefer ones. */
+export interface TimelineEntry {
+  from: number;
+  to: number;
+  text: string;
 }
 
 /** One thing worth remembering from earlier turns, dated by the turn it last changed in. */
@@ -147,12 +158,17 @@ export interface NodeSummary {
   actor: Actor;
   input: string;
   createdAt: string;
+  /** The turn still keeps its whole world state, so the player can go back to it or branch from it. */
+  resumable: boolean;
 }
 
 export interface SaveView {
   save: Save;
   world: World;
-  /** From the opening to the current head. */
+  /**
+   * From the opening to the current head. Only the head carries its world state, and only the latest turn with a
+   * timeline carries the timeline and the memory: a long game would otherwise send megabytes on every turn.
+   */
   path: TurnNode[];
   tree: NodeSummary[];
 }

@@ -44,21 +44,40 @@ export interface ModelConfig {
 
 export function openAICompatibleModel(config: ModelConfig): Model {
   const profile = readProfile(config.profilePath);
-  const request = (messages: Message[], extra: Record<string, unknown>) =>
+  const send = (messages: Message[], extra: Record<string, unknown>, signal: AbortSignal) =>
     fetch(profile.endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${profile.key}` },
       body: JSON.stringify({
         model: config.model,
         messages,
+        // Left out, the provider cut replies at about 8K tokens (2026-10-18); a compressed story runs longer.
+        max_tokens: 50_000,
         ...(config.reasoning ? { reasoning_effort: config.reasoning } : {}),
         ...extra,
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal,
     }).catch((error: Error) => {
       console.warn("model.unreachable", error.message);
       throw new Error("Could not reach the model");
     });
+  // The provider now and then fails a good request (a 400 "Invalid request parameters" about one in eight times on
+  // 2026-10-18, or a 429 or 5xx); after a short wait it passes.
+  const request = async (
+    messages: Message[],
+    extra: Record<string, unknown>,
+    signal: AbortSignal = AbortSignal.timeout(180_000),
+  ) => {
+    for (let attempt = 1; ; attempt++) {
+      const response = await send(messages, extra, signal);
+      if (response.ok || attempt === 3 || ![400, 429, 500, 502, 503, 504].includes(response.status)) return response;
+      const body = await response.text();
+      // Too long a prompt or too high a max_tokens fails every time: give up at once.
+      if (/max_tokens|context|too long|maximum/i.test(body)) return new Response(body, { status: response.status });
+      console.warn("model.retry", response.status, body.slice(0, 200));
+      await new Promise((done) => setTimeout(done, attempt * 1500));
+    }
+  };
   // The provider's own words go to the server log; the player gets a plain sentence.
   const failed = async (response: Response) => {
     console.warn("model.failed", response.status, (await response.text()).slice(0, 300));
@@ -68,11 +87,15 @@ export function openAICompatibleModel(config: ModelConfig): Model {
   return {
     async *stream(messages, options) {
       const json = options?.json ? { response_format: { type: "json_object" } } : {};
-      const response = await request(messages, { stream: true, ...json });
+      // A long reply may take minutes to write, so a stream is given up only when it goes quiet for 3 minutes.
+      const quiet = new AbortController();
+      const timer = setTimeout(() => quiet.abort(new Error("The model went quiet")), 180_000).unref();
+      const response = await request(messages, { stream: true, ...json }, quiet.signal);
       if (!response.ok || !response.body) throw await failed(response);
       const decoder = new TextDecoder();
       let buffer = "";
       for await (const chunk of response.body) {
+        timer.refresh();
         buffer += decoder.decode(chunk, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
@@ -84,6 +107,7 @@ export function openAICompatibleModel(config: ModelConfig): Model {
           if (piece) yield piece;
         }
       }
+      clearTimeout(timer);
     },
     async json(messages) {
       const response = await request(messages, { response_format: { type: "json_object" } });
@@ -105,7 +129,9 @@ function closeOf(json: string, start: number): number {
 
 /**
  * Reads the string value of `key` in the outer object of a JSON reply that may still be arriving: the text so far,
- * and whether the string has closed. Lets the story inside a JSON reply reach the player as it is written.
+ * and whether the string has closed. Lets the story inside a JSON reply reach the player as it is written. The model
+ * now and then quotes speech with a bare " inside the story; a quote is taken as the end only when a comma or brace
+ * follows it.
  */
 export function readString(json: string, key: string): { text: string; done: boolean } {
   let depth = 0;
@@ -134,7 +160,14 @@ export function readString(json: string, key: string): { text: string; done: boo
   let text = "";
   for (let i = open; i < json.length; i++) {
     const c = json[i]!;
-    if (c === '"') return { text, done: true };
+    if (c === '"') {
+      // The end is a quote before the next key or the closing brace; "no", then left is still the story.
+      const rest = json.slice(i + 1, i + 40);
+      if (/^\s*(,\s*)?$/.test(rest)) break; // wait for what follows
+      if (/^\s*(}|,\s*")/.test(rest)) return { text, done: true };
+      text += c;
+      continue;
+    }
     if (c !== "\\") {
       text += c;
       continue;
@@ -154,30 +187,71 @@ export function readString(json: string, key: string): { text: string; done: boo
   return { text, done: false };
 }
 
-/** Reads a JSON object out of model text, tolerating code fences around it. */
+/**
+ * Reads a JSON object out of model text, tolerating code fences around it, and bare quotes inside its strings (the
+ * model now and then quotes a name or a line of speech with " and does not escape it).
+ */
 export function parseJsonObject(text: string): unknown {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) throw new Error("The model did not return a JSON object");
-  return JSON.parse(text.slice(start, end + 1));
+  const json = text.slice(start, end + 1);
+  try {
+    return JSON.parse(json);
+  } catch (error) {
+    try {
+      return JSON.parse(escapeBareQuotes(json));
+    } catch {
+      throw error;
+    }
+  }
+}
+
+/** Escapes each quote inside a string that is not followed by what may follow a string's end. */
+function escapeBareQuotes(json: string): string {
+  let out = "";
+  let inString = false;
+  for (let i = 0; i < json.length; i++) {
+    const c = json[i]!;
+    if (inString && c === "\\") {
+      out += c + (json[++i] ?? "");
+      continue;
+    }
+    if (c === '"') {
+      if (!inString) inString = true;
+      else if (/^\s*([:}\]]|,\s*(["[{\d-]|true|false|null))/.test(json.slice(i + 1, i + 40)) || i === json.length - 1)
+        inString = false;
+      else {
+        out += '\\"';
+        continue;
+      }
+    }
+    out += c;
+  }
+  return out;
 }
 
 /** A stand-in for tests and for trying the interface without a key. */
 export function fakeModel(): Model {
   return {
     async *stream(messages) {
-      if (messages[0]?.content.includes("long-term memory")) {
-        const turns = [...(messages.at(-1)?.content ?? "").matchAll(/\[Turn (\d+)\]/g)].map((m) => Number(m[1]));
-        yield JSON.stringify({
-          memory: [{ turn: Math.max(0, ...turns), text: `Remembered ${turns.length} turns.` }],
-          dropFacts: [],
-          closeThreads: [],
-        });
+      const last = messages.at(-1)?.content ?? "";
+      if (messages[0]?.content.includes("timeline and the long-term memory")) {
+        const turns = [...last.matchAll(/\[Turn (\d+)\]\n/g)].map((m) => Number(m[1]));
+        const span = `${turns[0]}-${turns.at(-1)}`;
+        yield JSON.stringify({ timeline: `Turns ${span} went by.`, memory: [`[Turn ${turns.at(-1)}] Remembered ${span}.`] });
         return;
       }
-      const last = messages.at(-1)?.content ?? "";
+      if (messages[0]?.content.includes("its oldest entries become one")) {
+        const spans = [...last.matchAll(/\[Turns (\d+)-(\d+)\]/g)];
+        yield JSON.stringify({ text: `Merged turns ${spans[0]![1]}-${spans.at(-1)![2]}.` });
+        return;
+      }
       const action = /Player's action: (.*)/.exec(last)?.[1] ?? "";
-      const changes = JSON.stringify([{ type: "clock", text: "A little later", note: "Time passes." }]);
+      const changes = JSON.stringify([
+        { type: "clock", text: "A little later", note: "Time passes." },
+        ...(action ? [{ type: "fact", text: `Seen: ${action}`, note: "" }] : []),
+      ]);
       const hooks = JSON.stringify(["Look around", "Ask what happened", "Wait and listen"]);
       // One JSON reply in the asked order, cut where a real stream may cut it: inside an escape.
       for (const piece of [

@@ -85,7 +85,7 @@ const zh: Record<string, string> = {
   "Story so far": "前情",
   World: "世界",
   Close: "关闭",
-  "The story has grown long: writing it into memory…": "故事已经很长了，正在整理记忆…",
+  Timeline: "时间线",
   Memory: "记忆",
   "learned something": "知道了一件事",
   "Say what to change": "先写下想改哪里",

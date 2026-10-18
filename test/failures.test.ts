@@ -16,6 +16,7 @@ const mode = {
   noRecord: false,
   cutAfterStory: false,
   noHooks: false,
+  bareQuote: false,
   jsonFails: false,
   hold: null as Promise<void> | null,
   buryHold: null as Promise<void> | null,
@@ -27,6 +28,11 @@ const model: Model = {
     if (mode.streamFails) {
       yield '{"story": "Half a sentence';
       throw new Error("provider dropped");
+    }
+    if (mode.bareQuote) {
+      yield '{"story": "他说"走"，';
+      yield '就走了。", "changes": [{"type": "clock", "text": "Dusk"}], "hooks": ["Wait"]}';
+      return;
     }
     for await (const piece of fake.stream(messages)) {
       const record = piece.startsWith(', "changes"');
@@ -130,6 +136,22 @@ test("one turn at a time, known actors only, JSON only", async () => {
   assert.equal(plain.status, 415, "a cross-site form post is refused");
 });
 
+test("speech quoted with a bare quote keeps the story and the record", async () => {
+  const save = await newSave();
+  mode.bareQuote = true;
+  mode.jsonFails = true; // the record must come from the reply itself
+  try {
+    await (await post(`/saves/${save.id}/turn`, { input: "go" })).text();
+  } finally {
+    mode.bareQuote = false;
+    mode.jsonFails = false;
+  }
+  const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
+  assert.equal(head.story, '他说"走"，就走了。');
+  assert.equal(head.state.clock, "Dusk");
+  assert.deepEqual(head.hooks, ["Wait"]);
+});
+
 test("the story is read out of a JSON reply while it arrives", () => {
   assert.deepEqual(readString('{"story": "Snow', "story"), { text: "Snow", done: false });
   assert.deepEqual(readString('{"story": "Snow\\', "story"), { text: "Snow", done: false }, "a cut escape waits");
@@ -147,11 +169,24 @@ test("the story is read out of a JSON reply while it arrives", () => {
     "only the outer object",
   );
   assert.deepEqual(readString('{"changes": []', "story"), { text: "", done: false });
+  // Speech quoted with a bare " stays in the story: only a quote before a comma or brace ends it.
+  assert.deepEqual(readString('{"story": "他说"走"', "story"), { text: '他说"走', done: false }, "a quote waits for what follows");
+  assert.deepEqual(readString('{"story": "他说"走"，就走了。" , "changes": []}', "story"), {
+    text: '他说"走"，就走了。',
+    done: true,
+  });
+  assert.deepEqual(readString('{"story": "She said "no", then left.", "changes": []}', "story"), {
+    text: 'She said "no", then left.',
+    done: true,
+  });
 });
 
 test("parseJsonObject reads past code fences", () => {
   assert.deepEqual(parseJsonObject('```json\n{"a": 1}\n```'), { a: 1 });
   assert.throws(() => parseJsonObject("no json here"));
+  assert.deepEqual(parseJsonObject('{"memory": [{"turn": 3, "text": "她叫他"老六"，\\"别走\\""}, {"turn": 4}]}'), {
+    memory: [{ turn: 3, text: '她叫他"老六"，"别走"' }, { turn: 4 }],
+  });
 });
 
 test("suggestions written while secrets are buried keep the secrets", async () => {
@@ -215,10 +250,10 @@ test("secrets buried for a turn stay with it when the player undoes past what ca
   mode.buryHold = null;
   releaseBury();
   await sleep(); // the secrets land in the opening and the turn grown from it
-  const secrets = (v: SaveView, i: number) => v.path[i]!.state.facts.filter((f) => f.secret).length;
+  // Only the head of a view carries its state.
+  const secrets = (v: SaveView) => v.path.at(-1)!.state.facts.filter((f) => f.secret).length;
   let view = await get(`/saves/${save.id}`);
-  assert.equal(secrets(view, 0), 1, "in the opening they were written for");
-  assert.equal(secrets(view, 1), 1, "and in the turn played meanwhile");
+  assert.equal(secrets(view), 1, "in the turn played meanwhile");
   view = (await (
     await fetch(`${base}/saves/${save.id}`, {
       method: "PATCH",
@@ -226,7 +261,7 @@ test("secrets buried for a turn stay with it when the player undoes past what ca
       body: JSON.stringify({ headId: view.path[0]!.id }),
     })
   ).json()) as SaveView;
-  assert.equal(secrets(view, 0), 1, "undoing to the opening keeps them");
+  assert.equal(secrets(view), 1, "and in the opening they were written for, which an undo goes back to");
 });
 
 test("hooks the reply left off are filled in", async () => {
