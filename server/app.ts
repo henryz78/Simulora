@@ -303,7 +303,8 @@ export function createApi(
     const notes = list(report.memory)
       .map((n) => ({ turn: typeof n.turn === "number" ? Math.round(n.turn) : 0, text: str(n.text, 600).trim() }))
       .filter((n) => n.text)
-      .slice(0, 60);
+      .slice(0, 60)
+      .sort((a, b) => a.turn - b.turn);
     if (notes.length === 0) throw new Error("The memory came back empty");
     const drop = new Set(Array.isArray(report.dropFacts) ? report.dropFacts : []);
     const close = new Set(Array.isArray(report.closeThreads) ? report.closeThreads : []);

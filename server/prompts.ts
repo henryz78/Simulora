@@ -224,8 +224,10 @@ Return one JSON object: {"memory": [{"turn": number, "text": "..."}], "dropFacts
   promises, debts, plans, grudges and favours; where important things are and who has them; who knows what;
   how the relationships turned; clues found; injuries and losses; anything still unresolved.
 - Leave out the ordinary: scenery, small talk, moments that changed nothing.
-- When something changed, keep only how it stands now and date the note by the turn it last changed. Newer
-  turns win over older notes. Merge notes about the same thing; drop notes that no longer matter.
+- One note per thing. When a later turn changes where something is, who has it, or how something stands, write
+  one note with how it stands now, dated by the turn it last changed, and drop the older note: a key moved from
+  a tin to a box is one note saying it is in the box. Newer turns win over older notes. Drop notes that no
+  longer matter.
 - Never write a secret the player has not discovered; the secrets in the world state stay secrets.
 - At most 40 notes, one or two sentences each, in the world's own language, oldest first.
 
