@@ -379,26 +379,68 @@ export interface PlainDraft {
   relationships: { a: string; b: string; text: string }[];
 }
 
-const DRAFT_FORMAT = `Return one JSON object:
-{"title": ..., "premise": "two or three sentences", "opening": "one vivid paragraph: the first moment of the story",
- "clock": "the time when the story starts", "places": [{"name": ..., "description": ...}],
- "characters": [{"name": ..., "persona": "who they are (man or woman), how they act", "goals": "what they want", "place": a place name}],
- "facts": ["things everyone knows"], "threads": ["open questions that pull the story"],
- "relationships": [{"a": name, "b": name, "text": "how they stand"}]}
-Give three to five characters whose goals pull against each other, two to four places, a few facts and one or two
-open questions. Leave out secrets: the AI buries those when the story starts. Write in the language of the player's
-own words.`;
+// A world has to carry a story of hundreds of turns. The first prompt asked for "three to five characters, a few facts"
+// and the worlds came out thin (the player, 2026-10-18).
+const DRAFT_GUIDE = `You design the world of an interactive story the player will play for a long time, hundreds of turns:
+as one character, or as a director who changes the world. Build from the player's answers below; where they leave
+something open, choose what makes the best story. The world must be rich enough to carry that long story.
+
+- "title": a short, evocative name.
+- "premise": three to five sentences: the situation, what is at stake, and why it starts now.
+- "opening": the first scene, 300 to 600 characters (or 200 to 400 words): the player's character in a concrete
+  moment, something already happening that asks for a response, ending open, with no choice made for them.
+- "clock": when the story starts, a few words.
+- "characters": the player's character first, then the people the story needs: four to six for a small world (one
+  place, a few people), six to eight for a middling one, eight to ten for a large one. For each:
+  - "persona": sex and age; how they look, in a phrase; their temperament, with one contradiction; how they talk
+    (a habit, a turn of phrase); their past in one sentence;
+  - "goals": what they want now, and what they would never do;
+  - "place": where they are at the start.
+  Every one has a reason to cross the player's character's path, and their goals pull against each other.
+- "places": three to eight, by the size of the world: how each looks, sounds and smells, who is usually there, and
+  what can happen there.
+- "facts": six to ten things everyone in the world knows: its rules (magic, technology, law), history, customs,
+  who holds power, what things cost.
+- "threads": two to four open questions or tensions that can drive the story, at least one of them personal to
+  the player's character.
+- "relationships": between the important people, each with a tension or a bond (a debt, a rivalry, a love, a
+  shared past).
+
+Names, speech and things fit the era and culture; nothing out of its time. Avoid clichés: give each person and
+place one particular detail. If the player names an existing work, stay true to its setting and characters. Leave
+out secrets: they are hidden when the story starts. Write in the language of the player's own words.`;
+
+const DRAFT_FORMAT = `Reply with one JSON object and nothing else:
+{"title": ..., "premise": ..., "opening": ..., "clock": ...,
+ "characters": [{"name": ..., "persona": ..., "goals": ..., "place": a place name}],
+ "places": [{"name": ..., "description": ...}], "facts": [...], "threads": [...],
+ "relationships": [{"a": name, "b": name, "text": "how they stand"}]}`;
 
 export function draftMessages(idea: string, draft: PlainDraft | null, feedback: string): Message[] {
   const user = draft
-    ? `The player's idea: ${idea}\n\nThe current draft:\n${JSON.stringify(draft)}\n\n` +
+    ? `The player's answers:\n${idea}\n\nThe current draft:\n${JSON.stringify(draft)}\n\n` +
       `Change the draft as the player asks and keep the rest: ${feedback}`
-    : `The player's idea: ${idea}`;
+    : `The player's answers:\n${idea}`;
   return [
-    {
-      role: "system",
-      content: `You help a player build a world for an interactive story they will play.\n\n${DRAFT_FORMAT}\n${CONTENT_LINE}`,
-    },
+    { role: "system", content: `${DRAFT_GUIDE}\n\n${DRAFT_FORMAT}\n${CONTENT_LINE}` },
     { role: "user", content: user },
   ];
+}
+
+/**
+ * The same request as one message the player can paste into another AI (one that can search the web for an
+ * existing work, and that they can talk the world over with); its JSON reply is pasted back.
+ */
+export function draftPrompt(idea: string): string {
+  return [
+    DRAFT_GUIDE,
+    "If the player's answers name an existing novel, game or film and you can search the web, look up its setting " +
+      "and characters first. The player may ask you to change the world afterwards; each time, reply with the " +
+      "whole JSON object again.",
+    "",
+    DRAFT_FORMAT,
+    CONTENT_LINE,
+    "",
+    `The player's answers:\n${idea}`,
+  ].join("\n");
 }

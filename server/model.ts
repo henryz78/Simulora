@@ -242,6 +242,10 @@ export function fakeModel(): Model {
         yield JSON.stringify({ timeline: `Turns ${span} went by.`, memory: [`[Turn ${turns.at(-1)}] Remembered ${span}.`] });
         return;
       }
+      if (messages[0]?.content.includes("You design the world")) {
+        yield JSON.stringify(await fakeModel().json(messages));
+        return;
+      }
       if (messages[0]?.content.includes("its oldest entries become one")) {
         const spans = [...last.matchAll(/\[Turns (\d+)-(\d+)\]/g)];
         yield JSON.stringify({ text: `Merged turns ${spans[0]![1]}-${spans.at(-1)![2]}.` });
@@ -269,7 +273,7 @@ export function fakeModel(): Model {
       const system = messages[0]?.content ?? "";
       if (system.includes("hide its secrets"))
         return { secrets: [{ text: `A buried secret, told in ${messages.at(-1)!.content.length} characters.`, knownBy: [] }] };
-      if (system.includes("build a world"))
+      if (system.includes("You design the world"))
         return {
           title: "Fake Harbor",
           premise: "A harbor where the lighthouse came back on.",

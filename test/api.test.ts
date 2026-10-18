@@ -102,6 +102,22 @@ test("the AI drafts a world and buries secrets at the start and as the story goe
   assert.equal(draft.state.characters[0]!.placeId, draft.state.places[0]!.id, "places are matched by name");
   assert.equal(draft.state.facts.length, 1);
 
+  // The same request, to paste into another AI, and its reply pasted back.
+  const { prompt } = await call<{ prompt: string }>("POST", "/drafts/prompt", { idea: "a harbor town" });
+  assert.match(prompt, /a harbor town/);
+  assert.match(prompt, /search the web/);
+  const reply = '```json\n{"title": "Pasted", "opening": "Rain.", "characters": [{"name": "Lin", "persona": "She says "no" often"}]}\n```';
+  const pasted = await call<World>("POST", "/drafts/import", { text: reply });
+  assert.equal(pasted.title, "Pasted");
+  assert.equal(pasted.state.characters[0]!.persona, 'She says "no" often', "a bare quote in another AI's reply is read");
+  const refused = await fetch(`${base}/drafts/import`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text: "Sorry, I can't." }),
+  });
+  assert.equal(refused.status, 400);
+  assert.match(((await refused.json()) as { error: string }).error, /not a world/);
+
   const world = await call<World>("POST", "/worlds", draft);
   const save = await call<Save>("POST", "/saves", { worldId: world.id });
   // The first turn waits for the secrets buried at the start.

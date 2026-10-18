@@ -28,6 +28,7 @@ import {
   buryMessages,
   changeMessages,
   draftMessages,
+  draftPrompt,
   hookMessages,
   chronicleMessages,
   chronicleOf,
@@ -630,9 +631,29 @@ export function createApi(
           if (!idea) fail(400, "Describe the world first");
           const draft = body.draft ? toPlain(normalizeDraft(body.draft)) : null;
           if (draft && !str(body.feedback).trim()) fail(400, "Say what to change");
-          const ask = () => writer.json(draftMessages(idea, draft, str(body.feedback).trim()));
-          const result = fromPlain(await ask().catch(ask));
+          // A world is built once and carries the whole game, so it is thought through; quickly if that fails.
+          const messages = draftMessages(idea, draft, str(body.feedback).trim());
+          const result = fromPlain(await carefully((by) => streamJson(by, messages)));
           if (!result.opening || result.state.characters.length === 0) fail(502, "The model gave no usable world");
+          return send(res, 200, result);
+        }
+        case "POST /drafts/:id": {
+          const body = await readJson(req);
+          // The request for another AI, and the world it built, pasted back by the player.
+          if (id === "prompt") {
+            const idea = str(body.idea).trim();
+            if (!idea) fail(400, "Describe the world first");
+            return send(res, 200, { prompt: draftPrompt(idea) });
+          }
+          if (id !== "import") fail(404, "Not found");
+          let result: WorldDraft | undefined;
+          try {
+            result = fromPlain(parseJsonObject(str(body.text, 200_000)));
+          } catch {
+            fail(400, "That is not a world: paste the AI's whole reply");
+          }
+          if (!result.opening || result.state.characters.length === 0)
+            fail(400, "That world has no opening or no one in it");
           return send(res, 200, result);
         }
         case "GET /worlds/:id":

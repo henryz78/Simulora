@@ -13,13 +13,51 @@ const emptyDraft = (): WorldDraft => ({
   state: { clock: "", places: [], characters: [], facts: [], threads: [], relationships: [] },
 });
 
-/** Describe a world, get a proposal, ask for changes, then fill the editor with it. */
+/** A few questions instead of one empty box; only the first must be answered (the player, 2026-10-18). */
+const QUESTIONS = [
+  { key: "What story do you want to play? A sentence is enough.", chips: [] },
+  { key: "When and where?", chips: ["Ancient China", "Republic era", "Today", "The future", "A fantasy world"] },
+  { key: "What mood?", chips: ["Mystery", "Warm", "Adventure", "Light-hearted", "Epic", "Everyday life"] },
+  { key: "Who do you want to play?", chips: [] },
+  { key: "What is the main conflict?", chips: [] },
+  { key: "Anyone you want in it?", chips: [] },
+  { key: "A work or style to follow?", chips: [] },
+  { key: "How big a world?", chips: ["Small: one place, a few people", "Middling", "Large: travel far"] },
+];
+
+/** Answer a few questions, get a proposal (here or from another AI), ask for changes, then fill the editor. */
 function AiDraft({ onFill }: { onFill: (draft: WorldDraft) => void }) {
-  const [idea, setIdea] = useState("");
+  const [answers, setAnswers] = useState<string[]>(QUESTIONS.map(() => ""));
   const [feedback, setFeedback] = useState("");
   const [proposal, setProposal] = useState<WorldDraft | null>(null);
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState("");
+  const [pasting, setPasting] = useState(false);
+  const [pasted, setPasted] = useState("");
+  const idea = QUESTIONS.map((q, i) => (answers[i]!.trim() ? `${t(q.key)} ${answers[i]!.trim()}` : ""))
+    .filter(Boolean)
+    .join("\n");
+  const answer = (i: number, value: string) => setAnswers((a) => a.map((x, j) => (j === i ? value : x)));
+  const elsewhere = async () => {
+    try {
+      await navigator.clipboard.writeText((await api.draftPrompt(idea)).prompt);
+      setPasting(true);
+      setStatus(t("Copied. Paste it into your AI, talk it over there, then paste its reply below."));
+    } catch (error) {
+      setStatus(t((error as Error).message));
+    }
+  };
+  const bringBack = async () => {
+    setWorking(true);
+    try {
+      setProposal(await api.importDraft(pasted));
+      setStatus("");
+    } catch (error) {
+      setStatus(t((error as Error).message));
+    } finally {
+      setWorking(false);
+    }
+  };
 
   const ask = async (revise: boolean) => {
     setWorking(true);
@@ -40,18 +78,44 @@ function AiDraft({ onFill }: { onFill: (draft: WorldDraft) => void }) {
   return (
     <section className="panel ai-draft">
       <h2>{t("Let the AI build a world")}</h2>
-      <textarea
-        rows={3}
-        placeholder={t("Describe the world you want: where, when, who, what is going on…")}
-        value={idea}
-        onChange={(e) => setIdea(e.target.value)}
-      />
+      <p className="small muted">{t("Answer what you like; the AI fills in the rest.")}</p>
+      {QUESTIONS.map((q, i) => (
+        <label key={q.key}>
+          {t(q.key)}
+          {i === 0 ? (
+            <textarea rows={2} value={answers[i]} onChange={(e) => answer(i, e.target.value)} />
+          ) : (
+            <input value={answers[i]} onChange={(e) => answer(i, e.target.value)} />
+          )}
+          {q.chips.length > 0 && (
+            <span className="chips">
+              {q.chips.map((chip) => (
+                <button type="button" key={chip} className="chip" onClick={() => answer(i, t(chip))}>
+                  {t(chip)}
+                </button>
+              ))}
+            </span>
+          )}
+        </label>
+      ))}
       <div className="row">
-        <button className="primary" disabled={!idea.trim() || working} onClick={() => ask(false)}>
+        <button className="primary" disabled={!answers[0]!.trim() || working} onClick={() => ask(false)}>
           {proposal ? t("Start over") : t("Build it")}
         </button>
-        {working && <span className="muted small">{t("The AI is thinking it up…")}</span>}
+        <button className="link" disabled={!answers[0]!.trim() || working} onClick={elsewhere}>
+          {t("Use your own AI instead (it can search the web)")}
+        </button>
+        {working && <span className="muted small">{t("The AI is thinking it up… (a few minutes)")}</span>}
       </div>
+      {pasting && (
+        <label>
+          {t("Paste your AI's reply here")}
+          <textarea rows={4} value={pasted} onChange={(e) => setPasted(e.target.value)} />
+          <button disabled={!pasted.trim() || working} onClick={bringBack}>
+            {t("Bring it in")}
+          </button>
+        </label>
+      )}
 
       {proposal && p && (
         <div className="proposal">

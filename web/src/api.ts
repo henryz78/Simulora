@@ -17,6 +17,8 @@ export const api = {
   createWorld: (draft: WorldDraft) => call<World>("POST", "/worlds", draft),
   draft: (idea: string, draft: WorldDraft | null, feedback: string) =>
     call<WorldDraft>("POST", "/drafts", { idea, draft, feedback }),
+  draftPrompt: (idea: string) => call<{ prompt: string }>("POST", "/drafts/prompt", { idea }),
+  importDraft: (text: string) => call<WorldDraft>("POST", "/drafts/import", { text }),
   updateWorld: (id: string, draft: WorldDraft) => call<World>("PUT", `/worlds/${id}`, draft),
   deleteWorld: (id: string) => call<object>("DELETE", `/worlds/${id}`),
   startSave: (worldId: string, title: string) => call<Save>("POST", "/saves", { worldId, title }),

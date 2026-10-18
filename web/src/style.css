@@ -397,3 +397,15 @@ details.memory > summary {
     opacity: 1;
   }
 }
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+button.chip {
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
