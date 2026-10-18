@@ -35,7 +35,7 @@ function describe(c: Change): string {
     case "reveal":
       return t("Revealed");
     case "learn":
-      return c.character;
+      return `${c.character} ${t("learned something")}`;
     case "relationship":
       return `${c.a} · ${c.b}${sep}${c.text}`;
     case "thread":

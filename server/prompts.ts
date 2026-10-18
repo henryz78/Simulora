@@ -8,6 +8,10 @@ const RECENT_TURNS = 6;
 const CONTENT_LINE =
   "Keep to these lines: nothing that helps with real-world crime, and no sexual or graphically violent content.";
 
+const SECRETS =
+  "Secrets are true but the player has not found them. Never state one in the story, the changes or the hooks " +
+  "unless the story earns it (a search, evidence, a confession); hints are welcome.";
+
 function actorName(state: WorldState, actor: string): string | null {
   return actor === "director" ? null : (state.characters.find((c) => c.id === actor)?.name ?? null);
 }
@@ -37,62 +41,39 @@ const pace: Record<Settings["pace"], string> = {
     "Drive the plot: bring in events, complications and surprises. The other characters take bold initiative.",
 };
 
-// The player picks the length in the settings. Numbers alone did not hold the model (800-1600 characters for
-// "250-450"); a sample for scale and a word against copying the earlier turns brought it to 450-520 (2026-10-18).
-const SAMPLE = `门轴吱呀一响，冷风卷着雪粒扑进来，油灯的火苗猛地矮了半截。老周抬起头，手里的铜壶停在半空。
-
-进门的是个裹着羊皮袄的年轻人，眉毛上结着霜。他把背上的包袱往柜台上一放，压低声音：“掌柜的，今晚还有空房吗？”
-
-角落里打盹的货郎睁开一只眼，又飞快地闭上。老周慢慢放下铜壶，用抹布擦了擦手：“有是有，就是这几天不太平。”
-
-年轻人笑了笑，没接话，只把包袱往自己怀里拢了拢，目光扫过墙上那张泛黄的告示。`;
-
+// The player picks the length. Numbers alone did not hold the model (800-1600 characters for "250-450"); with a
+// word against copying the earlier, longer turns it wrote about 450-550 (2026-10-18). A sample passage on top
+// changed little and was dropped.
 const size: Record<Settings["length"], string> = {
   short: "about 150 to 250 Chinese characters (100 to 160 English words), one or two short paragraphs",
   auto: "about 250 to 400 Chinese characters (150 to 250 English words), two to four short paragraphs",
   long: "about 600 to 900 Chinese characters (400 to 600 English words)",
 };
 const length = (choice: Settings["length"]) =>
-  `Write ${size[choice]}, with concrete detail, what the others do and say, and their reactions. Earlier passages ` +
-  "in the story may be longer; do not match their length. For scale only (not content or style), this sample " +
-  `is about 190 Chinese characters:\n${SAMPLE}\n`;
-
-/** The shape of a whole reply, shown in full so the model does not stop after the story. */
-const REPLY_SAMPLE = JSON.stringify({
-  changes: [{ type: "status", character: "老周", notes: "起了疑心", note: "老周对来客起了疑心。" }],
-  hooks: ["……", "……", "……"],
-  story: "……",
-});
+  `Write ${size[choice]}, with concrete detail and the others' words and reactions, never just a sentence or two. ` +
+  "Earlier passages may be longer; do not match their length.";
 
 /** Each turn stops where the player can act again, so the story never runs past what they would change. */
 const STOP =
-  "Carry out only this one action and the immediate response to it, then stop at the next moment where the " +
-  "player could act, choose or reply: someone asks them something, a door opens, a choice appears. Do not " +
-  "jump ahead in time and do not play out what comes after.";
+  "Carry out only this action and the immediate response to it, then stop at the next moment the player could " +
+  "act or reply: a question, a door opening, a choice. Do not jump ahead or play out what comes after.";
 
-const RECORD_FORMAT = `About "changes" and "hooks":
-
-"changes" lists every lasting change the passage made to the world. Use only these shapes, and refer to
-characters and places by name, to facts and threads by their [id]:
+// What comes before the story in a reply is written before the first words reach the player, so it is kept
+// short: only the changes that matter, short texts, and a note only on a reveal (for the discovery book).
+const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usually two to five. Refer to characters
+and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
 - {"type":"move","character":name,"place":name}  (a new place name creates the place)
-- {"type":"place","name":...,"description":...}
 - {"type":"character","name":...,"persona":...,"place":name}  (someone new appears)
-- {"type":"status","character":name,"notes":"how they are now, in one short phrase: mood, injuries, what they carry"}
-- {"type":"fact","text":...}  (something new and lasting became known)
-- {"type":"reveal","fact":id}  (only when the passage makes that secret plain)
+- {"type":"status","character":name,"notes":"how they are now, a few words"}
+- {"type":"fact","text":"one short sentence"}  (something new and lasting became known)
+- {"type":"reveal","fact":id,"note":"how it came out, one sentence"}  (only when the story makes the secret plain)
 - {"type":"learn","character":name,"fact":id}
 - {"type":"relationship","a":name,"b":name,"text":"how they stand now"}
-- {"type":"thread","title":"an open question the story raised"}
+- {"type":"thread","title":"a new open question"}
 - {"type":"resolve","thread":id,"resolution":...}
-- {"type":"clock","text":"the new time only, a few words"}
-Every change must also have "note": one short sentence for the player saying what changed. Call the characters
-by name, never "you". A note must not state a secret the player has not discovered; for one a character learns
-but the player does not, say only that they noticed something.
-Leave out anything that did not change. An empty list is fine.
-
-"hooks" gives two or three short next steps the player could take, each different (another character,
-another place, a bolder move), written as actions in the world's language. A hook must not give away a secret
-the player has not discovered.`;
+- {"type":"clock","text":"the new time, a few words"}
+"hooks" gives two or three short, different next steps (another person, another place, a bolder move), written
+as actions in the world's language.`;
 
 /** Hooks are moves for whoever the player is playing, not for the story's main character. */
 function hooksFor(state: WorldState, actor: string): string {
@@ -101,6 +82,13 @@ function hooksFor(state: WorldState, actor: string): string {
     ? `The player is playing ${name}: write each hook as something ${name} could do next.`
     : "The player is the director: hooks can be moves by any character or events in the world.";
 }
+
+/** The shape of a whole reply. With the story last and all keys shown, the model no longer stops early. */
+const REPLY_SAMPLE = JSON.stringify({
+  changes: [{ type: "status", character: "…", notes: "…" }],
+  hooks: ["…", "…", "…"],
+  story: "…",
+});
 
 export function narrationMessages(
   world: World,
@@ -111,43 +99,35 @@ export function narrationMessages(
 ): Message[] {
   const state = path.at(-1)!.state;
   const name = actorName(state, actor);
-  const voice =
-    settings.person === "second" && name
-      ? `Address ${name} as "you" (in Chinese, 你); the player is playing ${name}.`
-      : name
-        ? `Write in the third person, close to ${name}'s point of view.`
-        : "Write in the third person as an all-seeing narrator.";
-  const firstPerson = name
-    ? settings.person === "second"
-      ? `The player may write "I" (我); that is ${name}, written as "you".`
-      : `The player may write "I" (我); that is ${name}. Write it as ${name} or he/she, never as "you" (你).`
-    : "";
+  const voice = !name
+    ? "Write in the third person as an all-seeing narrator."
+    : settings.person === "second"
+      ? `Address ${name} as "you" (你). When the player writes "I" (我), that is ${name}.`
+      : `Write in the third person, close to ${name}. When the player writes "I" (我), that is ${name}: write ` +
+        `${name} or he/she, never "you" (你).`;
   const system = [
-    "You are the co-author of a living story world. The player owns this world.",
+    "You are the co-author of a living story world. The player owns it.",
     name
-      ? `This turn the player acts as ${name}. Carry out what the player wrote for ${name}, adding natural detail, ` +
-        `but do not have ${name} decide or do anything more: that is the player's to choose.`
-      : "This turn the player speaks as the director: what they write simply happens in the world.",
-    "Every character the player is not playing is yours: they have their own goals and moods, and they act, speak and decide for themselves.",
+      ? `The player plays ${name} this turn. Carry out what they wrote for ${name}, with natural detail, but ` +
+        `${name} decides nothing more: that is the player's choice.`
+      : "The player is the director this turn: what they write simply happens in the world.",
+    "Every other character is yours: they act, speak and decide on their own goals and moods.",
     pace[settings.pace],
     voice,
-    firstPerson,
     length(settings.length),
     STOP,
-    "Secrets are true but the player has not discovered them. Do not state a secret outright; let it surface only when the story earns it (a search, evidence, a confession). You may plant hints.",
-    "Stay consistent with the world state and what already happened. Write in the same language as the world's own text.",
+    SECRETS,
+    "Stay consistent with the world and the story so far, and write in the world's own language.",
     CONTENT_LINE,
     "",
-    // One JSON reply, story first, like WorldOS (2026-10-18). Held to JSON, the model left the record off once in
-    // seven turns, against about half when the record came after free prose; the story still shows as it comes.
-    'Reply with one JSON object and nothing else, keys in this order: {"changes": [...], "hooks": [...], ' +
-      '"story": "the passage as plain prose, paragraphs separated by blank lines, no headings, lists or ' +
-      'options"}. First decide what this turn changes and where it leaves the player, then write the story that ' +
-      'shows it. Report a "reveal" only when your story makes that secret plain to the player.',
+    // One JSON reply, like WorldOS (2026-10-18). With the story first the model often closed the reply after it;
+    // last, it rarely does. The server reads the story out of the reply as it streams.
+    'Reply with one JSON object, keys in this order: {"changes": [...], "hooks": [...], "story": "plain prose, ' +
+      'paragraphs split by blank lines"}. Decide the changes and where the turn leaves the player first, then ' +
+      "write the story that shows them. Always give all three keys, like this:",
+    REPLY_SAMPLE,
     RECORD_FORMAT,
     hooksFor(state, actor),
-    "Every reply has all three keys, even when nothing changed. A reply looks like this:",
-    REPLY_SAMPLE,
   ].join("\n");
   const action = input.trim() || "(no action: let the story move on by itself)";
   const user = [
@@ -168,7 +148,9 @@ export function changeMessages(world: World, before: WorldState, story: string, 
   return [
     {
       role: "system",
-      content: `You keep the records of a story world. Read the new passage and report how the world changed. Return one JSON object.\n\n${RECORD_FORMAT}\n${hooksFor(before, actor)}`,
+      content:
+        "You keep the records of a story world. Read the new passage and report how the world changed. Return " +
+        `one JSON object: {"changes": [...], "hooks": [...]}.\n${RECORD_FORMAT}\n${SECRETS}\n${hooksFor(before, actor)}`,
     },
     {
       role: "user",

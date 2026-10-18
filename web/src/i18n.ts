@@ -85,6 +85,7 @@ const zh: Record<string, string> = {
   "Story so far": "前情",
   World: "世界",
   Close: "关闭",
+  "learned something": "知道了一件事",
   "Say what to change": "先写下想改哪里",
   "Deep thinking": "深度思考",
   "better plotted, but the first words take 30-80 s": "情节更讲究，但要等 30–80 秒才开始出字",
