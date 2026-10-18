@@ -183,7 +183,8 @@ function firstJsonObject(text: string): unknown {
       // try the next
     }
   }
-  for (let at = text.indexOf("{", 1); at > 0; at = text.indexOf("{", at + 1)) {
+  // The first twenty braces are enough for any prose before a world; each try reads the rest of a long text.
+  for (let at = text.indexOf("{", 1), tries = 0; at > 0 && tries < 20; at = text.indexOf("{", at + 1), tries++) {
     try {
       return parseJsonObject(text.slice(at));
     } catch {
@@ -550,7 +551,8 @@ export function createApi(
         } catch (error) {
           // A whole story the player has already read stays (a quote at the very end closed it); the record is read
           // from it below.
-          const cut = reply.replace(/,\s*"?[A-Za-z_]*"?\s*$/, "");
+          // Cut inside the next key (`", "chan`): drop the key's start. A comma alone may be the story's own.
+          const cut = reply.replace(/,\s*"[A-Za-z_]*"?\s*$/, "");
           const ends = (rest: string) => readString(cut + rest, "story").done;
           if (!closed && !ends("}") && !ends(' "hooks": []}')) throw error;
           console.warn("reply.cut", error instanceof Error ? error.message : error);
@@ -676,9 +678,9 @@ export function createApi(
           const messages = draftMessages(idea, draft, feedback);
           const result = await carefully(async (by) => {
             const world = fromPlain(await streamJson(by, messages));
-            if (!world.opening || world.state.characters.length === 0) throw new Error("The model gave no usable world");
+            if (!world.opening || world.state.characters.length === 0) throw new HttpError(502, "The model gave no usable world");
             return world;
-          }).catch(() => fail(502, "The model gave no usable world"));
+          });
           return send(res, 200, result);
         }
         case "POST /drafts/:id": {
