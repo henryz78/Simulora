@@ -120,8 +120,8 @@ export function narrationMessages(
     "Stay consistent with the world state and what already happened. Write in the same language as the world's own text.",
     CONTENT_LINE,
     "",
-    // One JSON reply, story first, like WorldOS (2026-10-18): the provider holds the reply to a whole object,
-    // so the record is never left off, and the story can still be shown while it is written.
+    // One JSON reply, story first, like WorldOS (2026-10-18). Held to JSON, the model left the record off once in
+    // seven turns, against about half when the record came after free prose; the story still shows as it comes.
     'Reply with one JSON object and nothing else, "story" first: {"story": "the passage as plain prose, ' +
       'paragraphs separated by blank lines, no headings, lists or options", "changes": [...], "hooks": [...]}. ' +
       'Report a "reveal" only when your own passage makes that secret plain to the player.',
