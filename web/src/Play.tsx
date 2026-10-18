@@ -13,6 +13,7 @@ interface Pending {
   story: string;
   phase: "story" | "changes";
   error: string;
+  since: number;
 }
 
 const actorLabel = (state: WorldState, actor: string) =>
@@ -50,6 +51,20 @@ function describe(c: Change): string {
 function latestLeaf(tree: NodeSummary[], id: string): string {
   const children = tree.filter((n) => n.parentId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return children[0] ? latestLeaf(tree, children[0].id) : id;
+}
+
+/** Seconds since a moment, ticking, so a long wait shows it is still going. */
+function Elapsed({ since }: { since: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <>
+      {Math.floor((Date.now() - since) / 1000)} {t("s")}
+    </>
+  );
 }
 
 function Paragraphs({ text }: { text: string }) {
@@ -111,7 +126,7 @@ export function Play({ saveId }: { saveId: string }) {
   const current = state.characters.some((c) => c.id === wanted) ? wanted : "director";
 
   async function send(text: string, as = current, from = head.id) {
-    setPending({ actor: as, input: text, story: "", phase: "story", error: "" });
+    setPending({ actor: as, input: text, story: "", phase: "story", error: "", since: Date.now() });
     setInput("");
     setError("");
     try {
@@ -279,7 +294,17 @@ export function Play({ saveId }: { saveId: string }) {
             </p>
             <Paragraphs text={pending.story} />
             {!pending.error && (
-              <p className="muted small">{pending.phase === "story" ? t("Writing…") : t("Recording what changed…")}</p>
+              <p className="muted small">
+                {pending.phase === "changes" ? (
+                  t("Recording what changed…")
+                ) : pending.story ? (
+                  t("Writing…")
+                ) : (
+                  <>
+                    {t("Thinking it through…")} <Elapsed since={pending.since} />
+                  </>
+                )}
+              </p>
             )}
             {pending.error && (
               <p className="error">
@@ -488,6 +513,17 @@ export function Play({ saveId }: { saveId: string }) {
                   onChange={(e) => changeSettings({ showSecrets: e.target.checked })}
                 />
                 {t("Show all secrets")}
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={save.settings.thinking ?? false}
+                  onChange={(e) => changeSettings({ thinking: e.target.checked })}
+                />
+                <span>
+                  {t("Deep thinking")}
+                  <span className="small muted"> · {t("better plotted, but the first words take 30-80 s")}</span>
+                </span>
               </label>
               <div className="row">
                 <button onClick={rename}>{t("Rename")}</button>

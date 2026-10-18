@@ -37,6 +37,7 @@ const pace: Record<Settings["pace"], string> = {
     "Drive the plot: bring in events, complications and surprises. The other characters take bold initiative.",
 };
 
+// The player picks the length in the settings; "auto" lets the moment decide.
 const length: Record<Settings["length"], string> = {
   auto:
     "Decide the length by what the moment needs. Never write less than one full paragraph with concrete " +
@@ -46,57 +47,13 @@ const length: Record<Settings["length"], string> = {
   long: "Write four to six rich paragraphs.",
 };
 
-export function narrationMessages(
-  world: World,
-  path: TurnNode[],
-  actor: string,
-  input: string,
-  settings: Settings,
-): Message[] {
-  const state = path.at(-1)!.state;
-  const name = actorName(state, actor);
-  const voice =
-    settings.person === "second" && name
-      ? `Address ${name} as "you" (in Chinese, 你); the player is playing ${name}.`
-      : name
-        ? `Write in the third person, close to ${name}'s point of view.`
-        : "Write in the third person as an all-seeing narrator.";
-  const firstPerson = name
-    ? settings.person === "second"
-      ? `The player may write "I" (我); that is ${name}, written as "you".`
-      : `The player may write "I" (我); that is ${name}. Write it as ${name} or he/she, never as "you" (你).`
-    : "";
-  const system = [
-    "You are the co-author of a living story world. The player owns this world.",
-    name
-      ? `This turn the player acts as ${name}. Carry out what the player wrote for ${name}, adding natural detail.`
-      : "This turn the player speaks as the director: what they write simply happens in the world.",
-    "Every character the player is not playing is yours: they have their own goals and moods, and they act, speak and decide for themselves.",
-    pace[settings.pace],
-    voice,
-    firstPerson,
-    length[settings.length],
-    "Secrets are true but the player has not discovered them. Do not state a secret outright; let it surface only when the story earns it (a search, evidence, a confession). You may plant hints.",
-    "Stay consistent with the world state and what already happened. Write in the same language as the world's own text.",
-    CONTENT_LINE,
-    "Write only the story prose: no headings, no lists, no options.",
-  ].join("\n");
-  const action = input.trim() || "(no action: let the story move on by itself)";
-  const user = [
-    worldHeader(world, state),
-    "",
-    "Story so far (most recent last):",
-    recentStory(path, state),
-    "",
-    `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
-  ].join("\n");
-  return [
-    { role: "system", content: system },
-    { role: "user", content: user },
-  ];
-}
+/** Each turn stops where the player can act again, so the story never runs past what they would change. */
+const STOP =
+  "Carry out only this one action and the immediate response to it, then stop at the next moment where the " +
+  "player could act, choose or reply: someone asks them something, a door opens, a choice appears. Do not " +
+  "jump ahead in time and do not play out what comes after.";
 
-const CHANGE_FORMAT = `Return one JSON object: {"changes": [...], "hooks": [...]}.
+const RECORD_FORMAT = `About "changes" and "hooks":
 
 "changes" lists every lasting change the passage made to the world. Use only these shapes, and refer to
 characters and places by name, to facts and threads by their [id]:
@@ -127,11 +84,70 @@ function hooksFor(state: WorldState, actor: string): string {
     : "The player is the director: hooks can be moves by any character or events in the world.";
 }
 
+export function narrationMessages(
+  world: World,
+  path: TurnNode[],
+  actor: string,
+  input: string,
+  settings: Settings,
+): Message[] {
+  const state = path.at(-1)!.state;
+  const name = actorName(state, actor);
+  const voice =
+    settings.person === "second" && name
+      ? `Address ${name} as "you" (in Chinese, 你); the player is playing ${name}.`
+      : name
+        ? `Write in the third person, close to ${name}'s point of view.`
+        : "Write in the third person as an all-seeing narrator.";
+  const firstPerson = name
+    ? settings.person === "second"
+      ? `The player may write "I" (我); that is ${name}, written as "you".`
+      : `The player may write "I" (我); that is ${name}. Write it as ${name} or he/she, never as "you" (你).`
+    : "";
+  const system = [
+    "You are the co-author of a living story world. The player owns this world.",
+    name
+      ? `This turn the player acts as ${name}. Carry out what the player wrote for ${name}, adding natural detail, ` +
+        `but do not have ${name} decide or do anything more: that is the player's to choose.`
+      : "This turn the player speaks as the director: what they write simply happens in the world.",
+    "Every character the player is not playing is yours: they have their own goals and moods, and they act, speak and decide for themselves.",
+    pace[settings.pace],
+    voice,
+    firstPerson,
+    length[settings.length],
+    STOP,
+    "Secrets are true but the player has not discovered them. Do not state a secret outright; let it surface only when the story earns it (a search, evidence, a confession). You may plant hints.",
+    "Stay consistent with the world state and what already happened. Write in the same language as the world's own text.",
+    CONTENT_LINE,
+    "",
+    // One JSON reply, story first, like WorldOS (2026-10-18): the provider holds the reply to a whole object,
+    // so the record is never left off, and the story can still be shown while it is written.
+    'Reply with one JSON object and nothing else, "story" first: {"story": "the passage as plain prose, ' +
+      'paragraphs separated by blank lines, no headings, lists or options", "changes": [...], "hooks": [...]}. ' +
+      'Report a "reveal" only when your own passage makes that secret plain to the player.',
+    RECORD_FORMAT,
+    hooksFor(state, actor),
+  ].join("\n");
+  const action = input.trim() || "(no action: let the story move on by itself)";
+  const user = [
+    worldHeader(world, state),
+    "",
+    "Story so far (most recent last):",
+    recentStory(path, state),
+    "",
+    `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
+  ].join("\n");
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+}
+
 export function changeMessages(world: World, before: WorldState, story: string, actor: string): Message[] {
   return [
     {
       role: "system",
-      content: `You keep the records of a story world. Read the new passage and report how the world changed.\n\n${CHANGE_FORMAT}\n${hooksFor(before, actor)}`,
+      content: `You keep the records of a story world. Read the new passage and report how the world changed. Return one JSON object.\n\n${RECORD_FORMAT}\n${hooksFor(before, actor)}`,
     },
     {
       role: "user",

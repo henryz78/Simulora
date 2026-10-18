@@ -67,6 +67,8 @@ test("build a world, play, undo to any turn and branch", async () => {
   const save = await call<Save>("POST", "/saves", { worldId: world.id });
   const first = await playTurn(save.id, "c1", "pour tea");
   assert.match(first.story, /pour tea/);
+  assert.equal(first.story, first.node.story, "the player saw exactly the story that was kept");
+  assert.match(first.node.story, /looks up\.\nIt is quiet\.$/, "escapes cut across pieces come out whole");
   assert.equal(first.node.state.clock, "A little later");
   assert.equal(first.node.hooks.length, 3);
   const second = await playTurn(save.id, "director", "");
@@ -91,6 +93,7 @@ test("build a world, play, undo to any turn and branch", async () => {
   });
   assert.equal(settings.save.settings.pace, "intense");
   assert.equal(settings.save.settings.person, "third");
+  assert.equal(settings.save.settings.thinking, false, "thinking is off unless asked for");
 });
 
 test("the AI drafts a world and buries secrets at the start and as the story goes on", async () => {

@@ -15,7 +15,7 @@ import {
   type WorldDraft,
 } from "../shared/types.ts";
 import type { Store } from "./db.ts";
-import type { Model } from "./model.ts";
+import { parseJsonObject, readString, type Model } from "./model.ts";
 import {
   BURY_EVERY,
   MAX_HIDDEN,
@@ -151,6 +151,7 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
     pace: pick(v.pace, ["calm", "medium", "intense"], current.pace),
     length: pick(v.length, ["auto", "short", "long"], current.length),
     showSecrets: typeof v.showSecrets === "boolean" ? v.showSecrets : current.showSecrets,
+    thinking: typeof v.thinking === "boolean" ? v.thinking : (current.thinking ?? false),
   };
 }
 
@@ -180,9 +181,10 @@ function send(res: ServerResponse, status: number, value: unknown) {
 }
 
 /**
- * `model` streams the story and keeps the records; `writer` drafts worlds, where speed matters more than care.
+ * `model` streams the story and keeps the records. `thinker` streams the story for saves with thinking on;
+ * `writer` drafts worlds, where speed matters more than care.
  */
-export function createApi(store: Store, model: Model, writer: Model = model) {
+export function createApi(store: Store, model: Model, { thinker = model, writer = model } = {}) {
   const busy = new Set<string>();
   // Saves whose secrets are being buried. Burying takes the model a minute or more, so nobody waits for it.
   const burying = new Set<string>();
@@ -260,6 +262,17 @@ export function createApi(store: Store, model: Model, writer: Model = model) {
     return { changes: [] as Change[], hooks: [] as string[], failed: true };
   }
 
+  /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
+  function readRecord(reply: string) {
+    try {
+      const report = parseJsonObject(reply) as Record<string, unknown>;
+      if (!Array.isArray(report.changes)) return null;
+      return { changes: parseChanges(report.changes), hooks: parseHooks(report.hooks), failed: false };
+    } catch {
+      return null;
+    }
+  }
+
   async function turn(req: IncomingMessage, res: ServerResponse, saveId: string) {
     const s = save(saveId);
     const body = await readJson(req);
@@ -278,22 +291,45 @@ export function createApi(store: Store, model: Model, writer: Model = model) {
     try {
       const started = Date.now();
       let firstAt = 0;
-      let story = "";
+      let storyAt = 0;
+      // One JSON reply carries the story, then the turn's changes and hooks. The story is read out of it as it
+      // arrives and goes to the player straight away.
+      let reply = "";
+      let sent = 0;
+      let closed = false;
       // Some providers now and then answer with nothing; one quiet retry covers it.
-      for (let attempt = 0; attempt < 2 && !story.trim(); attempt++) {
-        for await (const piece of model.stream(narrationMessages(w, path, actor, input, s.settings))) {
-          story += piece;
-          firstAt ||= Date.now();
-          event("story", { text: piece });
+      for (let attempt = 0; attempt < 2 && !readString(reply, "story").text.trim(); attempt++) {
+        reply = "";
+        const narrator = s.settings.thinking ? thinker : model;
+        for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings), { json: true })) {
+          reply += piece;
+          if (closed) continue;
+          const { text, done } = readString(reply, "story");
+          if (text.length > sent) {
+            firstAt ||= Date.now();
+            event("story", { text: text.slice(sent) });
+            sent = text.length;
+          }
+          if (done) {
+            closed = true;
+            storyAt = Date.now();
+            event("phase", { phase: "changes" });
+          }
         }
       }
-      story = story.trim();
+      const story = readString(reply, "story").text.trim();
       if (!story) throw new Error("The model returned no story");
-      const storyAt = Date.now();
-      event("phase", { phase: "changes" });
+      storyAt ||= Date.now();
 
-      // The story is never lost: if reading the changes fails, the turn keeps the story alone.
-      const { changes, hooks, failed } = await record(w, head.state, story, actor);
+      // The story is never lost: if the record in the reply is missing or broken, a second request reads the
+      // changes from the story, and if that fails too the turn keeps the story alone.
+      let report = readRecord(reply);
+      if (!report) {
+        if (!closed) event("phase", { phase: "changes" });
+        console.warn("record.missing");
+        report = await record(w, head.state, story, actor);
+      }
+      const { changes, hooks, failed } = report;
       console.log(
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );

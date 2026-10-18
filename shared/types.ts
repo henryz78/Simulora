@@ -70,6 +70,8 @@ export interface Settings {
   pace: "calm" | "medium" | "intense";
   length: "auto" | "short" | "long";
   showSecrets: boolean;
+  /** The story model thinks before it writes: better plotted, but the first words take 30-80 s. */
+  thinking: boolean;
 }
 
 export const defaultSettings: Settings = {
@@ -77,6 +79,7 @@ export const defaultSettings: Settings = {
   pace: "medium",
   length: "auto",
   showSecrets: false,
+  thinking: false,
 };
 
 export interface Save {

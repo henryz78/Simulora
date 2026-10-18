@@ -6,8 +6,8 @@ export interface Message {
 }
 
 export interface Model {
-  /** Streams prose, piece by piece. */
-  stream(messages: Message[]): AsyncIterable<string>;
+  /** Streams the reply, piece by piece; with `json` the provider holds it to one JSON object. */
+  stream(messages: Message[], options?: { json?: boolean }): AsyncIterable<string>;
   /** Asks for one JSON object. */
   json(messages: Message[]): Promise<unknown>;
 }
@@ -66,8 +66,9 @@ export function openAICompatibleModel(config: ModelConfig): Model {
   };
 
   return {
-    async *stream(messages) {
-      const response = await request(messages, { stream: true });
+    async *stream(messages, options) {
+      const json = options?.json ? { response_format: { type: "json_object" } } : {};
+      const response = await request(messages, { stream: true, ...json });
       if (!response.ok || !response.body) throw await failed(response);
       const decoder = new TextDecoder();
       let buffer = "";
@@ -93,6 +94,43 @@ export function openAICompatibleModel(config: ModelConfig): Model {
   };
 }
 
+/**
+ * Reads the string value of `key` out of a JSON reply that may still be arriving: the text so far, and whether
+ * the string has closed. Lets the story inside a JSON reply reach the player as it is written.
+ */
+export function readString(json: string, key: string): { text: string; done: boolean } {
+  const start = /"(?:[^"\\]|\\.)*"\s*:\s*"/g;
+  let open = -1;
+  for (const match of json.matchAll(start)) {
+    if (JSON.parse(match[0].slice(0, match[0].indexOf(":")).trim()) === key) {
+      open = match.index + match[0].length;
+      break;
+    }
+  }
+  if (open < 0) return { text: "", done: false };
+  let text = "";
+  for (let i = open; i < json.length; i++) {
+    const c = json[i]!;
+    if (c === '"') return { text, done: true };
+    if (c !== "\\") {
+      text += c;
+      continue;
+    }
+    const next = json[i + 1];
+    if (next === undefined) break; // the escape is cut off; wait for the rest
+    if (next === "u") {
+      const hex = json.slice(i + 2, i + 6);
+      if (hex.length < 4) break;
+      text += String.fromCharCode(parseInt(hex, 16));
+      i += 5;
+      continue;
+    }
+    text += ({ n: "\n", t: "\t", r: "\r", b: "\b", f: "\f" } as Record<string, string>)[next] ?? next;
+    i += 1;
+  }
+  return { text, done: false };
+}
+
 /** Reads a JSON object out of model text, tolerating code fences around it. */
 export function parseJsonObject(text: string): unknown {
   const start = text.indexOf("{");
@@ -107,7 +145,18 @@ export function fakeModel(): Model {
     async *stream(messages) {
       const last = messages.at(-1)?.content ?? "";
       const action = /Player's action: (.*)/.exec(last)?.[1] ?? "";
-      for (const piece of ["The wind shifts. ", `(${action || "the story moves on"}) `, "Someone looks up."])
+      const record = JSON.stringify({
+        changes: [{ type: "clock", text: "A little later", note: "Time passes." }],
+        hooks: ["Look around", "Ask what happened", "Wait and listen"],
+      });
+      // One JSON reply, story first, cut where a real stream may cut it: inside an escape.
+      for (const piece of [
+        '{"story": "The wind shifts. ',
+        `(${action || "the story moves on"}) `,
+        "Someone looks up.\\",
+        "nIt is quiet.",
+        `", ${record.slice(1)}`,
+      ])
         yield piece;
     },
     async json(messages) {

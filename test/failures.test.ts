@@ -7,12 +7,13 @@ import { after, before, test } from "node:test";
 import type { Save, SaveView, World } from "../shared/types.ts";
 import { createApi } from "../server/app.ts";
 import { Store } from "../server/db.ts";
-import { fakeModel, parseJsonObject, type Model } from "../server/model.ts";
+import { fakeModel, parseJsonObject, readString, type Model } from "../server/model.ts";
 
 // A fake model whose failures each test switches on.
 const fake = fakeModel();
 const mode = {
   streamFails: false,
+  noRecord: false,
   jsonFails: false,
   hold: null as Promise<void> | null,
   buryHold: null as Promise<void> | null,
@@ -21,9 +22,14 @@ const mode = {
 const model: Model = {
   async *stream(messages) {
     if (mode.hold) await mode.hold;
-    yield "Half a sentence";
-    if (mode.streamFails) throw new Error("provider dropped");
-    yield* fake.stream(messages);
+    if (mode.streamFails) {
+      yield '{"story": "Half a sentence';
+      throw new Error("provider dropped");
+    }
+    for await (const piece of fake.stream(messages)) {
+      if (mode.noRecord && piece.startsWith('", ')) return yield '"}';
+      yield piece;
+    }
   },
   async json(messages) {
     const system = messages[0]?.content ?? "";
@@ -68,12 +74,25 @@ test("a story that breaks off saves nothing", async () => {
   assert.equal(view.tree.length, 1);
 });
 
-test("failed records keep the story and can be recorded again", async () => {
-  const save = await newSave();
+test("a reply without its record is read again, and if that fails the story stays", async () => {
+  let save = await newSave();
+  mode.noRecord = true;
+  try {
+    assert.deepEqual((await events(await post(`/saves/${save.id}/turn`, { input: "go" }))).at(-1), "done");
+  } finally {
+    mode.noRecord = false;
+  }
+  const read = (await get(`/saves/${save.id}`)).path.at(-1)!;
+  assert.equal(read.recordsFailed, undefined, "the second request recorded the changes");
+  assert.equal(read.state.clock, "A little later");
+
+  save = await newSave();
+  mode.noRecord = true;
   mode.jsonFails = true;
   try {
     assert.deepEqual((await events(await post(`/saves/${save.id}/turn`, { input: "go" }))).at(-1), "done");
   } finally {
+    mode.noRecord = false;
     mode.jsonFails = false;
   }
   let head = (await get(`/saves/${save.id}`)).path.at(-1)!;
@@ -105,6 +124,18 @@ test("one turn at a time, known actors only, JSON only", async () => {
   assert.equal((await post(`/saves/${save.id}/turn`, { actor: "nobody" })).status, 400);
   const plain = await fetch(`${base}/saves/${save.id}/turn`, { method: "POST", body: "{}" });
   assert.equal(plain.status, 415, "a cross-site form post is refused");
+});
+
+test("the story is read out of a JSON reply while it arrives", () => {
+  assert.deepEqual(readString('{"story": "Snow', "story"), { text: "Snow", done: false });
+  assert.deepEqual(readString('{"story": "Snow\\', "story"), { text: "Snow", done: false }, "a cut escape waits");
+  assert.deepEqual(readString('{"story": "Snow\\u96', "story"), { text: "Snow", done: false });
+  assert.deepEqual(readString('{"story": "Snow\\n\\"Who?\\" \\u96ea", "hooks": []}', "story"), {
+    text: 'Snow\n"Who?" 雪',
+    done: true,
+  });
+  assert.deepEqual(readString('{"note": "story", "story" : "x', "story"), { text: "x", done: false }, "keys, not values");
+  assert.deepEqual(readString('{"changes": []', "story"), { text: "", done: false });
 });
 
 test("parseJsonObject reads past code fences", () => {

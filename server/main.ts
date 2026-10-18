@@ -25,7 +25,9 @@ const records = fake
   ? story
   : live(process.env.SIMULORA_RECORD_MODEL ?? storyModel, process.env.SIMULORA_RECORD_REASONING ?? "low");
 const model = { stream: story.stream, json: records.json };
-const api = createApi(store, model, story);
+// The "deep thinking" setting: the same model at the provider's default effort.
+const thinker = fake ? story : live(storyModel, process.env.SIMULORA_THINKING_REASONING ?? "");
+const api = createApi(store, model, { thinker, writer: story });
 
 const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
