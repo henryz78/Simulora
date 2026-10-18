@@ -8,9 +8,14 @@ const RECENT_TURNS = 6;
 const CONTENT_LINE =
   "Keep to these lines: nothing that helps with real-world crime, and no sexual or graphically violent content.";
 
+// The last sentence: told "I know where she went", the model used to fill the claim in from the secrets
+// (2026-10-18, both DeepSeek and Gemini).
 const SECRETS =
   "Secrets are true but the player has not found them. Never state one in the story, the changes or the hooks " +
-  "unless the story earns it (a search, evidence, a confession); hints are welcome.";
+  "unless the story earns it (a search, evidence, a confession); hints are welcome. A character knows only what " +
+  "is listed as known to them, what they have seen in the story, and what they can guess from it. When the " +
+  "player's character claims to know something, fill the claim in from that, never from the secrets: a guess " +
+  "may be wrong, or the character may bluff.";
 
 function actorName(state: WorldState, actor: string): string | null {
   return actor === "director" ? null : (state.characters.find((c) => c.id === actor)?.name ?? null);
