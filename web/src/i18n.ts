@@ -122,6 +122,8 @@ const zh: Record<string, string> = {
   "Small: one place, a few people": "小：一个地方，几个人",
   Middling: "中",
   "Rules for the storyteller": "写作规则",
+  "The first one is who the player starts as; they can switch to anyone, or to director.":
+    "第一个角色是开局时默认扮演的人；玩家随时可以换成别的角色，或者当导演。",
   "(tone, how magic or fighting works, what things cost; the AI follows them every turn)":
     "（腔调、魔法或武功怎么用、什么有代价……AI 每回合都会遵守）",
   "Large: travel far": "大：要四处走动",

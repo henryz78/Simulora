@@ -61,7 +61,11 @@ const FULL_WIDTH: Record<string, string> = { ",": "，", "?": "？", "!": "！",
  * only on the character before it, so a story streamed piece by piece comes out the same.
  */
 export function fullWidth(text: string): string {
-  return text.replace(/(?<=[㐀-鿿　-〿＀-￯”’」』])[,?!:;]/g, (mark) => FULL_WIDTH[mark]!);
+  // A closing quote counts only after Chinese: "“Yes”, he said" stays English.
+  return text.replace(
+    /(?<=[㐀-鿿　-〿＀-￯」』]|[㐀-鿿][”’])[,?!:;]/g,
+    (mark) => FULL_WIDTH[mark]!,
+  );
 }
 
 /** A rough token count: about 0.7 per Chinese, Japanese or Korean character, 0.5 per other non-Latin one, 0.3 else. */
@@ -260,7 +264,7 @@ export function changeMessages(world: World, before: WorldState, story: string, 
   ];
 }
 
-export function hookMessages(world: World, path: TurnNode[]): Message[] {
+export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)!.actor): Message[] {
   const state = path.at(-1)!.state;
   return [
     {
@@ -269,8 +273,8 @@ export function hookMessages(world: World, path: TurnNode[]): Message[] {
         'Suggest what the player could do next in this story world. Return one JSON object: {"hooks": [two or ' +
         "three short, different next steps, written as actions in the world's language]}. A hook must not give " +
         "away a secret the player has not discovered.\n" +
-        // At the opening nobody has acted yet: the player starts as the world's first character.
-        hooksFor(state, path.length === 1 ? (state.characters[0]?.id ?? "director") : path.at(-1)!.actor),
+        hooksFor(state, actor) +
+        (world.rules?.trim() ? `\nThe author's rules for this world (the hooks follow any kinds of options they describe):\n${world.rules.trim()}` : ""),
     },
     {
       role: "user",

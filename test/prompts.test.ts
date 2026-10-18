@@ -26,11 +26,21 @@ test("the storyteller reads the world's own rules every turn", () => {
 });
 
 test("rules the model wrote as a list are kept", () => {
-  assert.equal(normalizeDraft({ rules: ["Spells tire the caster.", 3, "Curfew is at nine."] }).rules, "Spells tire the caster.\nCurfew is at nine.");
+  assert.equal(normalizeDraft({ rules: ["Spells tire the caster.", "", "Curfew is at nine."] }).rules, "Spells tire the caster.\nCurfew is at nine.");
 });
 
 test("Chinese punctuation in Chinese text, whether it arrives whole or in pieces", () => {
   const text = "她说,好吧?“走!”他答:不;Harry, wait! 3:15";
   assert.equal(fullWidth(text), "她说，好吧？“走！”他答：不；Harry, wait! 3:15");
   assert.equal(fullWidth(text.slice(0, 3)) + fullWidth(text).slice(3), fullWidth(text));
+});
+
+test("English stays English: a closing quote counts only after Chinese", () => {
+  assert.equal(fullWidth("“Yes”, he said. The dogs’, owners"), "“Yes”, he said. The dogs’, owners");
+  assert.equal(fullWidth("“走”,他说"), "“走”，他说");
+});
+
+test("rules the model wrote as an object or a list of objects are kept as lines", () => {
+  assert.equal(normalizeDraft({ rules: { tone: "British", magic: "costs" } }).rules, "tone: British\nmagic: costs");
+  assert.equal(normalizeDraft({ rules: [{ rule: "Curfew at nine" }] }).rules, '{"rule":"Curfew at nine"}');
 });

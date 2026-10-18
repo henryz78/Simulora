@@ -110,6 +110,9 @@ test("the AI drafts a world and buries secrets at the start and as the story goe
   const pasted = await call<World>("POST", "/drafts/import", { text: reply });
   assert.equal(pasted.title, "Pasted");
   assert.equal(pasted.state.characters[0]!.persona, 'She says "no" often', "a bare quote in another AI's reply is read");
+  const prose =
+    'Here is {the world} you asked for: ```json\n{"title": "Fenced", "opening": "Snow.", "characters": [{"name": "Ana"}]}\n``` Enjoy {it}!';
+  assert.equal((await call<World>("POST", "/drafts/import", { text: prose })).title, "Fenced", "prose with braces first");
   const refused = await fetch(`${base}/drafts/import`, {
     method: "POST",
     headers: { "content-type": "application/json" },

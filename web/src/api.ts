@@ -28,7 +28,7 @@ export const api = {
   settings: (id: string, settings: Partial<Settings>) => call<SaveView>("PATCH", `/saves/${id}`, { settings }),
   rename: (id: string, title: string) => call<SaveView>("PATCH", `/saves/${id}`, { title }),
   branch: (id: string, nodeId: string, title: string) => call<Save>("POST", `/saves/${id}/branch`, { nodeId, title }),
-  hooks: (id: string) => call<TurnNode>("POST", `/saves/${id}/hooks`),
+  hooks: (id: string, actor: string) => call<TurnNode>("POST", `/saves/${id}/hooks`, { actor }),
   records: (id: string) => call<SaveView>("POST", `/saves/${id}/records`),
 };
 

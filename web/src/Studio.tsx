@@ -292,7 +292,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
         <label>
           {t("Rules for the storyteller")}
           <span className="small muted"> {t("(tone, how magic or fighting works, what things cost; the AI follows them every turn)")}</span>
-          <textarea rows={5} value={draft.rules} onChange={(e) => set({ rules: e.target.value })} />
+          <textarea rows={5} value={draft.rules ?? ""} onChange={(e) => set({ rules: e.target.value })} />
         </label>
         <label>
           {t("Opening")}
@@ -333,6 +333,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
 
       <section className="panel">
         <h2>{t("Characters")}</h2>
+        <p className="small muted">{t("The first one is who the player starts as; they can switch to anyone, or to director.")}</p>
         {s.characters.map((c) => (
           <div className="item" key={c.id}>
             <input

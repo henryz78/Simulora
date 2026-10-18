@@ -177,7 +177,7 @@ export function Play({ saveId }: { saveId: string }) {
   async function suggest() {
     setSuggesting(true);
     try {
-      await api.hooks(saveId);
+      await api.hooks(saveId, current);
       await load();
     } catch (e) {
       report(e as Error);

@@ -93,7 +93,7 @@ export function normalizeDraft(raw: unknown): WorldDraft {
     title: str(v.title, 200).trim() || "Untitled world",
     premise: str(v.premise),
     // The model now and then writes the rules as a list.
-    rules: str(Array.isArray(v.rules) ? v.rules.filter((r) => typeof r === "string").join("\n") : v.rules, 20_000),
+    rules: str(rulesText(v.rules), 20_000),
     opening: str(v.opening),
     state: {
       clock: str(s.clock, 200),
@@ -173,6 +173,34 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
   };
 }
 
+/** The JSON object in a reply pasted from another AI, which may have prose with braces before it. */
+function firstJsonObject(text: string): unknown {
+  const fence = /```(?:json)?\s*([\s\S]*?)```/.exec(text)?.[1];
+  for (const candidate of [text, fence ?? ""]) {
+    try {
+      return parseJsonObject(candidate);
+    } catch {
+      // try the next
+    }
+  }
+  for (let at = text.indexOf("{", 1); at > 0; at = text.indexOf("{", at + 1)) {
+    try {
+      return parseJsonObject(text.slice(at));
+    } catch {
+      // try the next
+    }
+  }
+  throw new Error("No JSON object");
+}
+
+/** Rules the model wrote as a list or as an object, kept as plain lines. */
+function rulesText(raw: unknown): unknown {
+  const line = (x: unknown) => (typeof x === "string" ? x : JSON.stringify(x));
+  if (Array.isArray(raw)) return raw.filter((r) => r != null && r !== "").map(line).join("\n");
+  if (raw && typeof raw === "object") return Object.entries(raw).map(([k, v]) => `${k}: ${line(v)}`).join("\n");
+  return raw;
+}
+
 /**
  * Memory notes, each dated "[Turn 12]". The model also wrote "[Turn 8-11]", "[Turn 1/8]" and dates at the end of
  * a note; those count by their last turn.
@@ -191,7 +219,10 @@ function parseNotes(raw: unknown, last: number): MemoryNote[] {
 
 const parseHooks = (raw: unknown) =>
   Array.isArray(raw)
-    ? raw.filter((h): h is string => typeof h === "string" && h.trim() !== "").slice(0, 3).map((h) => h.trim().slice(0, 300))
+    ? raw
+        .filter((h): h is string => typeof h === "string" && h.trim() !== "")
+        .slice(0, 3)
+        .map((h) => fullWidth(h.trim().slice(0, 300)))
     : [];
 
 async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
@@ -519,7 +550,8 @@ export function createApi(
         } catch (error) {
           // A whole story the player has already read stays (a quote at the very end closed it); the record is read
           // from it below.
-          const ends = (rest: string) => readString(reply + rest, "story").done;
+          const cut = reply.replace(/,\s*"?[A-Za-z_]*"?\s*$/, "");
+          const ends = (rest: string) => readString(cut + rest, "story").done;
           if (!closed && !ends("}") && !ends(' "hooks": []}')) throw error;
           console.warn("reply.cut", error instanceof Error ? error.message : error);
         }
@@ -633,28 +665,34 @@ export function createApi(
         }
         case "POST /drafts": {
           const body = await readJson(req);
-          const idea = str(body.idea).trim();
+          // A pasted prompt for another AI runs to thousands of characters.
+          const idea = str(body.idea, 60_000).trim();
+          const feedback = str(body.feedback, 10_000).trim();
           if (!idea) fail(400, "Describe the world first");
           const draft = body.draft ? toPlain(normalizeDraft(body.draft)) : null;
-          if (draft && !str(body.feedback).trim()) fail(400, "Say what to change");
-          // A world is built once and carries the whole game, so it is thought through; quickly if that fails.
-          const messages = draftMessages(idea, draft, str(body.feedback).trim());
-          const result = fromPlain(await carefully((by) => streamJson(by, messages)));
-          if (!result.opening || result.state.characters.length === 0) fail(502, "The model gave no usable world");
+          if (draft && !feedback) fail(400, "Say what to change");
+          // A world is built once and carries the whole game, so it is thought through; quickly if that fails or
+          // comes back without an opening or anyone in it.
+          const messages = draftMessages(idea, draft, feedback);
+          const result = await carefully(async (by) => {
+            const world = fromPlain(await streamJson(by, messages));
+            if (!world.opening || world.state.characters.length === 0) throw new Error("The model gave no usable world");
+            return world;
+          }).catch(() => fail(502, "The model gave no usable world"));
           return send(res, 200, result);
         }
         case "POST /drafts/:id": {
           const body = await readJson(req);
           // The request for another AI, and the world it built, pasted back by the player.
           if (id === "prompt") {
-            const idea = str(body.idea).trim();
+            const idea = str(body.idea, 60_000).trim();
             if (!idea) fail(400, "Describe the world first");
             return send(res, 200, { prompt: draftPrompt(idea) });
           }
           if (id !== "import") fail(404, "Not found");
           let result: WorldDraft | undefined;
           try {
-            result = fromPlain(parseJsonObject(str(body.text, 200_000)));
+            result = fromPlain(firstJsonObject(str(body.text, 200_000)));
           } catch {
             fail(400, "That is not a world: paste the AI's whole reply");
           }
@@ -727,7 +765,10 @@ export function createApi(
           if (busy.has(s.id)) fail(409, "A turn is being written");
           const path = store.path(s.headId);
           // The provider now and then fails a request for no reason; one more try covers it.
-          const ask = () => model.json(hookMessages(world(s.worldId), path));
+          // At the opening nobody has acted yet: the hooks are for whoever the player has chosen to start as.
+          const body = await readJson(req);
+          const actor = path.length === 1 ? str(body.actor, 64) || "director" : path.at(-1)!.actor;
+          const ask = () => model.json(hookMessages(world(s.worldId), path, actor));
           const report = (await ask().catch(ask)) as Record<string, unknown>;
           const hooks = parseHooks(report.hooks);
           if (hooks.length === 0) fail(502, "The model gave no suggestions");
