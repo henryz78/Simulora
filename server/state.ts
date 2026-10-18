@@ -211,7 +211,7 @@ export function carrySecrets(from: WorldState, into: WorldState): WorldState {
   return state;
 }
 
-export function describeState(state: WorldState): string {
+export function describeState(state: WorldState, { secrets = true } = {}): string {
   const placeName = (id: string | null) =>
     state.places.find((p) => p.id === id)?.name ?? "somewhere unspecified";
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? id;
@@ -227,8 +227,10 @@ export function describeState(state: WorldState): string {
   lines.push("", "Facts the player knows:");
   for (const f of state.facts.filter((f) => (!f.secret || f.revealed) && !f.archived))
     lines.push(`- [${f.id}] ${f.text}`);
-  lines.push("", "Secrets the player has NOT discovered (true in the world):");
-  for (const f of state.facts.filter((f) => f.secret && !f.revealed)) lines.push(`- [${f.id}] ${f.text}`);
+  if (secrets) {
+    lines.push("", "Secrets the player has NOT discovered (true in the world):");
+    for (const f of state.facts.filter((f) => f.secret && !f.revealed)) lines.push(`- [${f.id}] ${f.text}`);
+  }
   lines.push("", "Open threads:");
   for (const t of state.threads.filter((t) => !t.resolved && !t.archived)) lines.push(`- [${t.id}] ${t.title}`);
   lines.push("", "Relationships:");

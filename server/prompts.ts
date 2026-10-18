@@ -45,14 +45,28 @@ export function storySince(path: TurnNode[]): { notes: MemoryNote[]; from: numbe
   return { notes: memory.notes, from: path.findIndex((node) => node.id === memory.through) + 1 };
 }
 
-/** A rough token count: about 0.7 per Chinese character and 0.3 per other character. */
+/** A rough token count: about 0.7 per Chinese, Japanese or Korean character, 0.5 per other non-Latin one, 0.3 else. */
 export function tokensOf(text: string): number {
-  const cjk = text.match(/[\u3000-\u9fff\uff00-\uffef]/g)?.length ?? 0;
-  return Math.round(cjk * 0.7 + (text.length - cjk) * 0.3);
+  const cjk = text.match(/[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g)?.length ?? 0;
+  const other = text.match(/[^\u0000-\u024f\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g)?.length ?? 0;
+  return Math.round(cjk * 0.7 + other * 0.5 + (text.length - cjk - other) * 0.3);
 }
 
-function worldHeader(world: World, state: WorldState): string {
-  return `World: ${world.title}\nPremise: ${world.premise}\n\n${describeState(state)}`;
+function worldHeader(world: World, state: WorldState, options?: { secrets?: boolean }): string {
+  return `World: ${world.title}\nPremise: ${world.premise}\n\n${describeState(state, options)}`;
+}
+
+/** The memory as the model reads it, or nothing before the first one. */
+function memoryLines(path: TurnNode[]): string[] {
+  const { notes } = storySince(path);
+  return notes.length
+    ? [
+        "Memory of the earlier turns (a newer note wins over an older one; the story below and the world state " +
+          "win over both):",
+        ...notes.map((note) => `- [Turn ${note.turn}] ${note.text}`),
+        "",
+      ]
+    : [];
 }
 
 const pace: Record<Settings["pace"], string> = {
@@ -154,18 +168,10 @@ export function narrationMessages(
   const action = input.trim() || "(no action: let the story move on by itself)";
   // The whole story goes in until it nears the model's reach; then the memory stands in for the oldest turns.
   const { notes, from } = storySince(path);
-  const memory = notes.length
-    ? [
-        "Memory of the earlier turns (a newer note wins over an older one; the story below and the world state " +
-          "win over both):",
-        ...notes.map((note) => `- [Turn ${note.turn}] ${note.text}`),
-        "",
-      ]
-    : [];
   const user = [
     worldHeader(world, state),
     "",
-    ...memory,
+    ...memoryLines(path),
     notes.length ? "The story since then (most recent last):" : "The story so far (most recent last):",
     path
       .slice(from)
@@ -228,7 +234,7 @@ Return one JSON object: {"memory": [{"turn": number, "text": "..."}], "dropFacts
   one note with how it stands now, dated by the turn it last changed, and drop the older note: a key moved from
   a tin to a box is one note saying it is in the box. Newer turns win over older notes. Drop notes that no
   longer matter.
-- Never write a secret the player has not discovered; the secrets in the world state stay secrets.
+- Write only what the player has seen or been told.
 - At most 40 notes, one or two sentences each, in the world's own language, oldest first.
 
 "dropFacts": ids of known facts (not secrets) the memory now holds or that no longer matter.
@@ -247,7 +253,7 @@ export function memoryMessages(
     {
       role: "user",
       content: [
-        worldHeader(world, state),
+        worldHeader(world, state, { secrets: false }),
         "",
         "The earlier notes:",
         ...(notes.length ? notes.map((note) => `- [Turn ${note.turn}] ${note.text}`) : ["(none yet)"]),
@@ -285,7 +291,7 @@ export function buryMessages(world: World, path: TurnNode[]): Message[] {
       role: "system",
       content: `You are the co-author of a story world and you hide its secrets. ${task}\n\n${BURY_FORMAT}\n${CONTENT_LINE}`,
     },
-    { role: "user", content: `${worldHeader(world, state)}\n\n${story}` },
+    { role: "user", content: [worldHeader(world, state), "", ...memoryLines(path), story].join("\n") },
   ];
 }
 

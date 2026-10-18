@@ -406,9 +406,7 @@ export function Play({ saveId }: { saveId: string }) {
               <ul>
                 {memory.notes.map((note, i) => (
                   <li key={i}>
-                    <span className="muted small">
-                      {t("Turn")} {note.turn} {t("turn")}
-                    </span>{" "}
+                    <span className="muted small">{lang === "zh" ? `第 ${note.turn} 回合` : `Turn ${note.turn}`}</span>{" "}
                     {note.text}
                   </li>
                 ))}

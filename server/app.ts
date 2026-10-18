@@ -282,30 +282,51 @@ export function createApi(
     return { changes: [] as Change[], hooks: [] as string[], failed: true };
   }
 
-  /**
-   * Folds the oldest turns of `path` into the memory on its last node, until about `memoryKeep` tokens of story
-   * are left. Facts and threads the memory takes over leave the world state the model reads.
-   */
   /** How many turns of `path` to fold so about `memoryKeep` tokens of story are left; `from` when none. */
   function foldPoint(path: TurnNode[]) {
     const { from } = storySince(path);
+    const size = (turn: TurnNode) => tokensOf(turn.story + turn.input);
     let fold = from;
-    let left = path.slice(from).reduce((n, turn) => n + tokensOf(turn.story + turn.input), 0);
-    while (left > memoryKeep && fold < path.length - 1) left -= tokensOf(path[fold]!.story + path[fold++]!.input);
+    let left = path.slice(from).reduce((n, turn) => n + size(turn), 0);
+    while (left > memoryKeep && fold < path.length - 1) {
+      left -= size(path[fold]!);
+      fold++;
+    }
     return { from, fold };
   }
 
+  /**
+   * Folds the oldest turns of `path` into the memory on its last node, until about `memoryKeep` tokens of story
+   * are left. Facts and threads the memory takes over leave the world state the model reads. Written with full
+   * thinking; if that fails (a slow provider can pass the 180 s limit), once more without, so a failing memory
+   * does not make the player wait on every turn after.
+   */
   async function remember(w: World, path: TurnNode[], fold: number) {
     const node = path.at(-1)!;
-    let reply = "";
-    for await (const piece of thinker.stream(memoryMessages(w, path, fold), { json: true })) reply += piece;
-    const report = parseJsonObject(reply) as Record<string, unknown>;
-    const notes = list(report.memory)
-      .map((n) => ({ turn: typeof n.turn === "number" ? Math.round(n.turn) : 0, text: str(n.text, 600).trim() }))
-      .filter((n) => n.text)
-      .slice(0, 60)
-      .sort((a, b) => a.turn - b.turn);
-    if (notes.length === 0) throw new Error("The memory came back empty");
+    const before = storySince(path).notes;
+    const write = async (by: Model) => {
+      let reply = "";
+      for await (const piece of by.stream(memoryMessages(w, path, fold), { json: true })) reply += piece;
+      const report = parseJsonObject(reply) as Record<string, unknown>;
+      const notes = list(report.memory)
+        .map((n) => ({ turn: Number(n.turn), text: str(n.text, 600).trim() }))
+        .map((n) => ({ ...n, turn: Number.isFinite(n.turn) ? Math.max(0, Math.round(n.turn)) : 0 }))
+        .filter((n) => n.text)
+        .sort((a, b) => a.turn - b.turn)
+        .slice(-60);
+      // The new memory replaces the old one, so a reply that lost most of it is refused rather than kept.
+      if (notes.length === 0 || notes.length < before.length / 2)
+        throw new Error(`The memory came back with ${notes.length} notes for ${before.length} earlier ones`);
+      return { notes, report };
+    };
+    let written;
+    try {
+      written = await write(thinker);
+    } catch (error) {
+      console.warn("memory.retry", error instanceof Error ? error.message : error);
+      written = await write(writer);
+    }
+    const { notes, report } = written;
     const drop = new Set(Array.isArray(report.dropFacts) ? report.dropFacts : []);
     const close = new Set(Array.isArray(report.closeThreads) ? report.closeThreads : []);
     node.memory = { notes, through: path[fold - 1]!.id };
@@ -565,6 +586,10 @@ export function createApi(
             if (failed) fail(502, "Could not record the changes");
             const { state, applied } = applyChanges(parent.state, changes);
             const { recordsFailed: _, ...rest } = store.node(head.id)!;
+            // What a memory written on this turn took over stays out of what the model reads.
+            const archived = new Set([...rest.state.facts, ...rest.state.threads].filter((x) => x.archived).map((x) => x.id));
+            state.facts = state.facts.map((f) => (archived.has(f.id) ? { ...f, archived: true } : f));
+            state.threads = state.threads.map((t) => (archived.has(t.id) ? { ...t, archived: true } : t));
             const node: TurnNode = { ...rest, changes: applied, hooks, state: carrySecrets(rest.state, state) };
             store.putNode(node);
             return send(res, 200, view(save(s.id)));
