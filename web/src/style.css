@@ -209,21 +209,14 @@ fieldset {
 .title {
   font-size: 1.15rem;
 }
-.settings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px 16px;
-  margin-top: 12px;
-}
-.layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 28px;
-  padding-top: 16px;
+button.on {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .story {
-  min-width: 0;
-  padding-bottom: 48px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 0 48px;
 }
 .turn {
   font-family: var(--serif);
@@ -232,13 +225,15 @@ fieldset {
   padding: 6px 0 10px;
   border-bottom: 1px solid var(--line);
 }
-.turn .action {
+.turn .action,
+.action.queued {
   font-family: var(--sans);
   font-size: 0.9rem;
   color: var(--muted);
   margin: 10px 0 6px;
 }
-.turn .action strong {
+.turn .action strong,
+.action.queued strong {
   color: var(--accent);
 }
 .changes {
@@ -298,17 +293,40 @@ fieldset {
   width: auto;
   margin: 0;
 }
-.world {
-  position: sticky;
-  top: 12px;
-  align-self: start;
-  max-height: calc(100vh - 24px);
+
+/* The side panel: the story so far, the world, the settings. */
+.side {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
   overflow: auto;
-  font-size: 0.9rem;
   background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 4px 16px 16px;
+  border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06);
+  padding: 0 20px 24px;
+  z-index: 10;
+}
+.side-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.side-head h2 {
+  margin: 0;
+}
+.side .turn {
+  font-size: 0.98rem;
+  line-height: 1.85;
+}
+.world {
+  font-size: 0.9rem;
 }
 .world ul {
   padding-left: 16px;
@@ -316,6 +334,11 @@ fieldset {
 }
 .world li {
   margin-bottom: 4px;
+}
+.settings {
+  display: grid;
+  gap: 4px;
+  padding-top: 12px;
 }
 .tag {
   font-size: 0.75rem;
@@ -325,14 +348,13 @@ fieldset {
   color: var(--accent);
 }
 
+/* Wide screens keep the scene clear of the open panel. */
+@media (min-width: 1000px) {
+  .play.with-side {
+    padding-right: 440px;
+  }
+}
 @media (max-width: 860px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-  .world {
-    position: static;
-    max-height: none;
-  }
   .turn-tools {
     opacity: 1;
   }
