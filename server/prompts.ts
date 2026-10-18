@@ -117,6 +117,7 @@ const STOP =
 
 // Kept short, so the record arrives soon after the story: only the changes that matter, short texts, and a note
 // only on a reveal (for the discovery book).
+// The clock line says "always": three days passed in a real game and the clock stayed behind (2026-10-18).
 const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usually two to five. Refer to characters
 and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
 - {"type":"move","character":name,"place":name}  (a new place name creates the place)
@@ -130,7 +131,8 @@ and places by name, to facts and threads by [id], keep every text short, and use
 - {"type":"relationship","a":name,"b":name,"text":"how they stand now"}
 - {"type":"thread","title":"a new open question"}
 - {"type":"resolve","thread":id,"resolution":...}
-- {"type":"clock","text":"the new time, a few words"}
+- {"type":"clock","text":"the new time, a few words"}  (always when time moves on: a later hour, the next day,
+  a jump of days)
 "hooks" gives two or three short, different next steps (another person, another place, a bolder move), written
 as actions in the world's language.`;
 
