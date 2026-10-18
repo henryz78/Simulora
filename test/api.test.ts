@@ -92,3 +92,24 @@ test("build a world, play, undo to any turn and branch", async () => {
   assert.equal(settings.save.settings.pace, "intense");
   assert.equal(settings.save.settings.person, "third");
 });
+
+test("the AI drafts a world and buries secrets at the start and as the story goes on", async () => {
+  const draft = await call<World>("POST", "/drafts", { idea: "a harbor whose lighthouse came back on" });
+  assert.equal(draft.title, "Fake Harbor");
+  assert.equal(draft.state.characters[0]!.placeId, draft.state.places[0]!.id, "places are matched by name");
+  assert.equal(draft.state.facts.length, 1);
+
+  const world = await call<World>("POST", "/worlds", draft);
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  // The first turn waits for the secrets buried at the start.
+  await playTurn(save.id, "director", "");
+  const ai = (v: SaveView) => v.path.at(-1)!.state.facts.filter((f) => f.secret && f.source === "ai");
+  assert.equal(ai(await call<SaveView>("GET", `/saves/${save.id}`)).length, 1);
+
+  for (let i = 0; i < 3; i++) await playTurn(save.id, "director", "");
+  // The fourth turn buries more; the next turn waits for them.
+  await playTurn(save.id, "director", "");
+  const view = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.equal(ai(view).length, 2);
+  assert.ok(ai(view).every((f) => !f.revealed));
+});

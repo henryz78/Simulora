@@ -184,6 +184,16 @@ export function Play({ saveId }: { saveId: string }) {
           </p>
         )}
         <Paragraphs text={node.story} />
+        {node.changes.map((c) => {
+          const found = c.type === "reveal" && node.state.facts.find((f) => f.id === c.fact);
+          return (
+            found && (
+              <p className="found" key={c.fact}>
+                <span className="tag">{t("Secret found")}</span> {found.text}
+              </p>
+            )
+          );
+        })}
         {node.recordsFailed && node === head && (
           <p className="error small">
             {t("Couldn't record what changed in this turn.")}{" "}
@@ -365,6 +375,34 @@ export function Play({ saveId }: { saveId: string }) {
               <h3>{t("Time")}</h3>
               <p>{state.clock || "—"}</p>
 
+              <h3>
+                {t("Discovery book")}{" "}
+                <span className="muted small">
+                  {t("Found")} {secrets.length - hidden.length}/{secrets.length}
+                </span>
+              </h3>
+              <ul className="book">
+                {secrets
+                  .filter((f) => f.revealed)
+                  .map((f) => (
+                    <li key={f.id}>
+                      {f.text} <span className="tag">{t(f.source === "ai" ? "Buried by the AI" : "Yours")}</span>
+                      {f.revealNote && <div className="small muted">{f.revealNote}</div>}
+                    </li>
+                  ))}
+                {save.settings.showSecrets
+                  ? hidden.map((f) => (
+                      <li key={f.id} className="muted">
+                        {f.text} <span className="tag">{t(f.source === "ai" ? "Buried by the AI" : "Yours")}</span>
+                      </li>
+                    ))
+                  : hidden.length > 0 && (
+                      <li className="muted">
+                        {hidden.length} {t("undiscovered")}
+                      </li>
+                    )}
+              </ul>
+
               <h3>{t("People")}</h3>
               <ul>
                 {state.characters.map((c) => (
@@ -376,29 +414,6 @@ export function Play({ saveId }: { saveId: string }) {
                 ))}
               </ul>
 
-              <h3>
-                {t("Secrets")} <span className="muted small">{secrets.length - hidden.length}/{secrets.length}</span>
-              </h3>
-              <ul>
-                {secrets
-                  .filter((f) => f.revealed)
-                  .map((f) => (
-                    <li key={f.id}>
-                      <span className="tag">{t("Revealed")}</span> {f.text}
-                    </li>
-                  ))}
-                {save.settings.showSecrets
-                  ? hidden.map((f) => (
-                      <li key={f.id} className="muted">
-                        {f.text}
-                      </li>
-                    ))
-                  : hidden.length > 0 && (
-                      <li className="muted">
-                        {hidden.length} {t("undiscovered")}
-                      </li>
-                    )}
-              </ul>
 
               <h3>{t("Open questions")}</h3>
               <ul>

@@ -11,7 +11,13 @@ import { fakeModel, parseJsonObject, type Model } from "../server/model.ts";
 
 // A fake model whose failures each test switches on.
 const fake = fakeModel();
-const mode = { streamFails: false, jsonFails: false, hold: null as Promise<void> | null };
+const mode = {
+  streamFails: false,
+  jsonFails: false,
+  hold: null as Promise<void> | null,
+  buryHold: null as Promise<void> | null,
+  hooksHold: null as Promise<void> | null,
+};
 const model: Model = {
   async *stream(messages) {
     if (mode.hold) await mode.hold;
@@ -20,6 +26,9 @@ const model: Model = {
     yield* fake.stream(messages);
   },
   async json(messages) {
+    const system = messages[0]?.content ?? "";
+    if (system.includes("hide its secrets")) await mode.buryHold;
+    if (system.includes("Suggest what")) await mode.hooksHold;
     if (mode.jsonFails) throw new Error("junk");
     return fake.json(messages);
   },
@@ -101,4 +110,43 @@ test("one turn at a time, known actors only, JSON only", async () => {
 test("parseJsonObject reads past code fences", () => {
   assert.deepEqual(parseJsonObject('```json\n{"a": 1}\n```'), { a: 1 });
   assert.throws(() => parseJsonObject("no json here"));
+});
+
+test("suggestions written while secrets are buried keep the secrets", async () => {
+  const sleep = () => new Promise((done) => setTimeout(done, 50));
+  let releaseBury = () => {};
+  let releaseHooks = () => {};
+  mode.buryHold = new Promise((done) => (releaseBury = done));
+  mode.hooksHold = new Promise((done) => (releaseHooks = done));
+  const save = await newSave();
+  const hooks = post(`/saves/${save.id}/hooks`);
+  await sleep(); // the suggestions have read the opening and wait for the model
+  mode.buryHold = null;
+  releaseBury();
+  await sleep(); // the secrets are written into the opening
+  mode.hooksHold = null;
+  releaseHooks();
+  assert.equal((await hooks).status, 200);
+  const opening = (await get(`/saves/${save.id}`)).path[0]!;
+  assert.equal(opening.hooks.length, 3);
+  assert.equal(opening.state.facts.filter((f) => f.secret).length, 1);
+});
+
+test("secrets buried while a turn is being written are carried into it", async () => {
+  const sleep = () => new Promise((done) => setTimeout(done, 50));
+  let releaseBury = () => {};
+  let releaseTurn = () => {};
+  mode.buryHold = new Promise((done) => (releaseBury = done));
+  const save = await newSave();
+  mode.hold = new Promise((done) => (releaseTurn = done));
+  const turn = post(`/saves/${save.id}/turn`, {});
+  await sleep(); // the turn has read the opening and waits for the model
+  mode.buryHold = null;
+  releaseBury();
+  await sleep(); // the secrets land in the opening
+  mode.hold = null;
+  releaseTurn();
+  assert.equal((await events(await turn)).at(-1), "done");
+  const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
+  assert.equal(head.state.facts.filter((f) => f.secret && f.source === "ai").length, 1);
 });

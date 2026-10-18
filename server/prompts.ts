@@ -111,11 +111,13 @@ characters and places by name, to facts and threads by their [id]:
 - {"type":"thread","title":"an open question the story raised"}
 - {"type":"resolve","thread":id,"resolution":...}
 - {"type":"clock","text":"the new time only, a few words"}
-Every change must also have "note": one short sentence for the player saying what changed.
+Every change must also have "note": one short sentence for the player saying what changed. Call the characters
+by name, never "you".
 Leave out anything that did not change. An empty list is fine.
 
 "hooks" gives two or three short next steps the player could take, each different (another character,
-another place, a bolder move), written as actions in the world's language.`;
+another place, a bolder move), written as actions in the world's language. A hook must not give away a secret
+the player has not discovered.`;
 
 /** Hooks are moves for whoever the player is playing, not for the story's main character. */
 function hooksFor(state: WorldState, actor: string): string {
@@ -145,12 +147,80 @@ export function hookMessages(world: World, path: TurnNode[]): Message[] {
       role: "system",
       content:
         'Suggest what the player could do next in this story world. Return one JSON object: {"hooks": [two or ' +
-        "three short, different next steps, written as actions in the world's language]}.\n" +
+        "three short, different next steps, written as actions in the world's language]}. A hook must not give " +
+        "away a secret the player has not discovered.\n" +
         hooksFor(state, path.at(-1)!.actor),
     },
     {
       role: "user",
       content: `${worldHeader(world, state)}\n\nStory so far:\n${recentStory(path, state)}`,
     },
+  ];
+}
+
+/** How many turns pass between the times the AI buries new secrets, and how many may wait undiscovered. */
+export const BURY_EVERY = 4;
+export const MAX_HIDDEN = 5;
+
+const BURY_FORMAT =
+  'Return one JSON object: {"secrets": [{"text": "the secret, one or two sentences", "knownBy": [names of ' +
+  'characters who know it], "because": "what in the world or story it grows from"}]}. A secret is a hidden truth: ' +
+  "concrete, surprising, and able to come out later through the story (a search, evidence, a confession). It fits " +
+  "everything already established and never contradicts it. Bring in no new main characters. Do not repeat a " +
+  "secret already listed. Write in the same language as the world's own text.";
+
+/** Asks for secrets to bury: from the world itself at the start, from what has happened later on. */
+export function buryMessages(world: World, path: TurnNode[]): Message[] {
+  const state = path.at(-1)!.state;
+  const start = path.length === 1;
+  const task = start
+    ? "The story is about to start. Bury two or three secrets in this world, grounded in the premise, the places " +
+      "and the characters already here. The best secret explains or deepens something the player can already see."
+    : "The story has moved on. Bury one or two new secrets grounded in what has happened: the hidden truth behind " +
+      'a specific unexplained detail, odd reaction or open question in the recent story. Say which in "because".';
+  const story = start ? `Opening:\n${path[0]!.story}` : `Story so far:\n${recentStory(path, state)}`;
+  return [
+    {
+      role: "system",
+      content: `You are the co-author of a story world and you hide its secrets. ${task}\n\n${BURY_FORMAT}\n${CONTENT_LINE}`,
+    },
+    { role: "user", content: `${worldHeader(world, state)}\n\n${story}` },
+  ];
+}
+
+/** The parts of a world draft the AI writes, with names in place of ids. */
+export interface PlainDraft {
+  title: string;
+  premise: string;
+  opening: string;
+  clock: string;
+  places: { name: string; description: string }[];
+  characters: { name: string; persona: string; goals: string; place: string }[];
+  facts: string[];
+  threads: string[];
+  relationships: { a: string; b: string; text: string }[];
+}
+
+const DRAFT_FORMAT = `Return one JSON object:
+{"title": ..., "premise": "two or three sentences", "opening": "one vivid paragraph: the first moment of the story",
+ "clock": "the time when the story starts", "places": [{"name": ..., "description": ...}],
+ "characters": [{"name": ..., "persona": "who they are, how they act", "goals": "what they want", "place": a place name}],
+ "facts": ["things everyone knows"], "threads": ["open questions that pull the story"],
+ "relationships": [{"a": name, "b": name, "text": "how they stand"}]}
+Give three to five characters whose goals pull against each other, two to four places, a few facts and one or two
+open questions. Leave out secrets: the AI buries those when the story starts. Write in the language of the player's
+own words.`;
+
+export function draftMessages(idea: string, draft: PlainDraft | null, feedback: string): Message[] {
+  const user = draft
+    ? `The player's idea: ${idea}\n\nThe current draft:\n${JSON.stringify(draft)}\n\n` +
+      `Change the draft as the player asks and keep the rest: ${feedback}`
+    : `The player's idea: ${idea}`;
+  return [
+    {
+      role: "system",
+      content: `You help a player build a world for an interactive story they will play.\n\n${DRAFT_FORMAT}\n${CONTENT_LINE}`,
+    },
+    { role: "user", content: user },
   ];
 }

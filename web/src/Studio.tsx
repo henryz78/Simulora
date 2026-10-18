@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Character, Fact, Place, Thread, WorldDraft, WorldState } from "../../shared/types.ts";
 import { api } from "./api.ts";
-import { t } from "./i18n.ts";
+import { lang, t } from "./i18n.ts";
 
+const sep = lang === "zh" ? "：" : ": ";
 const id = (prefix: string) => `${prefix}${crypto.randomUUID().slice(0, 8)}`;
 
 const emptyDraft = (): WorldDraft => ({
@@ -11,6 +12,142 @@ const emptyDraft = (): WorldDraft => ({
   opening: "",
   state: { clock: "", places: [], characters: [], facts: [], threads: [], relationships: [] },
 });
+
+/** Describe a world, get a proposal, ask for changes, then fill the editor with it. */
+function AiDraft({ onFill }: { onFill: (draft: WorldDraft) => void }) {
+  const [idea, setIdea] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [proposal, setProposal] = useState<WorldDraft | null>(null);
+  const [working, setWorking] = useState(false);
+  const [status, setStatus] = useState("");
+
+  const ask = async (revise: boolean) => {
+    setWorking(true);
+    setStatus("");
+    try {
+      setProposal(await api.draft(idea, revise ? proposal : null, revise ? feedback : ""));
+      setFeedback("");
+    } catch (error) {
+      setStatus(t((error as Error).message));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const p = proposal?.state;
+  const placeName = (id: string | null) => p?.places.find((x) => x.id === id)?.name;
+  const charName = (id: string) => p?.characters.find((c) => c.id === id)?.name ?? "?";
+
+  return (
+    <section className="panel ai-draft">
+      <h2>{t("Let the AI build a world")}</h2>
+      <textarea
+        rows={3}
+        placeholder={t("Describe the world you want: where, when, who, what is going on…")}
+        value={idea}
+        onChange={(e) => setIdea(e.target.value)}
+      />
+      <div className="row">
+        <button className="primary" disabled={!idea.trim() || working} onClick={() => ask(false)}>
+          {proposal ? t("Start over") : t("Build it")}
+        </button>
+        {working && <span className="muted small">{t("The AI is thinking it up…")}</span>}
+      </div>
+
+      {proposal && p && (
+        <div className="proposal">
+          <h3>{proposal.title}</h3>
+          <p>{proposal.premise}</p>
+          <p className="muted">
+            {t("Opening")}
+            {sep}
+            {proposal.opening}
+          </p>
+          <h4>{t("Characters")}</h4>
+          <ul>
+            {p.characters.map((c) => (
+              <li key={c.id}>
+                <strong>{c.name}</strong>
+                {placeName(c.placeId) && <span className="muted"> · {placeName(c.placeId)}</span>}
+                <div className="small">{c.persona}</div>
+                {c.goals && (
+                  <div className="small muted">
+                    {t("Goals")}
+                    {sep}
+                    {c.goals}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+          <h4>{t("Places")}</h4>
+          <ul>
+            {p.places.map((x) => (
+              <li key={x.id}>
+                <strong>{x.name}</strong> <span className="small muted">{x.description}</span>
+              </li>
+            ))}
+          </ul>
+          {p.facts.length > 0 && (
+            <>
+              <h4>{t("Known facts")}</h4>
+              <ul>
+                {p.facts.map((f) => (
+                  <li key={f.id}>{f.text}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {p.threads.length > 0 && (
+            <>
+              <h4>{t("Open questions")}</h4>
+              <ul>
+                {p.threads.map((th) => (
+                  <li key={th.id}>{th.title}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {p.relationships.length > 0 && (
+            <>
+              <h4>{t("Relationships")}</h4>
+              <ul>
+                {p.relationships.map((r) => (
+                  <li key={`${r.a}-${r.b}`}>
+                    {charName(r.a)} · {charName(r.b)}
+                    {sep}
+                    {r.text}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <p className="small muted">{t("The AI buries its own secrets when you start playing.")}</p>
+
+          <div className="row">
+            <button
+              className="primary"
+              disabled={working}
+              onClick={() => {
+                onFill(proposal);
+                setStatus(t("Filled in below. Look it over, change anything, then save."));
+              }}
+            >
+              {t("Fill in the editor")}
+            </button>
+          </div>
+          <label>
+            {t("Want something changed?")}
+            <textarea rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
+          </label>
+          <button disabled={!feedback.trim() || working} onClick={() => ask(true)}>
+            {t("Ask the AI to change it")}
+          </button>
+        </div>
+      )}
+      {status && <p className="muted small">{status}</p>}
+    </section>
+  );
+}
 
 export function Studio({ worldId }: { worldId: string | null }) {
   const [draft, setDraft] = useState<WorldDraft | null>(worldId ? null : emptyDraft());
@@ -62,6 +199,15 @@ export function Studio({ worldId }: { worldId: string | null }) {
         <a href="#/">← {t("Home")}</a>
         <span className="muted">{t("World studio")}</span>
       </header>
+
+      {!worldId && (
+        <AiDraft
+          onFill={(filled) => {
+            const empty = !draft.title && !draft.premise && !draft.opening && s.characters.length === 0;
+            if (empty || confirm(t("Replace what is in the editor?"))) setDraft(filled);
+          }}
+        />
+      )}
 
       <section className="panel">
         <label>

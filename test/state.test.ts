@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, parseChanges } from "../server/state.ts";
+import { applyChanges, bury, parseChanges } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -43,4 +43,24 @@ test("applies a turn's changes and skips the ones naming unknown things", () => 
   assert.equal(state.facts.at(-1)!.source, "story");
   assert.equal(applied.length, 8, "the unknown character and the nonsense type are dropped");
   assert.equal(before.facts[0]!.revealed, false, "the earlier state is not touched");
+});
+
+test("buries secrets the characters can know, skipping blanks and repeats", () => {
+  const before = world();
+  const { state, buried } = bury(before, [
+    { text: "Zhou sold the caravan's route.", knownBy: ["zhou", "Nobody"] },
+    { text: "Qing was the guide." },
+    { text: "  " },
+    "junk",
+  ]);
+  assert.equal(buried.length, 1);
+  assert.deepEqual(
+    { secret: buried[0]!.secret, revealed: buried[0]!.revealed, source: buried[0]!.source },
+    { secret: true, revealed: false, source: "ai" },
+  );
+  assert.deepEqual(state.characters[0]!.knows, [buried[0]!.id]);
+  assert.equal(before.facts.length, 1, "the earlier state is untouched");
+
+  const revealed = applyChanges(state, [{ type: "reveal", fact: buried[0]!.id, note: "Qing found the letter." }]);
+  assert.equal(revealed.state.facts.at(-1)!.revealNote, "Qing found the letter.");
 });

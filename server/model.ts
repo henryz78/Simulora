@@ -110,7 +110,22 @@ export function fakeModel(): Model {
       for (const piece of ["The wind shifts. ", `(${action || "the story moves on"}) `, "Someone looks up."])
         yield piece;
     },
-    async json() {
+    async json(messages) {
+      const system = messages[0]?.content ?? "";
+      if (system.includes("hide its secrets"))
+        return { secrets: [{ text: `A buried secret, told in ${messages.at(-1)!.content.length} characters.`, knownBy: [] }] };
+      if (system.includes("build a world"))
+        return {
+          title: "Fake Harbor",
+          premise: "A harbor where the lighthouse came back on.",
+          opening: "The light swings over the water.",
+          clock: "Night",
+          places: [{ name: "Pier", description: "Wet stones" }],
+          characters: [{ name: "Wan", persona: "Quiet", goals: "Find her father", place: "Pier" }],
+          facts: ["The lighthouse was dark for ten years."],
+          threads: ["Who lit the lamp?"],
+          relationships: [],
+        };
       return {
         changes: [{ type: "clock", text: "A little later", note: "Time passes." }],
         hooks: ["Look around", "Ask what happened", "Wait and listen"],

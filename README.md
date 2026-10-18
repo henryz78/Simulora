@@ -18,4 +18,4 @@ npm run check   # 类型检查、测试、构建
 ```
 
 可选环境变量：`SIMULORA_MODEL`（讲故事的模型）、`SIMULORA_RECORD_MODEL`（记录变化的模型）、
-`SIMULORA_REASONING`（讲故事的思考强度，默认 `none` 不思考）、`SIMULORA_RECORD_REASONING`（记录变化的思考强度，默认留空用模型默认）、`SIMULORA_PORT`。数据存在 `data/` 下的 SQLite 文件里。
+`SIMULORA_REASONING`（讲故事的思考强度，默认 `none` 不思考）、`SIMULORA_RECORD_REASONING`（记录变化和埋秘密的思考强度，默认 `low`）、`SIMULORA_PORT`。数据存在 `data/` 下的 SQLite 文件里。

@@ -132,6 +132,7 @@ export function applyChanges(
         const secret = fact(change.fact);
         if (!secret?.secret || secret.revealed) continue;
         secret.revealed = true;
+        if (change.note) secret.revealNote = change.note;
         break;
       }
       case "learn": {
@@ -175,6 +176,41 @@ export function applyChanges(
 }
 
 /** The world as the model sees it, secrets included and marked. */
+/**
+ * Adds the secrets the AI buried. Each one is hidden from the player; the characters named as knowing it
+ * know it, so they can act on it. Leaves out blanks and secrets already in the world.
+ */
+export function bury(before: WorldState, raw: unknown): { state: WorldState; buried: Fact[] } {
+  const state = structuredClone(before);
+  const buried: Fact[] = [];
+  for (const item of Array.isArray(raw) ? raw.slice(0, 3) : []) {
+    const v = (item ?? {}) as Record<string, unknown>;
+    const secret = text(v.text, 600);
+    if (!secret || state.facts.some((f) => same(f.text, secret))) continue;
+    const fact: Fact = { id: newId("f"), text: secret, secret: true, revealed: false, source: "ai" };
+    state.facts.push(fact);
+    buried.push(fact);
+    for (const name of Array.isArray(v.knownBy) ? v.knownBy : []) {
+      const who = typeof name === "string" ? state.characters.find((c) => same(c.name, name)) : undefined;
+      who?.knows.push(fact.id);
+    }
+  }
+  return { state, buried };
+}
+
+/** Secrets the AI buried in `from` that `into` lacks, carried over along with who knows them. */
+export function carrySecrets(from: WorldState, into: WorldState): WorldState {
+  const missing = from.facts.filter((f) => f.source === "ai" && !into.facts.some((x) => x.id === f.id));
+  if (missing.length === 0) return into;
+  const state = structuredClone(into);
+  state.facts.push(...missing);
+  for (const c of state.characters) {
+    const knows = from.characters.find((x) => x.id === c.id)?.knows ?? [];
+    c.knows.push(...knows.filter((id) => missing.some((f) => f.id === id)));
+  }
+  return state;
+}
+
 export function describeState(state: WorldState): string {
   const placeName = (id: string | null) =>
     state.places.find((p) => p.id === id)?.name ?? "somewhere unspecified";

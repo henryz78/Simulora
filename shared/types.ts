@@ -26,6 +26,8 @@ export interface Fact {
   secret: boolean;
   revealed: boolean;
   source: "author" | "ai" | "story";
+  /** How the story brought a secret out, in a sentence for the discovery book. */
+  revealNote?: string;
 }
 
 export interface Thread {

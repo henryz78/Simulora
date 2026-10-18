@@ -340,6 +340,32 @@ button.on {
   gap: 4px;
   padding-top: 12px;
 }
+.found {
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  background: #f6ead9;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+.book li {
+  margin-bottom: 8px;
+}
+.ai-draft textarea {
+  margin-bottom: 8px;
+}
+.proposal {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 4px;
+}
+.proposal h4 {
+  margin: 12px 0 4px;
+}
+.proposal ul {
+  padding-left: 18px;
+  margin: 0;
+}
 .tag {
   font-size: 0.75rem;
   border: 1px solid var(--line);

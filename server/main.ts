@@ -16,15 +16,16 @@ const store = new Store(join(root, "data", fake ? "fake.db" : "simulora.db"));
 const live = (model: string, reasoning: string) =>
   openAICompatibleModel({ profilePath: join(root, ".secret.txt"), model, reasoning });
 // DeepSeek-V4.1-Flash wrote the liveliest scenes in the 2026-10-17 comparison. Without thinking ("none") its first
-// words come in about 3 s instead of 30-60 s, and the prose is as good. The records keep thinking: without it they
-// sometimes mark a hinted secret as revealed (2026-10-18).
+// words come in about 3 s instead of 30-60 s, and the prose is as good. The records and the buried secrets think a
+// little ("low"): without thinking they mark hinted secrets as revealed and bury the same secret twice; at the
+// default they take 50 s to over 100 s, long enough for the gateway to give up (2026-10-18).
 const storyModel = process.env.SIMULORA_MODEL ?? "ModelScope/deepseek-ai/DeepSeek-V4.1-Flash";
 const story = fake ? fakeModel() : live(storyModel, process.env.SIMULORA_REASONING ?? "none");
 const records = fake
   ? story
-  : live(process.env.SIMULORA_RECORD_MODEL ?? storyModel, process.env.SIMULORA_RECORD_REASONING ?? "");
+  : live(process.env.SIMULORA_RECORD_MODEL ?? storyModel, process.env.SIMULORA_RECORD_REASONING ?? "low");
 const model = { stream: story.stream, json: records.json };
-const api = createApi(store, model);
+const api = createApi(store, model, story);
 
 const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

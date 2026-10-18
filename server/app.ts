@@ -16,8 +16,17 @@ import {
 } from "../shared/types.ts";
 import type { Store } from "./db.ts";
 import type { Model } from "./model.ts";
-import { changeMessages, hookMessages, narrationMessages } from "./prompts.ts";
-import { applyChanges, newId, parseChanges } from "./state.ts";
+import {
+  BURY_EVERY,
+  MAX_HIDDEN,
+  buryMessages,
+  changeMessages,
+  draftMessages,
+  hookMessages,
+  narrationMessages,
+  type PlainDraft,
+} from "./prompts.ts";
+import { applyChanges, bury, carrySecrets, newId, parseChanges } from "./state.ts";
 
 class HttpError extends Error {
   status: number;
@@ -83,6 +92,56 @@ export function normalizeDraft(raw: unknown): WorldDraft {
   };
 }
 
+/** A draft the AI wrote, names in place of ids, made into a world draft. */
+export function fromPlain(raw: unknown): WorldDraft {
+  const v = (raw ?? {}) as Record<string, unknown>;
+  const texts = (value: unknown) =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim() !== "") : [];
+  const places = list(v.places)
+    .map((p) => ({ id: newId("p"), name: str(p.name, 200).trim(), description: str(p.description) }))
+    .filter((p) => p.name);
+  const characters = list(v.characters)
+    .map((c) => ({
+      id: newId("c"),
+      name: str(c.name, 200).trim(),
+      persona: str(c.persona),
+      goals: str(c.goals),
+      placeId: places.find((p) => p.name === str(c.place, 200).trim())?.id ?? null,
+    }))
+    .filter((c) => c.name);
+  const charId = (name: unknown) => characters.find((c) => c.name === str(name, 200).trim())?.id ?? "";
+  return normalizeDraft({
+    title: v.title,
+    premise: v.premise,
+    opening: v.opening,
+    state: {
+      clock: v.clock,
+      places,
+      characters,
+      facts: texts(v.facts).map((text) => ({ text })),
+      threads: texts(v.threads).map((title) => ({ title })),
+      relationships: list(v.relationships).map((r) => ({ a: charId(r.a), b: charId(r.b), text: r.text })),
+    },
+  });
+}
+
+/** A world draft in the AI's own terms, for asking it to change the draft. Secrets stay out. */
+function toPlain(d: WorldDraft): PlainDraft {
+  const placeName = (id: string | null) => d.state.places.find((p) => p.id === id)?.name ?? "";
+  const charName = (id: string) => d.state.characters.find((c) => c.id === id)?.name ?? "";
+  return {
+    title: d.title,
+    premise: d.premise,
+    opening: d.opening,
+    clock: d.state.clock,
+    places: d.state.places.map(({ name, description }) => ({ name, description })),
+    characters: d.state.characters.map((c) => ({ name: c.name, persona: c.persona, goals: c.goals, place: placeName(c.placeId) })),
+    facts: d.state.facts.filter((f) => !f.secret).map((f) => f.text),
+    threads: d.state.threads.map((t) => t.title),
+    relationships: d.state.relationships.map((r) => ({ a: charName(r.a), b: charName(r.b), text: r.text })),
+  };
+}
+
 function normalizeSettings(raw: unknown, current: Settings): Settings {
   const v = (raw ?? {}) as Record<string, unknown>;
   const pick = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
@@ -120,8 +179,33 @@ function send(res: ServerResponse, status: number, value: unknown) {
   res.end(JSON.stringify(value));
 }
 
-export function createApi(store: Store, model: Model) {
+/**
+ * `model` streams the story and keeps the records; `writer` drafts worlds, where speed matters more than care.
+ */
+export function createApi(store: Store, model: Model, writer: Model = model) {
   const busy = new Set<string>();
+  // Saves whose secrets are being buried. Burying takes the model a minute or more, so nobody waits for it.
+  const burying = new Set<string>();
+
+  function buryLater(saveId: string) {
+    if (burying.has(saveId)) return;
+    burying.add(saveId);
+    void (async () => {
+      const s = store.save(saveId);
+      const w = s && store.world(s.worldId);
+      if (!s || !w) return;
+      const report = (await model.json(buryMessages(w, store.path(s.headId)))) as Record<string, unknown>;
+      // The secrets go where the save is now. A turn written meanwhile carries them over when it is saved.
+      const current = store.save(saveId);
+      const head = current && store.node(current.headId);
+      if (!head) return;
+      const { state, buried } = bury(head.state, report.secrets);
+      if (buried.length) store.putNode({ ...head, state });
+      console.log(`secrets.buried ${buried.length}`);
+    })()
+      .catch((error) => console.warn("bury.failed", error instanceof Error ? error.message : error))
+      .finally(() => burying.delete(saveId));
+  }
 
   const world = (id: string) => store.world(id) ?? fail(404, "World not found");
   const save = (id: string) => store.save(id) ?? fail(404, "Save not found");
@@ -159,6 +243,7 @@ export function createApi(store: Store, model: Model) {
       updatedAt: now(),
     };
     store.putSave(s);
+    buryLater(s.id);
     return s;
   }
 
@@ -212,7 +297,9 @@ export function createApi(store: Store, model: Model) {
       console.log(
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );
-      const { state, applied } = applyChanges(head.state, changes);
+      const { state: changed, applied } = applyChanges(head.state, changes);
+      // Secrets buried in the turn this one grows from while it was being written come along.
+      const state = carrySecrets(store.node(head.id)!.state, changed);
       const node: TurnNode = {
         id: randomUUID(),
         worldId: w.id,
@@ -229,6 +316,9 @@ export function createApi(store: Store, model: Model) {
       store.putNode(node);
       store.putSave({ ...save(s.id), headId: node.id, updatedAt: now() });
       event("done", { node });
+      // Every few turns the AI buries new secrets in what has happened, unless plenty still wait.
+      const hidden = state.facts.filter((f) => f.secret && !f.revealed).length;
+      if (path.length % BURY_EVERY === 0 && hidden < MAX_HIDDEN) buryLater(s.id);
     } catch (error) {
       console.warn("turn.failed", error instanceof Error ? error.message : error);
       event("error", { message: error instanceof Error ? error.message : "The turn failed" });
@@ -258,6 +348,16 @@ export function createApi(store: Store, model: Model) {
           const w: World = { ...normalizeDraft(await readJson(req)), id: randomUUID(), createdAt: now(), updatedAt: now() };
           store.putWorld(w);
           return send(res, 201, w);
+        }
+        case "POST /drafts": {
+          const body = await readJson(req);
+          const idea = str(body.idea).trim();
+          if (!idea) fail(400, "Describe the world first");
+          const draft = body.draft ? toPlain(normalizeDraft(body.draft)) : null;
+          const ask = () => writer.json(draftMessages(idea, draft, str(body.feedback).trim()));
+          const result = fromPlain(await ask().catch(ask));
+          if (!result.opening || result.state.characters.length === 0) fail(502, "The model gave no usable world");
+          return send(res, 200, result);
         }
         case "GET /worlds/:id":
           return send(res, 200, world(id));
@@ -326,7 +426,8 @@ export function createApi(store: Store, model: Model) {
           const report = (await ask().catch(ask)) as Record<string, unknown>;
           const hooks = parseHooks(report.hooks);
           if (hooks.length === 0) fail(502, "The model gave no suggestions");
-          const head = { ...path.at(-1)!, hooks };
+          // Read the turn again: secrets may have been buried in it while the model was writing.
+          const head = { ...store.node(path.at(-1)!.id)!, hooks };
           store.putNode(head);
           return send(res, 200, head);
         }
@@ -341,8 +442,8 @@ export function createApi(store: Store, model: Model) {
             const { changes, hooks, failed } = await record(world(s.worldId), parent.state, head.story, head.actor);
             if (failed) fail(502, "Could not record the changes");
             const { state, applied } = applyChanges(parent.state, changes);
-            const { recordsFailed: _, ...rest } = head;
-            const node: TurnNode = { ...rest, changes: applied, hooks, state };
+            const { recordsFailed: _, ...rest } = store.node(head.id)!;
+            const node: TurnNode = { ...rest, changes: applied, hooks, state: carrySecrets(rest.state, state) };
             store.putNode(node);
             return send(res, 200, view(save(s.id)));
           } finally {

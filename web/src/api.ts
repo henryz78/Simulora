@@ -15,6 +15,8 @@ export const api = {
   worlds: () => call<{ world: World; saves: Save[] }[]>("GET", "/worlds"),
   world: (id: string) => call<World>("GET", `/worlds/${id}`),
   createWorld: (draft: WorldDraft) => call<World>("POST", "/worlds", draft),
+  draft: (idea: string, draft: WorldDraft | null, feedback: string) =>
+    call<WorldDraft>("POST", "/drafts", { idea, draft, feedback }),
   updateWorld: (id: string, draft: WorldDraft) => call<World>("PUT", `/worlds/${id}`, draft),
   deleteWorld: (id: string) => call<object>("DELETE", `/worlds/${id}`),
   startSave: (worldId: string, title: string) => call<Save>("POST", "/saves", { worldId, title }),
