@@ -29,6 +29,7 @@ import {
   changeMessages,
   draftMessages,
   draftPrompt,
+  fullWidth,
   hookMessages,
   chronicleMessages,
   chronicleOf,
@@ -91,6 +92,8 @@ export function normalizeDraft(raw: unknown): WorldDraft {
   return {
     title: str(v.title, 200).trim() || "Untitled world",
     premise: str(v.premise),
+    // The model now and then writes the rules as a list.
+    rules: str(Array.isArray(v.rules) ? v.rules.filter((r) => typeof r === "string").join("\n") : v.rules, 20_000),
     opening: str(v.opening),
     state: {
       clock: str(s.clock, 200),
@@ -126,6 +129,7 @@ export function fromPlain(raw: unknown): WorldDraft {
   return normalizeDraft({
     title: v.title,
     premise: v.premise,
+    rules: v.rules,
     opening: v.opening,
     state: {
       clock: v.clock,
@@ -145,6 +149,7 @@ function toPlain(d: WorldDraft): PlainDraft {
   return {
     title: d.title,
     premise: d.premise,
+    rules: d.rules,
     opening: d.opening,
     clock: d.state.clock,
     places: d.state.places.map(({ name, description }) => ({ name, description })),
@@ -498,7 +503,8 @@ export function createApi(
           })) {
             reply += piece;
             if (closed) continue;
-            const { text, done } = readString(reply, "story");
+            const { text: raw, done } = readString(reply, "story");
+            const text = fullWidth(raw);
             if (text.length > sent) {
               firstAt ||= Date.now();
               event("story", { text: text.slice(sent) });
@@ -519,7 +525,7 @@ export function createApi(
         }
       }
       if (!closed) console.warn("story.unclosed");
-      const story = readString(reply, "story").text.trim();
+      const story = fullWidth(readString(reply, "story").text).trim();
       if (!story) throw new Error("The model returned no story");
       storyAt ||= Date.now();
 

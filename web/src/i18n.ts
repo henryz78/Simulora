@@ -121,6 +121,9 @@ const zh: Record<string, string> = {
   "Everyday life": "日常",
   "Small: one place, a few people": "小：一个地方，几个人",
   Middling: "中",
+  "Rules for the storyteller": "写作规则",
+  "(tone, how magic or fighting works, what things cost; the AI follows them every turn)":
+    "（腔调、魔法或武功怎么用、什么有代价……AI 每回合都会遵守）",
   "Large: travel far": "大：要四处走动",
   "Use your own AI instead (it can search the web)": "用你自己的 AI 生成（可以联网搜索）",
   "Copied. Paste it into your AI, talk it over there, then paste its reply below.":

@@ -59,6 +59,8 @@ export interface WorldState {
 export interface WorldDraft {
   title: string;
   premise: string;
+  /** How this world is told and how it works, in the author's words; the story model reads it every turn. */
+  rules: string;
   opening: string;
   state: WorldState;
 }

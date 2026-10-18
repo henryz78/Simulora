@@ -51,6 +51,17 @@ export function chronicleOf(path: TurnNode[]): { notes: MemoryNote[]; timeline: 
   return { notes: node?.memory ?? [], timeline: node?.timeline ?? [], at };
 }
 
+const FULL_WIDTH: Record<string, string> = { ",": "，", "?": "？", "!": "！", ":": "：", ";": "；" };
+
+/**
+ * Chinese with Chinese punctuation: in JSON replies the model often writes "她说,好" with ASCII marks, and asking it
+ * not to did not help (2026-10-18). A mark right after a CJK character or closing quote turns full-width; it depends
+ * only on the character before it, so a story streamed piece by piece comes out the same.
+ */
+export function fullWidth(text: string): string {
+  return text.replace(/(?<=[㐀-鿿　-〿＀-￯”’」』])[,?!:;]/g, (mark) => FULL_WIDTH[mark]!);
+}
+
 /** A rough token count: about 0.7 per Chinese, Japanese or Korean character, 0.5 per other non-Latin one, 0.3 else. */
 export function tokensOf(text: string): number {
   const cjk = text.match(/[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g)?.length ?? 0;
@@ -161,7 +172,12 @@ export function narrationMessages(
       ? `The player plays ${name} this turn. Carry out what they wrote for ${name}, with natural detail, but ` +
         `${name} decides nothing more: that is the player's choice.`
       : "The player is the director this turn: what they write simply happens in the world.",
-    "Every other character is yours: they act, speak and decide on their own goals and moods.",
+    // Found in a real play-test (2026-10-18): the story retold the player's lines word for word, and a teacher in
+    // his office knew what the player had just done in the library.
+    "The player's words are shown right above your story: do not repeat or retell them; go on from them, with " +
+      "what happens next and how the others respond.",
+    "Every other character is yours: they act, speak and decide on their own goals and moods. Each knows only " +
+      "what they have seen, heard or been told: someone who was elsewhere does not know what just happened.",
     pace[settings.pace],
     voice,
     length(settings.length),
@@ -169,12 +185,22 @@ export function narrationMessages(
     SECRETS,
     "Stay consistent with the world and the story so far, and write in the world's own language.",
     CONTENT_LINE,
+    ...(world.rules?.trim()
+      ? [
+          "",
+          "The author's rules for this world. Follow them. Where they ask for a layout of the reply (status panels, " +
+            "option lists, menus), leave it out: the reply format below is fixed, and the game shows the state and " +
+            "the next steps itself; where they describe kinds of options, the hooks follow them.",
+          world.rules.trim(),
+        ]
+      : []),
     "",
     // One JSON reply, like WorldOS (2026-10-18), story first so its first words come in 3-5 s. Told to give all
     // three keys and shown a whole reply, the model kept the record in 6 of 6 turns (3 of 5 were cut short
     // before). The server reads the story out of the reply as it streams; a missing record is filled in.
     'Reply with one JSON object, keys in this order: {"story": "plain prose, paragraphs split by blank lines, ' +
-      'speech in “” or 「」", "changes": [...], "hooks": [...]}. Always give all three keys, like this:',
+      'speech in “” or 「」, Chinese in full-width punctuation", "changes": [...], "hooks": [...]}. Always give all ' +
+      "three keys, like this:",
     REPLY_SAMPLE,
     RECORD_FORMAT,
     hooksFor(state, actor),
@@ -193,6 +219,8 @@ export function narrationMessages(
       .join("\n\n"),
     "",
     `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
+    // Said in the system prompt alone, it was not enough (2026-10-18).
+    ...(input.trim() ? ["(The player has read this already: go on from it, do not repeat their words.)"] : []),
   ].join("\n");
   return [
     { role: "system", content: system },
@@ -224,7 +252,8 @@ export function hookMessages(world: World, path: TurnNode[]): Message[] {
         'Suggest what the player could do next in this story world. Return one JSON object: {"hooks": [two or ' +
         "three short, different next steps, written as actions in the world's language]}. A hook must not give " +
         "away a secret the player has not discovered.\n" +
-        hooksFor(state, path.at(-1)!.actor),
+        // At the opening nobody has acted yet: the player starts as the world's first character.
+        hooksFor(state, path.length === 1 ? (state.characters[0]?.id ?? "director") : path.at(-1)!.actor),
     },
     {
       role: "user",
@@ -239,13 +268,15 @@ export const CHRONICLE_TURNS = 10;
 export const TIMELINE_TOKENS = 10_000;
 export const MERGE_ENTRIES = 5;
 
-// What the memory keeps, most important first. In a 150-turn mystery the memory, left to choose, kept clue after
+// A real game's first ten turns got sixteen notes, six of them questions (2026-10-18): at most four a step, three
+// questions. What the memory keeps, most important first. In a 150-turn mystery the memory, left to choose, kept clue after
 // clue and dropped where the heirloom ring was (2026-10-18).
 const MEMORY_KINDS = `What to keep, most important first; when there is no room, the last go first:
 1. where important things are and who has them; promises, debts and meetings still pending;
 2. turning points: a decisive choice, a vow, a change of heart, a break or a bond, and why;
 3. who knows a secret or a truth that matters;
-4. a few questions still open, one short question each. Clues are not kept one by one: only what they add up to.`;
+4. at most three questions still open, one short question each. Clues are not kept one by one: only what they add
+   up to.`;
 
 // The player's design (2026-10-18): the memory keeps state and turning points, checks every old note first and
 // rather changes or drops than adds; the timeline tells what happened and is never changed. At first the memory
@@ -270,8 +301,8 @@ First go through the earlier notes one by one against the new turns:
 - no longer true, or no longer important: drop it.
 Then add what is new. Rather change or drop than add: fold a new thing into a note it belongs to, and add a note
 only for something truly new. One note per thing, one sentence of at most about 60 Chinese characters (or 40
-words), at most 20 notes, oldest first, each starting with the one turn it last changed in: "[Turn 12] ...". Most
-stretches of ten turns add one or two notes, some none.
+words), at most 20 notes, oldest first, each starting with the one turn it last changed in: "[Turn 12] ...". Ten
+turns add at most four notes: most add one or two, some none.
 
 Write in the world's own language, and only what the player has seen or been told.`;
 
@@ -370,6 +401,7 @@ export function buryMessages(world: World, path: TurnNode[]): Message[] {
 export interface PlainDraft {
   title: string;
   premise: string;
+  rules: string;
   opening: string;
   clock: string;
   places: { name: string; description: string }[];
@@ -379,7 +411,8 @@ export interface PlainDraft {
   relationships: { a: string; b: string; text: string }[];
 }
 
-// A world has to carry a story of hundreds of turns. The first prompt asked for "three to five characters, a few facts"
+// One world put the burnt room on the fourth floor in its opening and on the eighth in its places, and the story
+// went to the wrong one (2026-10-18): the draft checks itself. A world has to carry a story of hundreds of turns. The first prompt asked for "three to five characters, a few facts"
 // and the worlds came out thin (the player, 2026-10-18).
 const DRAFT_GUIDE = `You design the world of an interactive story the player will play for a long time, hundreds of turns:
 as one character, or as a director who changes the world. Build from the player's answers below; where they leave
@@ -387,6 +420,11 @@ something open, choose what makes the best story. The world must be rich enough 
 
 - "title": a short, evocative name.
 - "premise": three to five sentences: the situation, what is at stake, and why it starts now.
+- "rules": how this world is to be told and how it works, for the storyteller to follow every turn: the voice and
+  tone, how magic or fighting or money works and what it costs, how people behave, what the player asked for. If
+  the player gave rules of their own, or a whole prompt for another AI, keep every rule of it here, in their own
+  words, and leave out only instructions about the layout of a reply (status panels, option lists, menus): the game
+  shows those itself. Otherwise write five to ten short rules that fit the world.
 - "opening": the first scene, 300 to 600 characters (or 200 to 400 words): the player's character in a concrete
   moment, something already happening that asks for a response, ending open, with no choice made for them.
 - "clock": when the story starts, a few words.
@@ -406,12 +444,18 @@ something open, choose what makes the best story. The world must be rich enough 
 - "relationships": between the important people, each with a tension or a bond (a debt, a rivalry, a love, a
   shared past).
 
+If the player's answers ask to choose or build their character at the start, make the most fitting choices for
+them now (the player can change them before playing) and put those choices in their character's persona.
+
+Before you reply, check that the premise, the opening, the places, the facts and the threads agree on every name,
+place, floor, date and number: the storyteller trusts all of them.
+
 Names, speech and things fit the era and culture; nothing out of its time. Avoid clichés: give each person and
 place one particular detail. If the player names an existing work, stay true to its setting and characters. Leave
 out secrets: they are hidden when the story starts. Write in the language of the player's own words.`;
 
 const DRAFT_FORMAT = `Reply with one JSON object and nothing else:
-{"title": ..., "premise": ..., "opening": ..., "clock": ...,
+{"title": ..., "premise": ..., "rules": ..., "opening": ..., "clock": ...,
  "characters": [{"name": ..., "persona": ..., "goals": ..., "place": a place name}],
  "places": [{"name": ..., "description": ...}], "facts": [...], "threads": [...],
  "relationships": [{"a": name, "b": name, "text": "how they stand"}]}`;

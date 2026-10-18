@@ -9,6 +9,7 @@ const id = (prefix: string) => `${prefix}${crypto.randomUUID().slice(0, 8)}`;
 const emptyDraft = (): WorldDraft => ({
   title: "",
   premise: "",
+  rules: "",
   opening: "",
   state: { clock: "", places: [], characters: [], facts: [], threads: [], relationships: [] },
 });
@@ -121,6 +122,12 @@ function AiDraft({ onFill }: { onFill: (draft: WorldDraft) => void }) {
         <div className="proposal">
           <h3>{proposal.title}</h3>
           <p>{proposal.premise}</p>
+          {proposal.rules && (
+            <details>
+              <summary>{t("Rules for the storyteller")}</summary>
+              <p className="small" style={{ whiteSpace: "pre-wrap" }}>{proposal.rules}</p>
+            </details>
+          )}
           <p className="muted">
             {t("Opening")}
             {sep}
@@ -281,6 +288,11 @@ export function Studio({ worldId }: { worldId: string | null }) {
         <label>
           {t("Premise")}
           <textarea rows={3} value={draft.premise} onChange={(e) => set({ premise: e.target.value })} />
+        </label>
+        <label>
+          {t("Rules for the storyteller")}
+          <span className="small muted"> {t("(tone, how magic or fighting works, what things cost; the AI follows them every turn)")}</span>
+          <textarea rows={5} value={draft.rules} onChange={(e) => set({ rules: e.target.value })} />
         </label>
         <label>
           {t("Opening")}

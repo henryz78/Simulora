@@ -123,8 +123,9 @@ export function Play({ saveId }: { saveId: string }) {
   const head = path.at(-1)!;
   const state = head.state;
   const busy = pending !== null && !pending.error;
-  // A character can leave the world (an undo, a branch); then the player speaks as director.
-  const wanted = actor ?? head.actor;
+  // At the opening the player starts as the world's first character, its protagonist. A character can leave the
+  // world (an undo, a branch); then the player speaks as director.
+  const wanted = actor ?? (path.length === 1 ? (state.characters[0]?.id ?? "director") : head.actor);
   const current = state.characters.some((c) => c.id === wanted) ? wanted : "director";
 
   async function send(text: string, as = current, from = head.id) {
