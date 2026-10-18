@@ -108,6 +108,12 @@ const size: Record<Settings["length"], string> = {
   auto: "about 250 to 400 Chinese characters (150 to 250 English words), two to four short paragraphs",
   long: "about 600 to 900 Chinese characters (400 to 600 English words)",
 };
+// The player's ceiling for the default length is 500 characters (2026-10-18).
+const limit: Record<Settings["length"], string> = {
+  short: "300 Chinese characters (200 English words)",
+  auto: "500 Chinese characters (330 English words)",
+  long: "1,000 Chinese characters (650 English words)",
+};
 const length = (choice: Settings["length"]) =>
   `Write ${size[choice]}, with concrete detail and the others' words and reactions, never just a sentence or two. ` +
   "Earlier passages may be longer; do not match their length.";
@@ -119,12 +125,14 @@ const STOP =
 
 // Kept short, so the record arrives soon after the story: only the changes that matter, short texts, and a note
 // only on a reveal (for the discovery book).
-// The clock line says "always": three days passed in a real game and the clock stayed behind (2026-10-18).
+// The clock line says "always": three days passed in a real game and the clock stayed behind; the player's own
+// "Now" kept ink on her palm two turns after she rubbed it off (2026-10-18).
 const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usually two to five. Refer to characters
 and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
 - {"type":"move","character":name,"place":name}  (a new place name creates the place)
 - {"type":"character","name":...,"persona":...,"place":name}  (someone new appears)
-- {"type":"status","character":name,"notes":"how they are now, a few words"}
+- {"type":"status","character":name,"notes":"how they are now, a few words"}  (the whole new state, replacing the
+  old; check the player's character's "Now" against the passage and give a new one when it is no longer true)
 - {"type":"persona","character":name,"persona":"who they are now","goals":"what they want now"}  (only a lasting
   change in who someone is or what they want; the whole new text, either key may be left out)
 - {"type":"fact","text":"one short sentence"}  (something new and lasting became known)
@@ -225,8 +233,11 @@ export function narrationMessages(
       .join("\n\n"),
     "",
     `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
-    // Said in the system prompt alone, it was not enough (2026-10-18).
-    ...(input.trim() ? ["(The player has read this already: go on from it, do not repeat their words.)"] : []),
+    "",
+    // Said in the system prompt alone, neither held (2026-10-18): the story retold the player's words, and it drifted
+    // to the length of the earlier turns, a little longer each time (about 520 characters at turn 9 of a real game,
+    // 640 and up to 870 at turn 19, for the same action). A bare "(Length: ...)" line here broke the JSON reply.
+    `Now write this turn as one JSON object as asked.${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran.`,
   ].join("\n");
   return [
     { role: "system", content: system },
@@ -284,6 +295,8 @@ const MEMORY_KINDS = `What to keep, most important first; when there is no room,
 4. at most three questions still open, one short question each. Clues are not kept one by one: only what they add
    up to.`;
 
+// At turn 20 of a real game five of twenty notes were stale or trivial (a Sunday meeting already held, a question
+// already answered, "the Baron said 'I saw'"), and most read as events: notes are written as states now.
 // The player's design (2026-10-18): the memory keeps state and turning points, checks every old note first and
 // rather changes or drops than adds; the timeline tells what happened and is never changed. At first the memory
 // also kept one-off events, 13 notes for the first 10 turns. One request writes both from the same turns.
@@ -300,11 +313,15 @@ changed, so tell only the new turns.
 Leave out what has its own place: what merely happened (the timeline tells it), and who each character is, what
 they want, how they are and how they stand with each other (the world state above keeps all of that). A note
 that only repeats one of those is wasted.
+Write every note as how things stand now, never as what someone did: "the ring is under the third brick of the
+rice jar", "Zhou owes her eight silver dollars, due in the twelfth month", "she has promised Eleanor a bigger story
+once she knows", not "she hid the ring" or "Margo told her about the ink".
 First go through the earlier notes one by one against the new turns:
 - still true and still important: keep it as it is;
 - changed: rewrite it as things stand now, dated by the turn it last changed (a key moved from a tin to a box is
   one note saying it is in the box);
-- no longer true, or no longer important: drop it.
+- no longer true or no longer important: drop it. A meeting that has taken place, a question that has been
+  answered, a promise kept or broken (keep only what it changed), a passing remark or gesture: all go.
 Then add what is new. Rather change or drop than add: fold a new thing into a note it belongs to, and add a note
 only for something truly new. One note per thing, one sentence of at most about 60 Chinese characters (or 40
 words), at most 20 notes, oldest first, each starting with the one turn it last changed in: "[Turn 12] ...". Ten
