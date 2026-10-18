@@ -117,11 +117,19 @@ Leave out anything that did not change. An empty list is fine.
 "hooks" gives two or three short next steps the player could take, each different (another character,
 another place, a bolder move), written as actions in the world's language.`;
 
-export function changeMessages(world: World, before: WorldState, story: string): Message[] {
+/** Hooks are moves for whoever the player is playing, not for the story's main character. */
+function hooksFor(state: WorldState, actor: string): string {
+  const name = actorName(state, actor);
+  return name
+    ? `The player is playing ${name}: write each hook as something ${name} could do next.`
+    : "The player is the director: hooks can be moves by any character or events in the world.";
+}
+
+export function changeMessages(world: World, before: WorldState, story: string, actor: string): Message[] {
   return [
     {
       role: "system",
-      content: `You keep the records of a story world. Read the new passage and report how the world changed.\n\n${CHANGE_FORMAT}`,
+      content: `You keep the records of a story world. Read the new passage and report how the world changed.\n\n${CHANGE_FORMAT}\n${hooksFor(before, actor)}`,
     },
     {
       role: "user",
@@ -136,8 +144,9 @@ export function hookMessages(world: World, path: TurnNode[]): Message[] {
     {
       role: "system",
       content:
-        'Suggest what the player could do next in this story world. Return {"hooks": [two or three short, ' +
-        "different next steps, written as actions in the world's language]}.",
+        'Suggest what the player could do next in this story world. Return one JSON object: {"hooks": [two or ' +
+        "three short, different next steps, written as actions in the world's language]}.\n" +
+        hooksFor(state, path.at(-1)!.actor),
     },
     {
       role: "user",

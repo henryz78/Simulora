@@ -78,6 +78,18 @@ const zh: Record<string, string> = {
   Branch: "分支",
   "Couldn't record what changed in this turn.": "这一回合的变化没能记下来。",
   "Record again": "重新记录",
+  "What changed": "这一回合的变化",
+  "Send when ready": "记完就发送",
+  "sends when the changes are recorded": "上一回合的变化记完就自动发送",
+  Cancel: "取消",
+  "Could not reach the model": "连不上模型，检查一下网络再试",
+  "The model request failed": "模型请求失败了，稍后再试",
+  "The model returned no story": "模型这次什么也没写，再试一次吧",
+  "The model gave no suggestions": "模型这次没给出建议，再试一次吧",
+  "Could not record the changes": "还是没能记下变化，稍后再试",
+  "A turn is being written": "这一回合还在写，等它写完",
+  "A turn is already being written for this save": "这一回合还在写，等它写完",
+  "The connection closed before the turn finished": "连接在回合写完前断开了",
 };
 
 const chinese = navigator.language.toLowerCase().startsWith("zh");

@@ -80,6 +80,7 @@ p {
 }
 .error {
   color: #a3261b;
+  overflow-wrap: anywhere;
 }
 .clamp {
   display: -webkit-box;
@@ -245,6 +246,12 @@ fieldset {
   font-size: 0.85rem;
   color: var(--muted);
   margin: 0 0 6px;
+}
+.changes summary {
+  cursor: pointer;
+}
+.changes ul {
+  margin: 4px 0 0;
   padding-left: 18px;
 }
 .turn-tools {

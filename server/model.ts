@@ -55,9 +55,15 @@ export function openAICompatibleModel(config: ModelConfig): Model {
         ...extra,
       }),
       signal: AbortSignal.timeout(180_000),
+    }).catch((error: Error) => {
+      console.warn("model.unreachable", error.message);
+      throw new Error("Could not reach the model");
     });
-  const failed = async (response: Response) =>
-    new Error(`Model request failed: HTTP ${response.status} ${(await response.text()).slice(0, 200)}`);
+  // The provider's own words go to the server log; the player gets a plain sentence.
+  const failed = async (response: Response) => {
+    console.warn("model.failed", response.status, (await response.text()).slice(0, 300));
+    return new Error("The model request failed");
+  };
 
   return {
     async *stream(messages) {

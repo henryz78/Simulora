@@ -163,10 +163,10 @@ export function createApi(store: Store, model: Model) {
   }
 
   /** Reads what a passage changed. Two tries; the story stands even if both fail. */
-  async function record(w: World, before: TurnNode["state"], story: string) {
+  async function record(w: World, before: TurnNode["state"], story: string, actor: string) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const report = (await model.json(changeMessages(w, before, story))) as Record<string, unknown>;
+        const report = (await model.json(changeMessages(w, before, story, actor))) as Record<string, unknown>;
         return { changes: parseChanges(report.changes), hooks: parseHooks(report.hooks), failed: false };
       } catch (error) {
         console.warn("changes.failed", error instanceof Error ? error.message : error);
@@ -208,7 +208,7 @@ export function createApi(store: Store, model: Model) {
       event("phase", { phase: "changes" });
 
       // The story is never lost: if reading the changes fails, the turn keeps the story alone.
-      const { changes, hooks, failed } = await record(w, head.state, story);
+      const { changes, hooks, failed } = await record(w, head.state, story, actor);
       console.log(
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );
@@ -321,7 +321,9 @@ export function createApi(store: Store, model: Model) {
           const s = save(id);
           if (busy.has(s.id)) fail(409, "A turn is being written");
           const path = store.path(s.headId);
-          const report = (await model.json(hookMessages(world(s.worldId), path))) as Record<string, unknown>;
+          // The provider now and then fails a request for no reason; one more try covers it.
+          const ask = () => model.json(hookMessages(world(s.worldId), path));
+          const report = (await ask().catch(ask)) as Record<string, unknown>;
           const hooks = parseHooks(report.hooks);
           if (hooks.length === 0) fail(502, "The model gave no suggestions");
           const head = { ...path.at(-1)!, hooks };
@@ -336,7 +338,7 @@ export function createApi(store: Store, model: Model) {
           if (busy.has(s.id)) fail(409, "A turn is being written");
           busy.add(s.id);
           try {
-            const { changes, hooks, failed } = await record(world(s.worldId), parent.state, head.story);
+            const { changes, hooks, failed } = await record(world(s.worldId), parent.state, head.story, head.actor);
             if (failed) fail(502, "Could not record the changes");
             const { state, applied } = applyChanges(parent.state, changes);
             const { recordsFailed: _, ...rest } = head;

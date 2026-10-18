@@ -71,11 +71,15 @@ export function Play({ saveId }: { saveId: string }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  // The next move the player wrote while the last turn's changes were still being recorded.
+  const [queued, setQueued] = useState<{ text: string; actor: string } | null>(null);
+  const queuedRef = useRef(queued);
+  queuedRef.current = queued;
   const bottom = useRef<HTMLDivElement>(null);
 
   const load = () => api.save(saveId).then(setView, (e: Error) => setError(e.message));
   useEffect(() => void load(), [saveId]);
-  const report = (e: Error) => setError(e.message);
+  const report = (e: Error) => setError(t(e.message));
   // A new save opens with suggestions too, like every later turn.
   const openingId = view && view.path.length === 1 && view.path[0]!.hooks.length === 0 ? view.path[0]!.id : null;
   const asked = useRef<string | null>(null); // StrictMode runs effects twice; ask once
@@ -99,31 +103,43 @@ export function Play({ saveId }: { saveId: string }) {
   const wanted = actor ?? head.actor;
   const current = state.characters.some((c) => c.id === wanted) ? wanted : "director";
 
-  async function send(text: string, as = current) {
+  async function send(text: string, as = current, from = head.id) {
     setPending({ actor: as, input: text, story: "", phase: "story", error: "" });
     setInput("");
     setError("");
     try {
-      await playTurn(saveId, as, text, {
+      const node = await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
         phase: () => setPending((p) => p && { ...p, phase: "changes" }),
       });
       await load();
       setPending(null);
+      const next = queuedRef.current;
+      setQueued(null);
+      if (next) await send(next.text, next.actor, node.id);
     } catch (e) {
       // The connection can drop after the server already saved the turn; then there is nothing to retry.
       const fresh = await api.save(saveId).catch(() => null);
-      if (fresh && fresh.path.at(-1)!.parentId === head.id) {
+      if (fresh && fresh.path.at(-1)!.parentId === from) {
         setView(fresh);
         setPending(null);
-      } else setPending((p) => p && { ...p, error: (e as Error).message });
+      } else setPending((p) => p && { ...p, error: t((e as Error).message) });
     }
+  }
+
+  // The story is readable while its changes are recorded, so the player can already write the next move.
+  const canQueue = busy && pending.phase === "changes" && !queued;
+  function submit() {
+    if (!busy) return void send(input.trim());
+    if (!canQueue) return;
+    setQueued({ text: input.trim(), actor: current });
+    setInput("");
   }
 
   const goTo = (nodeId: string) => api.moveHead(saveId, nodeId).then(setView, report);
   const branch = (nodeId: string) =>
     api
-      .branch(saveId, nodeId, `${world.title} · ${t("Branch")} ${new Date().toLocaleString()}`)
+      .branch(saveId, nodeId, `${t("Branch")} ${new Date().toLocaleString()}`)
       .then((created) => (location.hash = `#/play/${created.id}`), report);
   const rename = () => {
     const title = prompt(t("Name this save"), save.title)?.trim();
@@ -227,11 +243,16 @@ export function Play({ saveId }: { saveId: string }) {
                   </p>
                 )}
                 {node.changes.length > 0 && (
-                  <ul className="changes">
-                    {node.changes.map((c, j) => (
-                      <li key={j}>{c.note || describe(c)}</li>
-                    ))}
-                  </ul>
+                  <details className="changes">
+                    <summary>
+                      {t("What changed")} ({node.changes.length})
+                    </summary>
+                    <ul>
+                      {node.changes.map((c, j) => (
+                        <li key={j}>{c.note || describe(c)}</li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
                 <div className="turn-tools">
                   {node !== head && !busy && (
@@ -278,6 +299,17 @@ export function Play({ saveId }: { saveId: string }) {
             </article>
           )}
 
+          {queued && (
+            <p className="action queued">
+              <strong>{actorLabel(state, queued.actor)}</strong>
+              {queued.text ? `${sep}${queued.text}` : ` · ${t("Let it unfold")}`}
+              <span className="muted small"> · {t("sends when the changes are recorded")} </span>
+              <button className="link" onClick={() => setQueued(null)}>
+                {t("Cancel")}
+              </button>
+            </p>
+          )}
+
           {!busy && (
             <div className="hooks">
               {head.hooks.map((hook) => (
@@ -297,7 +329,7 @@ export function Play({ saveId }: { saveId: string }) {
             className="composer"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!busy) void send(input.trim());
+              submit();
             }}
           >
             <label>
@@ -319,13 +351,13 @@ export function Play({ saveId }: { saveId: string }) {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
-                  if (!busy) void send(input.trim());
+                  submit();
                 }
               }}
             />
             <div className="row">
-              <button className="primary" type="submit" disabled={busy}>
-                {input.trim() ? t("Send") : t("Let it unfold")}
+              <button className="primary" type="submit" disabled={busy && !canQueue}>
+                {busy ? t("Send when ready") : input.trim() ? t("Send") : t("Let it unfold")}
               </button>
               {head.parentId && (
                 <button type="button" className="link" disabled={busy} onClick={() => goTo(head.parentId!)}>

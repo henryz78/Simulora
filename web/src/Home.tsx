@@ -10,7 +10,7 @@ export function Home() {
   useEffect(() => void load(), []);
 
   const play = (world: World) =>
-    api.startSave(world.id, `${world.title} · ${new Date().toLocaleString()}`).then(
+    api.startSave(world.id, new Date().toLocaleString()).then(
       (save) => (location.hash = `#/play/${save.id}`),
       (e: Error) => setError(e.message),
     );

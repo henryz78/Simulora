@@ -30,7 +30,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
     try {
       const world = worldId ? await api.updateWorld(worldId, draft) : await api.createWorld(draft);
       if (andPlay) {
-        const started = await api.startSave(world.id, `${world.title} · ${new Date().toLocaleString()}`);
+        const started = await api.startSave(world.id, new Date().toLocaleString());
         location.hash = `#/play/${started.id}`;
       } else if (!worldId) location.hash = `#/studio/${world.id}`;
       else setStatus(t("Saved"));
