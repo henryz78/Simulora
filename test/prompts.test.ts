@@ -25,6 +25,12 @@ test("the storyteller reads the world's own rules every turn", () => {
   assert.doesNotMatch(narrationMessages(world(), [opening], "director", "", defaultSettings)[0]!.content, /author's rules/);
 });
 
+test("the player's notes go in every turn, and only when written", () => {
+  const user = narrationMessages(world(), [opening], "director", "", defaultSettings, "  My left hand is hurt.  ")[1]!.content;
+  assert.match(user, /The player's notes[^\n]*\nMy left hand is hurt\.\n/);
+  assert.doesNotMatch(narrationMessages(world(), [opening], "director", "", defaultSettings, " ")[1]!.content, /player's notes/);
+});
+
 test("rules the model wrote as a list are kept", () => {
   assert.equal(normalizeDraft({ rules: ["Spells tire the caster.", "", "Curfew is at nine."] }).rules, "Spells tire the caster.\nCurfew is at nine.");
 });

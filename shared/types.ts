@@ -94,6 +94,8 @@ export interface Save {
   title: string;
   headId: string;
   settings: Settings;
+  /** What the player wants the story never to forget, in their own words; the story model reads it every turn. */
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }

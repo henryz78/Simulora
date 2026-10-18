@@ -173,6 +173,7 @@ export function narrationMessages(
   actor: string,
   input: string,
   settings: Settings,
+  notes = "",
 ): Message[] {
   const state = path.at(-1)!.state;
   const name = actorName(state, actor);
@@ -229,6 +230,8 @@ export function narrationMessages(
   const user = [
     worldHeader(world, state),
     "",
+    // Like WorldOS's 重要事实 (2026-10-18): the player's own fallback when the memory misses something.
+    ...(notes.trim() ? ["The player's notes (true in this story, never forget them):", notes.trim(), ""] : []),
     ...chronicleLines(path),
     from ? "The story since then (most recent last):" : "The story so far (most recent last):",
     path

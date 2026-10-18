@@ -26,6 +26,7 @@ export const api = {
   deleteSave: (id: string) => call<object>("DELETE", `/saves/${id}`),
   moveHead: (id: string, headId: string) => call<SaveView>("PATCH", `/saves/${id}`, { headId }),
   settings: (id: string, settings: Partial<Settings>) => call<SaveView>("PATCH", `/saves/${id}`, { settings }),
+  notes: (id: string, notes: string) => call<SaveView>("PATCH", `/saves/${id}`, { notes }),
   rename: (id: string, title: string) => call<SaveView>("PATCH", `/saves/${id}`, { title }),
   branch: (id: string, nodeId: string, title: string) => call<Save>("POST", `/saves/${id}/branch`, { nodeId, title }),
   hooks: (id: string, actor: string) => call<TurnNode>("POST", `/saves/${id}/hooks`, { actor }),

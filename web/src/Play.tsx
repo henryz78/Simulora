@@ -522,6 +522,17 @@ export function Play({ saveId }: { saveId: string }) {
           {panel === "settings" && (
             <div className="settings">
               <label>
+                {t("Notes")}
+                <textarea
+                  key={save.notes ?? ""}
+                  defaultValue={save.notes ?? ""}
+                  maxLength={2000}
+                  rows={4}
+                  placeholder={t("What the story must never forget; read every turn")}
+                  onBlur={(e) => e.target.value !== (save.notes ?? "") && api.notes(saveId, e.target.value).then(setView, report)}
+                />
+              </label>
+              <label>
                 {t("Voice")}
                 <select value={save.settings.person} onChange={(e) => changeSettings({ person: e.target.value as Settings["person"] })}>
                   <option value="third">{t("Third person")}</option>

@@ -94,6 +94,9 @@ test("build a world, play, undo to any turn and branch", async () => {
   assert.equal(settings.save.settings.pace, "intense");
   assert.equal(settings.save.settings.person, "third");
   assert.equal(settings.save.settings.thinking, false, "thinking is off unless asked for");
+  const notes = await call<SaveView>("PATCH", `/saves/${save.id}`, { notes: "Zhou owes me." });
+  assert.equal(notes.save.notes, "Zhou owes me.");
+  assert.equal((await call<SaveView>("PATCH", `/saves/${save.id}`, { title: "Renamed" })).save.notes, "Zhou owes me.", "kept when not sent");
 });
 
 test("the AI drafts a world and buries secrets at the start and as the story goes on", async () => {

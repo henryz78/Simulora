@@ -250,8 +250,8 @@ function send(res: ServerResponse, status: number, value: unknown) {
  * `model` streams the story and keeps the records. `thinker` streams the story for saves with thinking on and
  * writes the timeline and the memory; `writer` drafts worlds, where speed matters more than care. Every
  * `chronicleTurns` turns the timeline gets an entry and the memory is checked. When what the model would read passes
- * `trimAt` tokens (128K), the turns the timeline already tells are no longer sent, but for the newest `keepTurns`;
- * at 128K the first words still came in about 7 s (2026-10-18).
+ * `trimAt` tokens (64K), the turns the timeline already tells are no longer sent, but for the newest `keepTurns`.
+ * Measured (2026-10-18): first words / whole turn 4.7 / 11 s at 40K, 5-7 / 13-14 s at 74K, 10-12 / 20 s at 130K.
  */
 export function createApi(
   store: Store,
@@ -259,7 +259,7 @@ export function createApi(
   {
     thinker = model,
     writer = model,
-    trimAt = 128_000,
+    trimAt = 64_000,
     keepTurns = 30,
     keepStates = 10,
     chronicleTurns = CHRONICLE_TURNS,
@@ -530,7 +530,7 @@ export function createApi(
         closed = false;
         const narrator = s.settings.thinking ? thinker : model;
         try {
-          for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings), {
+          for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings, s.notes), {
             json: true,
           })) {
             reply += piece;
@@ -601,7 +601,7 @@ export function createApi(
       // When the story nears the model's reach, the turns the timeline already tells are no longer sent, but for
       // the newest ones. Nothing has to be written, so nobody waits.
       const next = [...path, node];
-      const size = tokensOf(narrationMessages(w, next, actor, "", s.settings).map((m) => m.content).join(""));
+      const size = tokensOf(narrationMessages(w, next, actor, "", s.settings, s.notes).map((m) => m.content).join(""));
       if (size > trimAt) {
         try {
           // A whole timeline step at a time, so the turn before the cut is one that keeps its state.
@@ -728,6 +728,7 @@ export function createApi(
             ...s,
             title: str(body.title, 200).trim() || s.title,
             settings: normalizeSettings(body.settings, s.settings),
+            notes: body.notes === undefined ? s.notes : str(body.notes, 2000),
             updatedAt: now(),
           };
           if (body.headId !== undefined) {

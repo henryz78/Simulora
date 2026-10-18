@@ -90,6 +90,8 @@ const zh: Record<string, string> = {
   "learned something": "知道了一件事",
   "Say what to change": "先写下想改哪里",
   "Deep thinking": "深度思考",
+  Notes: "重要事实",
+  "What the story must never forget; read every turn": "故事绝不能忘的事，每回合都会读，例如：我左手有伤；艾琳不知道我是巫师",
   "better plotted, but the first words take 30-80 s": "情节更讲究，但要等 30–80 秒才开始出字",
   "Thinking it through…": "正在构思…",
   s: "秒",
