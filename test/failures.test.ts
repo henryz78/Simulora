@@ -15,6 +15,7 @@ const mode = {
   streamFails: false,
   noRecord: false,
   cutAfterStory: false,
+  noHooks: false,
   jsonFails: false,
   hold: null as Promise<void> | null,
   buryHold: null as Promise<void> | null,
@@ -28,7 +29,8 @@ const model: Model = {
       throw new Error("provider dropped");
     }
     for await (const piece of fake.stream(messages)) {
-      if (mode.noRecord) yield piece.replace(/^\{"changes": .*?, "story"/, '{"story"').replace(/", "hooks".*$/, '"}');
+      if (mode.noHooks) yield piece.replace(/", "hooks".*$/, '"}');
+      else if (mode.noRecord) yield piece.replace(/^\{"changes": .*?, "story"/, '{"story"').replace(/", "hooks".*$/, '"}');
       else yield piece;
       if (mode.cutAfterStory && piece.startsWith('", "hooks"')) throw new Error("provider dropped");
     }
@@ -225,4 +227,17 @@ test("secrets buried for a turn stay with it when the player undoes past what ca
     })
   ).json()) as SaveView;
   assert.equal(secrets(view, 0), 1, "undoing to the opening keeps them");
+});
+
+test("hooks the reply left off are filled in", async () => {
+  const save = await newSave();
+  mode.noHooks = true;
+  try {
+    assert.equal((await events(await post(`/saves/${save.id}/turn`, {}))).at(-1), "done");
+  } finally {
+    mode.noHooks = false;
+  }
+  const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
+  assert.equal(head.hooks.length, 3);
+  assert.equal(head.state.clock, "A little later", "the changes in the reply were kept");
 });

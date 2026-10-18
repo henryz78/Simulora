@@ -356,8 +356,6 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );
       const { state: changed, applied } = applyChanges(head.state, changes);
-      // Secrets buried in the turn this one grows from while it was being written come along.
-      const state = carrySecrets(store.node(head.id)!.state, changed);
       const node: TurnNode = {
         id: randomUUID(),
         worldId: w.id,
@@ -367,15 +365,26 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
         story,
         changes: applied,
         hooks,
-        state,
+        state: changed,
         ...(failed && { recordsFailed: true }),
         createdAt: now(),
       };
+      // The reply now and then leaves the hooks off; a quick request without thinking fills them in.
+      if (hooks.length === 0) {
+        try {
+          const report = (await writer.json(hookMessages(w, [...path, node]))) as Record<string, unknown>;
+          node.hooks = parseHooks(report.hooks);
+        } catch (error) {
+          console.warn("hooks.failed", error instanceof Error ? error.message : error);
+        }
+      }
+      // Secrets buried in the turn this one grows from while it was being written come along.
+      node.state = carrySecrets(store.node(head.id)!.state, changed);
       store.putNode(node);
       store.putSave({ ...save(s.id), headId: node.id, updatedAt: now() });
       event("done", { node });
       // Every few turns the AI buries new secrets in what has happened, unless plenty still wait.
-      const hidden = state.facts.filter((f) => f.secret && !f.revealed).length;
+      const hidden = node.state.facts.filter((f) => f.secret && !f.revealed).length;
       if (path.length % BURY_EVERY === 0 && hidden < MAX_HIDDEN) buryLater(s.id);
     } catch (error) {
       console.warn("turn.failed", error instanceof Error ? error.message : error);
