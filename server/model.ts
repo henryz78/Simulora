@@ -172,11 +172,12 @@ export function fakeModel(): Model {
       const hooks = JSON.stringify(["Look around", "Ask what happened", "Wait and listen"]);
       // One JSON reply in the asked order, cut where a real stream may cut it: inside an escape.
       for (const piece of [
-        `{"changes": ${changes}, "hooks": ${hooks}, "story": "The wind shifts. `,
+        '{"story": "The wind shifts. ',
         `(${action || "the story moves on"}) `,
         "Someone looks up.\\",
         "nIt is quiet.",
         '"',
+        `, "changes": ${changes}, "hooks": ${hooks}`,
         "}",
       ])
         yield piece;

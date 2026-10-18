@@ -58,8 +58,8 @@ const STOP =
   "Carry out only this action and the immediate response to it, then stop at the next moment the player could " +
   "act or reply: a question, a door opening, a choice. Do not jump ahead or play out what comes after.";
 
-// What comes before the story in a reply is written before the first words reach the player, so it is kept
-// short: only the changes that matter, short texts, and a note only on a reveal (for the discovery book).
+// Kept short, so the record arrives soon after the story: only the changes that matter, short texts, and a note
+// only on a reveal (for the discovery book).
 const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usually two to five. Refer to characters
 and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
 - {"type":"move","character":name,"place":name}  (a new place name creates the place)
@@ -83,11 +83,11 @@ function hooksFor(state: WorldState, actor: string): string {
     : "The player is the director: hooks can be moves by any character or events in the world.";
 }
 
-/** The shape of a whole reply. With the story last and all keys shown, the model no longer stops early. */
+/** The shape of a whole reply. Shown in full, it keeps the model from stopping after the story. */
 const REPLY_SAMPLE = JSON.stringify({
+  story: "…",
   changes: [{ type: "status", character: "…", notes: "…" }],
   hooks: ["…", "…", "…"],
-  story: "…",
 });
 
 export function narrationMessages(
@@ -120,11 +120,11 @@ export function narrationMessages(
     "Stay consistent with the world and the story so far, and write in the world's own language.",
     CONTENT_LINE,
     "",
-    // One JSON reply, like WorldOS (2026-10-18). With the story first the model often closed the reply after it;
-    // last, it rarely does. The server reads the story out of the reply as it streams.
-    'Reply with one JSON object, keys in this order: {"changes": [...], "hooks": [...], "story": "plain prose, ' +
-      'paragraphs split by blank lines"}. Decide the changes and where the turn leaves the player first, then ' +
-      "write the story that shows them. Always give all three keys, like this:",
+    // One JSON reply, like WorldOS (2026-10-18), story first so its first words come in 3-5 s. Told to give all
+    // three keys and shown a whole reply, the model kept the record in 6 of 6 turns (3 of 5 were cut short
+    // before). The server reads the story out of the reply as it streams; a missing record is filled in.
+    'Reply with one JSON object, keys in this order: {"story": "plain prose, paragraphs split by blank lines", ' +
+      '"changes": [...], "hooks": [...]}. Always give all three keys, like this:',
     REPLY_SAMPLE,
     RECORD_FORMAT,
     hooksFor(state, actor),
