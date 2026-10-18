@@ -161,10 +161,11 @@ export function readString(json: string, key: string): { text: string; done: boo
   for (let i = open; i < json.length; i++) {
     const c = json[i]!;
     if (c === '"') {
-      // The end is a quote before the next key or the closing brace; "no", then left is still the story.
+      // The end is a quote before the closing brace or the next key ("changes":); "no", then left and 他"嗯"了一声,
+      // "别碰" are still the story. Only a quote before a comma and a quote once cut a story at 17 characters.
       const rest = json.slice(i + 1, i + 40);
-      if (/^\s*(,\s*)?$/.test(rest)) break; // wait for what follows
-      if (/^\s*(}|,\s*")/.test(rest)) return { text, done: true };
+      if (/^\s*(,\s*("[A-Za-z_]*"?\s*)?)?$/.test(rest)) break; // wait for what follows
+      if (/^\s*(}|,\s*"[A-Za-z_]+"\s*:)/.test(rest)) return { text, done: true };
       text += c;
       continue;
     }

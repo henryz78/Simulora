@@ -179,6 +179,11 @@ test("the story is read out of a JSON reply while it arrives", () => {
     text: 'She said "no", then left.',
     done: true,
   });
+  assert.deepEqual(readString('{"story": "他"嗯"了一声, "别碰"他说。", "changes": []}', "story"), {
+    text: '他"嗯"了一声, "别碰"他说。',
+    done: true,
+  });
+  assert.deepEqual(readString('{"story": "走了。", "chan', "story"), { text: "走了。", done: false }, "a key still arriving");
 });
 
 test("parseJsonObject reads past code fences", () => {
