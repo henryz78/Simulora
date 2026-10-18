@@ -3,7 +3,7 @@ import type { Message } from "./model.ts";
 import { describeState } from "./state.ts";
 
 /** How many earlier turns the model reads in full. */
-const RECENT_TURNS = 8;
+const RECENT_TURNS = 6;
 
 const CONTENT_LINE =
   "Keep to these lines: nothing that helps with real-world crime, and no sexual or graphically violent content.";
@@ -37,15 +37,32 @@ const pace: Record<Settings["pace"], string> = {
     "Drive the plot: bring in events, complications and surprises. The other characters take bold initiative.",
 };
 
-// The player picks the length in the settings; "auto" lets the moment decide.
-const length: Record<Settings["length"], string> = {
-  auto:
-    "Decide the length by what the moment needs. Never write less than one full paragraph with concrete " +
-    "detail of the place and the other characters' reactions; use several paragraphs for a complex moment " +
-    "or a long stretch of time.",
-  short: "Write about one or two paragraphs, still with concrete detail and the others' reactions.",
-  long: "Write four to six rich paragraphs.",
+// The player picks the length in the settings. Numbers alone did not hold the model (800-1600 characters for
+// "250-450"); a sample for scale and a word against copying the earlier turns brought it to 450-520 (2026-10-18).
+const SAMPLE = `门轴吱呀一响，冷风卷着雪粒扑进来，油灯的火苗猛地矮了半截。老周抬起头，手里的铜壶停在半空。
+
+进门的是个裹着羊皮袄的年轻人，眉毛上结着霜。他把背上的包袱往柜台上一放，压低声音：“掌柜的，今晚还有空房吗？”
+
+角落里打盹的货郎睁开一只眼，又飞快地闭上。老周慢慢放下铜壶，用抹布擦了擦手：“有是有，就是这几天不太平。”
+
+年轻人笑了笑，没接话，只把包袱往自己怀里拢了拢，目光扫过墙上那张泛黄的告示。`;
+
+const size: Record<Settings["length"], string> = {
+  short: "about 150 to 250 Chinese characters (100 to 160 English words), one or two short paragraphs",
+  auto: "about 250 to 400 Chinese characters (150 to 250 English words), two to four short paragraphs",
+  long: "about 600 to 900 Chinese characters (400 to 600 English words)",
 };
+const length = (choice: Settings["length"]) =>
+  `Write ${size[choice]}, with concrete detail, what the others do and say, and their reactions. Earlier passages ` +
+  "in the story may be longer; do not match their length. For scale only (not content or style), this sample " +
+  `is about 190 Chinese characters:\n${SAMPLE}\n`;
+
+/** The shape of a whole reply, shown in full so the model does not stop after the story. */
+const REPLY_SAMPLE = JSON.stringify({
+  changes: [{ type: "status", character: "老周", notes: "起了疑心", note: "老周对来客起了疑心。" }],
+  story: "……",
+  hooks: ["……", "……", "……"],
+});
 
 /** Each turn stops where the player can act again, so the story never runs past what they would change. */
 const STOP =
@@ -69,7 +86,8 @@ characters and places by name, to facts and threads by their [id]:
 - {"type":"resolve","thread":id,"resolution":...}
 - {"type":"clock","text":"the new time only, a few words"}
 Every change must also have "note": one short sentence for the player saying what changed. Call the characters
-by name, never "you".
+by name, never "you". A note must not state a secret the player has not discovered; for one a character learns
+but the player does not, say only that they noticed something.
 Leave out anything that did not change. An empty list is fine.
 
 "hooks" gives two or three short next steps the player could take, each different (another character,
@@ -114,7 +132,7 @@ export function narrationMessages(
     pace[settings.pace],
     voice,
     firstPerson,
-    length[settings.length],
+    length(settings.length),
     STOP,
     "Secrets are true but the player has not discovered them. Do not state a secret outright; let it surface only when the story earns it (a search, evidence, a confession). You may plant hints.",
     "Stay consistent with the world state and what already happened. Write in the same language as the world's own text.",
@@ -122,11 +140,14 @@ export function narrationMessages(
     "",
     // One JSON reply, story first, like WorldOS (2026-10-18). Held to JSON, the model left the record off once in
     // seven turns, against about half when the record came after free prose; the story still shows as it comes.
-    'Reply with one JSON object and nothing else, "story" first: {"story": "the passage as plain prose, ' +
-      'paragraphs separated by blank lines, no headings, lists or options", "changes": [...], "hooks": [...]}. ' +
-      'Report a "reveal" only when your own passage makes that secret plain to the player.',
+    'Reply with one JSON object and nothing else, keys in this order: {"changes": [...], "story": "the ' +
+      'passage as plain prose, paragraphs separated by blank lines, no headings, lists or options", "hooks": ' +
+      '[...]}. First decide what this turn changes, then write the story that shows it, then the hooks. Report ' +
+      'a "reveal" only when your story makes that secret plain to the player.',
     RECORD_FORMAT,
     hooksFor(state, actor),
+    "Every reply has all three keys, even when nothing changed. A reply looks like this:",
+    REPLY_SAMPLE,
   ].join("\n");
   const action = input.trim() || "(no action: let the story move on by itself)";
   const user = [

@@ -138,7 +138,8 @@ export function Play({ saveId }: { saveId: string }) {
       setPending(null);
       const next = queuedRef.current;
       setQueued(null);
-      if (next) await send(next.text, next.actor, node.id);
+      // A turn whose changes were not recorded waits for "Record again" before anything is built on it.
+      if (next && !node.recordsFailed) await send(next.text, next.actor, node.id);
     } catch (e) {
       // The connection can drop after the server already saved the turn; then there is nothing to retry.
       const fresh = await api.save(saveId).catch(() => null);
@@ -146,6 +147,7 @@ export function Play({ saveId }: { saveId: string }) {
         setView(fresh);
         setPending(null);
       } else setPending((p) => p && { ...p, error: t((e as Error).message) });
+      setQueued(null);
     }
   }
 
@@ -501,7 +503,7 @@ export function Play({ saveId }: { saveId: string }) {
               <label>
                 {t("Length")}
                 <select value={save.settings.length} onChange={(e) => changeSettings({ length: e.target.value as Settings["length"] })}>
-                  <option value="auto">{t("AI decides")}</option>
+                  <option value="auto">{t("Standard length")}</option>
                   <option value="short">{t("Shorter")}</option>
                   <option value="long">{t("Longer")}</option>
                 </select>

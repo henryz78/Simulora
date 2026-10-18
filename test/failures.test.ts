@@ -14,6 +14,7 @@ const fake = fakeModel();
 const mode = {
   streamFails: false,
   noRecord: false,
+  cutAfterStory: false,
   jsonFails: false,
   hold: null as Promise<void> | null,
   buryHold: null as Promise<void> | null,
@@ -23,12 +24,13 @@ const model: Model = {
   async *stream(messages) {
     if (mode.hold) await mode.hold;
     if (mode.streamFails) {
-      yield '{"story": "Half a sentence';
+      yield '{"changes": [], "story": "Half a sentence';
       throw new Error("provider dropped");
     }
     for await (const piece of fake.stream(messages)) {
-      if (mode.noRecord && piece.startsWith('", ')) return yield '"}';
-      yield piece;
+      if (mode.noRecord) yield piece.replace(/^\{"changes": .*?, "story"/, '{"story"').replace(/", "hooks".*$/, '"}');
+      else yield piece;
+      if (mode.cutAfterStory && piece.startsWith('", "hooks"')) throw new Error("provider dropped");
     }
   },
   async json(messages) {
@@ -135,6 +137,13 @@ test("the story is read out of a JSON reply while it arrives", () => {
     done: true,
   });
   assert.deepEqual(readString('{"note": "story", "story" : "x', "story"), { text: "x", done: false }, "keys, not values");
+  assert.deepEqual(readString('{"a:b": "x", "story": "hi', "story"), { text: "hi", done: false }, "a colon in a key");
+  assert.deepEqual(readString('{"a\\q": 1, "story": "hi', "story"), { text: "hi", done: false }, "a badly escaped key");
+  assert.deepEqual(
+    readString('{"changes": [{"story": "nested"}], "story": "real"}', "story"),
+    { text: "real", done: true },
+    "only the outer object",
+  );
   assert.deepEqual(readString('{"changes": []', "story"), { text: "", done: false });
 });
 
@@ -180,4 +189,40 @@ test("secrets buried while a turn is being written are carried into it", async (
   assert.equal((await events(await turn)).at(-1), "done");
   const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
   assert.equal(head.state.facts.filter((f) => f.secret && f.source === "ai").length, 1);
+});
+
+test("a story already shown stays when the provider fails after it", async () => {
+  const save = await newSave();
+  mode.cutAfterStory = true;
+  try {
+    assert.equal((await events(await post(`/saves/${save.id}/turn`, { input: "go" }))).at(-1), "done");
+  } finally {
+    mode.cutAfterStory = false;
+  }
+  const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
+  assert.match(head.story, /go/);
+  assert.equal(head.state.clock, "A little later", "the changes were read from the story");
+});
+
+test("secrets buried for a turn stay with it when the player undoes past what came after", async () => {
+  const sleep = () => new Promise((done) => setTimeout(done, 50));
+  let releaseBury = () => {};
+  mode.buryHold = new Promise((done) => (releaseBury = done));
+  const save = await newSave();
+  assert.equal((await events(await post(`/saves/${save.id}/turn`, {}))).at(-1), "done");
+  mode.buryHold = null;
+  releaseBury();
+  await sleep(); // the secrets land in the opening and the turn grown from it
+  const secrets = (v: SaveView, i: number) => v.path[i]!.state.facts.filter((f) => f.secret).length;
+  let view = await get(`/saves/${save.id}`);
+  assert.equal(secrets(view, 0), 1, "in the opening they were written for");
+  assert.equal(secrets(view, 1), 1, "and in the turn played meanwhile");
+  view = (await (
+    await fetch(`${base}/saves/${save.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ headId: view.path[0]!.id }),
+    })
+  ).json()) as SaveView;
+  assert.equal(secrets(view, 0), 1, "undoing to the opening keeps them");
 });

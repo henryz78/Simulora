@@ -196,13 +196,24 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
       const s = store.save(saveId);
       const w = s && store.world(s.worldId);
       if (!s || !w) return;
-      const report = (await model.json(buryMessages(w, store.path(s.headId)))) as Record<string, unknown>;
-      // The secrets go where the save is now. A turn written meanwhile carries them over when it is saved.
-      const current = store.save(saveId);
-      const head = current && store.node(current.headId);
-      if (!head) return;
-      const { state, buried } = bury(head.state, report.secrets);
-      if (buried.length) store.putNode({ ...head, state });
+      const origin = s.headId;
+      const ask = () => model.json(buryMessages(w, store.path(origin)));
+      const report = (await ask().catch(ask)) as Record<string, unknown>;
+      // The secrets go into the turn they were written for and every turn grown from it since, whatever the
+      // player undid or branched meanwhile. A turn still being written carries them over when it is saved.
+      const node = store.node(origin);
+      if (!node) return;
+      const { state, buried } = bury(node.state, report.secrets);
+      if (buried.length === 0) return;
+      store.putNode({ ...node, state });
+      const tree = store.tree(node.worldId);
+      for (let i = 0, grown = [origin]; i < grown.length; i++) {
+        for (const child of tree.filter((n) => n.parentId === grown[i])) {
+          const later = store.node(child.id)!;
+          store.putNode({ ...later, state: carrySecrets(state, later.state) });
+          grown.push(child.id);
+        }
+      }
       console.log(`secrets.buried ${buried.length}`);
     })()
       .catch((error) => console.warn("bury.failed", error instanceof Error ? error.message : error))
@@ -300,23 +311,34 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
       // Some providers now and then answer with nothing; one quiet retry covers it.
       for (let attempt = 0; attempt < 2 && !readString(reply, "story").text.trim(); attempt++) {
         reply = "";
+        sent = 0;
+        closed = false;
         const narrator = s.settings.thinking ? thinker : model;
-        for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings), { json: true })) {
-          reply += piece;
-          if (closed) continue;
-          const { text, done } = readString(reply, "story");
-          if (text.length > sent) {
-            firstAt ||= Date.now();
-            event("story", { text: text.slice(sent) });
-            sent = text.length;
+        try {
+          for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings), {
+            json: true,
+          })) {
+            reply += piece;
+            if (closed) continue;
+            const { text, done } = readString(reply, "story");
+            if (text.length > sent) {
+              firstAt ||= Date.now();
+              event("story", { text: text.slice(sent) });
+              sent = text.length;
+            }
+            if (done) {
+              closed = true;
+              storyAt = Date.now();
+              event("phase", { phase: "changes" });
+            }
           }
-          if (done) {
-            closed = true;
-            storyAt = Date.now();
-            event("phase", { phase: "changes" });
-          }
+        } catch (error) {
+          // A whole story the player has already read stays; the record is read from it below.
+          if (!closed) throw error;
+          console.warn("reply.cut", error instanceof Error ? error.message : error);
         }
       }
+      if (!closed) console.warn("story.unclosed");
       const story = readString(reply, "story").text.trim();
       if (!story) throw new Error("The model returned no story");
       storyAt ||= Date.now();
@@ -390,6 +412,7 @@ export function createApi(store: Store, model: Model, { thinker = model, writer 
           const idea = str(body.idea).trim();
           if (!idea) fail(400, "Describe the world first");
           const draft = body.draft ? toPlain(normalizeDraft(body.draft)) : null;
+          if (draft && !str(body.feedback).trim()) fail(400, "Say what to change");
           const ask = () => writer.json(draftMessages(idea, draft, str(body.feedback).trim()));
           const result = fromPlain(await ask().catch(ask));
           if (!result.opening || result.state.characters.length === 0) fail(502, "The model gave no usable world");

@@ -94,17 +94,40 @@ export function openAICompatibleModel(config: ModelConfig): Model {
   };
 }
 
+/** The index of the quote that closes the string opening at `start`, or -1 while it is still arriving. */
+function closeOf(json: string, start: number): number {
+  for (let i = start + 1; i < json.length; i++) {
+    if (json[i] === "\\") i++;
+    else if (json[i] === '"') return i;
+  }
+  return -1;
+}
+
 /**
- * Reads the string value of `key` out of a JSON reply that may still be arriving: the text so far, and whether
- * the string has closed. Lets the story inside a JSON reply reach the player as it is written.
+ * Reads the string value of `key` in the outer object of a JSON reply that may still be arriving: the text so far,
+ * and whether the string has closed. Lets the story inside a JSON reply reach the player as it is written.
  */
 export function readString(json: string, key: string): { text: string; done: boolean } {
-  const start = /"(?:[^"\\]|\\.)*"\s*:\s*"/g;
+  let depth = 0;
   let open = -1;
-  for (const match of json.matchAll(start)) {
-    if (JSON.parse(match[0].slice(0, match[0].indexOf(":")).trim()) === key) {
-      open = match.index + match[0].length;
-      break;
+  for (let i = 0; i < json.length && open < 0; i++) {
+    const c = json[i];
+    if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") depth--;
+    else if (c === '"') {
+      const close = closeOf(json, i);
+      if (close < 0) break;
+      const after = /^\s*:\s*"/.exec(json.slice(close + 1, close + 40));
+      if (depth === 1 && after) {
+        let name: unknown = null;
+        try {
+          name = JSON.parse(json.slice(i, close + 1));
+        } catch {
+          // a key the model escaped badly is not the one we want
+        }
+        if (name === key) open = close + 1 + after[0].length;
+      }
+      i = close;
     }
   }
   if (open < 0) return { text: "", done: false };
@@ -121,7 +144,7 @@ export function readString(json: string, key: string): { text: string; done: boo
     if (next === "u") {
       const hex = json.slice(i + 2, i + 6);
       if (hex.length < 4) break;
-      text += String.fromCharCode(parseInt(hex, 16));
+      if (/^[0-9a-f]{4}$/i.test(hex)) text += String.fromCharCode(parseInt(hex, 16));
       i += 5;
       continue;
     }
@@ -145,17 +168,15 @@ export function fakeModel(): Model {
     async *stream(messages) {
       const last = messages.at(-1)?.content ?? "";
       const action = /Player's action: (.*)/.exec(last)?.[1] ?? "";
-      const record = JSON.stringify({
-        changes: [{ type: "clock", text: "A little later", note: "Time passes." }],
-        hooks: ["Look around", "Ask what happened", "Wait and listen"],
-      });
-      // One JSON reply, story first, cut where a real stream may cut it: inside an escape.
+      const changes = JSON.stringify([{ type: "clock", text: "A little later", note: "Time passes." }]);
+      const hooks = JSON.stringify(["Look around", "Ask what happened", "Wait and listen"]);
+      // One JSON reply in the asked order, cut where a real stream may cut it: inside an escape.
       for (const piece of [
-        '{"story": "The wind shifts. ',
+        `{"changes": ${changes}, "story": "The wind shifts. `,
         `(${action || "the story moves on"}) `,
         "Someone looks up.\\",
         "nIt is quiet.",
-        `", ${record.slice(1)}`,
+        `", "hooks": ${hooks}}`,
       ])
         yield piece;
     },
