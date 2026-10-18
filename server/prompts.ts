@@ -60,8 +60,8 @@ const length = (choice: Settings["length"]) =>
 /** The shape of a whole reply, shown in full so the model does not stop after the story. */
 const REPLY_SAMPLE = JSON.stringify({
   changes: [{ type: "status", character: "老周", notes: "起了疑心", note: "老周对来客起了疑心。" }],
-  story: "……",
   hooks: ["……", "……", "……"],
+  story: "……",
 });
 
 /** Each turn stops where the player can act again, so the story never runs past what they would change. */
@@ -140,10 +140,10 @@ export function narrationMessages(
     "",
     // One JSON reply, story first, like WorldOS (2026-10-18). Held to JSON, the model left the record off once in
     // seven turns, against about half when the record came after free prose; the story still shows as it comes.
-    'Reply with one JSON object and nothing else, keys in this order: {"changes": [...], "story": "the ' +
-      'passage as plain prose, paragraphs separated by blank lines, no headings, lists or options", "hooks": ' +
-      '[...]}. First decide what this turn changes, then write the story that shows it, then the hooks. Report ' +
-      'a "reveal" only when your story makes that secret plain to the player.',
+    'Reply with one JSON object and nothing else, keys in this order: {"changes": [...], "hooks": [...], ' +
+      '"story": "the passage as plain prose, paragraphs separated by blank lines, no headings, lists or ' +
+      'options"}. First decide what this turn changes and where it leaves the player, then write the story that ' +
+      'shows it. Report a "reveal" only when your story makes that secret plain to the player.',
     RECORD_FORMAT,
     hooksFor(state, actor),
     "Every reply has all three keys, even when nothing changed. A reply looks like this:",

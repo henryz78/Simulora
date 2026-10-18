@@ -25,14 +25,14 @@ const model: Model = {
   async *stream(messages) {
     if (mode.hold) await mode.hold;
     if (mode.streamFails) {
-      yield '{"changes": [], "story": "Half a sentence';
+      yield '{"changes": [], "hooks": [], "story": "Half a sentence';
       throw new Error("provider dropped");
     }
     for await (const piece of fake.stream(messages)) {
-      if (mode.noHooks) yield piece.replace(/", "hooks".*$/, '"}');
-      else if (mode.noRecord) yield piece.replace(/^\{"changes": .*?, "story"/, '{"story"').replace(/", "hooks".*$/, '"}');
+      if (mode.cutAfterStory && piece === "}") throw new Error("provider dropped");
+      if (mode.noHooks) yield piece.replace(/"hooks": \[.*?\], /, "");
+      else if (mode.noRecord) yield piece.replace(/^\{"changes": .*?"story"/, '{"story"');
       else yield piece;
-      if (mode.cutAfterStory && piece.startsWith('", "hooks"')) throw new Error("provider dropped");
     }
   },
   async json(messages) {
