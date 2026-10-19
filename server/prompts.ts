@@ -201,6 +201,10 @@ export function narrationMessages(
     STOP,
     SECRETS,
     "Stay consistent with the world and the story so far, and write in the world's own language.",
+    // After a 64K trim a long game's pawn ticket was asked about; the merged timeline had lost what it said, and the
+    // story made up new words for it (2026-10-18).
+    "What came before the story below is known only from the timeline and the memory: where they do not give a " +
+      "detail (a name, a number, the words on a paper), keep it vague rather than make one up.",
     CONTENT_LINE,
     ...(world.rules?.trim()
       ? [
@@ -244,7 +248,8 @@ export function narrationMessages(
     // Said in the system prompt alone, neither held (2026-10-18): the story retold the player's words, and it drifted
     // to the length of the earlier turns, a little longer each time (about 520 characters at turn 9 of a real game,
     // 640 and up to 870 at turn 19, for the same action). A bare "(Length: ...)" line here broke the JSON reply.
-    `Now write this turn as one JSON object as asked.${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran.`,
+    // Late in a long game 2 of 10 replies stopped after the story; naming the three keys here, 0 of 10.
+    `Now write this turn as one JSON object as asked, with all three keys: the story, then "changes", then "hooks".${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran.`,
   ].join("\n");
   return [
     { role: "system", content: system },
@@ -288,15 +293,21 @@ export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)
 
 /** Every this many turns the timeline gets an entry and the memory is checked, while the player plays on. */
 export const CHRONICLE_TURNS = 10;
-/** When the timeline grows past this many tokens, its oldest entries are merged into one. */
-export const TIMELINE_TOKENS = 10_000;
+/**
+ * When the timeline grows past this many tokens, its oldest entries are merged into one. WorldOS writes about 430
+ * characters for every ten turns and was not seen merging (2026-10-18); at about 400 characters an entry this holds
+ * some 700 turns before the first merge, and at the default length a trimmed prompt stays near 42K, under the 64K
+ * trim line. At the long length it can reach the line; the trim then waits ("trim.waiting") and nothing breaks.
+ */
+export const TIMELINE_TOKENS = 20_000;
 export const MERGE_ENTRIES = 5;
 
 // A real game's first ten turns got sixteen notes, six of them questions (2026-10-18): at most four a step, three
 // questions. What the memory keeps, most important first. In a 150-turn mystery the memory, left to choose, kept clue after
 // clue and dropped where the heirloom ring was (2026-10-18).
 const MEMORY_KINDS = `What to keep, most important first; when there is no room, the last go first:
-1. where important things are and who has them; promises, debts and meetings still pending;
+1. where important things are and who has them, and what the key ones say or show (the words on a ticket, the mark
+   on a ring); promises, debts and meetings still pending;
 2. turning points: a decisive choice, a vow, a change of heart, a break or a bond, and why;
 3. who knows a secret or a truth that matters;
 4. at most three questions still open, one short question each. Clues are not kept one by one: only what they add
@@ -311,10 +322,11 @@ const CHRONICLE_GOALS = `You keep the timeline and the long-term memory of a sto
 
 Return one JSON object: {"timeline": "...", "memory": ["[Turn 12] ...", "[Turn 30] ..."]}.
 
-"timeline": what happened in the new turns, in order, as one short paragraph of plain prose: at most 200 Chinese
-characters (or 150 words), however much happened. The events big and small: who did what, where, what was said that
-matters, what was promised, given, found or lost. No scenery. It is added after the timeline below and never
-changed, so tell only the new turns.
+"timeline": what happened in the new turns, in order, as one paragraph of plain prose: at most 400 Chinese
+characters (or 300 words), however much happened. The events big and small: who did what, where, what was said that
+matters, what was promised, given, found or lost, with the names, numbers and words written on things (what a
+ticket says, how much is owed and until when, where a thing was hidden). No scenery. It is added after the timeline
+below and never changed, so tell only the new turns.
 
 "memory": what is worth keeping for the long run, as it stands now; the whole memory from now on. ${MEMORY_KINDS}
 Leave out what has its own place: what merely happened (the timeline tells it), and who each character is, what
@@ -383,6 +395,7 @@ export function foldMessages(world: World, notes: MemoryNote[]): Message[] {
 }
 
 /** Asks for one entry in place of the oldest `MERGE_ENTRIES` entries of the timeline. */
+// Merging the first fifty turns of a long game kept 6-7 of 12 key details; naming what to keep, 9-10 (2026-10-18).
 export function mergeMessages(world: World, entries: TimelineEntry[]): Message[] {
   return [
     {
@@ -390,8 +403,10 @@ export function mergeMessages(world: World, entries: TimelineEntry[]): Message[]
       content:
         "You keep the timeline of a story world. It has grown long, so its oldest entries become one. Return one " +
         'JSON object: {"text": "..."}: what happened across these entries, in order, as one short paragraph of ' +
-        "plain prose, about 150 to 250 Chinese characters (or 120 to 200 words). Keep the main events and what " +
-        "still shapes the story; let the small things go. Write in the world's own language.\n" +
+        "plain prose, about 400 to 600 Chinese characters (or 300 to 450 words). Keep the main events and what " +
+        "still shapes the story, with the names, numbers and words written on things that still matter (what a " +
+        "ticket or letter says, what a ring is marked with, where a thing is hidden, what is owed and when); let the " +
+        "small things go. Write in the world's own language.\n" +
         CONTENT_LINE,
     },
     { role: "user", content: `World: ${world.title}\n\nThe entries:\n${entries.map(entryLine).join("\n")}` },

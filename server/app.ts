@@ -393,14 +393,19 @@ export function createApi(
     return { changes: [] as Change[], hooks: [] as string[], failed: true };
   }
 
-  /** Asks the thinking model; if that fails (a slow provider can time out), once more without thinking. */
-  async function carefully<T>(ask: (by: Model) => Promise<T>): Promise<T> {
-    try {
-      return await ask(thinker);
-    } catch (error) {
-      console.warn("chronicle.retry", error instanceof Error ? error.message : error);
-      return ask(writer);
+  /**
+   * Asks the thinking model `tries` times (the provider's output check stops one reply in three or so, at random),
+   * then once without thinking: a memory written without thinking dropped where the jade ring was hidden (2026-10-18).
+   */
+  async function carefully<T>(ask: (by: Model) => Promise<T>, tries = 2): Promise<T> {
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await ask(thinker);
+      } catch (error) {
+        console.warn("chronicle.retry", error instanceof Error ? error.message : error);
+      }
     }
+    return ask(writer);
   }
 
   async function streamJson(by: Model, messages: ReturnType<typeof mergeMessages>) {
@@ -523,11 +528,28 @@ export function createApi(
       let reply = "";
       let sent = 0;
       let closed = false;
-      // Some providers now and then answer with nothing; one quiet retry covers it.
-      for (let attempt = 0; attempt < 2 && !readString(reply, "story").text.trim(); attempt++) {
+      const close = () => {
+        closed = true;
+        storyAt = Date.now();
+        event("phase", { phase: "changes" });
+      };
+      // A reply that ended right after the story, or inside the next key (`", "chan`), still holds the whole story:
+      // drop the key's start and see whether the story closes. A comma alone may be the story's own.
+      const whole = () => {
+        const cut = reply.replace(/,\s*"[A-Za-z_]*"?\s*$/, "");
+        const ends = (rest: string) => readString(cut + rest, "story");
+        const read = [ends("}"), ends(' "hooks": []}')].find((r) => r.done);
+        return !!read?.text.trim();
+      };
+      // Providers now and then answer with nothing or break off mid-story, with or without an error (a 5-character
+      // story was kept at turn 171 of a long test, 2026-10-18): one quiet retry, and the page starts the story over.
+      for (let attempt = 0; attempt < 2 && !closed; attempt++) {
+        if (attempt) {
+          console.warn("story.retry", reply.length);
+          event("phase", { phase: "restart" });
+        }
         reply = "";
         sent = 0;
-        closed = false;
         const narrator = s.settings.thinking ? thinker : model;
         try {
           for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings, s.notes), {
@@ -542,32 +564,23 @@ export function createApi(
               event("story", { text: text.slice(sent) });
               sent = text.length;
             }
-            if (done) {
-              closed = true;
-              storyAt = Date.now();
-              event("phase", { phase: "changes" });
-            }
+            // An empty story is no story: it is asked for again.
+            if (done && text.trim()) close();
           }
         } catch (error) {
-          // A whole story the player has already read stays (a quote at the very end closed it); the record is read
-          // from it below.
-          // Cut inside the next key (`", "chan`): drop the key's start. A comma alone may be the story's own.
-          const cut = reply.replace(/,\s*"[A-Za-z_]*"?\s*$/, "");
-          const ends = (rest: string) => readString(cut + rest, "story").done;
-          if (!closed && !ends("}") && !ends(' "hooks": []}')) throw error;
+          // A whole story the player has already read stays; the record is read from it below.
+          if (!closed && !whole() && attempt) throw error;
           console.warn("reply.cut", error instanceof Error ? error.message : error);
         }
+        if (!closed && whole()) close();
       }
-      if (!closed) console.warn("story.unclosed");
+      if (!closed) throw new Error("The story broke off");
       const story = fullWidth(readString(reply, "story").text).trim();
-      if (!story) throw new Error("The model returned no story");
-      storyAt ||= Date.now();
 
       // The story is never lost: if the record in the reply is missing or broken, a second request reads the
       // changes from the story, and if that fails too the turn keeps the story alone.
       let report = readRecord(reply);
       if (!report) {
-        if (!closed) event("phase", { phase: "changes" });
         console.warn("record.missing");
         report = await record(w, head.state, story, actor);
       }
@@ -680,7 +693,8 @@ export function createApi(
             const world = fromPlain(await streamJson(by, messages));
             if (!world.opening || world.state.characters.length === 0) throw new HttpError(502, "The model gave no usable world");
             return world;
-          });
+            // The player waits about four minutes for each thinking try.
+          }, 1);
           return send(res, 200, result);
         }
         case "POST /drafts/:id": {

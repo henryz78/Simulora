@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,12 +7,18 @@ import { after, before, test } from "node:test";
 import type { Save, SaveView, World } from "../shared/types.ts";
 import { createApi } from "../server/app.ts";
 import { Store } from "../server/db.ts";
-import { fakeModel, parseJsonObject, readString, type Model } from "../server/model.ts";
+import { fakeModel, openAICompatibleModel, parseJsonObject, readString, type Model } from "../server/model.ts";
 
 // A fake model whose failures each test switches on.
 const fake = fakeModel();
 const mode = {
   streamFails: false,
+  /** The next few replies end early, with no error, inside the story. */
+  quietCuts: 0,
+  /** The next reply has an empty story. */
+  emptyStory: false,
+  /** The next reply ends right after the story's closing quote. */
+  endAfterStory: false,
   noRecord: false,
   cutAfterStory: false,
   noHooks: false,
@@ -28,6 +34,21 @@ const model: Model = {
     if (mode.streamFails) {
       yield '{"story": "Half a sentence';
       throw new Error("provider dropped");
+    }
+    if (mode.emptyStory) {
+      mode.emptyStory = false;
+      yield '{"story": "", "changes": [], "hooks": []}';
+      return;
+    }
+    if (mode.endAfterStory) {
+      mode.endAfterStory = false;
+      yield '{"story": "A whole story.", "cha';
+      return;
+    }
+    if (mode.quietCuts > 0) {
+      mode.quietCuts--;
+      yield '{"story": "Half';
+      return;
     }
     if (mode.bareQuote) {
       yield '{"story": "他说"走"，';
@@ -75,13 +96,34 @@ test("a story that breaks off saves nothing", async () => {
   const save = await newSave();
   mode.streamFails = true;
   try {
-    assert.deepEqual(await events(await post(`/saves/${save.id}/turn`, { input: "go" })), ["story", "error"]);
+    // Tried twice; the page is told to start the story over before the second try.
+    assert.deepEqual(await events(await post(`/saves/${save.id}/turn`, { input: "go" })), ["story", "phase", "story", "error"]);
   } finally {
     mode.streamFails = false;
   }
   const view = await get(`/saves/${save.id}`);
   assert.equal(view.path.length, 1);
   assert.equal(view.tree.length, 1);
+});
+
+test("a story that quietly breaks off is written again, and never kept half", async () => {
+  const save = await newSave();
+  mode.quietCuts = 1;
+  const text = await (await post(`/saves/${save.id}/turn`, { input: "go" })).text();
+  assert.match(text, /"phase":"restart"/);
+  const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
+  assert.match(head.story, /go/, "the second, whole story is kept");
+  mode.quietCuts = 2;
+  assert.equal((await events(await post(`/saves/${save.id}/turn`, { input: "go" }))).at(-1), "error");
+  assert.equal((await get(`/saves/${save.id}`)).path.length, 2, "two cut replies save nothing");
+
+  mode.emptyStory = true;
+  assert.match(await (await post(`/saves/${save.id}/turn`, { input: "go" })).text(), /"phase":"restart"/, "an empty story is asked for again");
+  mode.endAfterStory = true;
+  const ended = await (await post(`/saves/${save.id}/turn`, { input: "go" })).text();
+  assert.doesNotMatch(ended, /restart/, "a reply that ends right after the story keeps it");
+  assert.match(ended, /"phase":"changes"/, "and the page may queue the next action");
+  assert.equal((await get(`/saves/${save.id}`)).path.at(-1)!.story, "A whole story.");
 });
 
 test("a reply without its record is read again, and if that fails the story stays", async () => {
@@ -280,4 +322,46 @@ test("hooks the reply left off are filled in", async () => {
   const head = (await get(`/saves/${save.id}`)).path.at(-1)!;
   assert.equal(head.hooks.length, 3);
   assert.equal(head.state.clock, "A little later", "the changes in the reply were kept");
+});
+
+test("a reply the provider stops partway, saying so inside the stream, is an error", async () => {
+  const profile = join(mkdtempSync(join(tmpdir(), "simulora-")), "profile.txt");
+  writeFileSync(profile, "test-key\nhttps://provider.test/v1\n");
+  const real = globalThis.fetch;
+  const lines = [
+    { choices: [{ delta: { content: '{"story": "Half' } }] },
+    { status_code: 502, error: { type: "data_inspection_failed" } },
+  ];
+  globalThis.fetch = (async () =>
+    new Response(lines.map((line) => `data: ${JSON.stringify(line)}\n\n: heartbeat\n\n`).join(""))) as typeof fetch;
+  try {
+    const pieces: string[] = [];
+    const model = openAICompatibleModel({ profilePath: profile, model: "m", reasoning: "" });
+    await assert.rejects(async () => {
+      for await (const piece of model.stream([{ role: "user", content: "go" }])) pieces.push(piece);
+    }, /stopped partway/);
+    assert.deepEqual(pieces, ['{"story": "Half']);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
+test("a provider out of reach for a moment is tried again", async () => {
+  const profile = join(mkdtempSync(join(tmpdir(), "simulora-")), "profile.txt");
+  writeFileSync(profile, "test-key\nhttps://provider.test/v1\n");
+  const real = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    if (++calls < 3) throw new TypeError("fetch failed");
+    return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}\n\n`);
+  }) as typeof fetch;
+  try {
+    const pieces: string[] = [];
+    const model = openAICompatibleModel({ profilePath: profile, model: "m", reasoning: "" });
+    for await (const piece of model.stream([{ role: "user", content: "go" }])) pieces.push(piece);
+    assert.deepEqual(pieces, ["ok"]);
+    assert.equal(calls, 3);
+  } finally {
+    globalThis.fetch = real;
+  }
 });

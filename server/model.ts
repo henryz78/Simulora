@@ -69,7 +69,15 @@ export function openAICompatibleModel(config: ModelConfig): Model {
     signal: AbortSignal = AbortSignal.timeout(180_000),
   ) => {
     for (let attempt = 1; ; attempt++) {
-      const response = await send(messages, extra, signal);
+      // The provider was out of reach for a few seconds at a time during a long test (2026-10-19): wait and retry.
+      const response = await send(messages, extra, signal).catch((error: Error) => {
+        if (attempt === 3 || signal.aborted) throw error;
+        return null;
+      });
+      if (!response) {
+        await new Promise((done) => setTimeout(done, attempt * 1500));
+        continue;
+      }
       if (response.ok || attempt === 3 || ![400, 429, 500, 502, 503, 504].includes(response.status)) return response;
       const body = await response.text();
       // Too long a prompt or too high a max_tokens fails every time: give up at once.
@@ -94,20 +102,29 @@ export function openAICompatibleModel(config: ModelConfig): Model {
       if (!response.ok || !response.body) throw await failed(response);
       const decoder = new TextDecoder();
       let buffer = "";
-      for await (const chunk of response.body) {
-        timer.refresh();
-        buffer += decoder.decode(chunk, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const data = line.replace(/^data:\s*/, "").trim();
-          if (!line.startsWith("data:") || !data || data === "[DONE]") continue;
-          const piece = (JSON.parse(data) as { choices?: { delta?: { content?: string | null } }[] })
-            .choices?.[0]?.delta?.content;
-          if (piece) yield piece;
+      try {
+        for await (const chunk of response.body) {
+          timer.refresh();
+          buffer += decoder.decode(chunk, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const data = line.replace(/^data:\s*/, "").trim();
+            if (!line.startsWith("data:") || !data || data === "[DONE]") continue;
+            const event = JSON.parse(data) as { choices?: { delta?: { content?: string | null } }[]; error?: unknown };
+            // The provider's output check now and then stops a harmless story partway ("Output data may contain
+            // inappropriate content", 2 of 6 memory requests on 2026-10-18) and says so inside the stream.
+            if (event.error) {
+              console.warn("model.stopped", JSON.stringify(event.error).slice(0, 300));
+              throw new Error("The model stopped partway");
+            }
+            const piece = event.choices?.[0]?.delta?.content;
+            if (piece) yield piece;
+          }
         }
+      } finally {
+        clearTimeout(timer);
       }
-      clearTimeout(timer);
     },
     async json(messages) {
       const response = await request(messages, { response_format: { type: "json_object" } });

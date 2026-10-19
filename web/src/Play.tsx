@@ -135,7 +135,8 @@ export function Play({ saveId }: { saveId: string }) {
     try {
       const node = await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
-        phase: () => setPending((p) => p && { ...p, phase: "changes" }),
+        phase: (phase) =>
+          setPending((p) => p && (phase === "restart" ? { ...p, story: "", phase: "story" } : { ...p, phase: "changes" })),
       });
       await load();
       setPending(null);

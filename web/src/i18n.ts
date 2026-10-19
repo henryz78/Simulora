@@ -150,6 +150,8 @@ const zh: Record<string, string> = {
   "Could not reach the model": "连不上模型，检查一下网络再试",
   "The model request failed": "模型请求失败了，稍后再试",
   "The model returned no story": "模型这次什么也没写，再试一次吧",
+  "The model stopped partway": "模型写到一半停了，再试一次吧",
+  "The story broke off": "故事写到一半断了，再试一次吧",
   "The model gave no suggestions": "模型这次没给出建议，再试一次吧",
   "Could not record the changes": "还是没能记下变化，稍后再试",
   "A turn is being written": "这一回合还在写，等它写完",
