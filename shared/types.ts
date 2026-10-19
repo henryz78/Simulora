@@ -84,6 +84,17 @@ export interface Settings {
   thinking: boolean;
   /** Every few turns the people out of the scene act on their own plans. */
   meanwhile: boolean;
+  /** A risky attempt by the player's character is settled by a die, not by the storyteller. */
+  dice: boolean;
+}
+
+/** A risky attempt and how the die settled it. */
+export interface Dice {
+  what: string;
+  difficulty: "easy" | "normal" | "hard";
+  /** 1 to 20. */
+  roll: number;
+  outcome: "success" | "cost" | "fail";
 }
 
 export const defaultSettings: Settings = {
@@ -94,6 +105,7 @@ export const defaultSettings: Settings = {
   showSecrets: false,
   thinking: false,
   meanwhile: true,
+  dice: false,
 };
 
 export interface Save {
@@ -144,6 +156,8 @@ export interface TurnNode {
   meanwhile?: { character: string; did: string }[];
   /** On a turn that skipped time: what the people away changed before the story was written. */
   offstage?: Change[];
+  /** The die that settled the player's attempt this turn. */
+  dice?: Dice;
   /**
    * Written every few turns on the last turn they cover: the memory (the most important things, as they stand now)
    * and the timeline (what happened, in order). Later turns find the latest by walking back along their path.

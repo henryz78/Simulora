@@ -414,3 +414,17 @@ button.chip {
 .speech {
   color: var(--speech);
 }
+
+.dice {
+  font-size: 0.9em;
+  color: var(--muted);
+}
+.dice.success {
+  color: #3d7a46;
+}
+.dice.cost {
+  color: #a0701c;
+}
+.dice.fail {
+  color: var(--accent);
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, bury, describeState, inPlay, parseChanges, placeNamed, sceneOf, stillAway, withWhere } from "../server/state.ts";
+import { applyChanges, bury, describeState, inPlay, outcomeOf, parseChanges, placeNamed, sceneOf, stillAway, withWhere } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -210,4 +210,12 @@ test("what the people away did is kept only for those the turn left alone", () =
   assert.equal(keep("Moss"), false, "named in the story");
   assert.equal(keep("Zhou"), false, "not away");
   assert.equal(stillAway(["Lan"], "", parseChanges([{ type: "move", character: "Lan", place: "Teahouse" }]))("Lan"), false);
+});
+
+test("a d20 settles an attempt by its difficulty: harder fails more and comes off clean less", () => {
+  const share = (d: "easy" | "normal" | "hard", o: string) =>
+    Array.from({ length: 20 }, (_, i) => outcomeOf(i + 1, d)).filter((x) => x === o).length / 20;
+  assert.deepEqual([share("easy", "success"), share("easy", "cost"), share("easy", "fail")], [0.65, 0.25, 0.1]);
+  assert.deepEqual([share("normal", "success"), share("normal", "cost"), share("normal", "fail")], [0.45, 0.3, 0.25]);
+  assert.deepEqual([share("hard", "success"), share("hard", "cost"), share("hard", "fail")], [0.25, 0.3, 0.45]);
 });

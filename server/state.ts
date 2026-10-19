@@ -273,6 +273,15 @@ export function stillAway(away: string[], story: string, changes: Change[]): (na
   return (name) => away.some((a) => same(a, name)) && !mentions(story, name) && !touched(name);
 }
 
+/**
+ * How a d20 settles an attempt of the given difficulty: success, success at a cost, or failure. Easy fails one time
+ * in ten and comes off clean nearly two in three; normal about a quarter and under half; hard nearly half and a quarter.
+ */
+export function outcomeOf(roll: number, difficulty: "easy" | "normal" | "hard"): "success" | "cost" | "fail" {
+  const [fail, cost] = ({ easy: [2, 7], normal: [5, 11], hard: [9, 15] } as const)[difficulty];
+  return roll <= fail ? "fail" : roll <= cost ? "cost" : "success";
+}
+
 /** The state a turn acted as `actor` starts from: someone out of the story whom the player plays is back in it. */
 export function inPlay(state: WorldState, actor: string): WorldState {
   if (!state.characters.some((c) => c.id === actor && c.gone)) return state;

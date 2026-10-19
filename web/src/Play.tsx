@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Change, NodeSummary, SaveView, Settings, TurnNode, WorldState } from "../../shared/types.ts";
+import type { Change, Dice, NodeSummary, SaveView, Settings, TurnNode, WorldState } from "../../shared/types.ts";
 import { api, playTurn } from "./api.ts";
 import { lang, t } from "./i18n.ts";
 
@@ -12,6 +12,7 @@ interface Pending {
   input: string;
   story: string;
   phase: "passing" | "story" | "changes";
+  dice?: Dice;
   error: string;
   since: number;
 }
@@ -74,6 +75,17 @@ function Elapsed({ since }: { since: number }) {
 // What people say, in “”, 「」 or the model's stray "": coloured like WorldOS's, so speech stands out from the
 // telling. A quote still being written is coloured to its end.
 const SPEECH = /(“[^”]*(?:”|$)|「[^」]*(?:」|$)|"[^"]*(?:"|$))/;
+
+const DICE = { easy: "Easy", normal: "Normal", hard: "Hard", success: "Success", cost: "Success at a cost", fail: "Failure" };
+
+/** "🎲 翻墙 · 困难 · 14 → 成功但有代价" */
+function DiceLine({ dice }: { dice: Dice }) {
+  return (
+    <p className={`dice ${dice.outcome}`}>
+      🎲 {dice.what} · {t(DICE[dice.difficulty])} · {dice.roll} → {t(DICE[dice.outcome])}
+    </p>
+  );
+}
 
 function Paragraphs({ text }: { text: string }) {
   return (
@@ -143,6 +155,7 @@ export function Play({ saveId }: { saveId: string }) {
     try {
       const node = await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
+        dice: (dice) => setPending((p) => p && { ...p, dice }),
         phase: (phase) =>
           setPending(
             (p) =>
@@ -227,6 +240,7 @@ export function Play({ saveId }: { saveId: string }) {
             {node.input ? `${sep}${node.input}` : ` · ${t("Let it unfold")}`}
           </p>
         )}
+        {node.dice && <DiceLine dice={node.dice} />}
         <Paragraphs text={node.story} />
         {node.changes.map((c) => {
           const found = c.type === "reveal" && state.facts.find((f) => f.id === c.fact);
@@ -341,6 +355,7 @@ export function Play({ saveId }: { saveId: string }) {
               <strong>{actorLabel(state, pending.actor)}</strong>
               {pending.input ? `${sep}${pending.input}` : ` · ${t("Let it unfold")}`}
             </p>
+            {pending.dice && <DiceLine dice={pending.dice} />}
             <Paragraphs text={pending.story} />
             {!pending.error && (
               <p className="muted small">
@@ -640,6 +655,17 @@ export function Play({ saveId }: { saveId: string }) {
                 <span>
                   {t("Deep thinking")}
                   <span className="small muted"> · {t("better plotted, but the first words take 30-80 s")}</span>
+                </span>
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={save.settings.dice ?? false}
+                  onChange={(e) => changeSettings({ dice: e.target.checked })}
+                />
+                <span>
+                  {t("Dice of fate")}
+                  <span className="small muted"> · {t("a risky attempt is settled by a die: success, success at a cost, or failure")}</span>
                 </span>
               </label>
               <label className="check">

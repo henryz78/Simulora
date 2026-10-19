@@ -1,4 +1,4 @@
-import type { MemoryNote, Settings, TimelineEntry, TurnNode, World, WorldState } from "../shared/types.ts";
+import type { Dice, MemoryNote, Settings, TimelineEntry, TurnNode, World, WorldState } from "../shared/types.ts";
 import type { Message } from "./model.ts";
 import { describeState, sceneOf } from "./state.ts";
 
@@ -219,6 +219,7 @@ export function narrationMessages(
   settings: Settings,
   notes = "",
   elsewhere: { character: string; did: string }[] = [],
+  dice: Dice | null = null,
 ): Message[] {
   const state = path.at(-1)!.state;
   const name = actorName(state, actor);
@@ -313,6 +314,13 @@ export function narrationMessages(
         ]
       : []),
     `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
+    // The die, not the storyteller, settled it: told as it fell.
+    ...(dice
+      ? [
+          `The dice settled the attempt (${dice.what}): ${OUTCOME[dice.outcome]} Tell it exactly so, and go on from ` +
+            "there; never soften a failure or a cost into a clean success.",
+        ]
+      : []),
     "",
     // Said in the system prompt alone, neither held (2026-10-18): the story retold the player's words, and it drifted
     // to the length of the earlier turns, a little longer each time (about 520 characters at turn 9 of a real game,
@@ -411,6 +419,47 @@ export function meanwhileMessages(world: World, path: TurnNode[], away: string[]
         `The story lately:\n${recentStory(path, state)}`,
         "",
         `Away from the player's scene now: ${away.join(", ")}.`,
+      ].join("\n"),
+    },
+  ];
+}
+
+const OUTCOME: Record<Dice["outcome"], string> = {
+  // A theft rolled 19 came off, and the owner missed the key at once in the same scene (2026-10-19): a cost by another name.
+  success: "it succeeds cleanly: nothing goes wrong with it in this scene; what follows from it can come later.",
+  cost: "it succeeds, at a real cost: an injury, a loss, a debt, a witness, or something broken or given away.",
+  fail: "it fails, and the failure has consequences the story goes on from.",
+};
+
+/**
+ * Whether the player's action is a gamble the dice should settle, and how hard it is, judged before any roll so the
+ * roll stays the dice's.
+ */
+export function riskMessages(world: World, path: TurnNode[], actor: string, input: string): Message[] {
+  const state = path.at(-1)!.state;
+  const name = actorName(state, actor) ?? "The player's character";
+  return [
+    {
+      role: "system",
+      content:
+        "You judge an action in a story game before the dice are rolled. It is risky only when its outcome is truly " +
+        "uncertain and failing would matter: a climb, a fight, a theft, sneaking past someone, a lie to someone who " +
+        "may see through it, persuading someone set against it, a spell or a feat under pressure. Talking, walking, " +
+        "looking, asking, waiting and ordinary work are not risky. Judge the difficulty by who tries it, against whom, " +
+        "and how, from the world and the story so far. Return one JSON object: " +
+        '{"risky": true or false, "what": "the attempt in a few words, in the world\'s language", ' +
+        '"difficulty": "easy" | "normal" | "hard"}',
+    },
+    {
+      role: "user",
+      content: [
+        worldHeader(world, state, { secrets: false, scene: sceneOf(state, actor, input) }),
+        "",
+        // What is known of who tries it (a master thief, a sprained wrist) counts as much as the last scene.
+        ...chronicleLines(path),
+        `The story lately:\n${path.slice(-2).map((node) => turnText(node, path.indexOf(node), state, false)).join("\n\n")}`,
+        "",
+        `${name} (played by the player) tries: ${input}`,
       ].join("\n"),
     },
   ];

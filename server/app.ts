@@ -15,6 +15,7 @@ import {
   type TurnNode,
   type World,
   type WorldDraft,
+  type Dice,
 } from "../shared/types.ts";
 import type { Store } from "./db.ts";
 import { parseJsonObject, readString, type Model } from "./model.ts";
@@ -39,6 +40,7 @@ import {
   meanwhileMessages,
   narrationMessages,
   placedOne,
+  riskMessages,
   storyFrom,
   timeJump,
   tokensOf,
@@ -50,6 +52,7 @@ import {
   carrySecrets,
   inPlay,
   newId,
+  outcomeOf,
   parseChanges,
   placeNamed,
   same,
@@ -189,6 +192,7 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
     showSecrets: typeof v.showSecrets === "boolean" ? v.showSecrets : current.showSecrets,
     thinking: typeof v.thinking === "boolean" ? v.thinking : (current.thinking ?? false),
     meanwhile: typeof v.meanwhile === "boolean" ? v.meanwhile : (current.meanwhile ?? true),
+    dice: typeof v.dice === "boolean" ? v.dice : (current.dice ?? false),
   };
 }
 
@@ -534,6 +538,24 @@ export function createApi(
     }
   }
 
+  /**
+   * The die for the player's attempt, when it is risky: the storyteller only judges how hard it is, before any roll,
+   * and is then told how it went. Nothing when the action is no gamble or the judging fails.
+   */
+  async function rollFor(w: World, path: TurnNode[], actor: string, input: string): Promise<Dice | null> {
+    try {
+      const report = (await writer.json(riskMessages(w, path, actor, input))) as Record<string, unknown>;
+      const difficulty = (["easy", "normal", "hard"] as const).find((d) => d === report.difficulty);
+      const what = str(report.what, 100).trim();
+      if (report.risky !== true || !difficulty || !what) return null;
+      const roll = 1 + Math.floor(Math.random() * 20);
+      return { what, difficulty, roll, outcome: outcomeOf(roll, difficulty) };
+    } catch (error) {
+      console.warn("dice.failed", error instanceof Error ? error.message : error);
+      return null;
+    }
+  }
+
   /** At most `ms` of waiting for the step; then the turn goes on without it. */
   const within = <T,>(step: Promise<T>, ms = 40_000) =>
     Promise.race([step, new Promise<null>((done) => setTimeout(done, ms, null).unref())]);
@@ -611,6 +633,10 @@ export function createApi(
         event("phase", { phase: "story" });
       }
       const played = path.with(-1, { ...head, state: before });
+      // With the dice on, a risky attempt by the player's character is settled before the story is told.
+      const dice =
+        s.settings.dice && actor !== "director" && input ? await within(rollFor(w, played, actor, input), 10_000) : null;
+      if (dice) event("dice", dice);
       let firstAt = 0;
       let storyAt = 0;
       // One JSON reply carries the story, then the turn's changes and hooks. The story is read out of it as it
@@ -642,7 +668,7 @@ export function createApi(
         sent = 0;
         const narrator = s.settings.thinking ? thinker : model;
         try {
-          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes, elsewhere), {
+          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes, elsewhere, dice), {
             json: true,
           })) {
             reply += piece;
@@ -691,6 +717,7 @@ export function createApi(
         hooks,
         state: changed,
         ...(failed && { recordsFailed: true }),
+        ...(dice && { dice }),
         // What the skipped time changed off the stage, so the turn can be recorded again from its parent.
         ...(offstageChanges.length && { offstage: offstageChanges }),
         // Someone the story then brings into the scene is no longer told as away.

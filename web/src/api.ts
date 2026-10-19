@@ -1,4 +1,4 @@
-import type { Save, SaveView, Settings, TurnNode, World, WorldDraft } from "../../shared/types.ts";
+import type { Dice, Save, SaveView, Settings, TurnNode, World, WorldDraft } from "../../shared/types.ts";
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -38,7 +38,7 @@ export async function playTurn(
   saveId: string,
   actor: string,
   input: string,
-  on: { story: (text: string) => void; phase: (phase: string) => void },
+  on: { story: (text: string) => void; phase: (phase: string) => void; dice?: (dice: Dice) => void },
 ): Promise<TurnNode> {
   const response = await fetch(`/api/saves/${saveId}/turn`, {
     method: "POST",
@@ -60,6 +60,7 @@ export async function playTurn(
       const data = JSON.parse(/\ndata: (.*)/.exec(block)?.[1] ?? "null") as Record<string, unknown> | null;
       if (name === "story") on.story(String(data?.text ?? ""));
       if (name === "phase") on.phase(String(data?.phase ?? ""));
+      if (name === "dice") on.dice?.(data as unknown as Dice);
       if (name === "error") throw new Error(String(data?.message ?? "The turn failed"));
       if (name === "done") return data?.node as TurnNode;
     }

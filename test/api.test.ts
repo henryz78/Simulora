@@ -8,6 +8,7 @@ import type { Save, SaveView, TurnNode, World } from "../shared/types.ts";
 import { createApi } from "../server/app.ts";
 import { Store } from "../server/db.ts";
 import { fakeModel } from "../server/model.ts";
+import { outcomeOf } from "../server/state.ts";
 
 let server: Server;
 let base = "";
@@ -169,4 +170,20 @@ test("every few turns the people away act on their own; someone the story brings
   await call("PATCH", `/saves/${save.id}`, { settings: { meanwhile: false } });
   for (let turn = 13; turn <= 15; turn++) ({ node } = await playTurn(save.id, "c1", "wait"));
   assert.equal(node.meanwhile, undefined);
+});
+
+test("with the dice on, a risky attempt is settled by a die; an ordinary act or the dice off, by nothing", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Wall", opening: "A wall.", state: { places: [{ id: "p1", name: "Yard" }], characters: [{ id: "c1", name: "Zhou", placeId: "p1" }] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  assert.equal((await playTurn(save.id, "c1", "I climb the wall")).node.dice, undefined, "off by default");
+  await call("PATCH", `/saves/${save.id}`, { settings: { dice: true } });
+  const { node } = await playTurn(save.id, "c1", "I climb the wall");
+  assert.equal(node.dice?.difficulty, "hard");
+  assert.ok(node.dice!.roll >= 1 && node.dice!.roll <= 20);
+  assert.equal(node.dice!.outcome, outcomeOf(node.dice!.roll, "hard"));
+  assert.match(node.story, { success: /it succeeds/, cost: /it succeeds/, fail: /it fails/ }[node.dice!.outcome], "told as it fell");
+  assert.equal((await playTurn(save.id, "director", "Zhou climbs the wall")).node.dice, undefined, "a director's turn");
+  assert.equal((await playTurn(save.id, "c1", "I look around")).node.dice, undefined, "no gamble");
 });

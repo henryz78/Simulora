@@ -270,6 +270,7 @@ export function fakeModel(): Model {
         return;
       }
       const action = /Player's action: (.*)/.exec(last)?.[1] ?? "";
+      const settled = /The dice settled the attempt \([^)]*\): it (\w+)/.exec(last)?.[1];
       const changes = JSON.stringify([
         { type: "clock", text: "A little later", note: "Time passes." },
         ...(action ? [{ type: "fact", text: `Seen: ${action}`, note: "" }] : []),
@@ -278,7 +279,7 @@ export function fakeModel(): Model {
       // One JSON reply in the asked order, cut where a real stream may cut it: inside an escape.
       for (const piece of [
         '{"story": "The wind shifts. ',
-        `(${action || "the story moves on"}) `,
+        `(${action || "the story moves on"}${settled ? `; it ${settled}` : ""}) `,
         "Someone looks up.\\",
         "nIt is quiet.",
         '"',
@@ -289,6 +290,10 @@ export function fakeModel(): Model {
     },
     async json(messages) {
       const system = messages[0]?.content ?? "";
+      if (system.includes("before the dice are rolled")) {
+        const tries = /tries: (.*)$/.exec(messages.at(-1)!.content)?.[1] ?? "";
+        return /climb|steal|fight/i.test(tries) ? { risky: true, what: "the climb", difficulty: "hard" } : { risky: false };
+      }
       if (system.includes("You move a living story world")) {
         const name = /Away from the player's scene now: ([^,.]+)/.exec(messages.at(-1)!.content)?.[1] ?? "";
         return {
