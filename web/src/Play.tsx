@@ -188,6 +188,8 @@ export function Play({ saveId }: { saveId: string }) {
   }
 
   const placeName = (id: string | null) => state.places.find((p) => p.id === id)?.name;
+  // Where the character being played is; the director has no scene.
+  const scene = state.characters.find((c) => c.id === current)?.placeId ?? null;
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
   const known = state.facts.filter((f) => !f.secret);
   const chronicled = path.findLast((n) => Array.isArray(n.timeline));
@@ -467,16 +469,32 @@ export function Play({ saveId }: { saveId: string }) {
                     )}
               </ul>
 
-              <h3>{t("People")}</h3>
-              <ul>
-                {state.characters.map((c) => (
-                  <li key={c.id}>
-                    <strong>{c.name}</strong>
-                    {placeName(c.placeId) && <span className="muted"> · {t("at")} {placeName(c.placeId)}</span>}
-                    {c.notes && <div className="small">{c.notes}</div>}
-                  </li>
+              {/* Who is with the character being played, and who is elsewhere: the story reads the others in a line. */}
+              {[
+                // Someone placed nowhere may be here, as the story reads it too.
+                { title: scene ? "Here" : "People", people: state.characters.filter((c) => !scene || !c.placeId || c.placeId === scene) },
+                { title: "Elsewhere", people: scene ? state.characters.filter((c) => c.placeId && c.placeId !== scene) : [] },
+              ]
+                .filter((group) => group.people.length > 0)
+                .map((group) => (
+                  <section key={group.title}>
+                    <h3>
+                      {t(group.title)}
+                      {group.title === "Here" && <span className="muted small"> · {placeName(scene)}</span>}
+                    </h3>
+                    <ul>
+                      {group.people.map((c) => (
+                        <li key={c.id} className={group.title === "Elsewhere" ? "muted" : ""}>
+                          <strong>{c.name}</strong>
+                          {group.title !== "Here" && placeName(c.placeId) && (
+                            <span className="muted"> · {t("at")} {placeName(c.placeId)}</span>
+                          )}
+                          {c.notes && <div className="small">{c.notes}</div>}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
                 ))}
-              </ul>
 
 
               <h3>{t("Open questions")}</h3>

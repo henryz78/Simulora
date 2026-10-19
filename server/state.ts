@@ -251,18 +251,77 @@ export function carrySecrets(from: WorldState, into: WorldState): WorldState {
   return state;
 }
 
-export function describeState(state: WorldState, { secrets = true } = {}): string {
+/**
+ * The places this turn plays in when `actor` acts: their own, and any place or person the player's action names (it
+ * may go there or call them in). Null for the director or someone nowhere in particular: then everything is told.
+ */
+export function sceneOf(state: WorldState, actor: string, input = ""): string[] | null {
+  const own = state.characters.find((c) => c.id === actor)?.placeId;
+  if (!own) return null;
+  // Two Chinese characters or a whole English word of three letters or more: "of" or "Lan" in "plan" is no name.
+  const hit = (part: string) =>
+    /[㐀-鿿]/.test(part)
+      ? part.length >= 2 && input.includes(part)
+      : part.length >= 3 && new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(input);
+  // "去八楼走廊" names the place "八楼走廊与巨怪挂毯", "斯拉格霍恩教授" names "霍拉斯·斯拉格霍恩": parts count too.
+  const names = (name: string) => hit(name) || name.split(/[与和及、·・，,/（）()\s]+/).some(hit);
+  const named = [
+    ...state.places.filter((p) => p.name && names(p.name)).map((p) => p.id),
+    ...state.characters.filter((c) => c.name && c.placeId && names(c.name)).map((c) => c.placeId!),
+  ];
+  return [...new Set([own, ...named])];
+}
+
+const sentence = (text: string) => (/[。！？.!?…]$/.test(text) ? text : `${text}.`);
+
+/** The first sentence of a persona or goals, for someone who is not in the scene ("Dr." is no sentence). */
+function gist(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  const first = flat.match(/^.{8,}?(?:[。！？]|[.!?](?= |$))/)?.[0] ?? flat;
+  return first.length > 80 ? `${first.slice(0, 80)}…` : first;
+}
+
+/**
+ * The world as the model reads it. With a `scene` (place ids), the people and the places there are told in full and
+ * the rest in a line each, so a long story that has met many people and places does not crowd every turn: the
+ * player's own design (2026-10-18), people left behind fade to a line and come back whole when met again.
+ */
+export function describeState(
+  state: WorldState,
+  { secrets = true, scene = null }: { secrets?: boolean; scene?: string[] | null } = {},
+): string {
   const placeName = (id: string | null) =>
     state.places.find((p) => p.id === id)?.name ?? "somewhere unspecified";
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? id;
-  const lines: string[] = [`Time: ${state.clock || "unspecified"}`, "", "Places:"];
-  for (const p of state.places) lines.push(`- ${p.name}: ${p.description}`);
-  lines.push("", "Characters:");
-  for (const c of state.characters) {
+  // Someone placed nowhere may well be here (a world's author often places only a few): they are told in full.
+  const here = (placeId: string | null) => !scene || placeId === null || scene.includes(placeId);
+  const lines: string[] = [`Time: ${state.clock || "unspecified"}`, ""];
+  if (scene) {
+    lines.push("The scene:");
+    for (const p of state.places.filter((p) => here(p.id))) lines.push(`- ${p.name}: ${p.description}`);
+    const others = state.places.filter((p) => !here(p.id)).map((p) => p.name);
+    if (others.length) lines.push(`Other places: ${others.join(", ")}.`);
+  } else {
+    lines.push("Places:");
+    for (const p of state.places) lines.push(`- ${p.name}: ${p.description}`);
+  }
+  lines.push("", scene ? "Characters in the scene:" : "Characters:");
+  for (const c of state.characters.filter((c) => here(c.placeId))) {
     lines.push(
       `- ${c.name} (at ${placeName(c.placeId)}). Persona: ${c.persona}. Goals: ${c.goals || "none stated"}.` +
         `${c.notes ? ` Now: ${c.notes}.` : ""} Knows: ${c.knows.join(", ") || "nothing listed"}.`,
     );
+  }
+  const away = state.characters.filter((c) => !here(c.placeId));
+  if (away.length) {
+    lines.push("", "Characters elsewhere (they can come in; then play them true to this):");
+    for (const c of away) {
+      lines.push(
+        // Their goals stay: people offstage go on with their own plans.
+        `- ${c.name} (at ${placeName(c.placeId)}). ${gist(c.persona)}${c.goals ? ` Goals: ${sentence(gist(c.goals))}` : ""}` +
+          `${c.notes ? ` Now: ${c.notes}.` : ""} Knows: ${c.knows.join(", ") || "nothing listed"}.`,
+      );
+    }
   }
   lines.push("", "Facts the player knows:");
   for (const f of state.facts.filter((f) => (!f.secret || f.revealed) && !f.archived))

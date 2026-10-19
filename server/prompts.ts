@@ -1,6 +1,6 @@
 import type { MemoryNote, Settings, TimelineEntry, TurnNode, World, WorldState } from "../shared/types.ts";
 import type { Message } from "./model.ts";
-import { describeState } from "./state.ts";
+import { describeState, sceneOf } from "./state.ts";
 
 /** How many earlier turns the model reads in full. */
 const RECENT_TURNS = 6;
@@ -75,7 +75,7 @@ export function tokensOf(text: string): number {
   return Math.round(cjk * 0.7 + other * 0.5 + (text.length - cjk - other) * 0.3);
 }
 
-function worldHeader(world: World, state: WorldState, options?: { secrets?: boolean }): string {
+function worldHeader(world: World, state: WorldState, options?: { secrets?: boolean; scene?: string[] | null }): string {
   return `World: ${world.title}\nPremise: ${world.premise}\n\n${describeState(state, options)}`;
 }
 
@@ -133,7 +133,8 @@ const STOP =
 // "Now" kept ink on her palm two turns after she rubbed it off (2026-10-18).
 const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usually two to five. Refer to characters
 and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
-- {"type":"move","character":name,"place":name}  (a new place name creates the place)
+- {"type":"move","character":name,"place":name}  (a new place name creates the place; also whenever someone is in
+  the scene who is listed somewhere else or nowhere: where people are decides who the story is told about in full)
 - {"type":"character","name":...,"persona":...,"place":name}  (someone new appears)
 - {"type":"status","character":name,"notes":"how they are now, a few words"}  (the whole new state, replacing the
   old; check the player's character's "Now" against the passage and give a new one when it is no longer true)
@@ -232,7 +233,7 @@ export function narrationMessages(
   // The whole story goes in until it nears the model's reach; then the timeline stands in for the oldest turns.
   const from = storyFrom(path);
   const user = [
-    worldHeader(world, state),
+    worldHeader(world, state, { scene: sceneOf(state, actor, input) }),
     "",
     // Like WorldOS's 重要事实 (2026-10-18): the player's own fallback when the memory misses something.
     ...(notes.trim() ? ["The player's notes (true in this story, never forget them):", notes.trim(), ""] : []),
@@ -286,7 +287,7 @@ export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)
     },
     {
       role: "user",
-      content: `${worldHeader(world, state)}\n\nStory so far:\n${recentStory(path, state)}`,
+      content: `${worldHeader(world, state, { scene: sceneOf(state, actor) })}\n\nStory so far:\n${recentStory(path, state)}`,
     },
   ];
 }

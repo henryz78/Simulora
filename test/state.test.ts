@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, bury, parseChanges } from "../server/state.ts";
+import { applyChanges, bury, describeState, parseChanges, sceneOf } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -77,4 +77,41 @@ test("a lasting change in someone rewrites who they are; only what is given chan
   assert.equal(state.characters[0]!.persona, "Bitter since the fire, trusts no one.");
   assert.equal(state.characters[0]!.goals, "");
   assert.deepEqual([state.characters[1]!.persona, state.characters[1]!.goals], ["", "Find her brother."]);
+});
+
+test("people in the scene are told in full, people elsewhere in a line, and an action can bring them in", () => {
+  const state = world();
+  state.places.push({ id: "p2", name: "Pass", description: "Wind and rock." });
+  state.characters.push({
+    id: "c3", name: "Lan", persona: "A smuggler. Owes everyone.", goals: "Get out", placeId: "p2", notes: "Hiding", knows: [],
+  });
+  const here = describeState(state, { scene: sceneOf(state, "c1") });
+  assert.match(here, /Characters in the scene:\n- Zhou[^\n]*Persona/);
+  assert.match(here, /Characters elsewhere[^\n]*\n- Lan \(at Pass\)\. A smuggler\. Goals: Get out\. Now: Hiding\./, "a line");
+  assert.doesNotMatch(here, /Owes everyone|Wind and rock/);
+  assert.match(here, /Other places: Pass\./);
+  state.characters.push({ id: "c4", name: "Mo", persona: "A ghost.", goals: "", placeId: null, notes: "", knows: [] });
+  assert.match(describeState(state, { scene: sceneOf(state, "c1") }), /- Mo \(at somewhere unspecified\)\. Persona/, "placed nowhere: maybe here");
+
+  // Going there or calling them in brings the place and its people into the scene.
+  for (const input of ["I ride to the Pass", "I send for Lan"]) {
+    assert.match(describeState(state, { scene: sceneOf(state, "c1", input) }), /- Lan \(at Pass\)\. Persona: A smuggler\. Owes/);
+  }
+  // A part of a name is enough: "八楼走廊" for "八楼走廊与巨怪挂毯".
+  state.places.push({ id: "p3", name: "八楼走廊与巨怪挂毯", description: "挂毯后有门。" });
+  assert.deepEqual(sceneOf(state, "c1", "快十点了，我去八楼走廊看看"), ["p1", "p3"]);
+  // The director sees everything.
+  assert.equal(sceneOf(state, "director"), null);
+  assert.match(describeState(state, { scene: sceneOf(state, "director") }), /- Lan \(at Pass\)\. Persona/);
+});
+
+test("a line for someone elsewhere keeps the first sentence and their goals, and English names match whole words", () => {
+  const state = world();
+  state.places.push({ id: "p2", name: "Hall of Mirrors", description: "" });
+  state.characters.push(
+    { id: "c3", name: "Lan", persona: "Dr. Chen's runner,\nquick and quiet. Owes everyone.", goals: "Get out of town", placeId: "p2", notes: "", knows: [] },
+  );
+  const line = describeState(state, { scene: sceneOf(state, "c1", "we run out of time with a plan") }).split("\n").find((l) => l.startsWith("- Lan"));
+  assert.equal(line, "- Lan (at Hall of Mirrors). Dr. Chen's runner, quick and quiet. Goals: Get out of town. Knows: nothing listed.");
+  assert.deepEqual(sceneOf(state, "c1", "I go to the mirrors"), ["p1", "p2"]);
 });

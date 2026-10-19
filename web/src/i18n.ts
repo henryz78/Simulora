@@ -62,6 +62,8 @@ const zh: Record<string, string> = {
   "Show all secrets": "看全部秘密",
   Time: "时间",
   People: "人物",
+  Here: "在这里",
+  Elsewhere: "在别处",
   "Known facts": "已知的事",
   Secrets: "秘密",
   "undiscovered": "个还没被发现",

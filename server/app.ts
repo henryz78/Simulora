@@ -614,7 +614,8 @@ export function createApi(
       // When the story nears the model's reach, the turns the timeline already tells are no longer sent, but for
       // the newest ones. Nothing has to be written, so nobody waits.
       const next = [...path, node];
-      const size = tokensOf(narrationMessages(w, next, actor, "", s.settings, s.notes).map((m) => m.content).join(""));
+      // As the director, who reads the whole world: the largest prompt the next turn can send.
+      const size = tokensOf(narrationMessages(w, next, "director", "", s.settings, s.notes).map((m) => m.content).join(""));
       if (size > trimAt) {
         try {
           // A whole timeline step at a time, so the turn before the cut is one that keeps its state.
