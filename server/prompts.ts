@@ -133,8 +133,10 @@ const STOP =
 // "Now" kept ink on her palm two turns after she rubbed it off (2026-10-18).
 const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usually two to five. Refer to characters
 and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
-- {"type":"move","character":name,"place":name}  (a new place name creates the place; also whenever someone is in
-  the scene who is listed somewhere else or nowhere: where people are decides who the story is told about in full)
+- {"type":"move","character":name,"place":name}  (a new place name creates the place, so where the passage is at a
+  listed place or a corner of it, copy its name whole, exactly as listed; give a move whenever someone is in
+  the scene who is listed somewhere else or nowhere, and for whoever goes along with the player's character: where
+  people are decides who the story is told about in full)
 - {"type":"character","name":"what the story calls them","persona":...,"goals":...,"place":name}  (someone new
   is seen or heard in this passage; their name and ties only as the story tells them; never a placeholder for
   someone not yet met)
@@ -167,11 +169,31 @@ function hooksFor(state: WorldState, actor: string): string {
 }
 
 /** The shape of a whole reply. Shown in full, it keeps the model from stopping after the story. */
-const REPLY_SAMPLE = JSON.stringify({
-  story: "…",
-  changes: [{ type: "status", character: "…", notes: "…" }],
-  hooks: ["…", "…", "…"],
-});
+const replySample = (who: string | null) =>
+  JSON.stringify({
+    story: "…",
+    ...(who ? { where: "…" } : {}),
+    changes: [{ type: "status", character: "…", notes: "…" }],
+    hooks: ["…", "…", "…"],
+  });
+
+/**
+ * Whose place a turn's reply gives: the character played, or on a director's turn the player's own character, unless
+ * they are out of the story (a director's turn does not bring them back).
+ */
+export function placedOne(path: TurnNode[], actor: string): string | null {
+  const id = actor !== "director" ? actor : path.findLast((node) => node.actor !== "director")?.actor;
+  const one = path.at(-1)!.state.characters.find((c) => c.id === id);
+  return one && !one.gone ? one.name : null;
+}
+
+// Asked among the changes, the player's character's move was left out in 9 of 13 walks of a real game, most when
+// time jumped ("a week later, at breakfast") or the place went unnamed; asked for every time, it is given every time.
+const whereKey = (who: string) =>
+  `"where" is where ${who} is at the end of the story, every time, going by the story: the place listed for them ` +
+  "may be out of date. When they are at a listed place or a corner of it, copy its name whole, exactly as listed; " +
+  "anywhere else, even another room in the same building, give a short new name. When the story does not show " +
+  "them, give the place listed for them.";
 
 export function narrationMessages(
   world: World,
@@ -185,7 +207,8 @@ export function narrationMessages(
   const name = actorName(state, actor);
   // Who the player has been playing: a director's turn leaves them be (a real play-test, 2026-10-19: a director's
   // "meanwhile, in her office..." went on into the library and had the player's own character speak and decide).
-  const played = name ? null : actorName(state, path.findLast((node) => node.actor !== "director")?.actor ?? "");
+  const who = placedOne(path, actor);
+  const played = name ? null : who;
   const voice = !name
     ? "Write in the third person as an all-seeing narrator."
     : settings.person === "second"
@@ -236,9 +259,10 @@ export function narrationMessages(
     // three keys and shown a whole reply, the model kept the record in 6 of 6 turns (3 of 5 were cut short
     // before). The server reads the story out of the reply as it streams; a missing record is filled in.
     'Reply with one JSON object, keys in this order: {"story": "plain prose, paragraphs split by blank lines, ' +
-      'speech in “” or 「」, Chinese in full-width punctuation", "changes": [...], "hooks": [...]}. Always give all ' +
-      "three keys, like this:",
-    REPLY_SAMPLE,
+      `speech in “” or 「」, Chinese in full-width punctuation", ${who ? '"where": "…", ' : ""}"changes": [...], ` +
+      `"hooks": [...]}. Always give all ${who ? "four" : "three"} keys, like this:`,
+    replySample(who),
+    ...(who ? [whereKey(who)] : []),
     RECORD_FORMAT,
     hooksFor(state, actor),
   ].join("\n");
@@ -264,7 +288,7 @@ export function narrationMessages(
     // to the length of the earlier turns, a little longer each time (about 520 characters at turn 9 of a real game,
     // 640 and up to 870 at turn 19, for the same action). A bare "(Length: ...)" line here broke the JSON reply.
     // Late in a long game 2 of 10 replies stopped after the story; naming the three keys here, 0 of 10.
-    `Now write this turn as one JSON object as asked, with all three keys: the story, then "changes", then "hooks".${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran and however much happens: tell one scene closely and the rest in a line.`,
+    `Now write this turn as one JSON object as asked, with all ${who ? "four" : "three"} keys: the story, then ${who ? '"where", then ' : ""}"changes", then "hooks".${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran and however much happens: tell one scene closely and the rest in a line.`,
   ].join("\n");
   return [
     { role: "system", content: system },
@@ -272,13 +296,21 @@ export function narrationMessages(
   ];
 }
 
-export function changeMessages(world: World, before: WorldState, story: string, actor: string): Message[] {
+export function changeMessages(
+  world: World,
+  before: WorldState,
+  story: string,
+  actor: string,
+  who: string | null = null,
+): Message[] {
   return [
     {
       role: "system",
       content:
         "You keep the records of a story world. Read the new passage and report how the world changed. Return " +
-        `one JSON object: {"changes": [...], "hooks": [...]}.\n${RECORD_FORMAT}\n${SECRETS}\n${hooksFor(before, actor)}`,
+        `one JSON object: {${who ? '"where": "…", ' : ""}"changes": [...], "hooks": [...]}.\n` +
+        `${who ? `${whereKey(who).replace("the story", "the passage")}\n` : ""}` +
+        `${RECORD_FORMAT}\n${SECRETS}\n${hooksFor(before, actor)}`,
     },
     {
       role: "user",

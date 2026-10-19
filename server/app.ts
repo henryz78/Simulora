@@ -36,11 +36,12 @@ import {
   foldMessages,
   mergeMessages,
   narrationMessages,
+  placedOne,
   storyFrom,
   tokensOf,
   type PlainDraft,
 } from "./prompts.ts";
-import { applyChanges, bury, carrySecrets, inPlay, newId, parseChanges, trimState } from "./state.ts";
+import { applyChanges, bury, carrySecrets, inPlay, newId, parseChanges, trimState, withWhere } from "./state.ts";
 
 class HttpError extends Error {
   status: number;
@@ -381,11 +382,12 @@ export function createApi(
   }
 
   /** Reads what a passage changed. Two tries; the story stands even if both fail. */
-  async function record(w: World, before: TurnNode["state"], story: string, actor: string) {
+  async function record(w: World, before: TurnNode["state"], story: string, actor: string, who: string | null) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const report = (await model.json(changeMessages(w, before, story, actor))) as Record<string, unknown>;
-        return { changes: parseChanges(report.changes), hooks: parseHooks(report.hooks), failed: false };
+        const report = (await model.json(changeMessages(w, before, story, actor, who))) as Record<string, unknown>;
+        const changes = withWhere(before, parseChanges(report.changes), who, report.where);
+        return { changes, hooks: parseHooks(report.hooks), failed: false };
       } catch (error) {
         console.warn("changes.failed", error instanceof Error ? error.message : error);
       }
@@ -497,11 +499,12 @@ export function createApi(
   }
 
   /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
-  function readRecord(reply: string) {
+  function readRecord(reply: string, before: TurnNode["state"], who: string | null) {
     try {
       const report = parseJsonObject(reply) as Record<string, unknown>;
       if (!Array.isArray(report.changes)) return null;
-      return { changes: parseChanges(report.changes), hooks: parseHooks(report.hooks), failed: false };
+      const changes = withWhere(before, parseChanges(report.changes), who, report.where);
+      return { changes, hooks: parseHooks(report.hooks), failed: false };
     } catch {
       return null;
     }
@@ -585,10 +588,11 @@ export function createApi(
 
       // The story is never lost: if the record in the reply is missing or broken, a second request reads the
       // changes from the story, and if that fails too the turn keeps the story alone.
-      let report = readRecord(reply);
+      const who = placedOne(played, actor);
+      let report = readRecord(reply, before, who);
       if (!report) {
         console.warn("record.missing");
-        report = await record(w, before, story, actor);
+        report = await record(w, before, story, actor, who);
       }
       const { changes, hooks, failed } = report;
       console.log(
@@ -811,7 +815,8 @@ export function createApi(
           try {
             // A turn that failed to record kept its parent's state, should the parent have let go of it.
             const before = inPlay(parent.state ?? head.state, head.actor);
-            const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor);
+            const who = placedOne([...store.path(parent.id).slice(0, -1), { ...parent, state: before }], head.actor);
+            const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor, who);
             if (failed) fail(502, "Could not record the changes");
             const { applied, state: changed } = applyChanges(before, changes);
             const { recordsFailed: _, ...rest } = store.node(head.id)!;

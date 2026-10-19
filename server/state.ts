@@ -11,6 +11,30 @@ const goalsOf = (value: unknown) => text(value).replace(/^(想要|目标|goals?)
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
+/**
+ * The listed place a name means. The model now and then dresses a listed name up in front or adds a corner in brackets
+ * ("霍格沃茨·大礼堂" or "大礼堂（门口）" for "大礼堂", 2026-10-19): a name that ends in a whole listed one is that
+ * place, the longest such. A name that goes on past it is another place ("霍格沃茨图书馆" is not "霍格沃茨"), and so
+ * is a shorter one ("大礼堂" is not "大礼堂外的走廊"); an English name needs a mark before it ("Town Hall" is no "Hall").
+ */
+export function placeNamed(state: WorldState, name: string): Place | undefined {
+  const bare = name.replace(/[（(][^）)]*[）)]/g, "").trim().toLowerCase();
+  const dressed = (listed: string) => {
+    const head = bare.slice(0, bare.length - listed.length);
+    return (
+      listed.length >= 2 &&
+      bare.endsWith(listed) &&
+      (head === "" || /[·・:：,，\-—]\s*$/.test(head) || (/[㐀-鿿]$/.test(head) && /^[㐀-鿿]/.test(listed)))
+    );
+  };
+  return (
+    state.places.find((p) => same(p.name, name)) ??
+    state.places
+      .filter((p) => dressed(p.name.trim().toLowerCase()))
+      .sort((a, b) => b.name.length - a.name.length)[0]
+  );
+}
+
 /** Turns whatever the model returned into known change shapes, dropping the rest. */
 export function parseChanges(raw: unknown): Change[] {
   if (!Array.isArray(raw)) return [];
@@ -88,7 +112,7 @@ export function applyChanges(
   const state: WorldState = structuredClone(before);
   const applied: Change[] = [];
   const character = (name: string) => state.characters.find((c) => same(c.name, name));
-  const place = (name: string): Place | undefined => state.places.find((p) => same(p.name, name));
+  const place = (name: string) => placeNamed(state, name);
   const placeOrNew = (name: string): Place | undefined => {
     if (!name) return undefined;
     const found = place(name);
@@ -215,6 +239,19 @@ export function applyChanges(
     applied.push(change);
   }
   return { state, applied };
+}
+
+/**
+ * The changes with the move a reply's "where" makes for `who`: none when the changes move them already, or they are
+ * there.
+ */
+export function withWhere(state: WorldState, changes: Change[], who: string | null, where: unknown): Change[] {
+  const place = text(where, 200);
+  const one = who ? state.characters.find((c) => same(c.name, who)) : undefined;
+  // "…" copied from the sample is no place.
+  if (!one || !/[\p{L}\p{N}]/u.test(place) || changes.some((c) => c.type === "move" && same(c.character, one.name))) return changes;
+  if (one.placeId && placeNamed(state, place)?.id === one.placeId) return changes;
+  return [{ type: "move", character: one.name, place, note: "" }, ...changes];
 }
 
 /** The state a turn acted as `actor` starts from: someone out of the story whom the player plays is back in it. */

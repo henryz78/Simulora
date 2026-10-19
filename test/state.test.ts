@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, bury, describeState, inPlay, parseChanges, sceneOf } from "../server/state.ts";
+import { applyChanges, bury, describeState, inPlay, parseChanges, sceneOf, withWhere } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -158,4 +158,39 @@ test("someone new comes with their wants; someone who leaves the story is kept i
   // Leaving twice keeps the first reason.
   ({ state } = applyChanges(state, parseChanges([{ type: "leave", character: "Qing", note: "Again" }])));
   assert.equal(state.characters.find((c) => c.name === "Qing")!.gone, "Went south for good");
+});
+
+test("the reply's where moves the player's character, unless the changes move them or they are there", () => {
+  const state = world();
+  const move = (changes: Parameters<typeof withWhere>[1], where: string, who: string | null = "Zhou") =>
+    withWhere(state, changes, who, where).filter((c) => c.type === "move");
+  assert.deepEqual(move([], "Great Hall"), [{ type: "move", character: "Zhou", place: "Great Hall", note: "" }]);
+  assert.deepEqual(move([], "teahouse"), [], "there already");
+  assert.deepEqual(move([], " "), []);
+  assert.deepEqual(move([], "…"), [], "the sample's dots are no place");
+  assert.deepEqual(move([], "Great Hall", null), [], "a director's turn with no character of the player's");
+  const own = { type: "move" as const, character: "zhou", place: "Pass", note: "" };
+  assert.deepEqual(move([own], "Great Hall"), [own], "the changes' own move stands");
+});
+
+test("a listed place dressed up by the model is still that place, never a shorter name for a longer one", () => {
+  const state = world();
+  state.places.push(
+    { id: "p2", name: "大礼堂", description: "" },
+    { id: "p3", name: "大礼堂外的走廊", description: "" },
+  );
+  const at = (place: string) => {
+    const after = applyChanges(state, parseChanges([{ type: "move", character: "Zhou", place }])).state;
+    return [after.characters[0]!.placeId, after.places.length];
+  };
+  assert.deepEqual(at("霍格沃茨·大礼堂"), ["p2", 3]);
+  assert.deepEqual(at("霍格沃茨·大礼堂外的走廊（窗边）"), ["p3", 3], "the longest listed name it holds");
+  assert.deepEqual(at("大礼堂（门口）"), ["p2", 3]);
+  assert.deepEqual(at("Inn · Teahouse"), ["p1", 3]);
+  assert.equal(at("礼堂")[1], 4, "a part of a name is a new place");
+  assert.equal(at("大礼堂外")[1], 4, "a name going on past a listed one is another place");
+  assert.equal(at("Town Teahouse")[1], 4, "an English word in front makes another place");
+  state.places.push({ id: "p4", name: "书房", description: "" });
+  assert.deepEqual(at("书房（二楼）"), ["p4", 4], "two characters are a name too");
+  assert.deepEqual(withWhere(state, [], "Zhou", "Old Town · Teahouse"), [], "there already, as the model names it");
 });
