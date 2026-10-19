@@ -6,6 +6,9 @@ export const newId = (prefix: string) => `${prefix}${randomUUID().slice(0, 8)}`;
 const text = (value: unknown, max = 2000) =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
 
+// A newcomer's goals came back as "想要：…" six times in six (2026-10-19): the label is the model's, not the story's.
+const goalsOf = (value: unknown) => text(value).replace(/^(想要|目标|goals?)\s*[:：]\s*/i, "");
+
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /** Turns whatever the model returned into known change shapes, dropping the rest. */
@@ -28,9 +31,13 @@ export function parseChanges(raw: unknown): Change[] {
           type: "character",
           name: text(v.name),
           persona: text(v.persona),
+          goals: goalsOf(v.goals),
           place: text(v.place),
           note,
         });
+        break;
+      case "leave":
+        changes.push({ type: "leave", character: text(v.character), note });
         break;
       case "status":
         changes.push({ type: "status", character: text(v.character), notes: text(v.notes), note });
@@ -40,7 +47,7 @@ export function parseChanges(raw: unknown): Change[] {
           type: "persona",
           character: text(v.character),
           persona: text(v.persona),
-          goals: text(v.goals),
+          goals: goalsOf(v.goals),
           note,
         });
         break;
@@ -91,6 +98,9 @@ export function applyChanges(
     return created;
   };
   const fact = (id: string): Fact | undefined => state.facts.find((f) => f.id === id);
+  // Only someone out of the story before this turn can come back in it: a turn that tells someone leaving often
+  // moves them away too, in either order.
+  const wasGone = (who: Character) => !!before.characters.find((c) => c.id === who.id)?.gone;
 
   for (const change of changes) {
     switch (change.type) {
@@ -99,6 +109,8 @@ export function applyChanges(
         const where = placeOrNew(change.place);
         if (!who || !where) continue;
         who.placeId = where.id;
+        // Someone who left the story and is somewhere in it again is back.
+        if (wasGone(who)) delete who.gone;
         break;
       }
       case "place": {
@@ -107,17 +119,30 @@ export function applyChanges(
         break;
       }
       case "character": {
-        if (!change.name || character(change.name)) continue;
+        const known = change.name ? character(change.name) : undefined;
+        if (known && wasGone(known)) {
+          // Met again as if new: the one who left comes back, as they were.
+          delete known.gone;
+          known.placeId = placeOrNew(change.place)?.id ?? known.placeId;
+          break;
+        }
+        if (!change.name || known) continue;
         const created: Character = {
           id: newId("c"),
           name: change.name,
           persona: change.persona,
-          goals: "",
+          goals: change.goals,
           placeId: placeOrNew(change.place)?.id ?? null,
           notes: "",
           knows: [],
         };
         state.characters.push(created);
+        break;
+      }
+      case "leave": {
+        const who = character(change.character);
+        if (!who || who.gone) continue;
+        who.gone = change.note || "left";
         break;
       }
       case "status": {
@@ -190,6 +215,13 @@ export function applyChanges(
     applied.push(change);
   }
   return { state, applied };
+}
+
+/** The state a turn acted as `actor` starts from: someone out of the story whom the player plays is back in it. */
+export function inPlay(state: WorldState, actor: string): WorldState {
+  if (!state.characters.some((c) => c.id === actor && c.gone)) return state;
+  const back = ({ gone: _, ...c }: Character) => c;
+  return { ...state, characters: state.characters.map((c) => (c.id === actor ? back(c) : c)) };
 }
 
 /** The world as the model sees it, secrets included and marked. */
@@ -267,7 +299,7 @@ export function sceneOf(state: WorldState, actor: string, input = ""): string[] 
   const names = (name: string) => hit(name) || name.split(/[与和及、·・，,/（）()\s]+/).some(hit);
   const named = [
     ...state.places.filter((p) => p.name && names(p.name)).map((p) => p.id),
-    ...state.characters.filter((c) => c.name && c.placeId && names(c.name)).map((c) => c.placeId!),
+    ...state.characters.filter((c) => c.name && c.placeId && !c.gone && names(c.name)).map((c) => c.placeId!),
   ];
   return [...new Set([own, ...named])];
 }
@@ -295,6 +327,7 @@ export function describeState(
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? id;
   // Someone placed nowhere may well be here (a world's author often places only a few): they are told in full.
   const here = (placeId: string | null) => !scene || placeId === null || scene.includes(placeId);
+  const cast = state.characters.filter((c) => !c.gone);
   const lines: string[] = [`Time: ${state.clock || "unspecified"}`, ""];
   if (scene) {
     lines.push("The scene:");
@@ -306,13 +339,13 @@ export function describeState(
     for (const p of state.places) lines.push(`- ${p.name}: ${p.description}`);
   }
   lines.push("", scene ? "Characters in the scene:" : "Characters:");
-  for (const c of state.characters.filter((c) => here(c.placeId))) {
+  for (const c of cast.filter((c) => here(c.placeId))) {
     lines.push(
       `- ${c.name} (at ${placeName(c.placeId)}). Persona: ${c.persona}. Goals: ${c.goals || "none stated"}.` +
         `${c.notes ? ` Now: ${c.notes}.` : ""} Knows: ${c.knows.join(", ") || "nothing listed"}.`,
     );
   }
-  const away = state.characters.filter((c) => !here(c.placeId));
+  const away = cast.filter((c) => !here(c.placeId));
   if (away.length) {
     lines.push("", "Characters elsewhere (they can come in; then play them true to this):");
     for (const c of away) {
@@ -322,6 +355,12 @@ export function describeState(
           `${c.notes ? ` Now: ${c.notes}.` : ""} Knows: ${c.knows.join(", ") || "nothing listed"}.`,
       );
     }
+  }
+  const gone = state.characters.filter((c) => c.gone);
+  if (gone.length) {
+    // Kept in a line, so the story neither forgets them nor brings them back without a reason.
+    lines.push("", "Out of the story (back only if the story brings them back):");
+    for (const c of gone) lines.push(`- ${c.name}: ${c.gone}`);
   }
   lines.push("", "Facts the player knows:");
   for (const f of state.facts.filter((f) => (!f.secret || f.revealed) && !f.archived))

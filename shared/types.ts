@@ -17,6 +17,8 @@ export interface Character {
   notes: string;
   /** Ids of facts this character knows. */
   knows: string[];
+  /** How they left the story (died, moved away), while they are out of it; the story may bring them back. */
+  gone?: string;
 }
 
 export interface Fact {
@@ -104,7 +106,8 @@ export interface Save {
 export type Change =
   | { type: "move"; character: string; place: string; note: string }
   | { type: "place"; name: string; description: string; note: string }
-  | { type: "character"; name: string; persona: string; place: string; note: string }
+  | { type: "character"; name: string; persona: string; goals: string; place: string; note: string }
+  | { type: "leave"; character: string; note: string }
   | { type: "status"; character: string; notes: string; note: string }
   | { type: "persona"; character: string; persona: string; goals: string; note: string }
   | { type: "fact"; text: string; note: string }

@@ -40,7 +40,7 @@ import {
   tokensOf,
   type PlainDraft,
 } from "./prompts.ts";
-import { applyChanges, bury, carrySecrets, newId, parseChanges, trimState } from "./state.ts";
+import { applyChanges, bury, carrySecrets, inPlay, newId, parseChanges, trimState } from "./state.ts";
 
 class HttpError extends Error {
   status: number;
@@ -517,6 +517,9 @@ export function createApi(
     if (actor !== "director" && !head.state.characters.some((c) => c.id === actor))
       fail(400, "Unknown character");
     const input = str(body.input, 4000).trim();
+    // Played again after leaving the story (say, the player goes on as their dead character's ghost): they are back.
+    const before = inPlay(head.state, actor);
+    const played = before === head.state ? path : [...path.slice(0, -1), { ...head, state: before }];
     if (busy.has(s.id)) fail(409, "A turn is already being written for this save");
     busy.add(s.id);
 
@@ -555,7 +558,7 @@ export function createApi(
         sent = 0;
         const narrator = s.settings.thinking ? thinker : model;
         try {
-          for await (const piece of narrator.stream(narrationMessages(w, path, actor, input, s.settings, s.notes), {
+          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes), {
             json: true,
           })) {
             reply += piece;
@@ -585,13 +588,13 @@ export function createApi(
       let report = readRecord(reply);
       if (!report) {
         console.warn("record.missing");
-        report = await record(w, head.state, story, actor);
+        report = await record(w, before, story, actor);
       }
       const { changes, hooks, failed } = report;
       console.log(
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );
-      const { state: changed, applied } = applyChanges(head.state, changes);
+      const { state: changed, applied } = applyChanges(before, changes);
       const node: TurnNode = {
         id: randomUUID(),
         worldId: w.id,
@@ -807,7 +810,7 @@ export function createApi(
           busy.add(s.id);
           try {
             // A turn that failed to record kept its parent's state, should the parent have let go of it.
-            const before = parent.state ?? head.state;
+            const before = inPlay(parent.state ?? head.state, head.actor);
             const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor);
             if (failed) fail(502, "Could not record the changes");
             const { applied, state: changed } = applyChanges(before, changes);

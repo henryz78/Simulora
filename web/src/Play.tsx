@@ -28,6 +28,8 @@ function describe(c: Change): string {
       return c.name;
     case "character":
       return c.name;
+    case "leave":
+      return `${c.character} ${t("left the story")}${c.note ? `${sep}${c.note}` : ""}`;
     case "status":
       return `${c.character}${sep}${c.notes}`;
     case "persona":
@@ -190,6 +192,7 @@ export function Play({ saveId }: { saveId: string }) {
   const placeName = (id: string | null) => state.places.find((p) => p.id === id)?.name;
   // Where the character being played is; the director has no scene.
   const scene = state.characters.find((c) => c.id === current)?.placeId ?? null;
+  const cast = state.characters.filter((c) => !c.gone);
   const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
   const known = state.facts.filter((f) => !f.secret);
   const chronicled = path.findLast((n) => Array.isArray(n.timeline));
@@ -238,7 +241,8 @@ export function Play({ saveId }: { saveId: string }) {
             </summary>
             <ul>
               {node.changes.map((c, j) => (
-                <li key={j}>{c.note || describe(c)}</li>
+                // A leave's note says why, not who.
+                <li key={j}>{c.type === "leave" ? describe(c) : c.note || describe(c)}</li>
               ))}
             </ul>
           </details>
@@ -371,6 +375,7 @@ export function Play({ saveId }: { saveId: string }) {
               {state.characters.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                  {c.gone ? ` (${t("Gone")})` : ""}
                 </option>
               ))}
             </select>
@@ -472,8 +477,9 @@ export function Play({ saveId }: { saveId: string }) {
               {/* Who is with the character being played, and who is elsewhere: the story reads the others in a line. */}
               {[
                 // Someone placed nowhere may be here, as the story reads it too.
-                { title: scene ? "Here" : "People", people: state.characters.filter((c) => !scene || !c.placeId || c.placeId === scene) },
-                { title: "Elsewhere", people: scene ? state.characters.filter((c) => c.placeId && c.placeId !== scene) : [] },
+                { title: scene ? "Here" : "People", people: cast.filter((c) => !scene || !c.placeId || c.placeId === scene) },
+                { title: "Elsewhere", people: scene ? cast.filter((c) => c.placeId && c.placeId !== scene) : [] },
+                { title: "Gone", people: state.characters.filter((c) => c.gone) },
               ]
                 .filter((group) => group.people.length > 0)
                 .map((group) => (
@@ -484,12 +490,12 @@ export function Play({ saveId }: { saveId: string }) {
                     </h3>
                     <ul>
                       {group.people.map((c) => (
-                        <li key={c.id} className={group.title === "Elsewhere" ? "muted" : ""}>
+                        <li key={c.id} className={group.title === "Here" || group.title === "People" ? "" : "muted"}>
                           <strong>{c.name}</strong>
-                          {group.title !== "Here" && placeName(c.placeId) && (
+                          {group.title !== "Here" && group.title !== "Gone" && placeName(c.placeId) && (
                             <span className="muted"> · {t("at")} {placeName(c.placeId)}</span>
                           )}
-                          {c.notes && <div className="small">{c.notes}</div>}
+                          {(c.gone ?? c.notes) && <div className="small">{c.gone ?? c.notes}</div>}
                         </li>
                       ))}
                     </ul>

@@ -135,7 +135,12 @@ const RECORD_FORMAT = `"changes" lists only the lasting changes that matter, usu
 and places by name, to facts and threads by [id], keep every text short, and use only these shapes:
 - {"type":"move","character":name,"place":name}  (a new place name creates the place; also whenever someone is in
   the scene who is listed somewhere else or nowhere: where people are decides who the story is told about in full)
-- {"type":"character","name":...,"persona":...,"place":name}  (someone new appears)
+- {"type":"character","name":"what the story calls them","persona":...,"goals":...,"place":name}  (someone new
+  is seen or heard in this passage; their name and ties only as the story tells them; never a placeholder for
+  someone not yet met)
+- {"type":"leave","character":name,"note":"how they left the story, a few words"}  (whenever someone dies, goes
+  far away for good or is out of the story for good: not a move. Someone out of the story is moved only when they
+  come back into it in this passage, and that brings them back)
 - {"type":"status","character":name,"notes":"how they are now, a few words"}  (the whole new state, replacing the
   old; check the player's character's "Now" against the passage and give a new one when it is no longer true)
 - {"type":"persona","character":name,"persona":"who they are now","goals":"what they want now"}  (only a lasting
@@ -200,6 +205,10 @@ export function narrationMessages(
       "what happens next and how the others respond.",
     "Every other character is yours: they act, speak and decide on their own goals and moods. Each knows only " +
       "what they have seen, heard or been told: someone who was elsewhere does not know what just happened.",
+    // The player, 2026-10-19: a world that keeps the cast it started with goes stale as the story moves on.
+    "The cast is not fixed. When the story reaches a new place or a new matter, the people who belong there come " +
+      "in, with names and wants of their own; and someone whose part is over can leave the story (moves away, quits, " +
+      "dies) when the story gives them a reason.",
     pace[settings.pace],
     voice,
     length(settings.length),

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, bury, describeState, parseChanges, sceneOf } from "../server/state.ts";
+import { applyChanges, bury, describeState, inPlay, parseChanges, sceneOf } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -114,4 +114,48 @@ test("a line for someone elsewhere keeps the first sentence and their goals, and
   const line = describeState(state, { scene: sceneOf(state, "c1", "we run out of time with a plan") }).split("\n").find((l) => l.startsWith("- Lan"));
   assert.equal(line, "- Lan (at Hall of Mirrors). Dr. Chen's runner, quick and quiet. Goals: Get out of town. Knows: nothing listed.");
   assert.deepEqual(sceneOf(state, "c1", "I go to the mirrors"), ["p1", "p2"]);
+});
+
+test("someone new comes with their wants; someone who leaves the story is kept in a line until the story brings them back", () => {
+  let { state } = applyChanges(
+    world(),
+    parseChanges([
+      { type: "character", name: "Lan", persona: "A smuggler.", goals: "Goals: Get out", place: "Pass" },
+      { type: "leave", character: "Qing", note: "Went south for good" },
+      { type: "leave", character: "Nobody", note: "" },
+    ]),
+  );
+  assert.equal(state.characters.find((c) => c.name === "Lan")!.goals, "Get out");
+  assert.equal(state.characters.find((c) => c.name === "Qing")!.gone, "Went south for good");
+  for (const scene of [sceneOf(state, "c1"), null]) {
+    const told = describeState(state, { scene });
+    assert.doesNotMatch(told, /- Qing \(at/, "neither here nor elsewhere");
+    assert.match(told, /Out of the story[^\n]*\n- Qing: Went south for good/);
+  }
+  assert.deepEqual(sceneOf(state, "c1", "I think of Qing"), ["p1"], "naming them brings no place in");
+
+  // Met again: back where the story puts them, by a move or as if new.
+  for (const back of [
+    { type: "move", character: "Qing", place: "Pass" },
+    { type: "character", name: "Qing", persona: "Someone else", goals: "", place: "Pass" },
+  ]) {
+    const again = applyChanges(state, parseChanges([back])).state.characters.find((c) => c.name === "Qing")!;
+    assert.equal(again.gone, undefined);
+    assert.equal(again.placeId, state.places.find((p) => p.name === "Pass")!.id);
+    assert.equal(again.persona, "", "as they were");
+  }
+  // A turn that moves someone away as they leave, in either order, leaves them gone.
+  for (const order of [["leave", "move"], ["move", "leave"]]) {
+    const raw = order.map((type) => ({ type, character: "Zhou", place: "Abroad", note: "Fled" }));
+    assert.equal(applyChanges(world(), parseChanges(raw)).state.characters[0]!.gone, "Fled", order.join(", "));
+  }
+  // News of someone gone leaves them gone; playing them brings them back, and no one else.
+  assert.ok(applyChanges(state, parseChanges([{ type: "status", character: "Qing", notes: "Missed" }])).state.characters[1]!.gone);
+  const played = inPlay(state, "c2");
+  assert.equal(played.characters[1]!.gone, undefined);
+  assert.equal(state.characters[1]!.gone, "Went south for good", "the turn before is left as it was");
+  assert.equal(inPlay(state, "c1"), state);
+  // Leaving twice keeps the first reason.
+  ({ state } = applyChanges(state, parseChanges([{ type: "leave", character: "Qing", note: "Again" }])));
+  assert.equal(state.characters.find((c) => c.name === "Qing")!.gone, "Went south for good");
 });
