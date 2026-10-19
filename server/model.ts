@@ -8,8 +8,8 @@ export interface Message {
 export interface Model {
   /** Streams the reply, piece by piece; with `json` the provider holds it to one JSON object. */
   stream(messages: Message[], options?: { json?: boolean }): AsyncIterable<string>;
-  /** Asks for one JSON object. */
-  json(messages: Message[]): Promise<unknown>;
+  /** Asks for one JSON object; a temperature of 0 asks for the same answer every time. */
+  json(messages: Message[], options?: { temperature?: number }): Promise<unknown>;
 }
 
 interface Profile {
@@ -126,8 +126,12 @@ export function openAICompatibleModel(config: ModelConfig): Model {
         clearTimeout(timer);
       }
     },
-    async json(messages) {
-      const response = await request(messages, { response_format: { type: "json_object" } });
+    async json(messages, options) {
+      const temperature = options?.temperature;
+      const response = await request(messages, {
+        response_format: { type: "json_object" },
+        ...(temperature !== undefined && { temperature }),
+      });
       if (!response.ok) throw await failed(response);
       const body = (await response.json()) as { choices?: { message?: { content?: string } }[] };
       return parseJsonObject(body.choices?.[0]?.message?.content ?? "");

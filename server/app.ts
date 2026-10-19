@@ -551,7 +551,8 @@ export function createApi(
    */
   async function rollFor(w: World, path: TurnNode[], actor: string, input: string): Promise<Dice | null> {
     try {
-      const report = (await writer.json(riskMessages(w, path, actor, input))) as Record<string, unknown>;
+      // A judgement, not a story: at the default temperature the same pressing was risky in 5 of 6 tries (2026-10-19).
+      const report = (await writer.json(riskMessages(w, path, actor, input), { temperature: 0 })) as Record<string, unknown>;
       const difficulty = (["easy", "normal", "hard"] as const).find((d) => d === report.difficulty);
       const what = str(report.what, 100).trim();
       if (report.risky !== true || !difficulty || !what) return null;
