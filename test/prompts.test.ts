@@ -50,3 +50,16 @@ test("rules the model wrote as an object or a list of objects are kept as lines"
   assert.equal(normalizeDraft({ rules: { tone: "British", magic: "costs" } }).rules, "tone: British\nmagic: costs");
   assert.equal(normalizeDraft({ rules: [{ rule: "Curfew at nine" }] }).rules, '{"rule":"Curfew at nine"}');
 });
+
+test("someone far away whom the last turn named stays whole, so a talk by phone goes on without their name", () => {
+  const w = world();
+  w.state.places.push({ id: "p1", name: "Office", description: "" }, { id: "p2", name: "Paris", description: "" });
+  w.state.characters.push(
+    { id: "c1", name: "Mei", persona: "A clerk.", goals: "", placeId: "p1", notes: "", knows: [] },
+    { id: "c2", name: "Lan", persona: "A smuggler. Owes everyone.", goals: "", placeId: "p2", notes: "", knows: [] },
+  );
+  const call = { ...opening, story: "Lan's message arrives: 'Not tonight.'", state: w.state };
+  const user = (path: TurnNode[]) => narrationMessages(w, path, "c1", "I write back: fine.", defaultSettings)[1]!.content;
+  assert.match(user([opening, call]), /- Lan \(at Paris\)\. Persona: A smuggler\. Owes/);
+  assert.doesNotMatch(user([{ ...opening, state: w.state }]), /Owes everyone/, "not named lately: a line");
+});

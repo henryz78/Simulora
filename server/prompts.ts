@@ -237,7 +237,8 @@ export function narrationMessages(
   // The whole story goes in until it nears the model's reach; then the timeline stands in for the oldest turns.
   const from = storyFrom(path);
   const user = [
-    worldHeader(world, state, { scene: sceneOf(state, actor, input) }),
+    // Someone met in the last turn stays whole, also far away: a talk by phone or letter goes on without their name.
+    worldHeader(world, state, { scene: sceneOf(state, actor, `${input}\n${path.at(-1)?.story ?? ""}`) }),
     "",
     // Like WorldOS's 重要事实 (2026-10-18): the player's own fallback when the memory misses something.
     ...(notes.trim() ? ["The player's notes (true in this story, never forget them):", notes.trim(), ""] : []),
@@ -291,7 +292,7 @@ export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)
     },
     {
       role: "user",
-      content: `${worldHeader(world, state, { scene: sceneOf(state, actor) })}\n\nStory so far:\n${recentStory(path, state)}`,
+      content: `${worldHeader(world, state, { scene: sceneOf(state, actor, path.at(-1)!.story) })}\n\nStory so far:\n${recentStory(path, state)}`,
     },
   ];
 }

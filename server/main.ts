@@ -15,11 +15,12 @@ const store = new Store(join(root, "data", fake ? "fake.db" : "simulora.db"));
 // The story and the records of what changed can use different models.
 const live = (model: string, reasoning: string) =>
   openAICompatibleModel({ profilePath: join(root, ".secret.txt"), model, reasoning });
-// DeepSeek-V4.1-Flash wrote the liveliest scenes in the 2026-10-17 comparison. Without thinking ("none") its first
-// words come in about 3 s instead of 30-60 s, and the prose is as good. The records and the buried secrets think a
-// little ("low"): without thinking they mark hinted secrets as revealed and bury the same secret twice; at the
-// default they take 50 s to over 100 s, long enough for the gateway to give up (2026-10-18).
-const storyModel = process.env.SIMULORA_MODEL ?? "ModelScope/deepseek-ai/DeepSeek-V4.1-Flash";
+// DeepSeek-V4.1-Flash wrote the liveliest scenes in the 2026-10-17 comparison; since 2026-10-19 the provider serves
+// only its 1017 version. Without thinking ("none") its first words come in about 3 s instead of 30-60 s, and the
+// prose is as good. The records and the buried secrets think a little ("low"): without thinking they mark hinted
+// secrets as revealed and bury the same secret twice; at the default they take 50 s to over 100 s,
+// long enough for the gateway to give up (2026-10-18).
+const storyModel = process.env.SIMULORA_MODEL ?? "ModelScope/deepseek-ai/DeepSeek-V4.1-Flash-1017";
 const story = fake ? fakeModel() : live(storyModel, process.env.SIMULORA_REASONING ?? "none");
 const records = fake
   ? story
