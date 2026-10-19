@@ -43,6 +43,7 @@ import {
   placedOne,
   recapMessages,
   riskMessages,
+  viewMessages,
   storyFrom,
   timeJump,
   tokensOf,
@@ -929,6 +930,27 @@ export function createApi(
         }
         case "POST /saves/:id/turn":
           return await turn(req, res, id);
+        case "POST /saves/:id/view": {
+          // Told once for a turn and a character, and kept; the world does not change.
+          const s = save(id);
+          const body = await readJson(req);
+          const path = store.path(s.headId);
+          const turn = path.findIndex((n) => n.id === str(body.node, 64));
+          if (turn < 1) fail(400, "Unknown turn");
+          const character = str(body.character, 64);
+          if (!(path[turn]!.state ?? path.at(-1)!.state).characters.some((c) => c.id === character))
+            fail(400, "Unknown character");
+          const kept = store.node(path[turn]!.id)!.views?.[character];
+          if (kept) return send(res, 200, { story: kept });
+          // Kept close to the passage: at the default temperature it added lines and deeds of its own.
+          const ask = () =>
+            writer.json(viewMessages(world(s.worldId), path, turn, character, s.settings), { temperature: 0 });
+          const told = fullWidth(str(((await ask().catch(ask)) as Record<string, unknown>).story, 6000)).trim();
+          if (!told) fail(502, "The model gave no story");
+          const node = store.node(path[turn]!.id)!;
+          store.putNode({ ...node, views: { ...node.views, [character]: told } });
+          return send(res, 200, { story: told });
+        }
         case "POST /saves/:id/interview": {
           // Out of the story: nothing is stored and the world does not change.
           const s = save(id);

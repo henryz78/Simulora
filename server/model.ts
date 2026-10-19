@@ -295,6 +295,10 @@ export function fakeModel(): Model {
     async json(messages) {
       const system = messages[0]?.content ?? "";
       if (system.includes("comes back to their story after a break")) return { recap: "上回说到，风雪还没停。" };
+      if (system.includes("again through the eyes of")) {
+        const who = /through the eyes of ([^ (:]+)/.exec(system)?.[1] ?? "";
+        return { story: `${who} watched it all, and said nothing.` };
+      }
       if (system.includes("talking with the player outside the story")) {
         const question = /Player: (.*)$/.exec(messages.at(-1)!.content)?.[1] ?? "";
         return { answer: `You ask "${question}". I keep my counsel.` };

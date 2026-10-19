@@ -552,6 +552,61 @@ export function interviewMessages(
   ];
 }
 
+/**
+ * One turn's scene told again through another character's eyes: the player's design (2026-10-17), "同一场戏换一个角色
+ * 看". The same events and words; what they notice, think and feel.
+ */
+export function viewMessages(world: World, path: TurnNode[], turn: number, character: string, settings: Settings): Message[] {
+  const node = path[turn]!;
+  const state = node.state ?? path.at(-1)!.state;
+  const me = state.characters.find((c) => c.id === character)!;
+  // Told "only color their thoughts", Slughorn's eyes spelled out both his secrets (2026-10-19): unless the player
+  // chose to see every secret, they are not given at all.
+  const theirs = settings.showSecrets
+    ? state.facts.filter((f) => f.secret && !f.revealed && me.knows.includes(f.id))
+    : [];
+  return [
+    {
+      role: "system",
+      content: [
+        `Tell the passage below again through the eyes of ${me.name}: ${me.persona}${me.goals ? ` What they want: ${me.goals}` : ""}`,
+        // A teacher's eyes came back as the player's, with a speech the passage never had (2026-10-19).
+        `Stay with ${me.name} the whole way, in the third person: what they notice, think and feel, what they make ` +
+          "of the others, and what they keep to themselves; everyone else is seen from outside, as they would see " +
+          `them. Where ${me.name} is not there for part of it, start when they arrive or tell only what they hear. ` +
+          `Every paragraph follows ${me.name}, beginning with the first sentence: the player's own character too is ` +
+          `someone ${me.name} watches.`,
+        "Only what the passage tells happens: the same acts in the same order and the same words, no new line or deed " +
+          `by anyone; ${me.name} too says only what the passage has them say. What is new is only what goes on ` +
+          `inside them. At most ${Math.round(node.story.length * 1.2)} characters.`,
+        // A passage that ended on a question handed to the player's character was answered for them (2026-10-19), and
+        // the watcher was given one more line of their own at the end, 3 times in 4.
+        `It ends where the passage ends, at: "${lastLine(node.story)}" Nothing after that: nobody answers it or speaks ` +
+          "again.",
+        ...(settings.showSecrets ? ["The player has chosen to see every secret: their thoughts may go to what they know."] : []),
+        style[settings.style ?? "plain"],
+        "Write in the world's own language. Return one JSON object: {\"story\": \"…\"}",
+        CONTENT_LINE,
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        worldHeader(world, state, { secrets: false, scene: sceneOf(state, me.id) }),
+        ...(theirs.length ? ["", `What ${me.name} knows that the player has not found out:`, ...theirs.map((f) => `- ${f.text}`)] : []),
+        "",
+        `The story before it:\n${path.slice(Math.max(0, turn - 3), turn).map((n, i) => turnText(n, Math.max(0, turn - 3) + i, state, false)).join("\n\n")}`,
+        "",
+        `The passage to tell again:\n${turnText(node, turn, state, false)}`,
+      ].join("\n"),
+    },
+  ];
+}
+
+
+/** A passage's last sentence or so, to end a retelling on. */
+const lastLine = (story: string) => story.trim().split(/(?<=[。！？!?…”」])/).filter((x) => x.trim()).slice(-2).join("").trim().slice(-80);
+
 /** "上回说到" for a player coming back after a break: only what they have seen, in plain words. */
 export function recapMessages(world: World, path: TurnNode[]): Message[] {
   const state = path.at(-1)!.state;

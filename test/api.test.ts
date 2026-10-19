@@ -234,3 +234,22 @@ test("an interview answers out of the story and leaves the world as it was", asy
   });
   assert.equal(bad.status, 400);
 });
+
+test("a turn told through another's eyes is written once, kept, and changes nothing", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Eyes", opening: "Snow.",
+    state: { places: [{ id: "p1", name: "Inn" }], characters: [{ id: "c1", name: "Zhou", placeId: "p1" }, { id: "c2", name: "Lan", placeId: "p1" }] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  const { node } = await playTurn(save.id, "c1", "pour tea");
+  const before = await call<SaveView>("GET", `/saves/${save.id}`);
+  const seen = await call<{ story: string }>("POST", `/saves/${save.id}/view`, { node: node.id, character: "c2" });
+  assert.equal(seen.story, "Lan watched it all, and said nothing.");
+  const after = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.deepEqual(after.path.at(-1)!.views, { c2: seen.story }, "kept on the turn");
+  assert.deepEqual(after.path.at(-1)!.state, before.path.at(-1)!.state, "the world unchanged");
+  const opening = await fetch(`${base}/saves/${save.id}/view`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ node: before.path[0]!.id, character: "c2" }),
+  });
+  assert.equal(opening.status, 400, "the opening has no one's turn to see again");
+});

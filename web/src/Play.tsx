@@ -143,6 +143,20 @@ export function Play({ saveId }: { saveId: string }) {
       )
       .finally(() => setAsking(false));
   };
+  // A turn told again through another character's eyes: what is shown, and what is being written.
+  const [views, setViews] = useState<Record<string, { who: string; story: string }>>({});
+  const [viewing, setViewing] = useState<string | null>(null);
+  const seeAs = (node: string, who: string) => {
+    if (!who) return;
+    setViewing(node);
+    api
+      .view(saveId, node, who)
+      .then(
+        (r) => setViews((all) => ({ ...all, [node]: { who, story: r.story } })),
+        (e: Error) => report(e),
+      )
+      .finally(() => setViewing(null));
+  };
   // "上回说到": null closed, "" being written, text shown.
   const [recap, setRecap] = useState<string | null>(null);
   const recall = () => {
@@ -293,6 +307,13 @@ export function Play({ saveId }: { saveId: string }) {
   const secrets = state.facts.filter((f) => f.secret);
   const hidden = secrets.filter((f) => !f.revealed);
 
+  // Who a turn's scene can be seen through: the people its story names, not the one the player played.
+  const seen = (node: TurnNode) =>
+    state.characters.filter(
+      (c) =>
+        c.id !== node.actor &&
+        [c.name, ...c.name.split(/[·・\s]+/)].some((part) => part.length >= 2 && node.story.includes(part)),
+    );
   const turnView = (node: TurnNode, i: number) => {
     const next = path[i + 1];
     const others = (children.get(node.id) ?? []).filter((n) => n.id !== next?.id);
@@ -354,8 +375,32 @@ export function Play({ saveId }: { saveId: string }) {
             </ul>
           </details>
         )}
+        {/* The same scene through someone else's eyes, folded under the turn. */}
+        {views[node.id] && (
+          <details className="changes view" open>
+            <summary>
+              {t("Through the eyes of")} {state.characters.find((c) => c.id === views[node.id]!.who)?.name}
+            </summary>
+            <Paragraphs text={views[node.id]!.story} />
+          </details>
+        )}
         {!busy && (
           <div className="turn-tools">
+            {i > 0 && seen(node).length > 0 && (
+              <select
+                className="link"
+                value=""
+                disabled={viewing === node.id}
+                onChange={(e) => seeAs(node.id, e.target.value)}
+              >
+                <option value="">{viewing === node.id ? t("Writing…") : t("Another's eyes")}</option>
+                {seen(node).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
             {node !== head && resumable(node.id) && (
               <button className="link" onClick={() => goTo(node.id)}>
                 {t("Go back here")}

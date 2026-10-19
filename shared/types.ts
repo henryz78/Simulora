@@ -162,6 +162,8 @@ export interface TurnNode {
   dice?: Dice;
   /** "上回说到": where the story stands after this turn, for a player coming back; written once when asked. */
   recap?: string;
+  /** This turn's scene told again through another character's eyes, by character id; written once when asked. */
+  views?: Record<string, string>;
   /**
    * Written every few turns on the last turn they cover: the memory (the most important things, as they stand now)
    * and the timeline (what happened, in order). Later turns find the latest by walking back along their path.
