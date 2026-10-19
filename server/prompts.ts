@@ -492,6 +492,35 @@ export function riskMessages(world: World, path: TurnNode[], actor: string, inpu
   ];
 }
 
+/** "上回说到" for a player coming back after a break: only what they have seen, in plain words. */
+export function recapMessages(world: World, path: TurnNode[]): Message[] {
+  const state = path.at(-1)!.state;
+  const who = placedOne(path, "director");
+  return [
+    {
+      role: "system",
+      content:
+        "A player comes back to their story after a break and has forgotten where it stands. Write the recap that " +
+        "opens it again, as a storyteller would (\"上回说到\" in Chinese): 120 to 250 Chinese characters (80 to 160 " +
+        "English words), plain everyday words. Say " +
+        (who ? `where ${who} is and what they are in the middle of, ` : "where the story is, ") +
+        "who matters now and why, what has been promised, owed or threatened lately, and end on the very moment the " +
+        "last turn stopped, so the player knows what to do next. Only what the player has seen: never a secret, " +
+        "never what people did out of the player's sight. No lists, no headings. Write in the world's own language. " +
+        'Return one JSON object: {"recap": "…"}',
+    },
+    {
+      role: "user",
+      content: [
+        worldHeader(world, state, { secrets: false }),
+        "",
+        ...chronicleLines(path),
+        `The story lately (most recent last):\n${recentStory(path, state, false)}`,
+      ].join("\n"),
+    },
+  ];
+}
+
 export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)!.actor): Message[] {
   const state = path.at(-1)!.state;
   return [

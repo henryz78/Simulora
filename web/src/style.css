@@ -428,3 +428,16 @@ button.chip {
 .dice.fail {
   color: var(--accent);
 }
+
+.recap {
+  margin: 0 0 1.2em;
+  padding: 0.8em 1em;
+  border-left: 3px solid var(--accent);
+  background: var(--paper);
+}
+.recap .row {
+  justify-content: space-between;
+}
+.recap p {
+  margin: 0.4em 0 0;
+}

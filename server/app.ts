@@ -40,6 +40,7 @@ import {
   meanwhileMessages,
   narrationMessages,
   placedOne,
+  recapMessages,
   riskMessages,
   storyFrom,
   timeJump,
@@ -927,6 +928,18 @@ export function createApi(
         }
         case "POST /saves/:id/turn":
           return await turn(req, res, id);
+        case "POST /saves/:id/recap": {
+          // Written once for the turn it stops at, and kept: coming back again, the player does not wait.
+          const s = save(id);
+          const path = store.path(s.headId);
+          const head = path.at(-1)!;
+          if (head.recap) return send(res, 200, { recap: head.recap });
+          const ask = () => writer.json(recapMessages(world(s.worldId), path));
+          const recap = str(((await ask().catch(ask)) as Record<string, unknown>).recap, 2000).trim();
+          if (!recap) fail(502, "The model gave no recap");
+          store.putNode({ ...store.node(head.id)!, recap });
+          return send(res, 200, { recap });
+        }
         case "POST /saves/:id/hooks": {
           const s = save(id);
           if (busy.has(s.id)) fail(409, "A turn is being written");

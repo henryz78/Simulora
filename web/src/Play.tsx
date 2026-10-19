@@ -115,6 +115,18 @@ export function Play({ saveId }: { saveId: string }) {
   const queuedRef = useRef(queued);
   queuedRef.current = queued;
   const sceneTop = useRef<HTMLDivElement>(null);
+  // "上回说到": null closed, "" being written, text shown.
+  const [recap, setRecap] = useState<string | null>(null);
+  const recall = () => {
+    setRecap("");
+    api.recap(saveId).then(
+      (r) => setRecap(r.recap),
+      (e: Error) => {
+        setRecap(null);
+        report(e);
+      },
+    );
+  };
   const pendingTop = useRef<HTMLElement>(null);
 
   const load = () => api.save(saveId).then(setView, (e: Error) => setError(e.message));
@@ -129,6 +141,19 @@ export function Play({ saveId }: { saveId: string }) {
       void suggest();
     }
   }, [openingId]);
+  // Back after a break (six hours or more) to a story a few turns in: it opens with "上回说到".
+  const away = view && view.path.length > 3 && Date.now() - Date.parse(view.save.updatedAt) > 6 * 3600_000;
+  const recalled = useRef(false);
+  useEffect(() => {
+    if (away && !recalled.current) {
+      recalled.current = true;
+      recall();
+    }
+  }, [away]);
+  // The recap is read first: it opens at the top of the page.
+  useEffect(() => {
+    if (recap !== null) void sceneTop.current?.scrollIntoView({ block: "start" });
+  }, [recap === null]);
   // Each new scene, and each move as it starts, opens at its first line so the player reads from the top.
   // Newer browsers return a Promise from scrollIntoView; an effect must not return it.
   useEffect(() => {
@@ -347,6 +372,17 @@ export function Play({ saveId }: { saveId: string }) {
       {/* The page holds only the current scene; the past, the world and the settings open beside it. */}
       <section className="story">
         <div ref={sceneTop} />
+        {recap !== null && (
+          <aside className="recap">
+            <div className="row">
+              <strong>{t("Previously")}</strong>
+              <button className="link" onClick={() => setRecap(null)} aria-label={t("Close")}>
+                ✕
+              </button>
+            </div>
+            <p>{recap || t("Writing…")}</p>
+          </aside>
+        )}
         {turnView(head, path.length - 1)}
 
         {pending && (
@@ -462,6 +498,11 @@ export function Play({ saveId }: { saveId: string }) {
             </button>
           </div>
 
+          {panel === "history" && path.length > 1 && (
+            <button onClick={recall} disabled={recap === ""}>
+              {t("Previously")}
+            </button>
+          )}
           {panel === "history" && chronicled?.memory?.length ? (
             <section className="memory">
               <h3>{t("Memory")}</h3>

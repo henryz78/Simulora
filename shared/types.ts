@@ -160,6 +160,8 @@ export interface TurnNode {
   offstage?: Change[];
   /** The die that settled the player's attempt this turn. */
   dice?: Dice;
+  /** "上回说到": where the story stands after this turn, for a player coming back; written once when asked. */
+  recap?: string;
   /**
    * Written every few turns on the last turn they cover: the memory (the most important things, as they stand now)
    * and the timeline (what happened, in order). Later turns find the latest by walking back along their path.

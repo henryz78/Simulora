@@ -97,6 +97,7 @@ const zh: Record<string, string> = {
   "learned something": "知道了一件事",
   "left the story": "退场",
   Meanwhile: "与此同时",
+  Previously: "上回说到",
   "Dice of fate": "命运骰子",
   "a risky attempt is settled by a die: success, success at a cost, or failure": "有风险的事掷骰决定：成功、成功但有代价、失败",
   Easy: "简单",

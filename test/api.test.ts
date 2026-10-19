@@ -202,3 +202,15 @@ test("someone placed nowhere and not named lately can act away too", async () =>
   for (let turn = 6; turn <= 10; turn++) ({ node } = await playTurn(save.id, "c1", turn === 10 ? "I call Moss over" : "wait"));
   assert.equal(node.meanwhile, undefined);
 });
+
+test("the recap is written once for the turn it stops at and kept", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Back", opening: "Snow.", state: { places: [{ id: "p1", name: "Inn" }], characters: [{ id: "c1", name: "Zhou", placeId: "p1" }] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  await playTurn(save.id, "c1", "wait");
+  const first = await call<{ recap: string }>("POST", `/saves/${save.id}/recap`);
+  assert.equal(first.recap, "上回说到，风雪还没停。");
+  const view = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.equal(view.path.at(-1)!.recap, first.recap, "kept on the turn");
+});
