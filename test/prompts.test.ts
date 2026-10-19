@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultSettings, type TurnNode, type World } from "../shared/types.ts";
 import { normalizeDraft } from "../server/app.ts";
-import { fullWidth, narrationMessages } from "../server/prompts.ts";
+import { fullWidth, hookMessages, narrationMessages } from "../server/prompts.ts";
 
 const world = (rules?: string): World =>
   ({
@@ -76,4 +76,11 @@ test("a reply says where the player's character is, also on a director's turn; w
   // Out of the story, they are not asked for, so a director's turn does not bring them back.
   const gone = { ...start, actor: "c1", state: { ...w.state, characters: [{ ...w.state.characters[0]!, gone: "Died" }] } };
   assert.doesNotMatch(ask([start, gone], "director"), /"where"/);
+});
+
+test("what people did out of the scene goes to the storyteller, not to the hooks the player reads", () => {
+  const turn = { ...opening, meanwhile: [{ character: "Lan", did: "Locked the back door." }] };
+  const all = (messages: { content: string }[]) => messages.map((m) => m.content).join("\n");
+  assert.match(all(narrationMessages(world(), [opening, turn], "director", "", defaultSettings)), /Meanwhile[^\n]*Lan: Locked/);
+  assert.doesNotMatch(all(hookMessages(world(), [opening, turn])), /Locked the back door/);
 });

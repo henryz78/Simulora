@@ -35,13 +35,28 @@ import {
   chronicleOf,
   foldMessages,
   mergeMessages,
+  MEANWHILE_TURNS,
+  meanwhileMessages,
   narrationMessages,
   placedOne,
   storyFrom,
   tokensOf,
   type PlainDraft,
 } from "./prompts.ts";
-import { applyChanges, bury, carrySecrets, inPlay, newId, parseChanges, trimState, withWhere } from "./state.ts";
+import {
+  applyChanges,
+  bury,
+  carrySecrets,
+  inPlay,
+  newId,
+  parseChanges,
+  placeNamed,
+  same,
+  sceneOf,
+  stillAway,
+  trimState,
+  withWhere,
+} from "./state.ts";
 
 class HttpError extends Error {
   status: number;
@@ -171,6 +186,7 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
     length: pick(v.length, ["auto", "short", "long"], current.length),
     showSecrets: typeof v.showSecrets === "boolean" ? v.showSecrets : current.showSecrets,
     thinking: typeof v.thinking === "boolean" ? v.thinking : (current.thinking ?? false),
+    meanwhile: typeof v.meanwhile === "boolean" ? v.meanwhile : (current.meanwhile ?? true),
   };
 }
 
@@ -499,6 +515,23 @@ export function createApi(
   }
 
   /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
+  /** What some of the people away did, or nothing should the model fail. */
+  async function meanwhileStep(w: World, path: TurnNode[], away: string[]) {
+    try {
+      const report = (await writer.json(meanwhileMessages(w, path, away))) as Record<string, unknown>;
+      const items = (Array.isArray(report.meanwhile) ? report.meanwhile : []).flatMap((item) => {
+        const v = (item ?? {}) as Record<string, unknown>;
+        const character = str(v.character, 200).trim();
+        const did = str(v.did, 600).trim();
+        return character && did ? [{ character, did }] : [];
+      });
+      return { items: items.slice(0, 3), changes: parseChanges(report.changes) };
+    } catch (error) {
+      console.warn("meanwhile.failed", error instanceof Error ? error.message : error);
+      return null;
+    }
+  }
+
   function readRecord(reply: string, before: TurnNode["state"], who: string | null) {
     try {
       const report = parseJsonObject(reply) as Record<string, unknown>;
@@ -523,8 +556,17 @@ export function createApi(
     // Played again after leaving the story (say, the player goes on as their dead character's ghost): they are back.
     const before = inPlay(head.state, actor);
     const played = before === head.state ? path : [...path.slice(0, -1), { ...head, state: before }];
+    // Every few turns the people away from the player's scene act on their own, while the story is written.
+    const mine = placedOne(played, actor);
+    const me = before.characters.find((c) => c.name === mine);
+    const scene = me ? sceneOf(before, me.id, `${input}\n${head.story}`) : null;
+    const away =
+      scene && s.settings.meanwhile !== false && path.length % MEANWHILE_TURNS === 0
+        ? before.characters.filter((c) => c !== me && !c.gone && c.placeId && !scene.includes(c.placeId)).map((c) => c.name)
+        : [];
     if (busy.has(s.id)) fail(409, "A turn is already being written for this save");
     busy.add(s.id);
+    const offstage = away.length ? meanwhileStep(w, played, away) : null;
 
     res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" });
     const event = (name: string, data: unknown) => res.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -612,6 +654,24 @@ export function createApi(
         ...(failed && { recordsFailed: true }),
         createdAt: now(),
       };
+      // Waited for a while at most, and not for a turn whose record failed: asked again, it starts from the parent.
+      const moved = failed ? null : await Promise.race([offstage, new Promise<null>((done) => setTimeout(done, 40_000, null))]);
+      if (moved) {
+        // Someone the turn named, touched or now shares the player's place with is in the scene, as the story tells.
+        const here = changed.characters.find((c) => c.name === mine)?.placeId;
+        const named = stillAway(away, story, applied);
+        const keep = (name: string) => named(name) && changed.characters.find((c) => same(c.name, name))?.placeId !== here;
+        const ok = (c: Change) =>
+          c.type === "relationship"
+            ? keep(c.a) && keep(c.b)
+            : c.type === "move"
+              ? keep(c.character) && placeNamed(changed, c.place)?.id !== here // not into the player's scene
+              : (c.type === "status" || c.type === "leave") && keep(c.character);
+        node.state = applyChanges(changed, moved.changes.filter(ok)).state;
+        const items = moved.items.filter((m) => keep(m.character));
+        if (items.length) node.meanwhile = items;
+        console.log(`meanwhile.done ${Date.now() - started}ms`, items.length);
+      }
       // The reply now and then leaves the hooks off; a quick request without thinking fills them in.
       if (hooks.length === 0) {
         try {

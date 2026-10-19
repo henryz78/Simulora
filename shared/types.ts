@@ -80,6 +80,8 @@ export interface Settings {
   showSecrets: boolean;
   /** The story model thinks before it writes: better plotted, but the first words take 30-80 s. */
   thinking: boolean;
+  /** Every few turns the people out of the scene act on their own plans. */
+  meanwhile: boolean;
 }
 
 export const defaultSettings: Settings = {
@@ -88,6 +90,7 @@ export const defaultSettings: Settings = {
   length: "auto",
   showSecrets: false,
   thinking: false,
+  meanwhile: true,
 };
 
 export interface Save {
@@ -134,6 +137,8 @@ export interface TurnNode {
   state: WorldState;
   /** The story was kept but its changes could not be read; the player can ask again. */
   recordsFailed?: boolean;
+  /** What people out of the scene did while this turn was played, unseen by the player's character. */
+  meanwhile?: { character: string; did: string }[];
   /**
    * Written every few turns on the last turn they cover: the memory (the most important things, as they stand now)
    * and the timeline (what happened, in order). Later turns find the latest by walking back along their path.

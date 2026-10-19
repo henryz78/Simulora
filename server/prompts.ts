@@ -24,16 +24,19 @@ function actorName(state: WorldState, actor: string): string | null {
 }
 
 /** A turn's text as the model reads it, numbered so newer can win over older. */
-function turnText(node: TurnNode, turn: number, state: WorldState): string {
+function turnText(node: TurnNode, turn: number, state: WorldState, unseen = true): string {
   const who = actorName(state, node.actor);
   const action = node.input ? `[${who ? `${who} (played by the player)` : "Director"}: ${node.input}]\n` : "";
-  return `[Turn ${turn}]\n${action}${node.story}`;
+  const meanwhile = unseen && node.meanwhile?.length
+    ? `\n[Meanwhile, out of the scene, unseen by the player's character: ${node.meanwhile.map((m) => `${m.character}: ${m.did}`).join(" ")}]`
+    : "";
+  return `[Turn ${turn}]\n${action}${node.story}${meanwhile}`;
 }
 
-function recentStory(path: TurnNode[], state: WorldState): string {
+function recentStory(path: TurnNode[], state: WorldState, unseen = true): string {
   return path
     .slice(-RECENT_TURNS)
-    .map((node) => turnText(node, path.indexOf(node), state))
+    .map((node) => turnText(node, path.indexOf(node), state, unseen))
     .join("\n\n");
 }
 
@@ -319,6 +322,50 @@ export function changeMessages(
   ];
 }
 
+/** Every this many turns the people out of the scene act on their own, while the turn is written. */
+export const MEANWHILE_TURNS = 5;
+
+/**
+ * The people out of the scene (`away`, by name) act on their own plans for a while: the player's design (2026-10-17),
+ * you come back a few turns later and find the door locked, someone gone up the mountain.
+ */
+export function meanwhileMessages(world: World, path: TurnNode[], away: string[]): Message[] {
+  const state = path.at(-1)!.state;
+  return [
+    {
+      role: "system",
+      content: [
+        "You move a living story world while the player is busy elsewhere. The people listed as away are not in the " +
+          "player's scene. Pick one to three of them whose goals, fears or plans would have them do something now, " +
+          "and tell what each did since the story last showed them: one small, concrete step, the next thing such " +
+          "a person would do (a letter written, a door locked, a walk to another place, a talk with someone else " +
+          "away), true to who they are and to what they know. Nobody does it in the player's scene or to the " +
+          "player's character; it may reach them later. Act on secrets, never explain them.",
+        CONTENT_LINE,
+        "Write in the world's own language. Return one JSON object:",
+        '{"meanwhile": [{"character": name, "did": "one or two sentences"}], "changes": [...]}',
+        '"changes" records only what those steps changed, refer to people and places by name, with only these shapes:',
+        '- {"type":"move","character":name,"place":name}  (a listed place\'s name copied whole, exactly as listed, or a ' +
+          "short new name for somewhere else)",
+        '- {"type":"status","character":name,"notes":"how they are now, a few words"}',
+        '- {"type":"relationship","a":name,"b":name,"text":"how they stand now"}',
+        '- {"type":"leave","character":name,"note":"how they left the story"}  (only when they leave it for good)',
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        worldHeader(world, state),
+        "",
+        ...chronicleLines(path),
+        `The story lately:\n${recentStory(path, state)}`,
+        "",
+        `Away from the player's scene now: ${away.join(", ")}.`,
+      ].join("\n"),
+    },
+  ];
+}
+
 export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)!.actor): Message[] {
   const state = path.at(-1)!.state;
   return [
@@ -333,7 +380,7 @@ export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)
     },
     {
       role: "user",
-      content: `${worldHeader(world, state, { scene: sceneOf(state, actor, path.at(-1)!.story) })}\n\nStory so far:\n${recentStory(path, state)}`,
+      content: `${worldHeader(world, state, { scene: sceneOf(state, actor, path.at(-1)!.story) })}\n\nStory so far:\n${recentStory(path, state, false)}`,
     },
   ];
 }

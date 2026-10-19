@@ -9,13 +9,15 @@ const text = (value: unknown, max = 2000) =>
 // A newcomer's goals came back as "想要：…" six times in six (2026-10-19): the label is the model's, not the story's.
 const goalsOf = (value: unknown) => text(value).replace(/^(想要|目标|goals?)\s*[:：]\s*/i, "");
 
-const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+export const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /**
  * The listed place a name means. The model now and then dresses a listed name up in front or adds a corner in brackets
  * ("霍格沃茨·大礼堂" or "大礼堂（门口）" for "大礼堂", 2026-10-19): a name that ends in a whole listed one is that
  * place, the longest such. A name that goes on past it is another place ("霍格沃茨图书馆" is not "霍格沃茨"), and so
  * is a shorter one ("大礼堂" is not "大礼堂外的走廊"); an English name needs a mark before it ("Town Hall" is no "Hall").
+ * A world's author often makes two places one ("三把扫帚与蜂蜜公爵"): either half names it too ("霍格莫德·蜂蜜公爵"),
+ * and so does a listed name without what it is dressed up with ("三把扫帚" for "霍格莫德·三把扫帚").
  */
 export function placeNamed(state: WorldState, name: string): Place | undefined {
   const bare = name.replace(/[（(][^）)]*[）)]/g, "").trim().toLowerCase();
@@ -27,11 +29,18 @@ export function placeNamed(state: WorldState, name: string): Place | undefined {
       (head === "" || /[·・:：,，\-—]\s*$/.test(head) || (/[㐀-鿿]$/.test(head) && /^[㐀-鿿]/.test(listed)))
     );
   };
+  // A half or a bare tail stands only alone or after a mark: "四楼走廊" is no "城堡·走廊" ("和" and "及" are too
+  // common inside names to split on: "及时雨客栈").
+  const marked = (n: string) => dressed(n) && /^$|[·・:：,，\-—]\s*$/.test(bare.slice(0, bare.length - n.length));
+  const lower = (n: string) => n.trim().toLowerCase();
+  const halves = (p: Place) =>
+    p.name.split(/[与、]/).flatMap((n) => [n, n.split(/[·・]/).at(-1)!]).map(lower).filter((n) => n !== lower(p.name));
+  // The whole name first, then the longest half.
+  const best = (p: Place) =>
+    dressed(lower(p.name)) ? 1000 + p.name.length : Math.max(0, ...halves(p).filter(marked).map((n) => n.length));
   return (
     state.places.find((p) => same(p.name, name)) ??
-    state.places
-      .filter((p) => dressed(p.name.trim().toLowerCase()))
-      .sort((a, b) => b.name.length - a.name.length)[0]
+    state.places.filter((p) => best(p) > 0).sort((a, b) => best(b) - best(a))[0]
   );
 }
 
@@ -254,6 +263,16 @@ export function withWhere(state: WorldState, changes: Change[], who: string | nu
   return [{ type: "move", character: one.name, place, note: "" }, ...changes];
 }
 
+/**
+ * What the people away did while a turn was played, kept for those the turn itself left alone: someone its story
+ * names or its changes touch came into the scene, and is as the story tells.
+ */
+export function stillAway(away: string[], story: string, changes: Change[]): (name: string) => boolean {
+  const touched = (name: string) =>
+    changes.some((c) => Object.values(c).some((v) => typeof v === "string" && same(v, name)));
+  return (name) => away.some((a) => same(a, name)) && !mentions(story, name) && !touched(name);
+}
+
 /** The state a turn acted as `actor` starts from: someone out of the story whom the player plays is back in it. */
 export function inPlay(state: WorldState, actor: string): WorldState {
   if (!state.characters.some((c) => c.id === actor && c.gone)) return state;
@@ -321,19 +340,26 @@ export function carrySecrets(from: WorldState, into: WorldState): WorldState {
 }
 
 /**
+ * Whether `text` names `name`, whole or by a part: "去八楼走廊" names the place "八楼走廊与巨怪挂毯", "斯拉格霍恩教授"
+ * names "霍拉斯·斯拉格霍恩". A part is two Chinese characters or a whole English word of three letters or more: "of"
+ * or "Lan" in "plan" is no name.
+ */
+export function mentions(text: string, name: string): boolean {
+  const hit = (part: string) =>
+    /[㐀-鿿]/.test(part)
+      ? part.length >= 2 && text.includes(part)
+      : part.length >= 3 && new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text);
+  return hit(name) || name.split(/[与和及、·・，,/（）()\s]+/).some(hit);
+}
+
+/**
  * The places this turn plays in when `actor` acts: their own, and any place or person the player's action names (it
  * may go there or call them in). Null for the director or someone nowhere in particular: then everything is told.
  */
 export function sceneOf(state: WorldState, actor: string, input = ""): string[] | null {
   const own = state.characters.find((c) => c.id === actor)?.placeId;
   if (!own) return null;
-  // Two Chinese characters or a whole English word of three letters or more: "of" or "Lan" in "plan" is no name.
-  const hit = (part: string) =>
-    /[㐀-鿿]/.test(part)
-      ? part.length >= 2 && input.includes(part)
-      : part.length >= 3 && new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(input);
-  // "去八楼走廊" names the place "八楼走廊与巨怪挂毯", "斯拉格霍恩教授" names "霍拉斯·斯拉格霍恩": parts count too.
-  const names = (name: string) => hit(name) || name.split(/[与和及、·・，,/（）()\s]+/).some(hit);
+  const names = (name: string) => mentions(input, name);
   const named = [
     ...state.places.filter((p) => p.name && names(p.name)).map((p) => p.id),
     ...state.characters.filter((c) => c.name && c.placeId && !c.gone && names(c.name)).map((c) => c.placeId!),

@@ -247,6 +247,23 @@ export function Play({ saveId }: { saveId: string }) {
             </ul>
           </details>
         )}
+        {/* Folded: what the player's character has not seen, to read only if they want to. */}
+        {node.meanwhile && (
+          <details className="changes">
+            <summary>
+              {t("Meanwhile")} ({node.meanwhile.length})
+            </summary>
+            <ul>
+              {node.meanwhile.map((m, j) => (
+                <li key={j}>
+                  {m.character}
+                  {sep}
+                  {m.did}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {!busy && (
           <div className="turn-tools">
             {node !== head && resumable(node.id) && (
@@ -597,6 +614,17 @@ export function Play({ saveId }: { saveId: string }) {
                 <span>
                   {t("Deep thinking")}
                   <span className="small muted"> · {t("better plotted, but the first words take 30-80 s")}</span>
+                </span>
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={save.settings.meanwhile ?? true}
+                  onChange={(e) => changeSettings({ meanwhile: e.target.checked })}
+                />
+                <span>
+                  {t("The world moves on its own")}
+                  <span className="small muted"> · {t("every few turns, the people away act on their plans")}</span>
                 </span>
               </label>
               <div className="row">

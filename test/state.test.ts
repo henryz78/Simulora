@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, bury, describeState, inPlay, parseChanges, sceneOf, withWhere } from "../server/state.ts";
+import { applyChanges, bury, describeState, inPlay, parseChanges, placeNamed, sceneOf, stillAway, withWhere } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -192,5 +192,22 @@ test("a listed place dressed up by the model is still that place, never a shorte
   assert.equal(at("Town Teahouse")[1], 4, "an English word in front makes another place");
   state.places.push({ id: "p4", name: "书房", description: "" });
   assert.deepEqual(at("书房（二楼）"), ["p4", 4], "two characters are a name too");
+  state.places.push({ id: "p5", name: "霍格莫德·三把扫帚与蜂蜜公爵", description: "" });
+  assert.deepEqual(at("霍格莫德·蜂蜜公爵"), ["p5", 5], "half of a place made of two");
+  assert.deepEqual(at("三把扫帚"), ["p5", 5]);
+  assert.equal(at("蜂蜜")[1], 6, "but not a part of a half");
+  const own = (places: string[], name: string) =>
+    placeNamed({ ...world(), places: places.map((n, i) => ({ id: `q${i}`, name: n, description: "" })) }, name)?.name;
+  assert.equal(own(["城堡·走廊"], "四楼走廊"), undefined, "a bare tail stands alone or after a mark");
+  assert.equal(own(["及时雨客栈"], "时雨客栈"), undefined);
+  assert.equal(own(["A街与B街", "B街"], "镇·B街"), "B街", "a whole name before a half");
   assert.deepEqual(withWhere(state, [], "Zhou", "Old Town · Teahouse"), [], "there already, as the model names it");
+});
+
+test("what the people away did is kept only for those the turn left alone", () => {
+  const keep = stillAway(["Lan", "Moss"], "Moss knocks at the door.", parseChanges([{ type: "status", character: "Zhou", notes: "x" }]));
+  assert.equal(keep("lan"), true);
+  assert.equal(keep("Moss"), false, "named in the story");
+  assert.equal(keep("Zhou"), false, "not away");
+  assert.equal(stillAway(["Lan"], "", parseChanges([{ type: "move", character: "Lan", place: "Teahouse" }]))("Lan"), false);
 });

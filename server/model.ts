@@ -289,6 +289,16 @@ export function fakeModel(): Model {
     },
     async json(messages) {
       const system = messages[0]?.content ?? "";
+      if (system.includes("You move a living story world")) {
+        const name = /Away from the player's scene now: ([^,.]+)/.exec(messages.at(-1)!.content)?.[1] ?? "";
+        return {
+          meanwhile: [{ character: name, did: "Locked the back door." }],
+          changes: [
+            { type: "status", character: name, notes: "Behind a locked door" },
+            { type: "persona", character: name, persona: "Someone else" }, // not the step's to change
+          ],
+        };
+      }
       if (system.includes("hide its secrets"))
         return { secrets: [{ text: `A buried secret, told in ${messages.at(-1)!.content.length} characters.`, knownBy: [] }] };
       if (system.includes("You design the world"))

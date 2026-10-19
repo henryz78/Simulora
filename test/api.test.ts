@@ -138,3 +138,30 @@ test("the AI drafts a world and buries secrets at the start and as the story goe
   assert.equal(ai(view).length, 2);
   assert.ok(ai(view).every((f) => !f.revealed));
 });
+
+test("every few turns the people away act on their own; someone the story brings in is left as it tells", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Two Rooms",
+    opening: "Snow.",
+    state: {
+      places: [{ id: "p1", name: "Teahouse" }, { id: "p2", name: "Mill" }],
+      characters: [
+        { id: "c1", name: "Zhou", placeId: "p1" },
+        { id: "c2", name: "Lan", placeId: "p2", goals: "Hide the ledger" },
+      ],
+    },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  const lan = (node: TurnNode) => node.state.characters.find((c) => c.name === "Lan")!;
+  let node!: TurnNode;
+  for (let turn = 1; turn <= 5; turn++) ({ node } = await playTurn(save.id, "c1", "wait"));
+  assert.deepEqual(node.meanwhile, [{ character: "Lan", did: "Locked the back door." }], "the fifth turn");
+  assert.equal(lan(node).notes, "Behind a locked door");
+  assert.equal(lan(node).persona, "", "who they are is not the step's to change");
+  for (let turn = 6; turn <= 10; turn++) ({ node } = await playTurn(save.id, "c1", turn === 10 ? "Lan walks in" : "wait"));
+  assert.equal(node.meanwhile, undefined, "named in the story: in the scene, not away");
+  // Switched off, nobody moves.
+  await call("PATCH", `/saves/${save.id}`, { settings: { meanwhile: false } });
+  for (let turn = 11; turn <= 15; turn++) ({ node } = await playTurn(save.id, "c1", "wait"));
+  assert.equal(node.meanwhile, undefined);
+});
