@@ -258,6 +258,11 @@ export function fakeModel(): Model {
   return {
     async *stream(messages) {
       const last = messages.at(-1)?.content ?? "";
+      if (messages[0]?.content.includes("into one chapter of a novel")) {
+        const turns = [...last.slice(last.indexOf("The turns to make")).matchAll(/\[Turn (\d+)\]/g)].map((m) => m[1]);
+        yield `Snow\n\nTurns ${turns[0]} to ${turns.at(-1)} went by.`;
+        return;
+      }
       if (messages[0]?.content.includes("timeline and the long-term memory")) {
         const turns = [...last.matchAll(/\[Turn (\d+)\]\n/g)].map((m) => Number(m[1]));
         const span = `${turns[0]}-${turns.at(-1)}`;

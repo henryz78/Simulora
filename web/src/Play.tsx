@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Change, Dice, NodeSummary, SaveView, Settings, TurnNode, WorldState } from "../../shared/types.ts";
 import { api, playTurn } from "./api.ts";
 import { Graph } from "./Graph.tsx";
+import { Novel } from "./Novel.tsx";
 import { lang, t } from "./i18n.ts";
 
 const sep = lang === "zh" ? "：" : ": ";
@@ -145,6 +146,7 @@ export function Play({ saveId }: { saveId: string }) {
       .finally(() => setAsking(false));
   };
   const [mapOpen, setMapOpen] = useState(false);
+  const [novelOpen, setNovelOpen] = useState(false);
   // A turn told again through another character's eyes: what is shown, and what is being written.
   const [views, setViews] = useState<Record<string, { who: string; story: string }>>({});
   const [viewing, setViewing] = useState<string | null>(null);
@@ -444,6 +446,7 @@ export function Play({ saveId }: { saveId: string }) {
               {t("Story so far")}
             </button>
           )}
+          {path.length > 1 && <button onClick={() => setNovelOpen(true)}>{t("Novel")}</button>}
           <button className={panel === "world" ? "on" : ""} onClick={() => toggle("world")}>
             {t("World")}
           </button>
@@ -575,6 +578,15 @@ export function Play({ saveId }: { saveId: string }) {
         </form>
       </section>
 
+      {novelOpen && (
+        <Novel
+          saveId={saveId}
+          turns={path.length - 1}
+          kept={Array.from({ length: Math.ceil((path.length - 1) / 10) }, (_, n) => path[(n + 1) * 10]?.chapter)}
+          name={`${world.title} · ${save.title}`}
+          onClose={() => setNovelOpen(false)}
+        />
+      )}
       {mapOpen && (
         <Graph
           state={state}

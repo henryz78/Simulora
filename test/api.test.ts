@@ -253,3 +253,22 @@ test("a turn told through another's eyes is written once, kept, and changes noth
   });
   assert.equal(opening.status, 400, "the opening has no one's turn to see again");
 });
+
+test("the play makes chapters of ten turns; a whole one is kept, the one still played is not", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Book", opening: "Snow.", state: { places: [{ id: "p1", name: "Inn" }], characters: [{ id: "c1", name: "Zhou", placeId: "p1" }] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  for (let turn = 1; turn <= 12; turn++) await playTurn(save.id, "c1", "wait");
+  const first = await call<{ from: number; title: string; text: string }>("POST", `/saves/${save.id}/chapter`, { chapter: 0 });
+  assert.deepEqual(first, { from: 1, title: "Snow", text: "Turns 1 to 10 went by." });
+  const second = await call<{ text: string }>("POST", `/saves/${save.id}/chapter`, { chapter: 1 });
+  assert.equal(second.text, "Turns 11 to 12 went by.");
+  const view = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.deepEqual(view.path[10]!.chapter, first, "kept on its last turn");
+  assert.equal(view.path[12]!.chapter, undefined, "the chapter still played is not kept");
+  const none = await fetch(`${base}/saves/${save.id}/chapter`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chapter: 2 }),
+  });
+  assert.equal(none.status, 400);
+});

@@ -603,6 +603,47 @@ export function viewMessages(world: World, path: TurnNode[], turn: number, chara
 }
 
 
+/** Every this many turns make a chapter of the novel, as they make an entry of the timeline. */
+export const CHAPTER_TURNS = 10;
+
+/**
+ * A stretch of play made into a chapter of a novel: the player's own words and deeds woven in (the turns' stories go
+ * on from them and never repeat them), the seams smoothed, nothing added. Plain text: a title line, then the chapter.
+ */
+export function chapterMessages(world: World, path: TurnNode[], from: number, to: number): Message[] {
+  const state = path.at(-1)!.state;
+  return [
+    {
+      role: "system",
+      content: [
+        "You turn a stretch of an interactive story into one chapter of a novel. Each turn below is what the player " +
+          "wrote in brackets, then the story that went on from it: the story never repeats the player's words, so " +
+          "weave them in, the player's character saying and doing just what the player wrote; every line the player " +
+          "gave them to say is their speech in the chapter, word for word. Keep every event, " +
+          "every line spoken and every detail that matters, in the same order; smooth the seams between turns, cut " +
+          "what is said twice, add nothing that did not happen. About as long as the stories together.",
+        "Reply in plain text, no JSON and no markdown: the chapter's title alone on the first line (a few words), " +
+          "then the chapter, paragraphs split by blank lines, speech in “” or 「」. Write in the world's own language.",
+        CONTENT_LINE,
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        `World: ${world.title}`,
+        `Premise: ${world.premise}`,
+        "",
+        ...(from > 1 ? [`Before this, in short:`, ...chronicleLines(path.slice(0, from)), ""] : []),
+        `The turns to make into this chapter (Turn ${from} to ${to}):`,
+        path
+          .slice(from, to + 1)
+          .map((node, i) => turnText(node, from + i, state, false))
+          .join("\n\n"),
+      ].join("\n"),
+    },
+  ];
+}
+
 /** A passage's last sentence or so, to end a retelling on. */
 const lastLine = (story: string) => story.trim().split(/(?<=[。！？!?…”」])/).filter((x) => x.trim()).slice(-2).join("").trim().slice(-80);
 

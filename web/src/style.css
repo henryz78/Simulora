@@ -503,3 +503,10 @@ button.chip {
   font-size: 15px;
   fill: var(--ink);
 }
+
+.novel article {
+  margin: 1.5em 0;
+}
+.novel h3 {
+  font-family: var(--serif);
+}

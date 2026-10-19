@@ -39,6 +39,8 @@ import {
   MEANWHILE_TURNS,
   meanwhileMessages,
   narrationMessages,
+  CHAPTER_TURNS,
+  chapterMessages,
   interviewMessages,
   placedOne,
   recapMessages,
@@ -932,6 +934,35 @@ export function createApi(
         }
         case "POST /saves/:id/turn":
           return await turn(req, res, id);
+        case "POST /saves/:id/chapter": {
+          // Chapter n holds turns n*10+1 to (n+1)*10. A whole chapter is written once and kept on its last turn; the one
+          // still being played is written afresh each time.
+          const s = save(id);
+          const body = await readJson(req);
+          const path = store.path(s.headId);
+          const n = Number(body.chapter);
+          const from = n * CHAPTER_TURNS + 1;
+          const to = Math.min((n + 1) * CHAPTER_TURNS, path.length - 1);
+          if (!Number.isInteger(n) || n < 0 || from > to) fail(400, "No such chapter");
+          const whole = to - from + 1 === CHAPTER_TURNS;
+          const kept = whole ? store.node(path[to]!.id)!.chapter : undefined;
+          if (kept) return send(res, 200, kept);
+          let text = "";
+          for (let attempt = 0; attempt < 2 && !text.trim(); attempt++) {
+            text = "";
+            try {
+              for await (const piece of writer.stream(chapterMessages(world(s.worldId), path, from, to))) text += piece;
+            } catch (error) {
+              console.warn("chapter.failed", error instanceof Error ? error.message : error);
+              text = "";
+            }
+          }
+          const [title = "", ...rest] = fullWidth(text).trim().split("\n");
+          const chapter = { from, title: title.replace(/^[#*\s]+|[*\s]+$/g, ""), text: rest.join("\n").trim() };
+          if (!chapter.text) fail(502, "The model gave no chapter");
+          if (whole) store.putNode({ ...store.node(path[to]!.id)!, chapter });
+          return send(res, 200, chapter);
+        }
         case "POST /saves/:id/view": {
           // Told once for a turn and a character, and kept; the world does not change.
           const s = save(id);
