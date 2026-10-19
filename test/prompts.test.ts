@@ -115,7 +115,7 @@ test("on a jump in time the storyteller hears what the people away got up to", (
 
 test("the storyteller is told how the dice settled the attempt, and to keep to it", () => {
   const user = narrationMessages(world(), [opening], "director", "I climb", defaultSettings, "", [], {
-    what: "the climb", difficulty: "hard", roll: 3, outcome: "fail",
+    what: "the climb", difficulty: "hard", roll: 3, outcome: "fail", result: "He falls.",
   })[1]!.content;
-  assert.match(user, /The dice settled the attempt \(the climb\): it fails[^\n]*never soften a failure/);
+  assert.match(user, /The dice settled the attempt \(the climb\): it fails[^\n]*This is fixed, tell it so: He falls\.[^\n]*never turn/);
 });

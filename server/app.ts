@@ -549,7 +549,9 @@ export function createApi(
       const what = str(report.what, 100).trim();
       if (report.risky !== true || !difficulty || !what) return null;
       const roll = 1 + Math.floor(Math.random() * 20);
-      return { what, difficulty, roll, outcome: outcomeOf(roll, difficulty) };
+      const outcome = outcomeOf(roll, difficulty);
+      const result = str(outcome === "fail" ? report.fail : report.success, 200).trim();
+      return { what, difficulty, roll, outcome, ...(result && { result }) };
     } catch (error) {
       console.warn("dice.failed", error instanceof Error ? error.message : error);
       return null;

@@ -95,6 +95,8 @@ export interface Dice {
   /** 1 to 20. */
   roll: number;
   outcome: "success" | "cost" | "fail";
+  /** What the outcome means here, judged with the difficulty before the roll: a fact the story must keep. */
+  result?: string;
 }
 
 export const defaultSettings: Settings = {

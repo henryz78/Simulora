@@ -317,8 +317,9 @@ export function narrationMessages(
     // The die, not the storyteller, settled it: told as it fell.
     ...(dice
       ? [
-          `The dice settled the attempt (${dice.what}): ${OUTCOME[dice.outcome]} Tell it exactly so, and go on from ` +
-            "there; never soften a failure or a cost into a clean success.",
+          `The dice settled the attempt (${dice.what}): ${OUTCOME[dice.outcome]}` +
+            (dice.result ? ` This is fixed, tell it so: ${dice.result}` : "") +
+            " Go on from there; never turn a failure or a cost into a clean success, nor a success into a failure.",
         ]
       : []),
     "",
@@ -424,10 +425,16 @@ export function meanwhileMessages(world: World, path: TurnNode[], away: string[]
   ];
 }
 
+// Told only "it succeeds", the story let 3 of 5 rolled successes go wrong (2026-10-19): a hiding place rolled 19 and was
+// found at once; a questioning rolled 14 and got no name, the answer being a secret. What success means here is now
+// said by the judge before the roll, and the story is told it as a fact.
 const OUTCOME: Record<Dice["outcome"], string> = {
-  // A theft rolled 19 came off, and the owner missed the key at once in the same scene (2026-10-19): a cost by another name.
-  success: "it succeeds cleanly: nothing goes wrong with it in this scene; what follows from it can come later.",
-  cost: "it succeeds, at a real cost: an injury, a loss, a debt, a witness, or something broken or given away.",
+  success:
+    "it succeeds cleanly: the player gets what they tried for, and nothing goes wrong with it in this scene; what " +
+    "follows from it can come later. An attempt to learn something learns it, a secret included: the roll earns it.",
+  cost:
+    "it succeeds (the player gets what they tried for, a secret included if that was the aim), at a real cost: an " +
+    "injury, a loss, a debt, a witness, or something broken or given away.",
   fail: "it fails, and the failure has consequences the story goes on from.",
 };
 
@@ -446,9 +453,11 @@ export function riskMessages(world: World, path: TurnNode[], actor: string, inpu
         "uncertain and failing would matter: a climb, a fight, a theft, sneaking past someone, a lie to someone who " +
         "may see through it, persuading someone set against it, a spell or a feat under pressure. Talking, walking, " +
         "looking, asking, waiting and ordinary work are not risky. Judge the difficulty by who tries it, against whom, " +
-        "and how, from the world and the story so far. Return one JSON object: " +
-        '{"risky": true or false, "what": "the attempt in a few words, in the world\'s language", ' +
-        '"difficulty": "easy" | "normal" | "hard"}',
+        "and how, from the world and the story so far. Say also, in one plain sentence each in the world's language, " +
+        "what success would mean here (the player gets what they tried for: the guard is fooled, they are not seen, " +
+        "he names the buyer) and what failure would mean. Return one JSON object: " +
+        '{"risky": true or false, "what": "the attempt in a few words", "difficulty": "easy" | "normal" | "hard", ' +
+        '"success": "…", "fail": "…"}',
     },
     {
       role: "user",
