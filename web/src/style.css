@@ -441,3 +441,13 @@ button.chip {
 .recap p {
   margin: 0.4em 0 0;
 }
+
+.interview .q {
+  margin: 1em 0 0.2em;
+  color: var(--muted);
+}
+.interview form {
+  margin-top: 1em;
+  display: grid;
+  gap: 0.5em;
+}

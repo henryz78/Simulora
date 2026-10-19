@@ -32,6 +32,8 @@ export const api = {
   hooks: (id: string, actor: string) => call<TurnNode>("POST", `/saves/${id}/hooks`, { actor }),
   records: (id: string) => call<SaveView>("POST", `/saves/${id}/records`),
   recap: (id: string) => call<{ recap: string }>("POST", `/saves/${id}/recap`),
+  interview: (id: string, character: string, talk: { q: string; a: string }[], question: string) =>
+    call<{ answer: string }>("POST", `/saves/${id}/interview`, { character, talk, question }),
 };
 
 /** Plays one turn, reporting the story as it is written. Resolves with the finished turn. */

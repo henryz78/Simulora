@@ -492,6 +492,66 @@ export function riskMessages(world: World, path: TurnNode[], actor: string, inpu
   ];
 }
 
+/**
+ * A talk with one character out of the story: the player's own design (2026-10-17), "跳出故事和某个角色聊，不改变世界".
+ * They answer as they are now, from what they know; what the player has not found stays theirs unless the player chose
+ * to see every secret.
+ */
+export function interviewMessages(
+  world: World,
+  path: TurnNode[],
+  character: string,
+  talk: { q: string; a: string }[],
+  question: string,
+  showSecrets: boolean,
+): Message[] {
+  const state = path.at(-1)!.state;
+  const me = state.characters.find((c) => c.id === character)!;
+  const theirs = state.facts.filter((f) => f.secret && !f.revealed && me.knows.includes(f.id));
+  // The story is told close to the player's character: once Harriet spoke of "my uncle's accounts", Tamasin's.
+  const played = placedOne(path, "director");
+  return [
+    {
+      role: "system",
+      content: [
+        // Named alone, the interviewee once answered as whoever the last scenes were about (2026-10-19): who they are, here.
+        `You are ${me.name}: ${me.persona}${me.goals ? ` What you want: ${me.goals}` : ""}${me.notes ? ` Now: ${me.notes}` : ""}`,
+        `You, ${me.name}, are talking with the player outside the story, as in an interview. Answer in the first ` +
+          "person, in your own voice and manner, as you are at this point of the story: your temperament, your mood, " +
+          "what you want and fear. You know what you have seen, done and been told, and what is listed as known to " +
+          "you; you do not know what happened where you were not, and of other people's plans and states you know " +
+          "only what you have seen or been told. Nothing said here happens in the story.",
+        showSecrets
+          ? "The player has chosen to see every secret: say what you know frankly, your own secrets too."
+          : "What you know that the player has not found out stays yours: you may hint, dodge or lie as you would, " +
+            "never state it plainly.",
+        played && played !== me.name ? `The player plays ${played} in the story; you are not ${played}, and their family and past are not yours.` : "",
+        me.gone ? `You have left the story (${me.gone}); speak from there.` : "",
+        "Talk as people talk, plainly: about 40 to 150 Chinese characters (30 to 100 English words), no stage " +
+          "directions or narration, only what you say. Write in the world's own language. " +
+          'Return one JSON object: {"answer": "…"}',
+        CONTENT_LINE,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    },
+    {
+      role: "user",
+      content: [
+        // Those away in a line: the whole of everyone's plans made an all-knowing interviewee (review, 2026-10-19).
+        worldHeader(world, state, { secrets: false, scene: sceneOf(state, me.id) }),
+        ...(theirs.length ? ["", "What you know that the player has not found out:", ...theirs.map((f) => `- ${f.text}`)] : []),
+        "",
+        ...chronicleLines(path),
+        `The story lately (most recent last):\n${recentStory(path, state, false)}`,
+        "",
+        ...(talk.length ? ["The talk so far:", ...talk.flatMap((t) => [`Player: ${t.q}`, `${me.name}: ${t.a}`]), ""] : []),
+        `Player: ${question}`,
+      ].join("\n"),
+    },
+  ];
+}
+
 /** "上回说到" for a player coming back after a break: only what they have seen, in plain words. */
 export function recapMessages(world: World, path: TurnNode[]): Message[] {
   const state = path.at(-1)!.state;

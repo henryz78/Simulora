@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultSettings, type TurnNode, type World } from "../shared/types.ts";
 import { normalizeDraft } from "../server/app.ts";
-import { fullWidth, hookMessages, narrationMessages, timeJump } from "../server/prompts.ts";
+import { fullWidth, hookMessages, interviewMessages, narrationMessages, timeJump } from "../server/prompts.ts";
 
 const world = (rules?: string): World =>
   ({
@@ -118,4 +118,23 @@ test("the storyteller is told how the dice settled the attempt, and to keep to i
     what: "the climb", difficulty: "hard", roll: 3, outcome: "fail", result: "He falls.",
   })[1]!.content;
   assert.match(user, /The dice settled the attempt \(the climb\): it fails[^\n]*This is fixed, tell it so: He falls\.[^\n]*never turn/);
+});
+
+test("an interviewee hears only their own secrets and nothing done out of their sight", () => {
+  const w = world();
+  w.state.places.push({ id: "p1", name: "Inn", description: "" });
+  w.state.characters.push(
+    { id: "c1", name: "Mei", persona: "", goals: "", placeId: "p1", notes: "", knows: ["s1"] },
+    { id: "c2", name: "Lan", persona: "", goals: "", placeId: "p1", notes: "", knows: ["s2"] },
+  );
+  w.state.facts.push(
+    { id: "s1", text: "Mei hid the ledger.", secret: true, revealed: false, source: "author" },
+    { id: "s2", text: "Lan sold the boat.", secret: true, revealed: false, source: "author" },
+  );
+  const turn = { ...opening, state: w.state, meanwhile: [{ character: "Lan", did: "Burned the letter." }] };
+  const all = interviewMessages(w, [opening, turn], "c1", [], "Well?", false).map((m) => m.content).join("\n");
+  assert.match(all, /Mei hid the ledger/);
+  assert.doesNotMatch(all, /Lan sold the boat|Burned the letter/);
+  assert.match(all, /never state it plainly/);
+  assert.match(interviewMessages(w, [opening, turn], "c1", [], "Well?", true)[0]!.content, /say what you know frankly/);
 });

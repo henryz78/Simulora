@@ -5,7 +5,7 @@ import { lang, t } from "./i18n.ts";
 
 const sep = lang === "zh" ? "：" : ": ";
 
-type Panel = "history" | "world" | "settings" | null;
+type Panel = "history" | "world" | "settings" | "interview" | null;
 
 interface Pending {
   actor: string;
@@ -115,6 +115,34 @@ export function Play({ saveId }: { saveId: string }) {
   const queuedRef = useRef(queued);
   queuedRef.current = queued;
   const sceneTop = useRef<HTMLDivElement>(null);
+  // A talk out of the story with one character; kept on this page only.
+  // Each character's talk is their own: an answer lands with whoever it was asked of.
+  const [guest, setGuest] = useState<string | null>(null);
+  const [talks, setTalks] = useState<Record<string, { q: string; a: string }[]>>({});
+  const talk = (guest && talks[guest]) || [];
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const interview = (id: string) => {
+    setGuest(id);
+    setPanel("interview");
+  };
+  const askGuest = () => {
+    const q = question.trim();
+    const who = guest;
+    if (!q || !who || asking) return;
+    setAsking(true);
+    setQuestion("");
+    api
+      .interview(saveId, who, talk, q)
+      .then(
+        (r) => setTalks((all) => ({ ...all, [who]: [...(all[who] ?? []), { q, a: r.answer }] })),
+        (e: Error) => {
+          setQuestion(q);
+          report(e);
+        },
+      )
+      .finally(() => setAsking(false));
+  };
   // "上回说到": null closed, "" being written, text shown.
   const [recap, setRecap] = useState<string | null>(null);
   const recall = () => {
@@ -154,6 +182,17 @@ export function Play({ saveId }: { saveId: string }) {
   useEffect(() => {
     if (recap !== null) void sceneTop.current?.scrollIntoView({ block: "start" });
   }, [recap === null]);
+  // It tells where the story stood: once the player plays on or goes back, it is closed.
+  const headId = view?.path.at(-1)?.id;
+  const recapFor = useRef(headId);
+  useEffect(() => {
+    if (recapFor.current !== headId) setRecap(null);
+    recapFor.current = headId;
+  }, [headId]);
+  // Someone undone out of the story has no interview left to show.
+  useEffect(() => {
+    if (panel === "interview" && view && !view.path.at(-1)!.state.characters.some((c) => c.id === guest)) setPanel(null);
+  }, [view, panel, guest]);
   // Each new scene, and each move as it starts, opens at its first line so the player reads from the top.
   // Newer browsers return a Promise from scrollIntoView; an effect must not return it.
   useEffect(() => {
@@ -492,7 +531,11 @@ export function Play({ saveId }: { saveId: string }) {
       {panel && (
         <aside className="side">
           <div className="side-head">
-            <h2>{t(panel === "history" ? "Story so far" : panel === "world" ? "World" : "Settings")}</h2>
+            <h2>
+              {panel === "interview"
+                ? `${t("Interview")} · ${state.characters.find((c) => c.id === guest)?.name ?? ""}`
+                : t(panel === "history" ? "Story so far" : panel === "world" ? "World" : "Settings")}
+            </h2>
             <button className="link" onClick={() => setPanel(null)} aria-label={t("Close")}>
               ✕
             </button>
@@ -529,6 +572,43 @@ export function Play({ saveId }: { saveId: string }) {
             </details>
           ) : null}
           {panel === "history" && path.slice(0, -1).map(turnView)}
+
+          {panel === "interview" && (
+            <section className="interview">
+              <p className="muted small">{t("Out of the story: nothing said here changes the world.")}</p>
+              {talk.map((x, i) => (
+                <div key={i}>
+                  <p className="q">{x.q}</p>
+                  <p>
+                    <span className="speech">{x.a}</span>
+                  </p>
+                </div>
+              ))}
+              {asking && <p className="muted small">{t("Writing…")}</p>}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  askGuest();
+                }}
+              >
+                <textarea
+                  rows={2}
+                  value={question}
+                  placeholder={t("Ask something…")}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      askGuest();
+                    }
+                  }}
+                />
+                <button type="submit" disabled={asking || !question.trim()}>
+                  {t("Ask")}
+                </button>
+              </form>
+            </section>
+          )}
 
           {panel === "world" && (
             <div className="world">
@@ -580,7 +660,10 @@ export function Play({ saveId }: { saveId: string }) {
                     <ul>
                       {group.people.map((c) => (
                         <li key={c.id} className={group.title === "Here" || group.title === "People" ? "" : "muted"}>
-                          <strong>{c.name}</strong>
+                          <strong>{c.name}</strong>{" "}
+                          <button className="link small" onClick={() => interview(c.id)}>
+                            {t("Interview")}
+                          </button>
                           {group.title !== "Here" && group.title !== "Gone" && placeName(c.placeId) && (
                             <span className="muted"> · {t("at")} {placeName(c.placeId)}</span>
                           )}

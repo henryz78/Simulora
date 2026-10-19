@@ -39,6 +39,7 @@ import {
   MEANWHILE_TURNS,
   meanwhileMessages,
   narrationMessages,
+  interviewMessages,
   placedOne,
   recapMessages,
   riskMessages,
@@ -928,6 +929,27 @@ export function createApi(
         }
         case "POST /saves/:id/turn":
           return await turn(req, res, id);
+        case "POST /saves/:id/interview": {
+          // Out of the story: nothing is stored and the world does not change.
+          const s = save(id);
+          const body = await readJson(req);
+          const path = store.path(s.headId);
+          const character = str(body.character, 64);
+          if (!path.at(-1)!.state.characters.some((c) => c.id === character)) fail(400, "Unknown character");
+          const question = str(body.question, 2000).trim();
+          if (!question) fail(400, "Ask something first");
+          const talk = (Array.isArray(body.talk) ? body.talk : []).slice(-10).flatMap((t: unknown) => {
+            const v = (t ?? {}) as Record<string, unknown>;
+            const q = str(v.q, 2000).trim();
+            const a = str(v.a, 2000).trim();
+            return q && a ? [{ q, a }] : [];
+          });
+          const ask = () =>
+            writer.json(interviewMessages(world(s.worldId), path, character, talk, question, s.settings.showSecrets));
+          const answer = str(((await ask().catch(ask)) as Record<string, unknown>).answer, 2000).trim();
+          if (!answer) fail(502, "The model gave no answer");
+          return send(res, 200, { answer });
+        }
         case "POST /saves/:id/recap": {
           // Written once for the turn it stops at, and kept: coming back again, the player does not wait.
           const s = save(id);
@@ -972,7 +994,8 @@ export function createApi(
             const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor, who);
             if (failed) fail(502, "Could not record the changes");
             const { applied, state: changed } = applyChanges(before, changes);
-            const { recordsFailed: _, ...rest } = store.node(head.id)!;
+            // A recap written before the changes were recorded tells the turn without them: it goes.
+            const { recordsFailed: _, recap: __, ...rest } = store.node(head.id)!;
             // What a trim on this turn took out stays out: as in `turn`, what the timeline told by the cut.
             const path = store.path(head.id);
             const known = rest.trimmed

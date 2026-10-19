@@ -295,6 +295,10 @@ export function fakeModel(): Model {
     async json(messages) {
       const system = messages[0]?.content ?? "";
       if (system.includes("comes back to their story after a break")) return { recap: "上回说到，风雪还没停。" };
+      if (system.includes("talking with the player outside the story")) {
+        const question = /Player: (.*)$/.exec(messages.at(-1)!.content)?.[1] ?? "";
+        return { answer: `You ask "${question}". I keep my counsel.` };
+      }
       if (system.includes("before the dice are rolled")) {
         const tries = /tries: (.*)$/.exec(messages.at(-1)!.content)?.[1] ?? "";
         return /climb|steal|fight/i.test(tries) ? { risky: true, what: "the climb", difficulty: "hard" } : { risky: false };
