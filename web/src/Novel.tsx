@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api.ts";
 import { lang, t } from "./i18n.ts";
 
@@ -23,6 +23,9 @@ export function Novel({
   const [chapters, setChapters] = useState<(Chapter | undefined)[]>(kept);
   const [writing, setWriting] = useState<number | null>(null);
   const [error, setError] = useState("");
+  // Closed, it stops writing: the rest is not asked for.
+  const closed = useRef(false);
+  useEffect(() => () => void (closed.current = true), []);
   const label = (n: number) => {
     const from = n * 10 + 1;
     const to = Math.min((n + 1) * 10, turns);
@@ -44,16 +47,16 @@ export function Novel({
     }
   };
   const writeAll = async () => {
-    for (let n = 0; n < count; n++) if (!chapters[n] && !(await write(n))) return;
+    for (let n = 0; n < count && !closed.current; n++) if (!chapters[n] && !(await write(n))) return;
   };
   const save = () => {
     const text = chapters
-      .map((c, n) => c && `${lang === "zh" ? `第 ${n + 1} 章` : `Chapter ${n + 1}`}　${c.title}\n\n${c.text}`)
+      .map((c, n) => c && `${lang === "zh" ? `第 ${n + 1} 章` : `Chapter ${n + 1}`}${c.title ? `　${c.title}` : ""}\n\n${c.text}`)
       .filter(Boolean)
       .join("\n\n\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([`${name}\n\n\n${text}\n`], { type: "text/plain;charset=utf-8" }));
-    link.download = `${name.replace(/[\\/:*?"<>|]/g, "_")}.txt`;
+    link.download = `${name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim() || "novel"}.txt`;
     link.click();
     URL.revokeObjectURL(link.href);
   };

@@ -947,18 +947,24 @@ export function createApi(
           const whole = to - from + 1 === CHAPTER_TURNS;
           const kept = whole ? store.node(path[to]!.id)!.chapter : undefined;
           if (kept) return send(res, 200, kept);
-          let text = "";
-          for (let attempt = 0; attempt < 2 && !text.trim(); attempt++) {
-            text = "";
+          // A title alone on the first line, then the chapter; a reply without one is all chapter.
+          const read = (reply: string) => {
+            const [first = "", ...rest] = fullWidth(reply).trim().split("\n");
+            const title = first.replace(/^[#*\s]+|[*\s]+$/g, "");
+            return title.length <= 30 && rest.join("").trim()
+              ? { from, title, text: rest.join("\n").trim() }
+              : { from, title: "", text: fullWidth(reply).trim() };
+          };
+          let chapter = read("");
+          for (let attempt = 0; attempt < 2 && !chapter.text; attempt++) {
+            let text = "";
             try {
               for await (const piece of writer.stream(chapterMessages(world(s.worldId), path, from, to))) text += piece;
             } catch (error) {
               console.warn("chapter.failed", error instanceof Error ? error.message : error);
-              text = "";
             }
+            chapter = read(text);
           }
-          const [title = "", ...rest] = fullWidth(text).trim().split("\n");
-          const chapter = { from, title: title.replace(/^[#*\s]+|[*\s]+$/g, ""), text: rest.join("\n").trim() };
           if (!chapter.text) fail(502, "The model gave no chapter");
           if (whole) store.putNode({ ...store.node(path[to]!.id)!, chapter });
           return send(res, 200, chapter);
@@ -980,8 +986,9 @@ export function createApi(
             writer.json(viewMessages(world(s.worldId), path, turn, character, s.settings), { temperature: 0 });
           const told = fullWidth(str(((await ask().catch(ask)) as Record<string, unknown>).story, 6000)).trim();
           if (!told) fail(502, "The model gave no story");
+          // Told with every secret, it is not kept: later, with the secrets hidden again, it would give them away.
           const node = store.node(path[turn]!.id)!;
-          store.putNode({ ...node, views: { ...node.views, [character]: told } });
+          if (!s.settings.showSecrets) store.putNode({ ...node, views: { ...node.views, [character]: told } });
           return send(res, 200, { story: told });
         }
         case "POST /saves/:id/interview": {

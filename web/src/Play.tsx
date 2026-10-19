@@ -313,7 +313,7 @@ export function Play({ saveId }: { saveId: string }) {
 
   // Who a turn's scene can be seen through: the people its story names, not the one the player played.
   const seen = (node: TurnNode) =>
-    state.characters.filter(
+    (node.state ?? state).characters.filter(
       (c) =>
         c.id !== node.actor &&
         [c.name, ...c.name.split(/[·・\s]+/)].some((part) => part.length >= 2 && node.story.includes(part)),
@@ -584,7 +584,10 @@ export function Play({ saveId }: { saveId: string }) {
           turns={path.length - 1}
           kept={Array.from({ length: Math.ceil((path.length - 1) / 10) }, (_, n) => path[(n + 1) * 10]?.chapter)}
           name={`${world.title} · ${save.title}`}
-          onClose={() => setNovelOpen(false)}
+          onClose={() => {
+            setNovelOpen(false);
+            void load(); // the chapters it kept come back with the turns
+          }}
         />
       )}
       {mapOpen && (

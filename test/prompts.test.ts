@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultSettings, type TurnNode, type World } from "../shared/types.ts";
 import { normalizeDraft } from "../server/app.ts";
-import { fullWidth, hookMessages, interviewMessages, narrationMessages, timeJump } from "../server/prompts.ts";
+import { fullWidth, hookMessages, interviewMessages, narrationMessages, timeJump, viewMessages } from "../server/prompts.ts";
 
 const world = (rules?: string): World =>
   ({
@@ -137,4 +137,16 @@ test("an interviewee hears only their own secrets and nothing done out of their 
   assert.doesNotMatch(all, /Lan sold the boat|Burned the letter/);
   assert.match(all, /never state it plainly/);
   assert.match(interviewMessages(w, [opening, turn], "c1", [], "Well?", true)[0]!.content, /say what you know frankly/);
+});
+
+test("another's eyes are given their secrets only when the player sees every secret", () => {
+  const w = world();
+  w.state.characters.push({ id: "c1", name: "Mei", persona: "", goals: "", placeId: null, notes: "", knows: ["s1"] });
+  w.state.facts.push({ id: "s1", text: "Mei hid the ledger.", secret: true, revealed: false, source: "author" });
+  const turn = { ...opening, story: "Mei pours the tea.", state: w.state };
+  const told = (showSecrets: boolean) =>
+    viewMessages(w, [opening, turn], 1, "c1", { ...defaultSettings, showSecrets }).map((m) => m.content).join("\n");
+  assert.doesNotMatch(told(false), /hid the ledger/);
+  assert.match(told(true), /hid the ledger/);
+  assert.match(told(false), /It ends where the passage ends, at: "Mei pours the tea\."/);
 });

@@ -252,6 +252,11 @@ test("a turn told through another's eyes is written once, kept, and changes noth
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ node: before.path[0]!.id, character: "c2" }),
   });
   assert.equal(opening.status, 400, "the opening has no one's turn to see again");
+  // Told with every secret shown, it is not kept for when they are hidden again.
+  await call("PATCH", `/saves/${save.id}`, { settings: { showSecrets: true } });
+  await call("POST", `/saves/${save.id}/view`, { node: node.id, character: "c1" });
+  const later = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.deepEqual(Object.keys(later.path.at(-1)!.views ?? {}), ["c2"]);
 });
 
 test("the play makes chapters of ten turns; a whole one is kept, the one still played is not", async () => {

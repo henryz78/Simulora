@@ -34,12 +34,13 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
           <p className="muted">{t("No ties recorded yet.")}</p>
         ) : (
           <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={t("Relationship map")}>
-            {state.relationships.map((x) => {
-              const a = at.get(x.a)!;
-              const b = at.get(x.b)!;
+            {state.relationships.map((x, i) => {
+              const a = at.get(x.a);
+              const b = at.get(x.b);
+              if (!a || !b || a === b) return null; // a tie to no one known, or to oneself, is not drawn
               const lit = x.a === picked || x.b === picked;
               return (
-                <line key={`${x.a}-${x.b}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={lit ? "tie lit" : "tie"}>
+                <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={lit ? "tie lit" : "tie"}>
                   <title>{`${name(x.a)} · ${name(x.b)}：${x.text}`}</title>
                 </line>
               );
@@ -60,8 +61,8 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
         )}
         {picked && mine.length > 0 && (
           <ul>
-            {mine.map((x) => (
-              <li key={`${x.a}-${x.b}`}>
+            {mine.map((x, i) => (
+              <li key={i}>
                 <strong>{name(x.a === picked ? x.b : x.a)}</strong>：{x.text}
               </li>
             ))}
