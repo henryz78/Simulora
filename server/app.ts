@@ -532,7 +532,13 @@ export function createApi(
         const did = str(v.did, 600).trim();
         return character && did ? [{ character, did }] : [];
       });
-      return { items: items.slice(0, passed ? 5 : 3), changes: parseChanges(report.changes) };
+      // On a jump, where everyone away is now, as moves; the changes' own moves come after and win.
+      const where = passed && report.where && typeof report.where === "object" ? Object.entries(report.where) : [];
+      // The same checks as any move, and no place without a letter in it ("…", "-").
+      const moves = parseChanges(where.map(([character, place]) => ({ type: "move", character, place }))).filter(
+        (c) => c.type === "move" && /[\p{L}\p{N}]/u.test(c.place),
+      );
+      return { items: items.slice(0, passed ? 5 : 3), changes: [...moves, ...parseChanges(report.changes)] };
     } catch (error) {
       console.warn("meanwhile.failed", error instanceof Error ? error.message : error);
       return null;
@@ -605,11 +611,12 @@ export function createApi(
     // player skips days or months, first, so the story is told from where they got to.
     const mine = placedOne(from, actor);
     const me = resumed.characters.find((c) => c.name === mine);
-    const scene = me ? sceneOf(resumed, me.id, `${input}\n${head.story}`) : null;
     const passed = timeJump(input);
     // Someone placed nowhere is away too unless the action or the last turn names them: a world's author often places
-    // only a few, and a new game's meanwhile moved one person in a week (2026-10-19).
-    const lately = `${input}\n${head.story}`;
+    // only a few, and a new game's meanwhile moved one person in a week (2026-10-19). After a jump in time the last
+    // turn is over: those it named stayed "in the scene" for three days and were never moved (2026-10-19).
+    const lately = passed ? input : `${input}\n${head.story}`;
+    const scene = me ? sceneOf(resumed, me.id, lately, !!passed) : null;
     const out = (c: Character) => (c.placeId ? !scene!.includes(c.placeId) : !mentions(lately, c.name));
     const away =
       scene && s.settings.meanwhile !== false && (passed || path.length % MEANWHILE_TURNS === 0)

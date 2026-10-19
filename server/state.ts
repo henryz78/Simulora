@@ -365,14 +365,22 @@ export function mentions(text: string, name: string): boolean {
  * The places this turn plays in when `actor` acts: their own, and any place or person the player's action names (it
  * may go there or call them in). Null for the director or someone nowhere in particular: then everything is told.
  */
-export function sceneOf(state: WorldState, actor: string, input = ""): string[] | null {
+export function sceneOf(state: WorldState, actor: string, input = "", afterJump = false): string[] | null {
   const own = state.characters.find((c) => c.id === actor)?.placeId;
   if (!own) return null;
   const names = (name: string) => mentions(input, name);
+  const places = state.places.filter((p) => p.name && names(p.name)).map((p) => p.id);
   const named = [
-    ...state.places.filter((p) => p.name && names(p.name)).map((p) => p.id),
-    ...state.characters.filter((c) => c.name && c.placeId && !c.gone && names(c.name)).map((c) => c.placeId!),
+    ...places,
+    // Not the player's own name: a director's "三天后……塔玛辛在大礼堂" kept her old place in the scene (2026-10-19).
+    ...state.characters
+      .filter((c) => c.id !== actor && c.name && c.placeId && !c.gone && names(c.name))
+      .map((c) => c.placeId!),
   ];
+  // Days later the scene is wherever the player now says they are; where they were stays unless they name a place
+  // ("a week later Lan comes to see me" names a person, and the player is where they were).
+  // ponytail: a place named in passing ("I hear the mill burned") counts as going there; read the verb if it matters.
+  if (afterJump && places.length) return [...new Set(named)];
   return [...new Set([own, ...named])];
 }
 

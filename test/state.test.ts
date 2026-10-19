@@ -219,3 +219,18 @@ test("a d20 settles an attempt by its difficulty: harder fails more and comes of
   assert.deepEqual([share("normal", "success"), share("normal", "cost"), share("normal", "fail")], [0.45, 0.3, 0.25]);
   assert.deepEqual([share("hard", "success"), share("hard", "cost"), share("hard", "fail")], [0.25, 0.3, 0.45]);
 });
+
+test("days later the scene is where the player now says they are, not where they were", () => {
+  const state = world();
+  state.places.push({ id: "p2", name: "Hall", description: "" });
+  assert.deepEqual(sceneOf(state, "c1", "Three days later, at breakfast in the Hall", true), ["p2"]);
+  assert.deepEqual(sceneOf(state, "c1", "Three days later", true), ["p1"], "named nowhere: where they were");
+  assert.deepEqual(sceneOf(state, "c1", "Three days later Qing comes by", true), ["p1"], "a person named: still there");
+  assert.deepEqual(sceneOf(state, "c1", "I go to the Hall"), ["p1", "p2"], "no jump: where they were, too");
+});
+
+test("the player's own name pulls no place in: they are where they are", () => {
+  const state = world();
+  state.places.push({ id: "p2", name: "Hall", description: "" });
+  assert.deepEqual(sceneOf(state, "c1", "Three days later Zhou eats in the Hall", true), ["p2"]);
+});

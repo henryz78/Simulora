@@ -139,9 +139,12 @@ const style: Record<Settings["style"], string> = {
 };
 
 /** Each turn stops where the player can act again, so the story never runs past what they would change. */
+// A turn the dice failed had the player's character give her name and an excuse to the teacher who asked (2026-10-19).
 const STOP =
   "Carry out only this action and the immediate response to it, then stop at the next moment the player could " +
-  "act or reply: a question, a door opening, a choice. Do not jump ahead or play out what comes after.";
+  "act or reply: a question, a door opening, a choice. Do not jump ahead or play out what comes after. The " +
+  "player's character says and does nothing the player did not write: when someone asks them something, the " +
+  "passage ends on the question.";
 
 // Kept short, so the record arrives soon after the story: only the changes that matter, short texts, and a note
 // only on a reveal (for the discovery book).
@@ -297,7 +300,12 @@ export function narrationMessages(
   const from = storyFrom(path);
   const user = [
     // Someone met in the last turn stays whole, also far away: a talk by phone or letter goes on without their name.
-    worldHeader(world, state, { scene: sceneOf(state, actor, `${input}\n${path.at(-1)?.story ?? ""}`) }),
+    // After a jump in time, the scene the storyteller sees is the one the people away were judged by: the new place.
+    worldHeader(world, state, {
+      scene: timeJump(input)
+        ? sceneOf(state, actor, input, true)
+        : sceneOf(state, actor, `${input}\n${path.at(-1)?.story ?? ""}`),
+    }),
     "",
     // Like WorldOS's 重要事实 (2026-10-18): the player's own fallback when the memory misses something.
     ...(notes.trim() ? ["The player's notes (true in this story, never forget them):", notes.trim(), ""] : []),
@@ -396,7 +404,11 @@ export function meanwhileMessages(world: World, path: TurnNode[], away: string[]
             ? `Time is skipped now: ${passed} (as the player puts it). Pick one to five of them whose goals, fears or ` +
               "plans would move them over that time, and tell what each got done or went through in it: as much as " +
               "such a person would in so long a time, true to who they are and to what they know, and the world " +
-              "around them changed by it (a shop closed, a letter sent, a quarrel made up, someone gone away)."
+              "around them changed by it (a shop closed, a letter sent, a quarrel made up, someone gone away). " +
+              // Asked among the changes, a three-day jump moved three of six people left where the last scene was.
+              '"where" gives, for every one of the people away, where they are now that the time has passed, ' +
+              "the ones who did nothing worth telling too (back where they live or work): a listed place's name " +
+              "copied whole, or a short new name."
             : "Pick one to three of them whose goals, fears or plans would have them do something now, and tell what " +
               "each did since the story last showed them: one small, concrete step, the next thing such a person " +
               "would do (a letter written, a door locked, a walk to another place, a talk with someone else away), " +
@@ -405,7 +417,7 @@ export function meanwhileMessages(world: World, path: TurnNode[], away: string[]
           "secrets, never explain them.",
         CONTENT_LINE,
         "Write in the world's own language. Return one JSON object:",
-        `{"meanwhile": [{"character": name, "did": "${passed ? "two or three sentences" : "one or two sentences"}"}], "changes": [...]}`,
+        `{"meanwhile": [{"character": name, "did": "one or two short sentences, at most 60 Chinese characters (40 English words)"}], ${passed ? '"where": {name: place, ...}, ' : ""}"changes": [...]}`,
         '"changes" records only what those steps changed, refer to people and places by name, with only these shapes:',
         '- {"type":"move","character":name,"place":name}  (a listed place\'s name copied whole, exactly as listed, or a ' +
           "short new name for somewhere else)",
@@ -459,7 +471,9 @@ export function riskMessages(world: World, path: TurnNode[], actor: string, inpu
         "allowed or asked to go, looking, asking someone willing, waiting and ordinary work are not risky. Judge the difficulty by who tries it, against whom, " +
         "and how, from the world and the story so far. Say also, in one plain sentence each in the world's language, " +
         "what success would mean here (the player gets what they tried for: the guard is fooled, they are not seen, " +
-        "he names the buyer) and what failure would mean. Return one JSON object: " +
+        "he names the buyer) and what failure would mean: only how this attempt turns out and how others take it, " +
+        "never a further move or word of the player's character (a peek that succeeds sees, it does not also slip " +
+        "back). Return one JSON object: " +
         '{"risky": true or false, "what": "the attempt in a few words", "difficulty": "easy" | "normal" | "hard", ' +
         '"success": "…", "fail": "…"}',
     },

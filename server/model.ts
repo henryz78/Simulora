@@ -298,6 +298,7 @@ export function fakeModel(): Model {
         const name = /Away from the player's scene now: ([^,.]+)/.exec(messages.at(-1)!.content)?.[1] ?? "";
         return {
           meanwhile: [{ character: name, did: "Locked the back door." }],
+          ...(system.includes('"where" gives') && { where: { [name]: "Cellar" } }),
           changes: [
             { type: "status", character: name, notes: "Behind a locked door" },
             { type: "persona", character: name, persona: "Someone else" }, // not the step's to change
