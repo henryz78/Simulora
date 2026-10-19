@@ -178,6 +178,9 @@ export function narrationMessages(
 ): Message[] {
   const state = path.at(-1)!.state;
   const name = actorName(state, actor);
+  // Who the player has been playing: a director's turn leaves them be (a real play-test, 2026-10-19: a director's
+  // "meanwhile, in her office..." went on into the library and had the player's own character speak and decide).
+  const played = name ? null : actorName(state, path.findLast((node) => node.actor !== "director")?.actor ?? "");
   const voice = !name
     ? "Write in the third person as an all-seeing narrator."
     : settings.person === "second"
@@ -189,7 +192,8 @@ export function narrationMessages(
     name
       ? `The player plays ${name} this turn. Carry out what they wrote for ${name}, with natural detail, but ` +
         `${name} decides nothing more: that is the player's choice.`
-      : "The player is the director this turn: what they write simply happens in the world.",
+      : "The player is the director this turn: what they write simply happens in the world." +
+        (played ? ` ${played} is the player's own character: they say and decide nothing new this turn.` : ""),
     // Found in a real play-test (2026-10-18): the story retold the player's lines word for word, and a teacher in
     // his office knew what the player had just done in the library.
     "The player's words are shown right above your story: do not repeat or retell them; go on from them, with " +
@@ -250,7 +254,7 @@ export function narrationMessages(
     // to the length of the earlier turns, a little longer each time (about 520 characters at turn 9 of a real game,
     // 640 and up to 870 at turn 19, for the same action). A bare "(Length: ...)" line here broke the JSON reply.
     // Late in a long game 2 of 10 replies stopped after the story; naming the three keys here, 0 of 10.
-    `Now write this turn as one JSON object as asked, with all three keys: the story, then "changes", then "hooks".${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran.`,
+    `Now write this turn as one JSON object as asked, with all three keys: the story, then "changes", then "hooks".${input.trim() ? " The player has read their action already: go on from it, do not repeat their words." : ""} The story is ${size[settings.length]}, at most ${limit[settings.length]}, however long the turns above ran and however much happens: tell one scene closely and the rest in a line.`,
   ].join("\n");
   return [
     { role: "system", content: system },
@@ -379,13 +383,14 @@ export function chronicleMessages(world: World, path: TurnNode[], count: number)
 export const MAX_NOTES = 20;
 
 /** Asks for the memory folded down to `MAX_NOTES` notes. */
-export function foldMessages(world: World, notes: MemoryNote[]): Message[] {
+export function foldMessages(world: World, notes: MemoryNote[], keep = MAX_NOTES): Message[] {
   return [
     {
       role: "system",
       content:
-        `You keep the long-term memory of a story world. It has ${notes.length} notes; keep at most ${MAX_NOTES}, ` +
-        `each one sentence of at most about 60 Chinese characters. Fold notes about the same thing together. ` +
+        `You keep the long-term memory of a story world. It has ${notes.length} notes; keep at most ${keep}, ` +
+        `each one sentence of at most about 60 Chinese characters. Fold notes about the same thing together, and ` +
+        `drop what merely happened or what someone merely said (the timeline tells it). ` +
         `${MEMORY_KINDS}\nReturn one JSON object: ` +
         '{"memory": ["[Turn 12] ...", ...]}, oldest first, each starting with the one turn it last changed in. ' +
         "Write in the world's own language.\n" +

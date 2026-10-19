@@ -150,3 +150,23 @@ test("older turns let go of their state but for one per timeline step, and canno
   const refused = await game.undo(view.path[1]!.id);
   assert.match((refused as unknown as { error: string }).error, /too far back/);
 });
+
+test("a memory that grows by more than four notes (eight at the start) is folded", async () => {
+  const folds: string[] = [];
+  const chatty: Model = {
+    async *stream(messages, options) {
+      const system = messages[0]!.content;
+      if (system.includes("timeline and the long-term memory")) {
+        yield JSON.stringify({ timeline: "Much happened.", memory: Array.from({ length: 12 }, (_, i) => `[Turn ${i % 3}] Note ${i}.`) });
+      } else if (system.includes("keep at most")) {
+        folds.push(system);
+        yield JSON.stringify({ memory: ["[Turn 1] Folded one.", "[Turn 2] Folded two."] });
+      } else yield* fake.stream(messages, options);
+    },
+    json: fake.json,
+  };
+  const game = await start({ thinker: chatty });
+  const { path } = await game.play(1, 2);
+  assert.match(folds[0] ?? "", /It has 12 notes; keep at most 8,/);
+  assert.deepEqual(path[2]!.memory!.map((n) => n.text), ["Folded one.", "Folded two."]);
+});

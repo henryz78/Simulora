@@ -435,10 +435,13 @@ export function createApi(
       if (notes.length < before.length / 4) throw new Error(`The memory came back with ${notes.length} notes`);
       return { text, notes };
     });
-    // Told "at most 20", the model still wrote 17 notes for the first ten turns (2026-10-18); a long list is folded.
-    if (notes.length > MAX_NOTES) {
+    // Told "at most 20" and "ten turns add at most four", the model still wrote 14-17 notes for the first ten turns
+    // (2026-10-18/19), half of them retelling the timeline: a list that grew by more than four (eight at the start)
+    // is folded.
+    const keep = Math.min(MAX_NOTES, Math.max(8, before.length + 4));
+    if (notes.length > keep) {
       const folded = await carefully(async (by) =>
-        parseNotes((await streamJson(by, foldMessages(w, notes))).memory, end),
+        parseNotes((await streamJson(by, foldMessages(w, notes, keep))).memory, end),
       ).catch(() => []);
       notes = (folded.length ? folded : notes).slice(-MAX_NOTES);
     }
