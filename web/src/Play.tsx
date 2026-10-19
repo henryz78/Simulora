@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Change, Dice, NodeSummary, SaveView, Settings, TurnNode, WorldState } from "../../shared/types.ts";
 import { api, playTurn } from "./api.ts";
+import { Graph } from "./Graph.tsx";
 import { lang, t } from "./i18n.ts";
 
 const sep = lang === "zh" ? "：" : ": ";
@@ -143,6 +144,7 @@ export function Play({ saveId }: { saveId: string }) {
       )
       .finally(() => setAsking(false));
   };
+  const [mapOpen, setMapOpen] = useState(false);
   // A turn told again through another character's eyes: what is shown, and what is being written.
   const [views, setViews] = useState<Record<string, { who: string; story: string }>>({});
   const [viewing, setViewing] = useState<string | null>(null);
@@ -573,6 +575,13 @@ export function Play({ saveId }: { saveId: string }) {
         </form>
       </section>
 
+      {mapOpen && (
+        <Graph
+          state={state}
+          me={(head.actor !== "director" && head.actor) || path.findLast((n) => n.actor !== "director")?.actor || null}
+          onClose={() => setMapOpen(false)}
+        />
+      )}
       {panel && (
         <aside className="side">
           <div className="side-head">
@@ -732,7 +741,12 @@ export function Play({ saveId }: { saveId: string }) {
 
               {state.relationships.length > 0 && (
                 <>
-                  <h3>{t("Relationships")}</h3>
+                  <h3>
+                    {t("Relationships")}{" "}
+                    <button className="link small" onClick={() => setMapOpen(true)}>
+                      {t("Relationship map")}
+                    </button>
+                  </h3>
                   <ul>
                     {state.relationships.map((r) => (
                       <li key={`${r.a}-${r.b}`}>

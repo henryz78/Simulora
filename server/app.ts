@@ -574,7 +574,7 @@ export function createApi(
     Promise.race([step, new Promise<null>((done) => setTimeout(done, ms, null).unref())]);
 
   /**
-   * What the offstage step may change: where people away are, how they are, their ties and their leaving, never anyone
+   * What the offstage step may change: where people away are, how they are and their ties, never anyone
    * else's and never by moving them into the player's scene (`here`: its places, where the player is or is going).
    */
   const offstageOnly = (state: TurnNode["state"], keep: (name: string) => boolean, here: (string | null | undefined)[]) =>
@@ -584,7 +584,9 @@ export function createApi(
         const to = placeNamed(state, c.place)?.id;
         return keep(c.character) && !(to && here.includes(to));
       }
-      return (c.type === "status" || c.type === "leave") && keep(c.character);
+      // Not a leave: kept in the library to write lines came back as leaving the story (2026-10-20); someone leaves it
+      // in the story, or by the director's word.
+      return c.type === "status" && keep(c.character);
     };
 
   function readRecord(reply: string, before: TurnNode["state"], who: string | null) {

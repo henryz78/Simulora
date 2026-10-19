@@ -423,7 +423,6 @@ export function meanwhileMessages(world: World, path: TurnNode[], away: string[]
           "short new name for somewhere else)",
         '- {"type":"status","character":name,"notes":"how they are now, a few words"}',
         '- {"type":"relationship","a":name,"b":name,"text":"how they stand now"}',
-        '- {"type":"leave","character":name,"note":"how they left the story"}  (only when they leave it for good)',
       ].join("\n"),
     },
     {

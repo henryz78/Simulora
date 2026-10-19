@@ -99,6 +99,8 @@ const zh: Record<string, string> = {
   Meanwhile: "与此同时",
   Previously: "上回说到",
   Interview: "访谈",
+  "Relationship map": "关系图",
+  "No ties recorded yet.": "还没有记下谁和谁的关系。",
   "Another's eyes": "换个视角",
   "Through the eyes of": "从这个人的角度看：",
   "Unknown turn": "找不到这一回合",
