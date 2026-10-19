@@ -71,6 +71,10 @@ function Elapsed({ since }: { since: number }) {
   );
 }
 
+// What people say, in “”, 「」 or the model's stray "": coloured like WorldOS's, so speech stands out from the
+// telling. A quote still being written is coloured to its end.
+const SPEECH = /(“[^”]*(?:”|$)|「[^」]*(?:」|$)|"[^"]*(?:"|$))/;
+
 function Paragraphs({ text }: { text: string }) {
   return (
     <>
@@ -78,7 +82,9 @@ function Paragraphs({ text }: { text: string }) {
         .split(/\n+/)
         .filter((p) => p.trim())
         .map((p, i) => (
-          <p key={i}>{p}</p>
+          <p key={i}>
+            {p.split(SPEECH).map((part, j) => (j % 2 ? <span key={j} className="speech">{part}</span> : part))}
+          </p>
         ))}
     </>
   );
@@ -595,6 +601,16 @@ export function Play({ saveId }: { saveId: string }) {
                   <option value="auto">{t("Standard length")}</option>
                   <option value="short">{t("Shorter")}</option>
                   <option value="long">{t("Longer")}</option>
+                </select>
+              </label>
+              <label>
+                {t("Writing")}
+                <select
+                  value={save.settings.style ?? "plain"}
+                  onChange={(e) => changeSettings({ style: e.target.value as Settings["style"] })}
+                >
+                  <option value="plain">{t("Plain and clear")}</option>
+                  <option value="literary">{t("Literary")}</option>
                 </select>
               </label>
               <label className="check">

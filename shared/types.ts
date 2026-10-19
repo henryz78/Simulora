@@ -77,6 +77,8 @@ export interface Settings {
   person: "third" | "second";
   pace: "calm" | "medium" | "intense";
   length: "auto" | "short" | "long";
+  /** "plain" reads at once; "literary" is richer, with more left between the lines. */
+  style: "plain" | "literary";
   showSecrets: boolean;
   /** The story model thinks before it writes: better plotted, but the first words take 30-80 s. */
   thinking: boolean;
@@ -88,6 +90,7 @@ export const defaultSettings: Settings = {
   person: "third",
   pace: "medium",
   length: "auto",
+  style: "plain",
   showSecrets: false,
   thinking: false,
   meanwhile: true,

@@ -122,8 +122,21 @@ const limit: Record<Settings["length"], string> = {
   long: "1,000 Chinese characters (650 English words)",
 };
 const length = (choice: Settings["length"]) =>
-  `Write ${size[choice]}, with concrete detail and the others' words and reactions, never just a sentence or two. ` +
+  `Write ${size[choice]}, with the others' words and reactions, never just a sentence or two. ` +
   "Earlier passages may be longer; do not match their length.";
+
+// The player, 2026-10-19: the story read too deep to follow; WorldOS reads at once ("满是感激", "我是哈利……谢谢你").
+// The richer writing stays, for whoever wants it.
+const style: Record<Settings["style"], string> = {
+  // Asked for "few metaphors", a long game's turns still came back with three or four (2026-10-19): a number holds.
+  plain:
+    "Write plainly, like a popular web novel, so the player gets it at once: say what happens, who does what and " +
+    "why, and how people feel in plain words (he is relieved, she is angry). Short sentences and everyday words, " +
+    "at most one comparison (像……) in the whole passage. People say what they mean; someone who hides something " +
+    "does it so the reader can tell. One thing moves forward each turn, with at most one new question or hint. " +
+    "Write this way even where the passages above are written otherwise.",
+  literary: "Write with concrete detail: let what people do and leave unsaid show who they are.",
+};
 
 /** Each turn stops where the player can act again, so the story never runs past what they would change. */
 const STOP =
@@ -239,6 +252,7 @@ export function narrationMessages(
     voice,
     length(settings.length),
     STOP,
+    style[settings.style ?? "plain"],
     SECRETS,
     "Stay consistent with the world and the story so far, and write in the world's own language.",
     // After a 64K trim a long game's pawn ticket was asked about; the merged timeline had lost what it said, and the

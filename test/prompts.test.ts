@@ -84,3 +84,10 @@ test("what people did out of the scene goes to the storyteller, not to the hooks
   assert.match(all(narrationMessages(world(), [opening, turn], "director", "", defaultSettings)), /Meanwhile[^\n]*Lan: Locked/);
   assert.doesNotMatch(all(hookMessages(world(), [opening, turn])), /Locked the back door/);
 });
+
+test("the player picks how the story reads: plain by default, or literary", () => {
+  const system = (settings: typeof defaultSettings) => narrationMessages(world(), [opening], "director", "", settings)[0]!.content;
+  assert.match(system(defaultSettings), /gets it at once/);
+  assert.doesNotMatch(system({ ...defaultSettings, style: "literary" }), /gets it at once/);
+  assert.match(system({ ...defaultSettings, style: "literary" }), /concrete detail/);
+});

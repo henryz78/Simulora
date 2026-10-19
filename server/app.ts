@@ -184,6 +184,7 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
     person: pick(v.person, ["third", "second"], current.person),
     pace: pick(v.pace, ["calm", "medium", "intense"], current.pace),
     length: pick(v.length, ["auto", "short", "long"], current.length),
+    style: pick(v.style, ["plain", "literary"], current.style ?? "plain"),
     showSecrets: typeof v.showSecrets === "boolean" ? v.showSecrets : current.showSecrets,
     thinking: typeof v.thinking === "boolean" ? v.thinking : (current.thinking ?? false),
     meanwhile: typeof v.meanwhile === "boolean" ? v.meanwhile : (current.meanwhile ?? true),

@@ -5,6 +5,7 @@
   --muted: #7a746a;
   --line: #ddd6c8;
   --accent: #8a3b24;
+  --speech: #2d5a87;
   --serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
   --sans: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--ink);
@@ -408,4 +409,8 @@ button.chip {
   border-radius: 999px;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.speech {
+  color: var(--speech);
 }
