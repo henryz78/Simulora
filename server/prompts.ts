@@ -172,7 +172,7 @@ and places by name, to facts and threads by [id], keep every text short, and use
 - {"type":"clock","text":"the new time, a few words"}  (always when time moves on: a later hour, the next day,
   a jump of days)
 "hooks" gives two or three short, different next steps (another person, another place, a bolder move), written
-as actions in the world's language.`;
+as actions in the world's language, each under about 25 Chinese characters (15 English words).`;
 
 /** Hooks are moves for whoever the player is playing, not for the story's main character. */
 function hooksFor(state: WorldState, actor: string): string {
@@ -246,6 +246,9 @@ export function narrationMessages(
       "what happens next and how the others respond.",
     "Every other character is yours: they act, speak and decide on their own goals and moods. Each knows only " +
       "what they have seen, heard or been told: someone who was elsewhere does not know what just happened.",
+    // Vane said her persona's "日期。地点。然后呢？" word for word on every entrance in three games (2026-10-19).
+    "A line quoted in someone's persona shows how they talk: let it come back now and then, and in other words, " +
+      "never as what they say every time they appear.",
     // The player, 2026-10-19: a world that keeps the cast it started with goes stale as the story moves on.
     "The cast is not fixed. When the story reaches a new place or a new matter, the people who belong there come " +
       "in, with names and wants of their own; and someone whose part is over can leave the story (moves away, quits, " +
@@ -450,9 +453,10 @@ export function riskMessages(world: World, path: TurnNode[], actor: string, inpu
       role: "system",
       content:
         "You judge an action in a story game before the dice are rolled. It is risky only when its outcome is truly " +
-        "uncertain and failing would matter: a climb, a fight, a theft, sneaking past someone, a lie to someone who " +
-        "may see through it, persuading someone set against it, a spell or a feat under pressure. Talking, walking, " +
-        "looking, asking, waiting and ordinary work are not risky. Judge the difficulty by who tries it, against whom, " +
+        "uncertain and failing would matter: a climb, a fight, a theft, sneaking past someone or hiding from someone " +
+        "who may find them, a lie to someone who may see through it, persuading someone set against it or pressing " +
+        "them for what they will not say, a spell or a feat under pressure. Talking, walking, going where they are " +
+        "allowed or asked to go, looking, asking someone willing, waiting and ordinary work are not risky. Judge the difficulty by who tries it, against whom, " +
         "and how, from the world and the story so far. Say also, in one plain sentence each in the world's language, " +
         "what success would mean here (the player gets what they tried for: the guard is fooled, they are not seen, " +
         "he names the buyer) and what failure would mean. Return one JSON object: " +
@@ -481,7 +485,8 @@ export function hookMessages(world: World, path: TurnNode[], actor = path.at(-1)
       role: "system",
       content:
         'Suggest what the player could do next in this story world. Return one JSON object: {"hooks": [two or ' +
-        "three short, different next steps, written as actions in the world's language]}. A hook must not give " +
+        "three short, different next steps, written as actions in the world's language, each under about 25 " +
+        "Chinese characters (15 English words)]}. A hook must not give " +
         "away a secret the player has not discovered.\n" +
         hooksFor(state, actor) +
         (world.rules?.trim() ? `\nThe author's rules for this world (the hooks follow any kinds of options they describe):\n${world.rules.trim()}` : ""),

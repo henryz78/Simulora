@@ -187,3 +187,17 @@ test("with the dice on, a risky attempt is settled by a die; an ordinary act or 
   assert.equal((await playTurn(save.id, "director", "Zhou climbs the wall")).node.dice, undefined, "a director's turn");
   assert.equal((await playTurn(save.id, "c1", "I look around")).node.dice, undefined, "no gamble");
 });
+
+test("someone placed nowhere and not named lately can act away too", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Unplaced", opening: "Rain.",
+    state: { places: [{ id: "p1", name: "Inn" }], characters: [{ id: "c1", name: "Zhou", placeId: "p1" }, { id: "c2", name: "Moss" }] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  let node!: TurnNode;
+  for (let turn = 1; turn <= 5; turn++) ({ node } = await playTurn(save.id, "c1", "wait"));
+  assert.deepEqual(node.meanwhile?.map((m) => m.character), ["Moss"]);
+  // Named by the action, they may be right here: not away.
+  for (let turn = 6; turn <= 10; turn++) ({ node } = await playTurn(save.id, "c1", turn === 10 ? "I call Moss over" : "wait"));
+  assert.equal(node.meanwhile, undefined);
+});

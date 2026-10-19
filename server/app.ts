@@ -51,6 +51,7 @@ import {
   bury,
   carrySecrets,
   inPlay,
+  mentions,
   newId,
   outcomeOf,
   parseChanges,
@@ -606,9 +607,13 @@ export function createApi(
     const me = resumed.characters.find((c) => c.name === mine);
     const scene = me ? sceneOf(resumed, me.id, `${input}\n${head.story}`) : null;
     const passed = timeJump(input);
+    // Someone placed nowhere is away too unless the action or the last turn names them: a world's author often places
+    // only a few, and a new game's meanwhile moved one person in a week (2026-10-19).
+    const lately = `${input}\n${head.story}`;
+    const out = (c: Character) => (c.placeId ? !scene!.includes(c.placeId) : !mentions(lately, c.name));
     const away =
       scene && s.settings.meanwhile !== false && (passed || path.length % MEANWHILE_TURNS === 0)
-        ? resumed.characters.filter((c) => c !== me && !c.gone && c.placeId && !scene.includes(c.placeId)).map((c) => c.name)
+        ? resumed.characters.filter((c) => c !== me && !c.gone && out(c)).map((c) => c.name)
         : [];
     const early = !!passed && away.length > 0;
     if (busy.has(s.id)) fail(409, "A turn is already being written for this save");
