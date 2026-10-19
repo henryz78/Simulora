@@ -142,6 +142,8 @@ export interface TurnNode {
   recordsFailed?: boolean;
   /** What people out of the scene did while this turn was played, unseen by the player's character. */
   meanwhile?: { character: string; did: string }[];
+  /** On a turn that skipped time: what the people away changed before the story was written. */
+  offstage?: Change[];
   /**
    * Written every few turns on the last turn they cover: the memory (the most important things, as they stand now)
    * and the timeline (what happened, in order). Later turns find the latest by walking back along their path.

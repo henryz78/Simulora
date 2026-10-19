@@ -40,6 +40,7 @@ import {
   narrationMessages,
   placedOne,
   storyFrom,
+  timeJump,
   tokensOf,
   type PlainDraft,
 } from "./prompts.ts";
@@ -517,21 +518,39 @@ export function createApi(
 
   /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
   /** What some of the people away did, or nothing should the model fail. */
-  async function meanwhileStep(w: World, path: TurnNode[], away: string[]) {
+  async function meanwhileStep(w: World, path: TurnNode[], away: string[], passed: string | null = null) {
     try {
-      const report = (await writer.json(meanwhileMessages(w, path, away))) as Record<string, unknown>;
+      const report = (await writer.json(meanwhileMessages(w, path, away, passed))) as Record<string, unknown>;
       const items = (Array.isArray(report.meanwhile) ? report.meanwhile : []).flatMap((item) => {
         const v = (item ?? {}) as Record<string, unknown>;
         const character = str(v.character, 200).trim();
         const did = str(v.did, 600).trim();
         return character && did ? [{ character, did }] : [];
       });
-      return { items: items.slice(0, 3), changes: parseChanges(report.changes) };
+      return { items: items.slice(0, passed ? 5 : 3), changes: parseChanges(report.changes) };
     } catch (error) {
       console.warn("meanwhile.failed", error instanceof Error ? error.message : error);
       return null;
     }
   }
+
+  /** At most `ms` of waiting for the step; then the turn goes on without it. */
+  const within = <T,>(step: Promise<T>, ms = 40_000) =>
+    Promise.race([step, new Promise<null>((done) => setTimeout(done, ms, null).unref())]);
+
+  /**
+   * What the offstage step may change: where people away are, how they are, their ties and their leaving, never anyone
+   * else's and never by moving them into the player's scene (`here`: its places, where the player is or is going).
+   */
+  const offstageOnly = (state: TurnNode["state"], keep: (name: string) => boolean, here: (string | null | undefined)[]) =>
+    (c: Change) => {
+      if (c.type === "relationship") return keep(c.a) && keep(c.b);
+      if (c.type === "move") {
+        const to = placeNamed(state, c.place)?.id;
+        return keep(c.character) && !(to && here.includes(to));
+      }
+      return (c.type === "status" || c.type === "leave") && keep(c.character);
+    };
 
   function readRecord(reply: string, before: TurnNode["state"], who: string | null) {
     try {
@@ -555,24 +574,43 @@ export function createApi(
       fail(400, "Unknown character");
     const input = str(body.input, 4000).trim();
     // Played again after leaving the story (say, the player goes on as their dead character's ghost): they are back.
-    const before = inPlay(head.state, actor);
-    const played = before === head.state ? path : [...path.slice(0, -1), { ...head, state: before }];
-    // Every few turns the people away from the player's scene act on their own, while the story is written.
-    const mine = placedOne(played, actor);
-    const me = before.characters.find((c) => c.name === mine);
-    const scene = me ? sceneOf(before, me.id, `${input}\n${head.story}`) : null;
+    const resumed = inPlay(head.state, actor);
+    const from = path.with(-1, { ...head, state: resumed });
+    // Every few turns the people away from the player's scene act on their own, while the story is written; when the
+    // player skips days or months, first, so the story is told from where they got to.
+    const mine = placedOne(from, actor);
+    const me = resumed.characters.find((c) => c.name === mine);
+    const scene = me ? sceneOf(resumed, me.id, `${input}\n${head.story}`) : null;
+    const passed = timeJump(input);
     const away =
-      scene && s.settings.meanwhile !== false && path.length % MEANWHILE_TURNS === 0
-        ? before.characters.filter((c) => c !== me && !c.gone && c.placeId && !scene.includes(c.placeId)).map((c) => c.name)
+      scene && s.settings.meanwhile !== false && (passed || path.length % MEANWHILE_TURNS === 0)
+        ? resumed.characters.filter((c) => c !== me && !c.gone && c.placeId && !scene.includes(c.placeId)).map((c) => c.name)
         : [];
+    const early = !!passed && away.length > 0;
     if (busy.has(s.id)) fail(409, "A turn is already being written for this save");
     busy.add(s.id);
-    const offstage = away.length ? meanwhileStep(w, played, away) : null;
+    const offstage = away.length && !early ? meanwhileStep(w, from, away) : null;
 
     res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" });
     const event = (name: string, data: unknown) => res.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
     try {
       const started = Date.now();
+      let before = resumed;
+      let elsewhere: { character: string; did: string }[] = [];
+      let offstageChanges: Change[] = [];
+      if (early) {
+        event("phase", { phase: "passing" });
+        const moved = await within(meanwhileStep(w, from, away, passed));
+        if (moved) {
+          const keep = (name: string) => away.some((a) => same(a, name));
+          offstageChanges = moved.changes.filter(offstageOnly(resumed, keep, scene ?? []));
+          before = applyChanges(resumed, offstageChanges).state;
+          elsewhere = moved.items.filter((m) => keep(m.character));
+          console.log(`meanwhile.passed ${Date.now() - started}ms`, elsewhere.length);
+        }
+        event("phase", { phase: "story" });
+      }
+      const played = path.with(-1, { ...head, state: before });
       let firstAt = 0;
       let storyAt = 0;
       // One JSON reply carries the story, then the turn's changes and hooks. The story is read out of it as it
@@ -604,7 +642,7 @@ export function createApi(
         sent = 0;
         const narrator = s.settings.thinking ? thinker : model;
         try {
-          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes), {
+          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes, elsewhere), {
             json: true,
           })) {
             reply += piece;
@@ -653,22 +691,20 @@ export function createApi(
         hooks,
         state: changed,
         ...(failed && { recordsFailed: true }),
+        // What the skipped time changed off the stage, so the turn can be recorded again from its parent.
+        ...(offstageChanges.length && { offstage: offstageChanges }),
+        // Someone the story then brings into the scene is no longer told as away.
+        ...(elsewhere.length && { meanwhile: elsewhere.filter((m) => stillAway(away, story, applied)(m.character)) }),
         createdAt: now(),
       };
       // Waited for a while at most, and not for a turn whose record failed: asked again, it starts from the parent.
-      const moved = failed ? null : await Promise.race([offstage, new Promise<null>((done) => setTimeout(done, 40_000, null))]);
+      const moved = failed || !offstage ? null : await within(offstage);
       if (moved) {
         // Someone the turn named, touched or now shares the player's place with is in the scene, as the story tells.
         const here = changed.characters.find((c) => c.name === mine)?.placeId;
         const named = stillAway(away, story, applied);
         const keep = (name: string) => named(name) && changed.characters.find((c) => same(c.name, name))?.placeId !== here;
-        const ok = (c: Change) =>
-          c.type === "relationship"
-            ? keep(c.a) && keep(c.b)
-            : c.type === "move"
-              ? keep(c.character) && placeNamed(changed, c.place)?.id !== here // not into the player's scene
-              : (c.type === "status" || c.type === "leave") && keep(c.character);
-        node.state = applyChanges(changed, moved.changes.filter(ok)).state;
+        node.state = applyChanges(changed, moved.changes.filter(offstageOnly(changed, keep, [here]))).state;
         const items = moved.items.filter((m) => keep(m.character));
         if (items.length) node.meanwhile = items;
         console.log(`meanwhile.done ${Date.now() - started}ms`, items.length);
@@ -875,7 +911,8 @@ export function createApi(
           busy.add(s.id);
           try {
             // A turn that failed to record kept its parent's state, should the parent have let go of it.
-            const before = inPlay(parent.state ?? head.state, head.actor);
+            // From the parent, with what a skip in time changed off the stage before the story was written.
+            const before = applyChanges(inPlay(parent.state ?? head.state, head.actor), head.offstage ?? []).state;
             const who = placedOne([...store.path(parent.id).slice(0, -1), { ...parent, state: before }], head.actor);
             const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor, who);
             if (failed) fail(502, "Could not record the changes");

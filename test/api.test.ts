@@ -160,8 +160,13 @@ test("every few turns the people away act on their own; someone the story brings
   assert.equal(lan(node).persona, "", "who they are is not the step's to change");
   for (let turn = 6; turn <= 10; turn++) ({ node } = await playTurn(save.id, "c1", turn === 10 ? "Lan walks in" : "wait"));
   assert.equal(node.meanwhile, undefined, "named in the story: in the scene, not away");
+  // A jump in time moves them at once, off the five-turn beat, before the story is told.
+  await playTurn(save.id, "c1", "wait"); // the last story named her: she was in the scene
+  ({ node } = await playTurn(save.id, "c1", "三天后，我去磨坊"));
+  assert.deepEqual(node.meanwhile, [{ character: "Lan", did: "Locked the back door." }], "turn 12, a jump");
+  assert.deepEqual(node.offstage?.map((c) => c.type), ["status"], "kept for recording the turn again");
   // Switched off, nobody moves.
   await call("PATCH", `/saves/${save.id}`, { settings: { meanwhile: false } });
-  for (let turn = 11; turn <= 15; turn++) ({ node } = await playTurn(save.id, "c1", "wait"));
+  for (let turn = 13; turn <= 15; turn++) ({ node } = await playTurn(save.id, "c1", "wait"));
   assert.equal(node.meanwhile, undefined);
 });

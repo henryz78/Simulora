@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultSettings, type TurnNode, type World } from "../shared/types.ts";
 import { normalizeDraft } from "../server/app.ts";
-import { fullWidth, hookMessages, narrationMessages } from "../server/prompts.ts";
+import { fullWidth, hookMessages, narrationMessages, timeJump } from "../server/prompts.ts";
 
 const world = (rules?: string): World =>
   ({
@@ -95,4 +95,20 @@ test("the player picks how the story reads: plain by default, or literary", () =
 test("the player's settings come before what a world's rules say about the same things", () => {
   const system = narrationMessages(world("每回合至少写900字。"), [opening], "director", "", defaultSettings)[0]!.content;
   assert.match(system, /the player's settings come first; the rules govern the rest\.\n每回合至少写900字。/);
+});
+
+test("a skip of days or more is a jump in time; a day is the story's own pace", () => {
+  for (const s of ["三天后，我去图书馆", "3 天后", "过了 两个月", "几天后", "两天后", "半年后", "三天过后", "下个月再见", "下周一",
+    "我们等到下月", "Three days later", "a few weeks pass", "after three days"])
+    assert.ok(timeJump(s), s);
+  for (const s of ["第二天一早", "一天后", "明天再说", "他三天没来了", "过了一会儿", "十天前的事", "第三天后", "放下月饼",
+    "部下周瑜在帐外", "the next morning"])
+    assert.equal(timeJump(s), null, s);
+});
+
+test("on a jump in time the storyteller hears what the people away got up to", () => {
+  const user = narrationMessages(world(), [opening], "director", "三天后", defaultSettings, "", [
+    { character: "Lan", did: "Closed the shop." },
+  ])[1]!.content;
+  assert.match(user, /While the skipped time passed[^\n]*Lan: Closed the shop\./);
 });

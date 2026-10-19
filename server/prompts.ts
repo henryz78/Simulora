@@ -218,6 +218,7 @@ export function narrationMessages(
   input: string,
   settings: Settings,
   notes = "",
+  elsewhere: { character: string; did: string }[] = [],
 ): Message[] {
   const state = path.at(-1)!.state;
   const name = actorName(state, actor);
@@ -303,6 +304,14 @@ export function narrationMessages(
       .map((node, i) => turnText(node, from + i, state))
       .join("\n\n"),
     "",
+    // A skip in time: what the people away got up to, so the player comes back to a world that moved on.
+    ...(elsewhere.length
+      ? [
+          "While the skipped time passed, out of the player's sight (their character learns of it only by what they " +
+            `would see, hear or be told on coming back): ${elsewhere.map((m) => `${m.character}: ${m.did}`).join(" ")}`,
+          "",
+        ]
+      : []),
     `${name ? `${name} (played by the player)` : "Director"}. Player's action: ${action}`,
     "",
     // Said in the system prompt alone, neither held (2026-10-18): the story retold the player's words, and it drifted
@@ -347,21 +356,44 @@ export const MEANWHILE_TURNS = 5;
  * The people out of the scene (`away`, by name) act on their own plans for a while: the player's design (2026-10-17),
  * you come back a few turns later and find the door locked, someone gone up the mountain.
  */
-export function meanwhileMessages(world: World, path: TurnNode[], away: string[]): Message[] {
+/**
+ * How much time the player's words skip, as they put it ("三天后", "过了一个月", "a week later"), or null. A day ("第二天",
+ * "一天后", "the next morning") is the story's ordinary pace and no jump.
+ */
+export function timeJump(input: string): string | null {
+  const n = String.raw`(?<!第)[0-9０-９一二两三四五六七八九十百几数半多]+`;
+  const unit = "(?:天|日|星期|礼拜|周|个月|月|年|学期)";
+  // "下月" or "下周" only where a time is said: "放下月饼", "部下周瑜" are no jumps.
+  const next = String.raw`(?:^|[\s，。！？、,.!?到等在去于的])下(?:个)?(?:星期|礼拜|周|月|学期)|下个(?:星期|礼拜|周|月|学期)`;
+  const found =
+    new RegExp(String.raw`${n}\s*个?\s*${unit}\s*(?:之|以)?(?:后|过后|过去)|过了\s*${n}\s*个?\s*${unit}|${next}`).exec(input)?.[0]?.replace(/^[\s，。！？、,.!?到等在去于的]/, "") ??
+    /\b(?:\d+|a|one|two|three|four|five|six|seven|eight|nine|ten|a few|few|several|some)\s+(?:days?|weeks?|months?|years?)\s+(?:later|after|pass(?:es|ed)?)\b|\b(?:after|in) (?:\d+|two|three|four|five|six|seven|eight|nine|ten|a few|several) (?:days|weeks|months|years)\b|\bnext (?:week|month|year|term)\b/i.exec(input)?.[0];
+  if (!found || /^(?:一|1|１|半|a|one)\s*(?:天|日|day)/i.test(found.replace(/^过了\s*/, ""))) return null;
+  return found;
+}
+
+export function meanwhileMessages(world: World, path: TurnNode[], away: string[], passed: string | null = null): Message[] {
   const state = path.at(-1)!.state;
   return [
     {
       role: "system",
       content: [
         "You move a living story world while the player is busy elsewhere. The people listed as away are not in the " +
-          "player's scene. Pick one to three of them whose goals, fears or plans would have them do something now, " +
-          "and tell what each did since the story last showed them: one small, concrete step, the next thing such " +
-          "a person would do (a letter written, a door locked, a walk to another place, a talk with someone else " +
-          "away), true to who they are and to what they know. Nobody does it in the player's scene or to the " +
-          "player's character; it may reach them later. Act on secrets, never explain them.",
+          "player's scene. " +
+          (passed
+            ? `Time is skipped now: ${passed} (as the player puts it). Pick one to five of them whose goals, fears or ` +
+              "plans would move them over that time, and tell what each got done or went through in it: as much as " +
+              "such a person would in so long a time, true to who they are and to what they know, and the world " +
+              "around them changed by it (a shop closed, a letter sent, a quarrel made up, someone gone away)."
+            : "Pick one to three of them whose goals, fears or plans would have them do something now, and tell what " +
+              "each did since the story last showed them: one small, concrete step, the next thing such a person " +
+              "would do (a letter written, a door locked, a walk to another place, a talk with someone else away), " +
+              "true to who they are and to what they know.") +
+          " Nobody does it in the player's scene or to the player's character; it may reach them later. Act on " +
+          "secrets, never explain them.",
         CONTENT_LINE,
         "Write in the world's own language. Return one JSON object:",
-        '{"meanwhile": [{"character": name, "did": "one or two sentences"}], "changes": [...]}',
+        `{"meanwhile": [{"character": name, "did": "${passed ? "two or three sentences" : "one or two sentences"}"}], "changes": [...]}`,
         '"changes" records only what those steps changed, refer to people and places by name, with only these shapes:',
         '- {"type":"move","character":name,"place":name}  (a listed place\'s name copied whole, exactly as listed, or a ' +
           "short new name for somewhere else)",

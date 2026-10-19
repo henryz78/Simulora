@@ -11,7 +11,7 @@ interface Pending {
   actor: string;
   input: string;
   story: string;
-  phase: "story" | "changes";
+  phase: "passing" | "story" | "changes";
   error: string;
   since: number;
 }
@@ -144,7 +144,13 @@ export function Play({ saveId }: { saveId: string }) {
       const node = await playTurn(saveId, as, text, {
         story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
         phase: (phase) =>
-          setPending((p) => p && (phase === "restart" ? { ...p, story: "", phase: "story" } : { ...p, phase: "changes" })),
+          setPending(
+            (p) =>
+              p &&
+              (phase === "restart"
+                ? { ...p, story: "", phase: "story" }
+                : { ...p, phase: phase === "passing" || phase === "story" ? phase : "changes" }),
+          ),
       });
       await load();
       setPending(null);
@@ -342,6 +348,10 @@ export function Play({ saveId }: { saveId: string }) {
                   t("Recording what changed…")
                 ) : pending.story ? (
                   t("Writing…")
+                ) : pending.phase === "passing" ? (
+                  <>
+                    {t("Time passes; the others get on with their plans…")} <Elapsed since={pending.since} />
+                  </>
                 ) : (
                   <>
                     {t("Thinking it through…")} <Elapsed since={pending.since} />

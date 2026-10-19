@@ -45,6 +45,7 @@ const zh: Record<string, string> = {
   "Other paths": "其他走向",
   "Writing…": "正在写…",
   "Recording what changed…": "正在记录变化…",
+  "Time passes; the others get on with their plans…": "时间在往前走，其他人在忙自己的事…",
   Retry: "重试",
   "Suggest next steps": "给我一些建议",
   Settings: "设置",
