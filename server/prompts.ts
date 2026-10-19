@@ -267,7 +267,11 @@ export function narrationMessages(
             "option lists, menus), leave it out: the reply format below is fixed, and the game shows the state and " +
             "the next steps itself; where they describe kinds of options, the hooks follow them. They never undo " +
             "the stopping rule: a world that moves on without the player moves through what others do, never by " +
-            "deciding for the player's character or jumping past the next moment they could act.",
+            "deciding for the player's character or jumping past the next moment they could act. " +
+            // A world's "不用旁白替他们解释动机" kept the plain style from reading plain (2026-10-19); the length and the
+            // person held already. What the player picked now comes before what the world's author wrote then.
+            "Where they speak to what the player set above (the length, the person, how much the others push the " +
+            "story, the writing style), the player's settings come first; the rules govern the rest.",
           world.rules.trim(),
         ]
       : []),

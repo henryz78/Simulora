@@ -91,3 +91,8 @@ test("the player picks how the story reads: plain by default, or literary", () =
   assert.doesNotMatch(system({ ...defaultSettings, style: "literary" }), /gets it at once/);
   assert.match(system({ ...defaultSettings, style: "literary" }), /concrete detail/);
 });
+
+test("the player's settings come before what a world's rules say about the same things", () => {
+  const system = narrationMessages(world("每回合至少写900字。"), [opening], "director", "", defaultSettings)[0]!.content;
+  assert.match(system, /the player's settings come first; the rules govern the rest\.\n每回合至少写900字。/);
+});
