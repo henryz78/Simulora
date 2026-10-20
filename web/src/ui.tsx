@@ -25,6 +25,7 @@ const PATHS = {
   down: "M6 9l6 6 6-6",
   back: "M15 6l-6 6 6 6",
   pen: "M4 20l4-1 11-11-3-3L5 16z",
+  sidebar: "M3 5h18v14H3zM15 5v14",
 };
 
 export function Icon({ name, size = 16 }: { name: keyof typeof PATHS; size?: number }) {

@@ -6,7 +6,7 @@ import { lang, t } from "./i18n.ts";
 import { Novel } from "./Novel.tsx";
 import { HistoryPanel, InterviewPanel, SettingsPanel, WorldPanel } from "./Panels.tsx";
 import { ActorLine, Turn, actorLabel, type TurnTools } from "./Turn.tsx";
-import { Ask, Avatar, DiceLine, Elapsed, Icon, LookButton, Menu, Paragraphs, turnLabel } from "./ui.tsx";
+import { Ask, Avatar, DiceLine, Elapsed, Icon, Menu, Paragraphs, turnLabel } from "./ui.tsx";
 
 type Panel = "world" | "history" | "settings" | "interview" | null;
 
@@ -41,6 +41,11 @@ export function Play({ saveId }: { saveId: string }) {
   const [pending, setPending] = useState<Pending | null>(null);
   // Docked beside the story on a wide screen from the start; elsewhere it opens when asked.
   const [panel, setPanel] = useState<Panel>(wide() ? "world" : null);
+  // The tab the panel opens on: the one last looked at.
+  const [lastTab, setLastTab] = useState<"world" | "history" | "settings">("world");
+  useEffect(() => {
+    if (panel && panel !== "interview") setLastTab(panel);
+  }, [panel]);
   const [suggesting, setSuggesting] = useState(false);
   const [renaming, setRenaming] = useState(false);
   // A past turn opened in the story so far.
@@ -363,7 +368,6 @@ export function Play({ saveId }: { saveId: string }) {
     [t("Out of the story"), state.characters.filter((c) => c.gone)],
   ];
   const actingAs = actorLabel(state, current);
-  const toggle = (name: Panel) => setPanel(panel === name ? null : name);
   const guestCharacter = state.characters.find((c) => c.id === guest);
   const previous = path.length > 1 ? path.at(-2)! : null;
   const sendLabel = busy
@@ -398,48 +402,16 @@ export function Play({ saveId }: { saveId: string }) {
             <span className="muted small">· {turnLabel(path.length - 1)}</span>
           </span>
         </nav>
-        <div role="toolbar" aria-label={t("Panels")} className="row" style={{ gap: 4 }}>
-          {path.length > 1 && (
-            <button
-              className={panel === "history" ? "small on wide" : "quiet small wide"}
-              aria-pressed={panel === "history"}
-              onClick={() => toggle("history")}
-            >
-              <Icon name="clock" />
-              {t("Story so far")}
-            </button>
-          )}
-          {path.length > 1 && (
-            <button className="quiet small wide" onClick={() => setNovelOpen(true)}>
-              <Icon name="book" />
-              {t("Novel")}
-            </button>
-          )}
-          <button
-            className={panel === "world" ? "small on wide" : "quiet small wide"}
-            aria-pressed={panel === "world"}
-            onClick={() => toggle("world")}
-          >
-            <Icon name="globe" />
-            {t("World")}
-          </button>
-          <button
-            className={panel === "settings" ? "small on wide" : "quiet small wide"}
-            aria-pressed={panel === "settings"}
-            onClick={() => toggle("settings")}
-          >
-            <Icon name="sliders" />
-            {t("Settings")}
-          </button>
-          <button
-            className="quiet narrow-only"
-            aria-label={t("Open the panels: world, story so far, settings")}
-            onClick={() => toggle("world")}
-          >
-            <Icon name="globe" size={18} />
-          </button>
-          <LookButton />
-        </div>
+        {/* One way into the panel, on every screen; the top bar is left for the app's own pages later. */}
+        <button
+          className={panel ? "small on" : "quiet small"}
+          aria-pressed={panel !== null}
+          aria-label={panel ? t("Close the panel") : t("Open the panel: world, story so far, settings, novel")}
+          onClick={() => setPanel(panel ? null : lastTab)}
+        >
+          <Icon name="sidebar" />
+          <span className="wide">{t("Panel")}</span>
+        </button>
       </header>
 
       <div className="play-body">
@@ -830,7 +802,7 @@ export function Play({ saveId }: { saveId: string }) {
                 )}
                 {/* On phones the novel opens from here: the top bar keeps only the essentials. */}
                 {path.length > 1 && panel !== "interview" && (
-                  <button className="quiet small narrow-only" onClick={() => setNovelOpen(true)}>
+                  <button className="quiet small" onClick={() => setNovelOpen(true)}>
                     <Icon name="book" />
                     {t("Novel")}
                   </button>

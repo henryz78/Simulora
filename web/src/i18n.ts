@@ -311,6 +311,8 @@ const zh: Record<string, string> = {
   "Pick someone": "选一个人",
   "Today, at": "今天",
   Older: "更早的",
+  Panel: "面板",
+  "Open the panel: world, story so far, settings, novel": "打开面板：世界、前情、设置、小说",
   Sections: "目录",
   "More places": "另外的地点",
   Basics: "基本",
