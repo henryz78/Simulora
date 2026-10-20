@@ -94,17 +94,27 @@ export function WorldPanel({
       {director ? (
         <section>
           <h3 className="label">{t("People by place")}</h3>
-          {[...state.places, { id: null, name: t("Nowhere in particular"), description: "" }].map((p) => {
-            const there = cast.filter((c) => c.placeId === p.id);
-            return (
-              there.length > 0 && (
-                <div key={p.id ?? "none"} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
-                  {there.map((c) => line(c, undefined, c.notes))}
-                </div>
-              )
+          {/* The busiest places first; the rest folded. */}
+          {(() => {
+            const groups = [...state.places, { id: null, name: t("Nowhere in particular"), description: "" }]
+              .map((p) => ({ p, there: cast.filter((c) => c.placeId === p.id) }))
+              .filter((g) => g.there.length > 0)
+              .sort((a, b) => b.there.length - a.there.length);
+            const group = ({ p, there }: (typeof groups)[number]) => (
+              <div key={p.id ?? "none"} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
+                {there.map((c) => line(c, undefined, c.notes))}
+              </div>
             );
-          })}
+            return (
+              <>
+                {groups.slice(0, 3).map(group)}
+                <Fold title={t("More places")} count={Math.max(0, groups.length - 3)}>
+                  {groups.slice(3).map(group)}
+                </Fold>
+              </>
+            );
+          })()}
         </section>
       ) : (
         <section>

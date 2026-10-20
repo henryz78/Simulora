@@ -153,6 +153,9 @@ export function Play({ saveId }: { saveId: string }) {
   useEffect(() => {
     void sceneTop.current?.scrollIntoView({ block: "start" });
   }, [headId, recap === null]);
+  useEffect(() => {
+    if (view) document.title = `${view.world.title} · ${view.save.title} · Simulora`;
+  }, [view?.world.title, view?.save.title]);
   // Each tab opens at its top.
   const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {

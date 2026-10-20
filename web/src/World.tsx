@@ -23,6 +23,9 @@ export function World({ worldId }: { worldId: string }) {
   useEffect(() => void load(), [worldId]);
   const report = (e: Error) => setError(t(e.message));
   const [starting, setStarting] = useState(false);
+  useEffect(() => {
+    if (entry) document.title = `${entry.world.title} · Simulora`;
+  }, [entry?.world.title]);
 
   const top = (
     <header className="topbar">

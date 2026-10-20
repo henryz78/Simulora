@@ -1238,6 +1238,26 @@ button.chip {
   font-weight: 400;
 }
 
+/* The studio's contents, beside the form where there is room. */
+.studio-toc {
+  display: none;
+}
+@media (min-width: 1240px) {
+  .studio-toc {
+    position: fixed;
+    top: 96px;
+    left: calc(50% - 410px - 190px);
+    width: 170px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+.page .panel {
+  scroll-margin-top: 16px;
+}
+
 /* ── Narrow screens ─────────────────────────────────────────────────────── */
 @media (max-width: 767px) {
   .topbar {
@@ -1324,6 +1344,15 @@ button.chip {
   button,
   .button {
     min-height: 44px;
+  }
+  .dock::before {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 4px;
+    margin: 10px auto 0;
+    border-radius: 2px;
+    background: var(--edge);
   }
   .dock {
     top: auto;

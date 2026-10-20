@@ -18,6 +18,7 @@ export function Home() {
     api.worlds().then(setWorlds, (e: Error) => setError(e.message));
   };
   useEffect(load, []);
+  useEffect(() => void (document.title = "Simulora"), []);
 
   const shelf = [...(worlds ?? [])].sort((a, b) => playedAt(b).localeCompare(playedAt(a)));
   const last = shelf

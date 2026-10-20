@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Character, Fact, Place, Thread, WorldDraft, WorldState } from "../../shared/types.ts";
 import { api } from "./api.ts";
 import { lang, t } from "./i18n.ts";
-import { LookButton, nextSaveName } from "./ui.tsx";
+import { Confirm, LookButton, nextSaveName } from "./ui.tsx";
 
 const sep = lang === "zh" ? "：" : ": ";
 const id = (prefix: string) => `${prefix}${crypto.randomUUID().slice(0, 8)}`;
@@ -224,6 +224,9 @@ function AiDraft({ onFill }: { onFill: (draft: WorldDraft) => void }) {
 export function Studio({ worldId }: { worldId: string | null }) {
   const [draft, setDraft] = useState<WorldDraft | null>(worldId ? null : emptyDraft());
   const [status, setStatus] = useState("");
+  useEffect(() => void (document.title = `${t("World studio")} · Simulora`), []);
+  // A world the AI built, waiting for a yes before it replaces what is in the editor.
+  const [replacing, setReplacing] = useState<WorldDraft | null>(null);
   useEffect(() => {
     if (worldId) api.world(worldId).then(setDraft, (e: Error) => setStatus(e.message));
   }, [worldId]);
@@ -282,12 +285,31 @@ export function Studio({ worldId }: { worldId: string | null }) {
         <AiDraft
           onFill={(filled) => {
             const empty = !draft.title && !draft.premise && !draft.opening && s.characters.length === 0;
-            if (empty || confirm(t("Replace what is in the editor?"))) setDraft(filled);
+            if (empty) setDraft(filled);
+            else setReplacing(filled);
           }}
         />
       )}
 
-      <section className="panel">
+      {/* Where each part is, on screens wide enough to keep it beside the form. */}
+      <nav className="studio-toc" aria-label={t("Sections")}>
+        {(
+          [
+            ["studio-basics", t("Basics"), null],
+            ["studio-places", t("Places"), s.places.length],
+            ["studio-characters", t("Characters"), s.characters.length],
+            ["studio-facts", t("Facts and secrets"), s.facts.length],
+            ["studio-threads", t("Open questions"), s.threads.length],
+          ] as const
+        ).map(([id, label, count]) => (
+          <button key={id} className="quiet small" onClick={() => document.getElementById(id)?.scrollIntoView({ block: "start" })}>
+            {label}
+            {count !== null && <span className="muted"> {count}</span>}
+          </button>
+        ))}
+      </nav>
+
+      <section className="panel" id="studio-basics">
         <label>
           {t("Title")}
           <input value={draft.title} onChange={(e) => set({ title: e.target.value })} />
@@ -311,7 +333,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
         </label>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="studio-places">
         <h2>{t("Places")}</h2>
         {s.places.map((p) => (
           <div className="item" key={p.id}>
@@ -338,7 +360,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
         </button>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="studio-characters">
         <h2>{t("Characters")}</h2>
         <p className="small muted">{t("The first one is who the player starts as; they can switch to anyone, or to director.")}</p>
         {s.characters.map((c) => (
@@ -417,7 +439,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
         </button>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="studio-facts">
         <h2>{t("Facts and secrets")}</h2>
         {s.facts.map((f) => (
           <div className="item" key={f.id}>
@@ -450,7 +472,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
         </button>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="studio-threads">
         <h2>{t("Open questions")}</h2>
         {s.threads.map((th: Thread) => (
           <div className="item row" key={th.id}>
@@ -479,6 +501,15 @@ export function Studio({ worldId }: { worldId: string | null }) {
         </button>
         <span className="muted">{status}</span>
       </div>
+      {replacing && (
+        <Confirm
+          title={t("Replace what is in the editor?")}
+          text={t("The AI's world takes the place of everything in the editor now.")}
+          action={t("Replace")}
+          onConfirm={() => setDraft(replacing)}
+          onClose={() => setReplacing(null)}
+        />
+      )}
     </main>
   );
 }
