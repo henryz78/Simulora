@@ -172,14 +172,15 @@ export function Play({ saveId }: { saveId: string }) {
     try {
       seen = JSON.parse(localStorage.getItem(key) ?? "null") as string[] | null;
     } catch {
-      // nothing kept: nothing is new
+      // storage refused (a private window): nothing is told as new, rather than everything
     }
     const onHead = new Set(view.path.at(-1)!.changes.flatMap((c) => (c.type === "reveal" ? [c.fact] : [])));
     setFresh(seen ? revealedNow.filter((id) => !seen!.includes(id) && !onHead.has(id)) : []);
     try {
-      localStorage.setItem(key, JSON.stringify(revealedNow));
+      // Kept as a union: going back before a find and forward again does not show it twice.
+      localStorage.setItem(key, JSON.stringify([...new Set([...(seen ?? []), ...revealedNow])]));
     } catch {
-      // a private window: shown again next time, no harm
+      // not kept: the page simply does not remember
     }
   }, [revealedNow.join()]);
   // Each tab opens at its top.
@@ -465,7 +466,8 @@ export function Play({ saveId }: { saveId: string }) {
               </div>
             )}
             {fresh.map((id) => {
-              const fact = state.facts.find((f) => f.id === id);
+              // Only one revealed here: after going back, a stale id must not show a secret still hidden.
+              const fact = state.facts.find((f) => f.id === id && f.revealed);
               const secrets = state.facts.filter((f) => f.secret);
               return (
                 fact && (

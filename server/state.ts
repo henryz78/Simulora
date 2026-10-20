@@ -333,9 +333,11 @@ export function readKeep(state: WorldState, raw: unknown): Keep {
     (Array.isArray(list) ? list.slice(0, 5) : []).map((x) => (x ?? {}) as Record<string, unknown>);
   const id = (x: unknown) => text(x, 64).replace(/^\[|\]$/g, "");
   const names = (x: unknown) => (Array.isArray(x) ? x.filter((n): n is string => typeof n === "string") : []);
+  // Two at most: a secret marked found cannot be hidden again, so the keeper is held to the plainest.
   const found = items(v.found)
     .map((x) => ({ id: id(x.id), how: text(x.how, 300) }))
-    .filter((f, i, all) => hidden.has(f.id) && all.findIndex((g) => g.id === f.id) === i);
+    .filter((f, i, all) => hidden.has(f.id) && all.findIndex((g) => g.id === f.id) === i)
+    .slice(0, 2);
   const out = new Set(found.map((f) => f.id));
   const revised = items(v.revise)
     .map((x) => ({ id: id(x.id), text: text(x.text, 600), knownBy: names(x.knownBy) }))
@@ -412,7 +414,14 @@ export function keptSince(start: WorldState, now: WorldState): Keep {
     found: changed.filter((f) => f.revealed).map((f) => ({ id: f.id, how: f.revealNote ?? "" })),
     revised: changed
       .filter((f) => !f.revealed && f.text !== was.get(f.id)!.text)
-      .map((f) => ({ id: f.id, text: f.text, knownBy: [] })),
+      .map((f) => ({
+        id: f.id,
+        text: f.text,
+        // Who the keeper said knows it now, beyond who knew before.
+        knownBy: now.characters
+          .filter((c) => c.knows.includes(f.id) && !start.characters.find((x) => x.id === c.id)?.knows.includes(f.id))
+          .map((c) => c.name),
+      })),
     buried: [],
   };
 }

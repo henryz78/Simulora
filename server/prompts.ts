@@ -888,15 +888,16 @@ export function keepMessages(world: World, path: TurnNode[], room: number): Mess
           "player against what the story has told.",
         "1. found: a secret whose heart the story has already made plain to the player's character: someone said or " +
           "confessed it, they found it, or it happened before their eyes. A detail still hidden, or told a little " +
-          "differently, does not hold it back. A hint, a guess or a lie is not enough.",
+          "differently, does not hold it back. A hint, a guess or a lie is not enough, and when unsure, keep it hidden: " +
+          "a secret marked found can never be hidden again. Say in how which scene and who.",
         "2. revise: a secret still hidden that the story has since contradicted or moved past (it names someone the " +
           "story showed was not the one, a thing that has changed hands, a plan already overtaken): rewrite it so it " +
-          "is true of the world as the story now stands, keeping its heart where you can, and still hidden. Leave a " +
-          "secret that still fits as it is.",
-        room > 0
-          ? `3. secrets: bury up to ${Math.min(2, room)} new ones grounded in what has happened lately: the hidden ` +
-            'truth behind a specific unexplained detail, odd reaction or open question. Say which in "because".'
-          : "3. secrets: none this time; enough are hidden.",
+          "is true of the world as the story now stands, keeping its heart where you can, and still hidden. Every clue " +
+          "the story already gave the player must still hold. Leave a secret that still fits as it is: never rewrite " +
+          "one only to fit better or because of a new clue.",
+        `3. secrets: bury ${room > 0 ? `up to ${room} new ones, plus one` : "one new one"} for each secret you mark ` +
+          "found above, two at most (none if that comes to none), grounded in what has happened lately: the hidden " +
+          'truth behind a specific unexplained detail, odd reaction or open question. Say which in "because".',
         'Return one JSON object: {"found": [{"id": "the secret\'s [id]", "how": "how it came out, one sentence"}], ' +
           '"revise": [{"id": "the secret\'s [id]", "text": "the secret as it now stands, one or two sentences", ' +
           '"knownBy": [names of characters who know it]}], "secrets": [{"text": ..., "knownBy": [...], ' +

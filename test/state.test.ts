@@ -267,4 +267,6 @@ test("the keeper finds, rewrites and buries only what it may, and the same decis
   const since = keptSince(before, once);
   assert.deepEqual(since.found, [{ id: "s1", how: "Qing said so." }]);
   assert.deepEqual(since.revised.map((r) => r.text), ["Zhou owes the inn."]);
+  assert.deepEqual(since.revised[0]!.knownBy, ["Zhou"], "who learned it comes along too");
+  assert.equal(readKeep(before, { found: [{ id: "s1" }, { id: "s2" }, { id: "s1" }] }).found.length, 2, "two found at most");
 });

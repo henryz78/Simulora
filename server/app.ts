@@ -345,7 +345,7 @@ export function createApi(
    * fewer than MAX_HIDDEN wait. All of it lands on the turn it was asked for and every turn grown from it since.
    */
   function keepLater(saveId: string) {
-    if (burying.has(saveId)) return;
+    if (burying.has(saveId)) return console.log("secrets.keep.skipped", "the last bury or keep is still running");
     burying.add(saveId);
     void (async () => {
       const s = store.save(saveId);
@@ -1139,6 +1139,8 @@ export function createApi(
             // A turn that failed to record kept its parent's state, should the parent have let go of it.
             // From the parent, with what a skip in time changed off the stage before the story was written.
             const before = applyChanges(inPlay(parent.state ?? head.state, head.actor), head.offstage ?? []).state;
+            // What the secret keeper does to this turn while it is recorded again is taken up, as in `turn`.
+            const start = head.state;
             const who = placedOne([...store.path(parent.id).slice(0, -1), { ...parent, state: before }], head.actor);
             const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor, who);
             if (failed) fail(502, "Could not record the changes");
@@ -1151,9 +1153,14 @@ export function createApi(
               ? Math.min(path.findIndex((n) => n.id === rest.trimmed) + 1, chronicleOf(path).at + 1)
               : 0;
             const told = known > 0 ? path[known - 1]!.state : undefined;
-            const state = carrySecrets(rest.state, told ? trimState(changed, told, world(s.worldId).state) : changed);
-            const node: TurnNode = { ...rest, changes: applied, hooks, state };
+            const rebuilt = carrySecrets(rest.state, told ? trimState(changed, told, world(s.worldId).state) : changed);
+            const state = applyKeep(rebuilt, keptSince(start, rest.state));
+            // The keeper's reveals on this turn stay with it.
+            const reveals = rest.changes.filter((c) => c.type === "reveal" && !applied.some((a) => a.type === "reveal" && a.fact === c.fact));
+            const node: TurnNode = { ...rest, changes: [...applied, ...reveals], hooks, state };
             store.putNode(node);
+            // The keeper skipped this turn while its changes were missing: it looks now.
+            if ((path.length - 1) % BURY_EVERY === 0) keepLater(s.id);
             return send(res, 200, view(save(s.id)));
           } finally {
             busy.delete(s.id);
