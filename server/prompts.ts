@@ -671,7 +671,7 @@ export function chapterMessages(world: World, path: TurnNode[], from: number, to
 }
 
 /** A passage's last sentence or so, to end a retelling on. */
-const lastLine = (story: string) => story.trim().split(/(?<=[。！？!?…”」])/).filter((x) => x.trim()).slice(-2).join("").trim().slice(-80);
+export const lastLine = (story: string) => story.trim().split(/(?<=[。！？!?…”」])/).filter((x) => x.trim()).slice(-2).join("").trim().slice(-80);
 
 /** "上回说到" for a player coming back after a break: only what they have seen, in plain words. */
 export function recapMessages(world: World, path: TurnNode[]): Message[] {

@@ -4,9 +4,11 @@ import { lang } from "./i18n.ts";
 import { Home } from "./Home.tsx";
 import { Play } from "./Play.tsx";
 import { Studio } from "./Studio.tsx";
+import { World } from "./World.tsx";
 import "./style.css";
+import "./ui.tsx"; // sets the day or night look before the first paint
 
-/** Routes: #/ · #/studio/new · #/studio/<worldId> · #/play/<saveId> */
+/** Routes: #/ · #/world/<worldId> · #/studio/new · #/studio/<worldId> · #/play/<saveId> */
 function App() {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
@@ -17,6 +19,7 @@ function App() {
   const [, page, id = ""] = hash.replace(/^#/, "").split("/");
   if (page === "studio") return <Studio key={id} worldId={id === "new" ? null : id} />;
   if (page === "play") return <Play key={id} saveId={id} />;
+  if (page === "world") return <World key={id} worldId={id} />;
   return <Home />;
 }
 

@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import type { Save, SaveView, TurnNode, World } from "../shared/types.ts";
+import type { Save, SaveSummary, SaveView, TurnNode, World } from "../shared/types.ts";
 import { createApi } from "../server/app.ts";
 import { Store } from "../server/db.ts";
 import { fakeModel } from "../server/model.ts";
@@ -85,7 +85,16 @@ test("build a world, play, undo to any turn and branch", async () => {
   assert.equal(view.path.length, 1);
   assert.equal(view.tree.length, 3);
 
+  // The home page lists each save with how far it is and its last line.
+  const listed = (await call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds"))
+    .find((x) => x.world.id === world.id)!.saves[0]!;
+  assert.equal(listed.turns, 0);
+  assert.equal(listed.last, "Snow beats on the door.");
+
   const branch = await call<Save>("POST", `/saves/${save.id}/branch`, { nodeId: first.node.id });
+  const branched = (await call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds"))
+    .find((x) => x.world.id === world.id)!.saves.find((s) => s.id === branch.id)!;
+  assert.equal(branched.turns, 1, "a save one turn in");
   const branchView = await call<SaveView>("GET", `/saves/${branch.id}`);
   assert.equal(branchView.path.at(-1)!.id, first.node.id);
 

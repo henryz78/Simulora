@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Character, Fact, Place, Thread, WorldDraft, WorldState } from "../../shared/types.ts";
 import { api } from "./api.ts";
 import { lang, t } from "./i18n.ts";
+import { LookButton, nextSaveName } from "./ui.tsx";
 
 const sep = lang === "zh" ? "：" : ": ";
 const id = (prefix: string) => `${prefix}${crypto.randomUUID().slice(0, 8)}`;
@@ -238,7 +239,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
     try {
       const world = worldId ? await api.updateWorld(worldId, draft) : await api.createWorld(draft);
       if (andPlay) {
-        const started = await api.startSave(world.id, new Date().toLocaleString());
+        const saves = (await api.worlds()).find((x) => x.world.id === world.id)?.saves ?? [];
+        const started = await api.startSave(world.id, nextSaveName(saves));
         location.hash = `#/play/${started.id}`;
       } else if (!worldId) location.hash = `#/studio/${world.id}`;
       else setStatus(t("Saved"));
@@ -267,8 +269,13 @@ export function Studio({ worldId }: { worldId: string | null }) {
   return (
     <main className="page narrow">
       <header className="bar">
-        <a href="#/">← {t("Home")}</a>
-        <span className="muted">{t("World studio")}</span>
+        <a className="button quiet small" href={worldId ? `#/world/${worldId}` : "#/"}>
+          ‹ {worldId ? t("Back to the world") : t("Your worlds")}
+        </a>
+        <span className="row">
+          <span className="muted">{t("World studio")}</span>
+          <LookButton />
+        </span>
       </header>
 
       {!worldId && (

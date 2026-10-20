@@ -101,6 +101,20 @@ export class Store {
     for (const id of ids) forget.run(id);
   }
 
+  /** How many turns lead from the opening to this one, without reading them. */
+  depth(id: string): number {
+    const row = this.#db
+      .prepare(
+        `with recursive up(id, parent_id, d) as (
+           select id, parent_id, 0 from nodes where id = ?
+           union all
+           select n.id, n.parent_id, up.d + 1 from nodes n join up on n.id = up.parent_id)
+         select max(d) as d from up`,
+      )
+      .get(id) as { d: number | null } | undefined;
+    return row?.d ?? 0;
+  }
+
   tree(worldId: string): NodeSummary[] {
     return (
       this.#db

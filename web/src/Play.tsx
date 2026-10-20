@@ -1,58 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import type { Change, Dice, NodeSummary, SaveView, Settings, TurnNode, WorldState } from "../../shared/types.ts";
+import type { Dice, NodeSummary, SaveView, Settings, TurnNode } from "../../shared/types.ts";
 import { api, playTurn } from "./api.ts";
 import { Graph } from "./Graph.tsx";
-import { Novel } from "./Novel.tsx";
 import { lang, t } from "./i18n.ts";
+import { Novel } from "./Novel.tsx";
+import { HistoryPanel, InterviewPanel, SettingsPanel, WorldPanel } from "./Panels.tsx";
+import { ActorLine, Turn, actorLabel, type TurnTools } from "./Turn.tsx";
+import { Ask, Avatar, DiceLine, Elapsed, Icon, LookButton, Menu, Paragraphs, turnLabel } from "./ui.tsx";
 
-const sep = lang === "zh" ? "：" : ": ";
-
-type Panel = "history" | "world" | "settings" | "interview" | null;
+type Panel = "world" | "history" | "settings" | "interview" | null;
 
 interface Pending {
   actor: string;
   input: string;
   story: string;
   phase: "passing" | "story" | "changes";
+  /** Time was skipped: the people away lived it before the story began. */
+  passed: boolean;
+  /** The story broke off and is being written again. */
+  restarted: boolean;
   dice?: Dice;
   offline?: "world" | "all" | null;
   error: string;
   since: number;
-}
-
-const actorLabel = (state: WorldState, actor: string) =>
-  actor === "director" ? t("Director") : (state.characters.find((c) => c.id === actor)?.name ?? "?");
-
-/** Words for a change the model left without a note. */
-function describe(c: Change): string {
-  switch (c.type) {
-    case "move":
-      return `${c.character} → ${c.place}`;
-    case "place":
-      return c.name;
-    case "character":
-      return c.name;
-    case "leave":
-      return `${c.character} ${t("left the story")}${c.note ? `${sep}${c.note}` : ""}`;
-    case "status":
-      return `${c.character}${sep}${c.notes}`;
-    case "persona":
-      return `${c.character}${sep}${c.persona || c.goals}`;
-    case "fact":
-      return c.text;
-    case "reveal":
-      return t("Revealed");
-    case "learn":
-      return `${c.character} ${t("learned something")}`;
-    case "relationship":
-      return `${c.a} · ${c.b}${sep}${c.text}`;
-    case "thread":
-      return c.title;
-    case "resolve":
-      return c.resolution;
-    case "clock":
-      return c.text;
-  }
 }
 
 /** The newest turn under a node, so switching to another path lands at its latest point. */
@@ -61,49 +31,7 @@ function latestLeaf(tree: NodeSummary[], id: string): string {
   return children[0] ? latestLeaf(tree, children[0].id) : id;
 }
 
-/** Seconds since a moment, ticking, so a long wait shows it is still going. */
-function Elapsed({ since }: { since: number }) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return (
-    <>
-      {Math.floor((Date.now() - since) / 1000)} {t("s")}
-    </>
-  );
-}
-
-// What people say, in “”, 「」 or the model's stray "": coloured like WorldOS's, so speech stands out from the
-// telling. A quote still being written is coloured to its end.
-const SPEECH = /(“[^”]*(?:”|$)|「[^」]*(?:」|$)|"[^"]*(?:"|$))/;
-
-const DICE = { easy: "Easy", normal: "Normal", hard: "Hard", success: "Success", cost: "Success at a cost", fail: "Failure" };
-
-/** "🎲 翻墙 · 困难 · 14 → 成功但有代价" */
-function DiceLine({ dice }: { dice: Dice }) {
-  return (
-    <p className={`dice ${dice.outcome}`}>
-      🎲 {dice.what} · {t(DICE[dice.difficulty])} · {dice.roll} → {t(DICE[dice.outcome])}
-    </p>
-  );
-}
-
-function Paragraphs({ text }: { text: string }) {
-  return (
-    <>
-      {text
-        .split(/\n+/)
-        .filter((p) => p.trim())
-        .map((p, i) => (
-          <p key={i}>
-            {p.split(SPEECH).map((part, j) => (j % 2 ? <span key={j} className="speech">{part}</span> : part))}
-          </p>
-        ))}
-    </>
-  );
-}
+const wide = () => matchMedia("(min-width: 1280px)").matches;
 
 export function Play({ saveId }: { saveId: string }) {
   const [view, setView] = useState<SaveView | null>(null);
@@ -111,15 +39,21 @@ export function Play({ saveId }: { saveId: string }) {
   const [actor, setActor] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<Pending | null>(null);
-  const [panel, setPanel] = useState<Panel>(null);
+  // Docked beside the story on a wide screen from the start; elsewhere it opens when asked.
+  const [panel, setPanel] = useState<Panel>(wide() ? "world" : null);
   const [suggesting, setSuggesting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  // A past turn opened in the story so far.
+  const [expanded, setExpanded] = useState<string | null>(null);
   // The next move the player wrote while the last turn's changes were still being recorded.
   const [queued, setQueued] = useState<{ text: string; actor: string } | null>(null);
   const queuedRef = useRef(queued);
   queuedRef.current = queued;
   const sceneTop = useRef<HTMLDivElement>(null);
-  // A talk out of the story with one character; kept on this page only.
-  // Each character's talk is their own: an answer lands with whoever it was asked of.
+  const report = (e: Error) => setError(t(e.message));
+
+  // A talk out of the story with one character; kept on this page only. Each character's talk is their own: an
+  // answer lands with whoever it was asked of.
   const [guest, setGuest] = useState<string | null>(null);
   const [talks, setTalks] = useState<Record<string, { q: string; a: string }[]>>({});
   const talk = (guest && talks[guest]) || [];
@@ -152,7 +86,6 @@ export function Play({ saveId }: { saveId: string }) {
   const [views, setViews] = useState<Record<string, { who: string; story: string }>>({});
   const [viewing, setViewing] = useState<string | null>(null);
   const seeAs = (node: string, who: string) => {
-    if (!who) return;
     setViewing(node);
     api
       .view(saveId, node, who)
@@ -174,11 +107,9 @@ export function Play({ saveId }: { saveId: string }) {
       },
     );
   };
-  const pendingTop = useRef<HTMLElement>(null);
 
   const load = () => api.save(saveId).then(setView, (e: Error) => setError(e.message));
   useEffect(() => void load(), [saveId]);
-  const report = (e: Error) => setError(t(e.message));
   // A new save opens with suggestions too, like every later turn.
   const openingId = view && view.path.length === 1 && view.path[0]!.hooks.length === 0 ? view.path[0]!.id : null;
   const asked = useRef<string | null>(null); // StrictMode runs effects twice; ask once
@@ -199,18 +130,13 @@ export function Play({ saveId }: { saveId: string }) {
     if (!away || recalled.current || !view) return;
     recalled.current = true;
     // A day or more away, with the world set to live on: it lives those days first (two to seven), and that turn
-    // tells what changed; otherwise "上回说到".
+    // tells what changed; otherwise "上回说到". Not on a turn whose changes were never recorded: "Record again" first.
     const way = view.save.settings.offline;
-    // Not on a turn whose changes were never recorded: "Record again" comes first.
     if ((way === "world" || way === "all") && hoursAway >= 24 && !view.path.at(-1)!.recordsFailed) {
       const days = Math.min(7, Math.max(2, Math.round(hoursAway / 24)));
       void send(lang === "zh" ? `${days}天后` : `${days} days later`, "director", view.path.at(-1)!.id, way);
     } else recall();
   }, [away]);
-  // The recap is read first: it opens at the top of the page.
-  useEffect(() => {
-    if (recap !== null) void sceneTop.current?.scrollIntoView({ block: "start" });
-  }, [recap === null]);
   // It tells where the story stood: once the player plays on or goes back, it is closed.
   const headId = view?.path.at(-1)?.id;
   const recapFor = useRef(headId);
@@ -220,18 +146,40 @@ export function Play({ saveId }: { saveId: string }) {
   }, [headId]);
   // Someone undone out of the story has no interview left to show.
   useEffect(() => {
-    if (panel === "interview" && view && !view.path.at(-1)!.state.characters.some((c) => c.id === guest)) setPanel(null);
+    if (panel === "interview" && view && !view.path.at(-1)!.state.characters.some((c) => c.id === guest)) setPanel("world");
   }, [view, panel, guest]);
-  // Each new scene, and each move as it starts, opens at its first line so the player reads from the top.
-  // Newer browsers return a Promise from scrollIntoView; an effect must not return it.
+  // Each new scene opens at its first line, so the player reads from the top.
   useEffect(() => {
     void sceneTop.current?.scrollIntoView({ block: "start" });
-  }, [view?.path.at(-1)?.id]);
+  }, [headId, recap === null]);
+  // Each tab opens at its top.
+  const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    void pendingTop.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [pending === null]);
+    if (panelRef.current) panelRef.current.scrollTop = 0;
+  }, [panel]);
+  // A past turn opened from the page scrolls into view in the story so far.
+  useEffect(() => {
+    if (expanded && panel === "history") void document.getElementById(`turn-${expanded}`)?.scrollIntoView({ block: "start" });
+  }, [expanded, panel]);
 
-  if (!view) return <main className="page">{error || t("Loading…")}</main>;
+  if (!view)
+    return (
+      <main className="home">
+        {error ? (
+          <div className="note fail" role="alert">
+            <b>{t("Could not open this save")}</b>
+            <span className="small muted">{t(error)}</span>
+            <div>
+              <a className="button small" href="#/">
+                {t("Your worlds")}
+              </a>
+            </div>
+          </div>
+        ) : (
+          <p className="muted">{t("Loading…")}</p>
+        )}
+      </main>
+    );
   const { save, world, path, tree } = view;
   const head = path.at(-1)!;
   const state = head.state;
@@ -240,24 +188,38 @@ export function Play({ saveId }: { saveId: string }) {
   // world (an undo, a branch); then the player speaks as director.
   const wanted = actor ?? (path.length === 1 ? (state.characters[0]?.id ?? "director") : head.actor);
   const current = state.characters.some((c) => c.id === wanted) ? wanted : "director";
+  // The character the player has been playing: the scene is theirs, even while they direct.
+  const me =
+    (current !== "director" && current) ||
+    path.findLast((n) => n.actor !== "director" && state.characters.some((c) => c.id === n.actor))?.actor ||
+    state.characters[0]?.id ||
+    null;
 
   async function send(text: string, as = current, from = head.id, offline: "world" | "all" | null = null) {
-    setPending({ actor: as, input: text, story: "", phase: "story", error: "", since: Date.now(), offline });
+    setPending({ actor: as, input: text, story: "", phase: "story", passed: false, restarted: false, error: "", since: Date.now(), offline });
     setInput("");
     setError("");
     try {
-      const node = await playTurn(saveId, as, text, {
-        story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
-        dice: (dice) => setPending((p) => p && { ...p, dice }),
-        phase: (phase) =>
-          setPending(
-            (p) =>
-              p &&
-              (phase === "restart"
-                ? { ...p, story: "", phase: "story" }
-                : { ...p, phase: phase === "passing" || phase === "story" ? phase : "changes" }),
-          ),
-      }, offline);
+      const node = await playTurn(
+        saveId,
+        as,
+        text,
+        {
+          story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
+          dice: (dice) => setPending((p) => p && { ...p, dice }),
+          phase: (phase) =>
+            setPending(
+              (p) =>
+                p &&
+                (phase === "restart"
+                  ? { ...p, story: "", phase: "story", restarted: true }
+                  : phase === "passing"
+                    ? { ...p, phase, passed: true }
+                    : { ...p, phase: phase === "story" ? "story" : "changes" }),
+            ),
+        },
+        offline,
+      );
       await load();
       setPending(null);
       const next = queuedRef.current;
@@ -295,17 +257,20 @@ export function Play({ saveId }: { saveId: string }) {
     setQueued({ text: input.trim(), actor: current });
     setInput("");
   }
+  // A turn that failed: the words go back into the box to change and send again.
+  const editAgain = () => {
+    if (!pending) return;
+    setInput(pending.input);
+    setActor(pending.actor);
+    setPending(null);
+  };
 
   const goTo = (nodeId: string) => api.moveHead(saveId, nodeId).then(setView, report);
   const branch = (nodeId: string) =>
     api
-      .branch(saveId, nodeId, `${t("Branch")} ${new Date().toLocaleString()}`)
+      .branch(saveId, nodeId, `${save.title} · ${t("branch")}`)
       .then((created) => (location.hash = `#/play/${created.id}`), report);
-  const rename = () => {
-    const title = prompt(t("Name this save"), save.title)?.trim();
-    if (title) api.rename(saveId, title).then(setView, report);
-  };
-  const changeSettings = (patch: Partial<Settings>) => api.settings(saveId, patch).then(setView, report);
+  const changeSettings = (patch: Partial<Settings>) => void api.settings(saveId, patch).then(setView, report);
   const recordAgain = () => api.records(saveId).then(setView, report);
   async function suggest() {
     setSuggesting(true);
@@ -319,290 +284,455 @@ export function Play({ saveId }: { saveId: string }) {
     }
   }
 
-  const placeName = (id: string | null) => state.places.find((p) => p.id === id)?.name;
-  // Where the character being played is; the director has no scene.
-  const scene = state.characters.find((c) => c.id === current)?.placeId ?? null;
-  const cast = state.characters.filter((c) => !c.gone);
-  const charName = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
-  const known = state.facts.filter((f) => !f.secret);
-  const chronicled = path.findLast((n) => Array.isArray(n.timeline));
-  // Older turns keep only their story; one every ten, and the newest ten, can still be returned to.
   const byId = new Map(tree.map((n) => [n.id, n]));
   const children = Map.groupBy(tree, (n) => n.parentId);
   const resumable = (id: string) => byId.get(id)?.resumable ?? false;
-  const span = (from: number, to: number) => (lang === "zh" ? `第 ${from}–${to} 回合` : `Turns ${from}–${to}`);
-  const secrets = state.facts.filter((f) => f.secret);
-  const hidden = secrets.filter((f) => !f.revealed);
+  const toolsFor = (node: TurnNode, i: number): TurnTools => ({
+    busy,
+    resumable,
+    others: (children.get(node.id) ?? []).filter((n) => n.id !== path[i + 1]?.id),
+    goTo: (id) => void goTo(id),
+    goToLatest: (id) => void goTo(latestLeaf(tree, id)),
+    branch: (id) => void branch(id),
+    view: views[node.id],
+    viewing: viewing === node.id,
+    seeAs: (who) => seeAs(node.id, who),
+    playAs: (who) => setActor(who),
+    openBook: () => setPanel("world"),
+  });
 
-  // Who a turn's scene can be seen through: the people its story names, not the one the player played.
-  const seen = (node: TurnNode) =>
-    (node.state ?? state).characters.filter(
-      (c) =>
-        c.id !== node.actor &&
-        [c.name, ...c.name.split(/[·・\s]+/)].some((part) => part.length >= 2 && node.story.includes(part)),
-    );
-  const turnView = (node: TurnNode, i: number) => {
-    const next = path[i + 1];
-    const others = (children.get(node.id) ?? []).filter((n) => n.id !== next?.id);
-    return (
-      <article className="turn" key={node.id}>
-        {i > 0 && (
-          <p className="action">
-            <strong>{node.offline ? t("While you were away") : actorLabel(state, node.actor)}</strong>
-            {node.input ? `${sep}${node.input}` : ` · ${t("Let it unfold")}`}
-          </p>
-        )}
-        {node.dice && <DiceLine dice={node.dice} />}
-        <Paragraphs text={node.story} />
-        {node.changes.map((c) => {
-          const found = c.type === "reveal" && state.facts.find((f) => f.id === c.fact);
-          return (
-            found && (
-              <p className="found" key={c.fact}>
-                <span className="tag">{t("Secret found")}</span> {found.text}
-              </p>
-            )
-          );
-        })}
-        {node.recordsFailed && node === head && (
-          <p className="error small">
-            {t("Couldn't record what changed in this turn.")}{" "}
-            <button disabled={busy} onClick={recordAgain}>
-              {t("Record again")}
-            </button>
-          </p>
-        )}
-        {node.changes.length > 0 && (
-          <details className="changes">
-            <summary>
-              {t("What changed")} ({node.changes.length})
-            </summary>
-            <ul>
-              {node.changes.map((c, j) => (
-                // A leave's note says why, not who.
-                <li key={j}>{c.type === "leave" ? describe(c) : c.note || describe(c)}</li>
-              ))}
-            </ul>
-          </details>
-        )}
-        {/* Folded: what the player's character has not seen, to read only if they want to. */}
-        {node.meanwhile && (
-          <details className="changes">
-            <summary>
-              {t("Meanwhile")} ({node.meanwhile.length})
-            </summary>
-            <ul>
-              {node.meanwhile.map((m, j) => (
-                <li key={j}>
-                  {m.character}
-                  {sep}
-                  {m.did}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-        {/* The same scene through someone else's eyes, folded under the turn. */}
-        {views[node.id] && (
-          <details className="changes view" open>
-            <summary>
-              {t("Through the eyes of")} {state.characters.find((c) => c.id === views[node.id]!.who)?.name}
-            </summary>
-            <Paragraphs text={views[node.id]!.story} />
-          </details>
-        )}
-        {!busy && (
-          <div className="turn-tools">
-            {i > 0 && seen(node).length > 0 && (
-              <select
-                className="link"
-                value=""
-                disabled={viewing === node.id}
-                onChange={(e) => seeAs(node.id, e.target.value)}
-              >
-                <option value="">{viewing === node.id ? t("Writing…") : t("Another's eyes")}</option>
-                {seen(node).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            {node !== head && resumable(node.id) && (
-              <button className="link" onClick={() => goTo(node.id)}>
-                {t("Go back here")}
-              </button>
-            )}
-            {resumable(node.id) && (
-              <button className="link" onClick={() => branch(node.id)}>
-                {t("Branch from here")}
-              </button>
-            )}
-            {others.length > 0 && (
-              <span className="muted small">
-                {t("Other paths")}:
-                {others.map((o) => (
-                  <button key={o.id} className="link" onClick={() => goTo(latestLeaf(tree, o.id))}>
-                    {o.input.slice(0, 16) || t("Let it unfold")}
-                  </button>
-                ))}
-              </span>
-            )}
-          </div>
-        )}
-      </article>
-    );
-  };
+  // Who the player can act as, grouped as the composer's menu shows them.
+  const scene = state.characters.find((c) => c.id === me)?.placeId ?? null;
+  const cast = state.characters.filter((c) => !c.gone);
+  const groups: [string, typeof cast][] = [
+    [t("Here"), cast.filter((c) => !scene || !c.placeId || c.placeId === scene)],
+    [t("Elsewhere"), scene ? cast.filter((c) => c.placeId && c.placeId !== scene) : []],
+    [t("Out of the story"), state.characters.filter((c) => c.gone)],
+  ];
+  const actingAs = actorLabel(state, current);
   const toggle = (name: Panel) => setPanel(panel === name ? null : name);
+  const guestCharacter = state.characters.find((c) => c.id === guest);
+  const previous = path.length > 2 ? path.at(-2)! : null;
+
+  const step = (name: string, now: boolean, done: boolean) => (
+    <span className={now ? "step now" : done ? "step done" : "step"}>{name}</span>
+  );
 
   return (
-    <main className={panel ? "play with-side" : "play"}>
-      <header className="bar">
-        <a href="#/">← {t("Home")}</a>
-        <span className="title">
-          {world.title}
-          <span className="muted small"> · {save.title}</span>
-        </span>
-        <span className="row">
+    <div className="play">
+      <header className="topbar">
+        <a href="#/" className="seal" aria-label={t("Your worlds")}>
+          拟
+        </a>
+        <nav className="crumbs" aria-label={t("Where you are")}>
+          <a href={`#/world/${world.id}`}>{world.title}</a>
+          <span className="muted wide">/</span>
+          <button className="quiet small wide" aria-label={`${t("Rename")}: ${save.title}`} onClick={() => setRenaming(true)}>
+            {save.title}
+          </button>
+          <span className="muted small">· {turnLabel(path.length - 1)}</span>
+        </nav>
+        <div role="toolbar" aria-label={t("Panels")} className="row" style={{ gap: 4 }}>
           {path.length > 1 && (
-            <button className={panel === "history" ? "on" : ""} onClick={() => toggle("history")}>
+            <button className={panel === "history" ? "small on wide" : "quiet small wide"} aria-pressed={panel === "history"} onClick={() => toggle("history")}>
+              <Icon name="clock" />
               {t("Story so far")}
             </button>
           )}
-          {path.length > 1 && <button onClick={() => setNovelOpen(true)}>{t("Novel")}</button>}
-          <button className={panel === "world" ? "on" : ""} onClick={() => toggle("world")}>
+          {path.length > 1 && (
+            <button className="quiet small wide" onClick={() => setNovelOpen(true)}>
+              <Icon name="book" />
+              {t("Novel")}
+            </button>
+          )}
+          <button className={panel === "world" ? "small on wide" : "quiet small wide"} aria-pressed={panel === "world"} onClick={() => toggle("world")}>
+            <Icon name="globe" />
             {t("World")}
           </button>
-          <button className={panel === "settings" ? "on" : ""} onClick={() => toggle("settings")}>
+          <button className={panel === "settings" ? "small on wide" : "quiet small wide"} aria-pressed={panel === "settings"} onClick={() => toggle("settings")}>
+            <Icon name="sliders" />
             {t("Settings")}
           </button>
-        </span>
+          <button className="quiet narrow-only" aria-label={t("Open the panels: world, story so far, settings")} onClick={() => toggle("world")}>
+            <Icon name="globe" size={18} />
+          </button>
+          <LookButton />
+        </div>
       </header>
 
-      {error && <p className="error">{error}</p>}
-
-      {/* The page holds only the current scene; the past, the world and the settings open beside it. */}
-      <section className="story">
-        <div ref={sceneTop} />
-        {recap !== null && (
-          <aside className="recap">
-            <div className="row">
-              <strong>{t("Previously")}</strong>
-              <button className="link" onClick={() => setRecap(null)} aria-label={t("Close")}>
-                ✕
-              </button>
-            </div>
-            <p>{recap || t("Writing…")}</p>
-          </aside>
-        )}
-        {turnView(head, path.length - 1)}
-
-        {pending && (
-          <article className="turn pending" ref={pendingTop}>
-            <p className="action">
-              <strong>{pending.offline ? t("While you were away") : actorLabel(state, pending.actor)}</strong>
-              {pending.input ? `${sep}${pending.input}` : ` · ${t("Let it unfold")}`}
-            </p>
-            {pending.dice && <DiceLine dice={pending.dice} />}
-            <Paragraphs text={pending.story} />
-            {!pending.error && (
-              <p className="muted small">
-                {pending.phase === "changes" ? (
-                  t("Recording what changed…")
-                ) : pending.story ? (
-                  t("Writing…")
-                ) : pending.phase === "passing" ? (
-                  <>
-                    {t("Time passes; the others get on with their plans…")} <Elapsed since={pending.since} />
-                  </>
+      <div className="play-body">
+        <main className="reading">
+          <div className="column">
+            <div ref={sceneTop} className="scene-top" />
+            {error && (
+              <div className="note fail" role="alert">
+                <b>{error}</b>
+                <div>
+                  <button className="small" onClick={() => setError("")}>
+                    {t("Close")}
+                  </button>
+                </div>
+              </div>
+            )}
+            {previous && !pending && (
+              <div>
+                <button
+                  className="quiet small"
+                  style={{ paddingLeft: 0 }}
+                  onClick={() => {
+                    setExpanded(previous.id);
+                    setPanel("history");
+                  }}
+                >
+                  ‹ {t("Previous turn")}
+                  {sepFor(previous.input || t("Let it unfold"))}
+                </button>
+              </div>
+            )}
+            {recap !== null && (
+              <div className="note" style={{ background: "transparent", border: "1px solid var(--edge)" }}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <b>{t("Previously")}</b>
+                  <button className="quiet small" onClick={() => setRecap(null)} aria-label={t("Close")}>
+                    <Icon name="close" />
+                  </button>
+                </div>
+                {recap ? (
+                  <p className="serif" style={{ fontSize: 16, lineHeight: 1.8 }}>
+                    {recap}
+                  </p>
                 ) : (
+                  <p className="muted small" role="status">
+                    {t("Writing…")}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <Turn
+              node={head}
+              index={path.length - 1}
+              state={state}
+              head
+              tools={toolsFor(head, path.length - 1)}
+              extra={
+                head.recordsFailed && (
+                  <div className="note cost" role="alert">
+                    <b>{t("The story is written, but this turn's changes were not recorded")}</b>
+                    <span>{t("Where people are and what is known still stand as before. Record again, then play on.")}</span>
+                    <div>
+                      <button className="primary small" disabled={busy} onClick={recordAgain}>
+                        {t("Record again")}
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+            />
+
+            {pending && (
+              <article style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-busy={!pending.error}>
+                {pending.offline && !pending.story && !pending.error ? (
+                  <div className="note" role="status">
+                    <b>{lang === "zh" ? `你离开了 ${pending.input.replace(/\D/g, "")} 天，世界正在把这几天过完` : `You were away ${pending.input.replace(/\D/g, "")} days: the world is living them`}</b>
+                    <span className="muted">
+                      {pending.offline === "all"
+                        ? t("Everyone acts on their own plans, your character too. Half a minute to a minute.")
+                        : t("Everyone away acts on their own plans; your character stays put. Half a minute to a minute.")}
+                    </span>
+                  </div>
+                ) : (
+                  <ActorLine node={pending} index={path.length} state={state} />
+                )}
+                {!pending.error && (
+                  <div className="steps" role="status">
+                    {pending.passed && step(t("Time moves on"), pending.phase === "passing", pending.phase !== "passing")}
+                    {step(t("Thinking"), pending.phase === "story" && !pending.story, pending.phase === "changes" || !!pending.story)}
+                    {step(t("Writing"), pending.phase === "story" && !!pending.story, pending.phase === "changes")}
+                    {step(t("Recording"), pending.phase === "changes", false)}
+                    <span className="muted small" style={{ marginLeft: "auto" }}>
+                      <Elapsed since={pending.since} />
+                    </span>
+                  </div>
+                )}
+                {pending.restarted && !pending.error && (
+                  <div className="note cost" role="status" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <b>{t("That passage broke off; writing it again")}</b>
+                    <span className="muted small">{t("what was written is cleared")}</span>
+                  </div>
+                )}
+                {pending.dice && <DiceLine dice={pending.dice} />}
+                {pending.story && (
+                  <div className="story">
+                    <Paragraphs text={pending.story} caret={pending.phase === "story" && !pending.error} />
+                  </div>
+                )}
+                {pending.error && (
+                  <div className="note fail" role="alert">
+                    <b>{t("This turn was not written")}</b>
+                    <span>{pending.error}</span>
+                    <span className="muted small">{t("What you wrote is kept.")}</span>
+                    <div className="row">
+                      <button className="primary small" onClick={() => send(pending.input, pending.actor, head.id, pending.offline ?? null)}>
+                        {t("Retry")}
+                      </button>
+                      {!pending.offline && (
+                        <button className="small" onClick={editAgain}>
+                          {t("Change it, then send")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </article>
+            )}
+
+            {queued && (
+              <div className="note">
+                <span style={{ fontSize: 14 }}>
+                  <b style={{ fontWeight: 600 }}>{t("Queued")}</b>
+                  {sepFor(queued.text || t("Let it unfold"))}
+                </span>
+                <span className="muted small">{t("sends when the changes are recorded")}</span>
+                <div>
+                  <button className="small" onClick={() => setQueued(null)}>
+                    {t("Cancel")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!busy && (
+              <section aria-labelledby="next" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <h2 id="next" className="label">
+                    {t("Next")}
+                  </h2>
+                  {head.hooks.length > 0 && (
+                    <button className="quiet small" disabled={suggesting} onClick={suggest}>
+                      {t("Others")}
+                    </button>
+                  )}
+                </div>
+                {suggesting ? (
+                  <div role="status" aria-label={t("Thinking of next steps")} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div className="skel" />
+                    <div className="skel" style={{ width: "82%" }} />
+                    <div className="skel" style={{ width: "64%" }} />
+                  </div>
+                ) : head.hooks.length > 0 ? (
+                  <div className="suggestions">
+                    {head.hooks.map((hook) => (
+                      <button key={hook} onClick={() => send(hook)}>
+                        {hook}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="row" style={{ padding: "12px 14px", border: "1px dashed var(--edge)", borderRadius: 12 }}>
+                    <span className="muted grow">{t("No suggestions this time: write your own, or")}</span>
+                    <button className="small" onClick={suggest}>
+                      {t("Suggest next steps")}
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+
+          <form
+            className="composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+          >
+            <label htmlFor="act" className="sr">
+              {t("What happens next")}
+            </label>
+            <textarea
+              id="act"
+              rows={2}
+              placeholder={
+                busy && !canQueue
+                  ? t("You can write the next move once the story is written")
+                  : current === "director"
+                    ? t("As director: what happens in the world?")
+                    : t("What do you do or say next?")
+              }
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                // Not while an input method is still composing: its Enter picks the characters.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+            />
+            <div className="row">
+              <Menu
+                up
+                title={`${t("Act as")}: ${actingAs}`}
+                label={
                   <>
-                    {t("Thinking it through…")} <Elapsed since={pending.since} />
+                    {current === "director" ? (
+                      <span className="avatar tiny" aria-hidden="true">
+                        <Icon name="pen" size={12} />
+                      </span>
+                    ) : (
+                      <Avatar name={actingAs} me tiny />
+                    )}
+                    {actingAs} ▾
+                  </>
+                }
+              >
+                {(close) => (
+                  <>
+                    {groups.map(
+                      ([title, people]) =>
+                        people.length > 0 && (
+                          <div key={title} style={{ display: "flex", flexDirection: "column" }}>
+                            <span className="grp">{title}</span>
+                            {people.map((c) => (
+                              <button type="button" key={c.id} role="menuitemradio" aria-checked={c.id === current} onClick={() => (close(), setActor(c.id))}>
+                                <Avatar name={c.name} me={c.id === me} tiny />
+                                {c.name}
+                                {c.id === me && <span className="muted small">{t("you have been playing")}</span>}
+                                {c.gone && <span className="muted small">{t("acting brings them back")}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        ),
+                    )}
+                    <span className="grp">{t("No one in particular")}</span>
+                    <button type="button" role="menuitemradio" aria-checked={current === "director"} onClick={() => (close(), setActor("director"))}>
+                      <span className="avatar tiny" aria-hidden="true">
+                        <Icon name="pen" size={12} />
+                      </span>
+                      {t("Director")}
+                      <span className="muted small">{t("change the world directly")}</span>
+                    </button>
                   </>
                 )}
-              </p>
-            )}
-            {pending.error && (
-              <p className="error">
-                {pending.error}{" "}
-                <button onClick={() => send(pending.input, pending.actor, head.id, pending.offline ?? null)}>
-                  {t("Retry")}
+              </Menu>
+              <span className="muted small grow wide">{t("Enter sends · Shift+Enter for a new line")}</span>
+              {head.parentId && resumable(head.parentId) && (
+                <button type="button" className="quiet small" disabled={busy} onClick={() => goTo(head.parentId!)}>
+                  {t("Undo last turn")}
                 </button>
-              </p>
-            )}
-          </article>
-        )}
-
-        {queued && (
-          <p className="action queued">
-            <strong>{actorLabel(state, queued.actor)}</strong>
-            {queued.text ? `${sep}${queued.text}` : ` · ${t("Let it unfold")}`}
-            <span className="muted small"> · {t("sends when the changes are recorded")} </span>
-            <button className="link" onClick={() => setQueued(null)}>
-              {t("Cancel")}
-            </button>
-          </p>
-        )}
-
-        {!busy && (
-          <div className="hooks">
-            {head.hooks.map((hook) => (
-              <button key={hook} className="hook" onClick={() => send(hook)}>
-                {hook}
+              )}
+              <button className="primary" type="submit" style={{ marginLeft: "auto" }} disabled={busy && !canQueue}>
+                {busy ? (canQueue ? t("Send when ready") : t("Writing…")) : input.trim() ? t("Continue") : t("Let it unfold")}
+                <Icon name="arrow" />
               </button>
-            ))}
-            {head.hooks.length === 0 && (
-              <button className="link" disabled={suggesting} onClick={suggest}>
-                {suggesting ? t("Writing…") : t("Suggest next steps")}
-              </button>
-            )}
-          </div>
+            </div>
+          </form>
+        </main>
+
+        {panel && (
+          <>
+            <div className="scrim" onClick={() => setPanel(null)} aria-hidden="true" />
+            <aside className="panel" aria-label={t("Panels")} ref={panelRef}>
+              <div className="panel-head">
+                {panel === "interview" && guestCharacter ? (
+                  <span className="row" style={{ fontWeight: 600 }}>
+                    <Avatar name={guestCharacter.name} />
+                    {t("Interview")} · {guestCharacter.name}
+                  </span>
+                ) : (
+                  <div
+                    className="tabs"
+                    role="tablist"
+                    aria-label={t("Panels")}
+                    onKeyDown={(e) => {
+                      const order: Panel[] = path.length > 1 ? ["world", "history", "settings"] : ["world", "settings"];
+                      const at = order.indexOf(panel);
+                      if (e.key === "ArrowRight") setPanel(order[(at + 1) % order.length]!);
+                      if (e.key === "ArrowLeft") setPanel(order[(at - 1 + order.length) % order.length]!);
+                    }}
+                  >
+                    {(
+                      [
+                        ["world", t("World")],
+                        ...(path.length > 1 ? [["history", t("Story so far")]] : []),
+                        ["settings", t("Settings")],
+                      ] as [Panel, string][]
+                    ).map(([name, text]) => (
+                      <button key={name} role="tab" aria-selected={panel === name} tabIndex={panel === name ? 0 : -1} onClick={() => setPanel(name)}>
+                        {text}
+                      </button>
+                    ))}
+                    {path.length > 1 && (
+                      <button className="narrow-tab" role="tab" aria-selected={false} tabIndex={-1} onClick={() => setNovelOpen(true)}>
+                        {t("Novel")}
+                      </button>
+                    )}
+                  </div>
+                )}
+                <button
+                  className="quiet small"
+                  aria-label={panel === "interview" ? t("End the interview") : t("Close the panel")}
+                  onClick={() => setPanel(panel === "interview" ? "world" : null)}
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+              <div role="tabpanel">
+                {panel === "world" && (
+                  <WorldPanel
+                    state={state}
+                    me={me}
+                    director={current === "director"}
+                    showSecrets={save.settings.showSecrets}
+                    onInterview={interview}
+                    onMap={() => setMapOpen(true)}
+                  />
+                )}
+                {panel === "history" && (
+                  <HistoryPanel
+                    path={path}
+                    state={state}
+                    recall={recall}
+                    recalling={recap === ""}
+                    expanded={expanded}
+                    setExpanded={setExpanded}
+                    toolsFor={toolsFor}
+                  />
+                )}
+                {panel === "settings" && (
+                  <SettingsPanel
+                    save={save}
+                    worldId={world.id}
+                    change={changeSettings}
+                    rename={(title) => void api.rename(saveId, title).then(setView, report)}
+                    saveNotes={(notes) => api.notes(saveId, notes).then(setView, report)}
+                  />
+                )}
+                {panel === "interview" && guestCharacter && (
+                  <InterviewPanel
+                    guest={guestCharacter}
+                    talk={talk}
+                    asking={asking}
+                    question={question}
+                    setQuestion={setQuestion}
+                    ask={askGuest}
+                  />
+                )}
+              </div>
+            </aside>
+          </>
         )}
+      </div>
 
-        <form
-          className="composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <label>
-            {t("Act as")}
-            <select value={current} onChange={(e) => setActor(e.target.value)}>
-              <option value="director">{t("Director")}</option>
-              {state.characters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.gone ? ` (${t("Gone")})` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <textarea
-            rows={3}
-            placeholder={t("What happens?")}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-          />
-          <div className="row">
-            <button className="primary" type="submit" disabled={busy && !canQueue}>
-              {busy ? t("Send when ready") : input.trim() ? t("Send") : t("Let it unfold")}
-            </button>
-            {head.parentId && resumable(head.parentId) && (
-              <button type="button" className="link" disabled={busy} onClick={() => goTo(head.parentId!)}>
-                {t("Undo last turn")}
-              </button>
-            )}
-          </div>
-        </form>
-      </section>
-
+      {renaming && (
+        <Ask
+          title={t("Name this save")}
+          value={save.title}
+          onDone={(title) => void api.rename(saveId, title).then(setView, report)}
+          onClose={() => setRenaming(false)}
+        />
+      )}
       {novelOpen && (
         <Novel
           saveId={saveId}
@@ -615,320 +745,9 @@ export function Play({ saveId }: { saveId: string }) {
           }}
         />
       )}
-      {mapOpen && (
-        <Graph
-          state={state}
-          me={(head.actor !== "director" && head.actor) || path.findLast((n) => n.actor !== "director")?.actor || null}
-          onClose={() => setMapOpen(false)}
-        />
-      )}
-      {panel && (
-        <aside className="side">
-          <div className="side-head">
-            <h2>
-              {panel === "interview"
-                ? `${t("Interview")} · ${state.characters.find((c) => c.id === guest)?.name ?? ""}`
-                : t(panel === "history" ? "Story so far" : panel === "world" ? "World" : "Settings")}
-            </h2>
-            <button className="link" onClick={() => setPanel(null)} aria-label={t("Close")}>
-              ✕
-            </button>
-          </div>
-
-          {panel === "history" && path.length > 1 && (
-            <button onClick={recall} disabled={recap === ""}>
-              {t("Previously")}
-            </button>
-          )}
-          {panel === "history" && chronicled?.memory?.length ? (
-            <section className="memory">
-              <h3>{t("Memory")}</h3>
-              <ul>
-                {chronicled.memory.map((note, i) => (
-                  <li key={i}>
-                    <span className="muted small">{lang === "zh" ? `第 ${note.turn} 回合` : `Turn ${note.turn}`}</span>{" "}
-                    {note.text}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {panel === "history" && chronicled?.timeline?.length ? (
-            <details className="memory">
-              <summary>{t("Timeline")}</summary>
-              <ul>
-                {chronicled.timeline.map((entry) => (
-                  <li key={entry.from}>
-                    <span className="muted small">{span(entry.from, entry.to)}</span> {entry.text}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-          {panel === "history" && path.slice(0, -1).map(turnView)}
-
-          {panel === "interview" && (
-            <section className="interview">
-              <p className="muted small">{t("Out of the story: nothing said here changes the world.")}</p>
-              {talk.map((x, i) => (
-                <div key={i}>
-                  <p className="q">{x.q}</p>
-                  <p>
-                    <span className="speech">{x.a}</span>
-                  </p>
-                </div>
-              ))}
-              {asking && <p className="muted small">{t("Writing…")}</p>}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  askGuest();
-                }}
-              >
-                <textarea
-                  rows={2}
-                  value={question}
-                  placeholder={t("Ask something…")}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                      e.preventDefault();
-                      askGuest();
-                    }
-                  }}
-                />
-                <button type="submit" disabled={asking || !question.trim()}>
-                  {t("Ask")}
-                </button>
-              </form>
-            </section>
-          )}
-
-          {panel === "world" && (
-            <div className="world">
-              <h3>{t("Time")}</h3>
-              <p>{state.clock || "—"}</p>
-
-              <h3>
-                {t("Discovery book")}{" "}
-                <span className="muted small">
-                  {t("Found")} {secrets.length - hidden.length}/{secrets.length}
-                </span>
-              </h3>
-              <ul className="book">
-                {secrets
-                  .filter((f) => f.revealed)
-                  .map((f) => (
-                    <li key={f.id}>
-                      {f.text} <span className="tag">{t(f.source === "ai" ? "Buried by the AI" : "Yours")}</span>
-                      {f.revealNote && <div className="small muted">{f.revealNote}</div>}
-                    </li>
-                  ))}
-                {save.settings.showSecrets
-                  ? hidden.map((f) => (
-                      <li key={f.id} className="muted">
-                        {f.text} <span className="tag">{t(f.source === "ai" ? "Buried by the AI" : "Yours")}</span>
-                      </li>
-                    ))
-                  : hidden.length > 0 && (
-                      <li className="muted">
-                        {hidden.length} {t("undiscovered")}
-                      </li>
-                    )}
-              </ul>
-
-              {/* Who is with the character being played, and who is elsewhere: the story reads the others in a line. */}
-              {[
-                // Someone placed nowhere may be here, as the story reads it too.
-                { title: scene ? "Here" : "People", people: cast.filter((c) => !scene || !c.placeId || c.placeId === scene) },
-                { title: "Elsewhere", people: scene ? cast.filter((c) => c.placeId && c.placeId !== scene) : [] },
-                { title: "Gone", people: state.characters.filter((c) => c.gone) },
-              ]
-                .filter((group) => group.people.length > 0)
-                .map((group) => (
-                  <section key={group.title}>
-                    <h3>
-                      {t(group.title)}
-                      {group.title === "Here" && <span className="muted small"> · {placeName(scene)}</span>}
-                    </h3>
-                    <ul>
-                      {group.people.map((c) => (
-                        <li key={c.id} className={group.title === "Here" || group.title === "People" ? "" : "muted"}>
-                          <strong>{c.name}</strong>{" "}
-                          <button className="link small" onClick={() => interview(c.id)}>
-                            {t("Interview")}
-                          </button>
-                          {group.title !== "Here" && group.title !== "Gone" && placeName(c.placeId) && (
-                            <span className="muted"> · {t("at")} {placeName(c.placeId)}</span>
-                          )}
-                          {(c.gone ?? c.notes) && <div className="small">{c.gone ?? c.notes}</div>}
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ))}
-
-
-              <h3>{t("Open questions")}</h3>
-              <ul>
-                {state.threads.map((th) => (
-                  <li key={th.id} className={th.resolved ? "muted" : ""}>
-                    {th.resolved && <span className="tag">{t("Resolved")}</span>} {th.title}
-                    {th.resolution && <div className="small">{th.resolution}</div>}
-                  </li>
-                ))}
-              </ul>
-
-              {state.relationships.length > 0 && (
-                <>
-                  <h3>
-                    {t("Relationships")}{" "}
-                    <button className="link small" onClick={() => setMapOpen(true)}>
-                      {t("Relationship map")}
-                    </button>
-                  </h3>
-                  <ul>
-                    {state.relationships.map((r) => (
-                      <li key={`${r.a}-${r.b}`}>
-                        {charName(r.a)} · {charName(r.b)}
-                        {sep}
-                        {r.text}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              <h3>{t("Known facts")}</h3>
-              <ul>
-                {known.map((f) => (
-                  <li key={f.id}>{f.text}</li>
-                ))}
-              </ul>
-
-              <h3>{t("Places")}</h3>
-              <ul>
-                {state.places.map((p) => (
-                  <li key={p.id}>{p.name}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {panel === "settings" && (
-            <div className="settings">
-              <label>
-                {t("Notes")}
-                <textarea
-                  key={save.notes ?? ""}
-                  defaultValue={save.notes ?? ""}
-                  maxLength={2000}
-                  rows={4}
-                  placeholder={t("What the story must never forget; read every turn")}
-                  onBlur={(e) => e.target.value !== (save.notes ?? "") && api.notes(saveId, e.target.value).then(setView, report)}
-                />
-              </label>
-              <label>
-                {t("Voice")}
-                <select value={save.settings.person} onChange={(e) => changeSettings({ person: e.target.value as Settings["person"] })}>
-                  <option value="third">{t("Third person")}</option>
-                  <option value="second">{t("Second person")}</option>
-                </select>
-              </label>
-              <label>
-                {t("AI initiative")}
-                <select value={save.settings.pace} onChange={(e) => changeSettings({ pace: e.target.value as Settings["pace"] })}>
-                  <option value="calm">{t("Calm")}</option>
-                  <option value="medium">{t("Medium")}</option>
-                  <option value="intense">{t("Intense")}</option>
-                </select>
-              </label>
-              <label>
-                {t("Length")}
-                <select value={save.settings.length} onChange={(e) => changeSettings({ length: e.target.value as Settings["length"] })}>
-                  <option value="auto">{t("Standard length")}</option>
-                  <option value="short">{t("Shorter")}</option>
-                  <option value="long">{t("Longer")}</option>
-                </select>
-              </label>
-              <label>
-                {t("Writing")}
-                <select
-                  value={save.settings.style ?? "plain"}
-                  onChange={(e) => changeSettings({ style: e.target.value as Settings["style"] })}
-                >
-                  <option value="plain">{t("Plain and clear")}</option>
-                  <option value="literary">{t("Literary")}</option>
-                </select>
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={save.settings.showSecrets}
-                  onChange={(e) => changeSettings({ showSecrets: e.target.checked })}
-                />
-                {t("Show all secrets")}
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={save.settings.thinking ?? false}
-                  onChange={(e) => changeSettings({ thinking: e.target.checked })}
-                />
-                <span>
-                  {t("Deep thinking")}
-                  <span className="small muted"> · {t("better plotted, but the first words take 30-80 s")}</span>
-                </span>
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={save.settings.dice ?? false}
-                  onChange={(e) => changeSettings({ dice: e.target.checked })}
-                />
-                <span>
-                  {t("Dice of fate")}
-                  <span className="small muted"> · {t("a risky attempt is settled by a die: success, success at a cost, or failure")}</span>
-                </span>
-              </label>
-              <label>
-                <span>
-                  {t("The world lives on while you are away")}
-                  <span className="small muted">
-                    {" "}
-                    · {t("back after a day or more, the world has lived those days too (up to seven)")}
-                  </span>
-                </span>
-                <select
-                  value={save.settings.offline ?? "off"}
-                  onChange={(e) => changeSettings({ offline: e.target.value as Settings["offline"] })}
-                >
-                  <option value="off">{t("Off")}</option>
-                  <option value="world">{t("The world, but my character stays")}</option>
-                  <option value="all">{t("The whole world, my character too")}</option>
-                </select>
-              </label>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={save.settings.meanwhile ?? true}
-                  onChange={(e) => changeSettings({ meanwhile: e.target.checked })}
-                />
-                <span>
-                  {t("The world moves on its own")}
-                  <span className="small muted"> · {t("every few turns, the people away act on their plans")}</span>
-                </span>
-              </label>
-              <div className="row">
-                <button onClick={rename}>{t("Rename")}</button>
-                <a className="button" href={`#/studio/${world.id}`} title={t("Changes only apply to new saves")}>
-                  {t("Edit world")}
-                </a>
-              </div>
-            </div>
-          )}
-        </aside>
-      )}
-    </main>
+      {mapOpen && <Graph state={state} me={me} onClose={() => setMapOpen(false)} />}
+    </div>
   );
 }
+
+const sepFor = (text: string) => (lang === "zh" ? `：${text}` : `: ${text}`);

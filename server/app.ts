@@ -42,6 +42,7 @@ import {
   CHAPTER_TURNS,
   chapterMessages,
   interviewMessages,
+  lastLine,
   placedOne,
   recapMessages,
   riskMessages,
@@ -843,10 +844,24 @@ export function createApi(
         fail(415, "Expected JSON");
       switch (route) {
         case "GET /worlds":
+          // Each save with how far it is, its last line and the secrets found: the home page's "continue" card.
           return send(
             res,
             200,
-            store.worlds().map((w) => ({ world: w, saves: store.saves(w.id) })),
+            store.worlds().map((w) => ({
+              world: w,
+              saves: store.saves(w.id).map((s) => {
+                const head = store.node(s.headId);
+                const secrets = head?.state?.facts.filter((f) => f.secret) ?? [];
+                return {
+                  ...s,
+                  turns: store.depth(s.headId),
+                  last: lastLine(head?.story ?? ""),
+                  found: secrets.filter((f) => f.revealed).length,
+                  secrets: secrets.length,
+                };
+              }),
+            })),
           );
         case "POST /worlds": {
           const w: World = { ...normalizeDraft(await readJson(req)), id: randomUUID(), createdAt: now(), updatedAt: now() };

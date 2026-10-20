@@ -129,6 +129,14 @@ export interface Save {
   updatedAt: string;
 }
 
+/** A save as the home page lists it: how far it is, its last line, and the secrets found. */
+export interface SaveSummary extends Save {
+  turns: number;
+  last: string;
+  found: number;
+  secrets: number;
+}
+
 /** One change the story made to the world, as the model reported it. */
 export type Change =
   | { type: "move"; character: string; place: string; note: string }
