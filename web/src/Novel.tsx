@@ -103,12 +103,14 @@ export function Novel({
                 {numeral(n)}
                 {chapters[n]?.title && ` · ${chapters[n]!.title}`}
               </span>
-              <span className="muted small">{writing === n ? t("Writing…") : chapters[n] ? "" : t("not written yet")}</span>
+              <span className="muted small">
+                {writing === n ? t("Writing…") : chapters[n] ? "" : t("not written yet")}
+              </span>
             </button>
           ))}
         </nav>
       )}
-      <div className="page">
+      <div className="novel-page">
         <div>
           {failed && (
             <div className="note fail" role="alert">
@@ -123,8 +125,13 @@ export function Novel({
           )}
           {c ? (
             <article className="story">
-              <h2 style={{ fontSize: 24, textAlign: "center", fontFamily: "var(--serif)" }}>{c.title || numeral(at)}</h2>
-              <p className="muted small" style={{ textIndent: 0, textAlign: "center", fontFamily: "var(--sans)", marginBottom: 20 }}>
+              <h2 style={{ fontSize: 24, textAlign: "center", fontFamily: "var(--serif)" }}>
+                {c.title || numeral(at)}
+              </h2>
+              <p
+                className="muted small"
+                style={{ textIndent: 0, textAlign: "center", fontFamily: "var(--sans)", marginBottom: 20 }}
+              >
                 {span(at)} · {lang === "zh" ? `共 ${count} 章` : `${count} chapters`}
               </p>
               {c.text

@@ -146,7 +146,8 @@ export function Play({ saveId }: { saveId: string }) {
   }, [headId]);
   // Someone undone out of the story has no interview left to show.
   useEffect(() => {
-    if (panel === "interview" && view && !view.path.at(-1)!.state.characters.some((c) => c.id === guest)) setPanel("world");
+    if (panel === "interview" && view && !view.path.at(-1)!.state.characters.some((c) => c.id === guest))
+      setPanel("world");
   }, [view, panel, guest]);
   // Each new scene opens at its first line, so the player reads from the top.
   useEffect(() => {
@@ -157,9 +158,37 @@ export function Play({ saveId }: { saveId: string }) {
   useEffect(() => {
     if (panelRef.current) panelRef.current.scrollTop = 0;
   }, [panel]);
+  // Below 1280 px the panel lies over the page: the page behind it is inert, Esc closes it, and the focus goes into it
+  // and comes back to where it was.
+  const [isWide, setWide] = useState(wide);
+  useEffect(() => {
+    const query = matchMedia("(min-width: 1280px)");
+    const update = () => setWide(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+  const overlay = panel !== null && !isWide;
+  const opener = useRef<Element | null>(null);
+  useEffect(() => {
+    if (!overlay) return;
+    opener.current = document.activeElement;
+    panelRef.current?.querySelector<HTMLElement>(".panel-head button, .panel-head [role=tab]")?.focus();
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && !document.querySelector("dialog[open]") && setPanel(null);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("keydown", esc);
+      (opener.current as HTMLElement | null)?.focus?.();
+    };
+  }, [overlay]);
+  // A turn being written comes into view as it starts.
+  const pendingTop = useRef<HTMLElement>(null);
+  useEffect(() => {
+    void pendingTop.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [pending === null]);
   // A past turn opened from the page scrolls into view in the story so far.
   useEffect(() => {
-    if (expanded && panel === "history") void document.getElementById(`turn-${expanded}`)?.scrollIntoView({ block: "start" });
+    if (expanded && panel === "history")
+      void document.getElementById(`turn-${expanded}`)?.scrollIntoView({ block: "start" });
   }, [expanded, panel]);
 
   if (!view)
@@ -196,7 +225,17 @@ export function Play({ saveId }: { saveId: string }) {
     null;
 
   async function send(text: string, as = current, from = head.id, offline: "world" | "all" | null = null) {
-    setPending({ actor: as, input: text, story: "", phase: "story", passed: false, restarted: false, error: "", since: Date.now(), offline });
+    setPending({
+      actor: as,
+      input: text,
+      story: "",
+      phase: "story",
+      passed: false,
+      restarted: false,
+      error: "",
+      since: Date.now(),
+      offline,
+    });
     setInput("");
     setError("");
     try {
@@ -244,7 +283,11 @@ export function Play({ saveId }: { saveId: string }) {
       if (fresh && fresh.path.at(-1)!.parentId === from) {
         setView(fresh);
         setPending(null);
-      } else setPending((p) => p && { ...p, error: t((e as Error).message) });
+      } else {
+        setPending((p) => p && { ...p, error: t((e as Error).message) });
+        // The words go back into the box at once, unless the player already wrote something new there.
+        if (!offline) setInput((now) => now || text);
+      }
       setQueued(null);
     }
   }
@@ -260,15 +303,20 @@ export function Play({ saveId }: { saveId: string }) {
   // A turn that failed: the words go back into the box to change and send again.
   const editAgain = () => {
     if (!pending) return;
-    setInput(pending.input);
+    setInput((now) => now || pending.input);
     setActor(pending.actor);
     setPending(null);
+    document.getElementById("act")?.focus();
   };
 
   const goTo = (nodeId: string) => api.moveHead(saveId, nodeId).then(setView, report);
   const branch = (nodeId: string) =>
     api
-      .branch(saveId, nodeId, `${save.title} · ${t("branch")}`)
+      .branch(
+        saveId,
+        nodeId,
+        `${save.title.replace(/ · .*$/, "")} · ${t("branch")} ${new Date().toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour: "2-digit", minute: "2-digit" })}`,
+      )
       .then((created) => (location.hash = `#/play/${created.id}`), report);
   const changeSettings = (patch: Partial<Settings>) => void api.settings(saveId, patch).then(setView, report);
   const recordAgain = () => api.records(saveId).then(setView, report);
@@ -294,6 +342,8 @@ export function Play({ saveId }: { saveId: string }) {
     goTo: (id) => void goTo(id),
     goToLatest: (id) => void goTo(latestLeaf(tree, id)),
     branch: (id) => void branch(id),
+    undo:
+      i === path.length - 1 && node.parentId && resumable(node.parentId) ? () => void goTo(node.parentId!) : undefined,
     view: views[node.id],
     viewing: viewing === node.id,
     seeAs: (who) => seeAs(node.id, who),
@@ -312,7 +362,14 @@ export function Play({ saveId }: { saveId: string }) {
   const actingAs = actorLabel(state, current);
   const toggle = (name: Panel) => setPanel(panel === name ? null : name);
   const guestCharacter = state.characters.find((c) => c.id === guest);
-  const previous = path.length > 2 ? path.at(-2)! : null;
+  const previous = path.length > 1 ? path.at(-2)! : null;
+  const sendLabel = busy
+    ? canQueue
+      ? t("Send when ready")
+      : t("Writing…")
+    : input.trim()
+      ? t("Continue")
+      : t("Let it unfold");
 
   const step = (name: string, now: boolean, done: boolean) => (
     <span className={now ? "step now" : done ? "step done" : "step"}>{name}</span>
@@ -320,21 +377,31 @@ export function Play({ saveId }: { saveId: string }) {
 
   return (
     <div className="play">
-      <header className="topbar">
+      <header className="topbar" inert={overlay}>
         <a href="#/" className="seal" aria-label={t("Your worlds")}>
           拟
         </a>
         <nav className="crumbs" aria-label={t("Where you are")}>
           <a href={`#/world/${world.id}`}>{world.title}</a>
-          <span className="muted wide">/</span>
-          <button className="quiet small wide" aria-label={`${t("Rename")}: ${save.title}`} onClick={() => setRenaming(true)}>
-            {save.title}
-          </button>
-          <span className="muted small">· {turnLabel(path.length - 1)}</span>
+          <span className="sub">
+            <span className="muted slash">/</span>
+            <button
+              className="quiet small"
+              aria-label={`${t("Rename")}: ${save.title}`}
+              onClick={() => setRenaming(true)}
+            >
+              {save.title}
+            </button>
+            <span className="muted small">· {turnLabel(path.length - 1)}</span>
+          </span>
         </nav>
         <div role="toolbar" aria-label={t("Panels")} className="row" style={{ gap: 4 }}>
           {path.length > 1 && (
-            <button className={panel === "history" ? "small on wide" : "quiet small wide"} aria-pressed={panel === "history"} onClick={() => toggle("history")}>
+            <button
+              className={panel === "history" ? "small on wide" : "quiet small wide"}
+              aria-pressed={panel === "history"}
+              onClick={() => toggle("history")}
+            >
               <Icon name="clock" />
               {t("Story so far")}
             </button>
@@ -345,15 +412,27 @@ export function Play({ saveId }: { saveId: string }) {
               {t("Novel")}
             </button>
           )}
-          <button className={panel === "world" ? "small on wide" : "quiet small wide"} aria-pressed={panel === "world"} onClick={() => toggle("world")}>
+          <button
+            className={panel === "world" ? "small on wide" : "quiet small wide"}
+            aria-pressed={panel === "world"}
+            onClick={() => toggle("world")}
+          >
             <Icon name="globe" />
             {t("World")}
           </button>
-          <button className={panel === "settings" ? "small on wide" : "quiet small wide"} aria-pressed={panel === "settings"} onClick={() => toggle("settings")}>
+          <button
+            className={panel === "settings" ? "small on wide" : "quiet small wide"}
+            aria-pressed={panel === "settings"}
+            onClick={() => toggle("settings")}
+          >
             <Icon name="sliders" />
             {t("Settings")}
           </button>
-          <button className="quiet narrow-only" aria-label={t("Open the panels: world, story so far, settings")} onClick={() => toggle("world")}>
+          <button
+            className="quiet narrow-only"
+            aria-label={t("Open the panels: world, story so far, settings")}
+            onClick={() => toggle("world")}
+          >
             <Icon name="globe" size={18} />
           </button>
           <LookButton />
@@ -361,7 +440,7 @@ export function Play({ saveId }: { saveId: string }) {
       </header>
 
       <div className="play-body">
-        <main className="reading">
+        <main className="reading" inert={overlay}>
           <div className="column">
             <div ref={sceneTop} className="scene-top" />
             {error && (
@@ -410,6 +489,7 @@ export function Play({ saveId }: { saveId: string }) {
             )}
 
             <Turn
+              key={head.id}
               node={head}
               index={path.length - 1}
               state={state}
@@ -419,11 +499,15 @@ export function Play({ saveId }: { saveId: string }) {
                 head.recordsFailed && (
                   <div className="note cost" role="alert">
                     <b>{t("The story is written, but this turn's changes were not recorded")}</b>
-                    <span>{t("Where people are and what is known still stand as before. Record again, then play on.")}</span>
+                    <span>
+                      {t("Where people are and what is known still stand as before. Record again, then play on.")}
+                    </span>
                     <div>
-                      <button className="primary small" disabled={busy} onClick={recordAgain}>
-                        {t("Record again")}
-                      </button>
+                      {!busy && (
+                        <button className="primary small" onClick={recordAgain}>
+                          {t("Record again")}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )
@@ -431,32 +515,66 @@ export function Play({ saveId }: { saveId: string }) {
             />
 
             {pending && (
-              <article style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-busy={!pending.error}>
+              <article
+                ref={pendingTop}
+                className="scene-top"
+                style={{ display: "flex", flexDirection: "column", gap: 14 }}
+                aria-busy={!pending.error}
+              >
                 {pending.offline && !pending.story && !pending.error ? (
                   <div className="note" role="status">
-                    <b>{lang === "zh" ? `你离开了 ${pending.input.replace(/\D/g, "")} 天，世界正在把这几天过完` : `You were away ${pending.input.replace(/\D/g, "")} days: the world is living them`}</b>
+                    <b>
+                      {lang === "zh"
+                        ? `你离开了 ${pending.input.replace(/\D/g, "")} 天，世界正在把这几天过完`
+                        : `You were away ${pending.input.replace(/\D/g, "")} days: the world is living them`}
+                    </b>
                     <span className="muted">
                       {pending.offline === "all"
                         ? t("Everyone acts on their own plans, your character too. Half a minute to a minute.")
-                        : t("Everyone away acts on their own plans; your character stays put. Half a minute to a minute.")}
+                        : t(
+                            "Everyone away acts on their own plans; your character stays put. Half a minute to a minute.",
+                          )}
                     </span>
                   </div>
                 ) : (
                   <ActorLine node={pending} index={path.length} state={state} />
                 )}
                 {!pending.error && (
-                  <div className="steps" role="status">
-                    {pending.passed && step(t("Time moves on"), pending.phase === "passing", pending.phase !== "passing")}
-                    {step(t("Thinking"), pending.phase === "story" && !pending.story, pending.phase === "changes" || !!pending.story)}
-                    {step(t("Writing"), pending.phase === "story" && !!pending.story, pending.phase === "changes")}
+                  <div className="steps">
+                    {pending.passed &&
+                      step(t("Time moves on"), pending.phase === "passing", pending.phase !== "passing")}
+                    {step(
+                      t("Thinking"),
+                      pending.phase === "story" && !pending.story,
+                      pending.phase === "changes" || !!pending.story,
+                    )}
+                    {step(
+                      t("Writing the story"),
+                      pending.phase === "story" && !!pending.story,
+                      pending.phase === "changes",
+                    )}
                     {step(t("Recording"), pending.phase === "changes", false)}
+                    {/* Read out when the step changes, not every second. */}
+                    <span className="sr" role="status">
+                      {pending.phase === "passing"
+                        ? t("Time moves on")
+                        : pending.phase === "changes"
+                          ? t("Recording")
+                          : pending.story
+                            ? t("Writing the story")
+                            : t("Thinking")}
+                    </span>
                     <span className="muted small" style={{ marginLeft: "auto" }}>
                       <Elapsed since={pending.since} />
                     </span>
                   </div>
                 )}
                 {pending.restarted && !pending.error && (
-                  <div className="note cost" role="status" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <div
+                    className="note cost"
+                    role="status"
+                    style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                  >
                     <b>{t("That passage broke off; writing it again")}</b>
                     <span className="muted small">{t("what was written is cleared")}</span>
                   </div>
@@ -473,7 +591,10 @@ export function Play({ saveId }: { saveId: string }) {
                     <span>{pending.error}</span>
                     <span className="muted small">{t("What you wrote is kept.")}</span>
                     <div className="row">
-                      <button className="primary small" onClick={() => send(pending.input, pending.actor, head.id, pending.offline ?? null)}>
+                      <button
+                        className="primary small"
+                        onClick={() => send(pending.input, pending.actor, head.id, pending.offline ?? null)}
+                      >
                         {t("Retry")}
                       </button>
                       {!pending.offline && (
@@ -515,7 +636,11 @@ export function Play({ saveId }: { saveId: string }) {
                   )}
                 </div>
                 {suggesting ? (
-                  <div role="status" aria-label={t("Thinking of next steps")} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div
+                    role="status"
+                    aria-label={t("Thinking of next steps")}
+                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                  >
                     <div className="skel" />
                     <div className="skel" style={{ width: "82%" }} />
                     <div className="skel" style={{ width: "64%" }} />
@@ -529,7 +654,10 @@ export function Play({ saveId }: { saveId: string }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="row" style={{ padding: "12px 14px", border: "1px dashed var(--edge)", borderRadius: 12 }}>
+                  <div
+                    className="row"
+                    style={{ padding: "12px 14px", border: "1px dashed var(--edge)", borderRadius: 12 }}
+                  >
                     <span className="muted grow">{t("No suggestions this time: write your own, or")}</span>
                     <button className="small" onClick={suggest}>
                       {t("Suggest next steps")}
@@ -570,7 +698,7 @@ export function Play({ saveId }: { saveId: string }) {
                 }
               }}
             />
-            <div className="row">
+            <div className="row composer-bar">
               <Menu
                 up
                 title={`${t("Act as")}: ${actingAs}`}
@@ -583,7 +711,7 @@ export function Play({ saveId }: { saveId: string }) {
                     ) : (
                       <Avatar name={actingAs} me tiny />
                     )}
-                    {actingAs} ▾
+                    <span className="wide">{actingAs} ▾</span>
                   </>
                 }
               >
@@ -595,7 +723,13 @@ export function Play({ saveId }: { saveId: string }) {
                           <div key={title} style={{ display: "flex", flexDirection: "column" }}>
                             <span className="grp">{title}</span>
                             {people.map((c) => (
-                              <button type="button" key={c.id} role="menuitemradio" aria-checked={c.id === current} onClick={() => (close(), setActor(c.id))}>
+                              <button
+                                type="button"
+                                key={c.id}
+                                role="menuitemradio"
+                                aria-checked={c.id === current}
+                                onClick={() => (close(), setActor(c.id))}
+                              >
                                 <Avatar name={c.name} me={c.id === me} tiny />
                                 {c.name}
                                 {c.id === me && <span className="muted small">{t("you have been playing")}</span>}
@@ -606,7 +740,12 @@ export function Play({ saveId }: { saveId: string }) {
                         ),
                     )}
                     <span className="grp">{t("No one in particular")}</span>
-                    <button type="button" role="menuitemradio" aria-checked={current === "director"} onClick={() => (close(), setActor("director"))}>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={current === "director"}
+                      onClick={() => (close(), setActor("director"))}
+                    >
                       <span className="avatar tiny" aria-hidden="true">
                         <Icon name="pen" size={12} />
                       </span>
@@ -617,13 +756,13 @@ export function Play({ saveId }: { saveId: string }) {
                 )}
               </Menu>
               <span className="muted small grow wide">{t("Enter sends · Shift+Enter for a new line")}</span>
-              {head.parentId && resumable(head.parentId) && (
-                <button type="button" className="quiet small" disabled={busy} onClick={() => goTo(head.parentId!)}>
+              {!busy && head.parentId && resumable(head.parentId) && (
+                <button type="button" className="quiet small wide" onClick={() => goTo(head.parentId!)}>
                   {t("Undo last turn")}
                 </button>
               )}
-              <button className="primary" type="submit" style={{ marginLeft: "auto" }} disabled={busy && !canQueue}>
-                {busy ? (canQueue ? t("Send when ready") : t("Writing…")) : input.trim() ? t("Continue") : t("Let it unfold")}
+              <button className="primary send" type="submit" aria-label={sendLabel} disabled={busy && !canQueue}>
+                <span className="wide">{sendLabel}</span>
                 <Icon name="arrow" />
               </button>
             </div>
@@ -633,7 +772,7 @@ export function Play({ saveId }: { saveId: string }) {
         {panel && (
           <>
             <div className="scrim" onClick={() => setPanel(null)} aria-hidden="true" />
-            <aside className="panel" aria-label={t("Panels")} ref={panelRef}>
+            <aside className="dock" aria-label={t("Panels")} ref={panelRef}>
               <div className="panel-head">
                 {panel === "interview" && guestCharacter ? (
                   <span className="row" style={{ fontWeight: 600 }}>
@@ -646,10 +785,23 @@ export function Play({ saveId }: { saveId: string }) {
                     role="tablist"
                     aria-label={t("Panels")}
                     onKeyDown={(e) => {
+                      // Arrows, Home and End move between the tabs, and the focus goes with them.
                       const order: Panel[] = path.length > 1 ? ["world", "history", "settings"] : ["world", "settings"];
                       const at = order.indexOf(panel);
-                      if (e.key === "ArrowRight") setPanel(order[(at + 1) % order.length]!);
-                      if (e.key === "ArrowLeft") setPanel(order[(at - 1 + order.length) % order.length]!);
+                      const to =
+                        e.key === "ArrowRight"
+                          ? (at + 1) % order.length
+                          : e.key === "ArrowLeft"
+                            ? (at - 1 + order.length) % order.length
+                            : e.key === "Home"
+                              ? 0
+                              : e.key === "End"
+                                ? order.length - 1
+                                : null;
+                      if (to === null) return;
+                      e.preventDefault();
+                      setPanel(order[to]!);
+                      requestAnimationFrame(() => document.getElementById(`tab-${order[to]}`)?.focus());
                     }}
                   >
                     {(
@@ -659,16 +811,26 @@ export function Play({ saveId }: { saveId: string }) {
                         ["settings", t("Settings")],
                       ] as [Panel, string][]
                     ).map(([name, text]) => (
-                      <button key={name} role="tab" aria-selected={panel === name} tabIndex={panel === name ? 0 : -1} onClick={() => setPanel(name)}>
+                      <button
+                        key={name}
+                        id={`tab-${name}`}
+                        role="tab"
+                        aria-selected={panel === name}
+                        aria-controls="panel-body"
+                        tabIndex={panel === name ? 0 : -1}
+                        onClick={() => setPanel(name)}
+                      >
                         {text}
                       </button>
                     ))}
-                    {path.length > 1 && (
-                      <button className="narrow-tab" role="tab" aria-selected={false} tabIndex={-1} onClick={() => setNovelOpen(true)}>
-                        {t("Novel")}
-                      </button>
-                    )}
                   </div>
+                )}
+                {/* On phones the novel opens from here: the top bar keeps only the essentials. */}
+                {path.length > 1 && panel !== "interview" && (
+                  <button className="quiet small narrow-only" onClick={() => setNovelOpen(true)}>
+                    <Icon name="book" />
+                    {t("Novel")}
+                  </button>
                 )}
                 <button
                   className="quiet small"
@@ -678,7 +840,7 @@ export function Play({ saveId }: { saveId: string }) {
                   <Icon name="close" />
                 </button>
               </div>
-              <div role="tabpanel">
+              <div role="tabpanel" id="panel-body" aria-labelledby={panel === "interview" ? undefined : `tab-${panel}`}>
                 {panel === "world" && (
                   <WorldPanel
                     state={state}
@@ -693,7 +855,11 @@ export function Play({ saveId }: { saveId: string }) {
                   <HistoryPanel
                     path={path}
                     state={state}
-                    recall={recall}
+                    recall={() => {
+                      recall();
+                      // The recap shows on the page: a panel lying over it moves aside.
+                      if (!isWide) setPanel(null);
+                    }}
                     recalling={recap === ""}
                     expanded={expanded}
                     setExpanded={setExpanded}

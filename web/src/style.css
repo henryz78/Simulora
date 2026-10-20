@@ -376,7 +376,7 @@ label.check input {
 .avatar.tiny {
   width: 22px;
   height: 22px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .seal {
@@ -816,6 +816,12 @@ dialog::backdrop {
 .suggestions button:first-child {
   border-top: 0;
 }
+.suggestions button:focus-visible {
+  outline-offset: -3px;
+}
+.past .dice-line {
+  padding-left: 0;
+}
 .skel {
   height: 44px;
   border-radius: 10px;
@@ -859,7 +865,8 @@ dialog::backdrop {
   bottom: 16px;
   width: 100%;
   max-width: 660px;
-  margin: 8px 0 24px;
+  /* Pushed to the bottom of the reading column when the story is short. */
+  margin: auto 0 24px;
   padding: 12px 14px;
   border: 1px solid var(--edge);
   border-radius: 16px;
@@ -885,7 +892,7 @@ dialog::backdrop {
 }
 
 /* The panel: docked on wide screens, a drawer on middling ones, a sheet on phones. */
-.panel {
+.dock {
   display: flex;
   flex-direction: column;
   background: var(--paper);
@@ -911,7 +918,7 @@ dialog::backdrop {
   flex-direction: column;
   gap: 22px;
 }
-.panel [id^="turn-"] {
+.dock [id^="turn-"] {
   scroll-margin-top: 64px;
 }
 .panel-body section {
@@ -1027,7 +1034,7 @@ dialog::backdrop {
 }
 
 @media (max-width: 1279px) {
-  .panel {
+  .dock {
     position: fixed;
     top: 0;
     right: 0;
@@ -1045,7 +1052,7 @@ dialog::backdrop {
   }
 }
 @media (min-width: 1280px) {
-  .panel {
+  .dock {
     position: sticky;
     top: 53px;
     height: calc(100dvh - 53px);
@@ -1078,12 +1085,12 @@ dialog::backdrop {
   background: var(--raised);
   font-weight: 600;
 }
-.novel .page {
+.novel .novel-page {
   flex: 1 1 auto;
   overflow: auto;
   padding: 28px 24px 40px;
 }
-.novel .page > div {
+.novel .novel-page > div {
   max-width: 660px;
   margin: 0 auto;
   display: flex;
@@ -1170,15 +1177,11 @@ dialog::backdrop {
   margin: 12px 0 6px;
 }
 .page .panel {
-  display: block;
-  width: auto;
-  position: static;
-  height: auto;
+  background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 20px;
   margin-bottom: 16px;
-  box-shadow: none;
 }
 .page label {
   margin-bottom: 12px;
@@ -1303,7 +1306,7 @@ button.chip {
   }
   .composer {
     bottom: 0;
-    margin: 8px -16px 0;
+    margin: auto -16px 0;
     width: calc(100% + 32px);
     max-width: none;
     border-radius: 16px 16px 0 0;
@@ -1318,14 +1321,7 @@ button.chip {
   .button {
     min-height: 44px;
   }
-  .btn.small,
-  button.small,
-  .button.small,
-  .seg button,
-  .tabs button {
-    min-height: 40px;
-  }
-  .panel {
+  .dock {
     top: auto;
     left: 0;
     width: auto;
@@ -1344,8 +1340,8 @@ button.chip {
   }
 }
 @media (min-width: 768px) {
-  .topbar .narrow-only {
-    display: none;
+  .narrow-only {
+    display: none !important;
   }
 }
 @media (max-width: 767px) {
@@ -1356,6 +1352,66 @@ button.chip {
     flex: 1 1 0;
     overflow: hidden;
     white-space: nowrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .topbar .crumbs .slash {
+    display: none;
+  }
+  .topbar .crumbs .sub {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .topbar .crumbs .sub button {
+    min-height: 0;
+    padding: 0;
+    font-size: 13px;
+  }
+  .composer {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .composer-bar {
+    display: contents;
+  }
+  .composer-bar .menu-wrap {
+    order: 0;
+  }
+  .composer textarea {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--edge);
+    border-radius: 12px;
+    background: var(--bg);
+  }
+  .composer .send {
+    order: 2;
+    width: 44px;
+    padding: 0;
+  }
+  .composer .avatar.tiny {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+  .menu button,
+  .turn-row,
+  .btn.small,
+  button.small,
+  .button.small,
+  .seg button,
+  .tabs button {
+    min-height: 44px;
+  }
+  .past .dice-line {
+    padding-left: 0;
   }
   .topbar .crumbs a {
     overflow: hidden;
@@ -1364,12 +1420,4 @@ button.chip {
 }
 .scene-top {
   scroll-margin-top: 80px;
-}
-.narrow-tab {
-  display: none;
-}
-@media (max-width: 767px) {
-  .tabs button.narrow-tab {
-    display: inline-flex;
-  }
 }

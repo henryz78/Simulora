@@ -1,7 +1,10 @@
 // The small pieces every page shares: icons, avatars, covers, the theme, menus and dialogs.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Dice, Save, World } from "../../shared/types.ts";
+import type { Dice } from "../../shared/types.ts";
 import { lang, t } from "./i18n.ts";
+import { initial } from "./names.ts";
+
+export { coverOf, initial, nextSaveName, turnLabel, when } from "./names.ts";
 
 const PATHS = {
   clock: "M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
@@ -16,7 +19,8 @@ const PATHS = {
   dice: "M12 2l9 5v10l-9 5-9-5V7zM12 22V12M3 7l9 5 9-5",
   lock: "M5 11h14v9H5zM8 11V8a4 4 0 0 1 8 0v3",
   unlock: "M5 11h14v9H5zM8 11V8a4 4 0 0 1 7.5-2",
-  graph: "M8 7l7.5 1M7 8l2 7.5M16.5 10l-5 6M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0M20.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0M12.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0",
+  graph:
+    "M8 7l7.5 1M7 8l2 7.5M16.5 10l-5 6M8.5 6a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0M20.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0M12.5 18a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0",
   close: "M6 6l12 12M18 6L6 18",
   down: "M6 9l6 6 6-6",
   back: "M15 6l-6 6 6 6",
@@ -31,11 +35,6 @@ export function Icon({ name, size = 16 }: { name: keyof typeof PATHS; size?: num
   );
 }
 
-/** The first Chinese character of a name, else its first letter, else a fallback. */
-export function initial(name: string, fallback = "?"): string {
-  return name.match(/[㐀-鿿]/)?.[0] ?? name.match(/[A-Za-z0-9]/)?.[0]?.toUpperCase() ?? fallback;
-}
-
 export function Avatar({ name, me = false, tiny = false }: { name: string; me?: boolean; tiny?: boolean }) {
   return (
     <span className={["avatar", me && "me", tiny && "tiny"].filter(Boolean).join(" ")} aria-hidden="true">
@@ -43,36 +42,6 @@ export function Avatar({ name, me = false, tiny = false }: { name: string; me?: 
     </span>
   );
 }
-
-// Eight grounds for world covers, each light text on it at 4.5:1 or more. A world keeps its colour: it comes from
-// its id alone.
-const COVERS = ["#8C3B2A", "#2F4A6B", "#8E3550", "#3B5C60", "#4F5866", "#6A4E23", "#3E5530", "#4A3B66"];
-export function coverOf(world: Pick<World, "id" | "title">) {
-  // A world id is a random UUID: its first digits pick the colour as well as any hash would.
-  let hash = parseInt(world.id.slice(0, 8), 16);
-  if (Number.isNaN(hash)) for (const ch of world.id) hash = ((hash || 0) * 31 + ch.charCodeAt(0)) >>> 0;
-  return { background: COVERS[hash % COVERS.length]!, mark: initial(world.title, lang === "zh" ? "世" : "W") };
-}
-
-/** "今天 13:54", "昨天", "3 天前", or the date. */
-export function when(iso: string): string {
-  const then = new Date(iso);
-  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(iso).setHours(0, 0, 0, 0)) / 86_400_000);
-  const time = then.toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour: "2-digit", minute: "2-digit" });
-  if (days <= 0) return `${t("Today, at")} ${time}`;
-  if (days === 1) return t("Yesterday");
-  if (days < 30) return lang === "zh" ? `${days} 天前` : `${days} days ago`;
-  return then.toLocaleDateString(lang === "zh" ? "zh-CN" : "en");
-}
-
-/** "第 3 局": one more than the highest such number among a world's saves, so a deleted one is not reused. */
-export function nextSaveName(saves: Pick<Save, "title">[]): string {
-  const taken = saves.map((s) => Number(/^(?:第 ?(\d+) ?局|Game (\d+))$/.exec(s.title)?.slice(1).find(Boolean) ?? 0));
-  const n = Math.max(0, ...taken) + 1;
-  return lang === "zh" ? `第 ${n} 局` : `Game ${n}`;
-}
-
-export const turnLabel = (n: number) => (lang === "zh" ? `第 ${n} 回合` : `Turn ${n}`);
 
 // ── Theme: follows the system unless the player picks day or night; kept in this browser. ──
 type Look = "system" | "light" | "dark";
@@ -144,7 +113,15 @@ export function Paragraphs({ text, caret = false }: { text: string; caret?: bool
     <>
       {paragraphs.map((p, i) => (
         <p key={i}>
-          {p.split(SPEECH).map((part, j) => (j % 2 ? <span key={j} className="speech">{part}</span> : part))}
+          {p.split(SPEECH).map((part, j) =>
+            j % 2 ? (
+              <span key={j} className="speech">
+                {part}
+              </span>
+            ) : (
+              part
+            ),
+          )}
           {caret && i === paragraphs.length - 1 && <span className="caret" aria-hidden="true" />}
         </p>
       ))}
@@ -152,7 +129,14 @@ export function Paragraphs({ text, caret = false }: { text: string; caret?: bool
   );
 }
 
-const DICE = { easy: "Easy", normal: "Normal", hard: "Hard", success: "Success", cost: "Success at a cost", fail: "Failure" };
+const DICE = {
+  easy: "Easy",
+  normal: "Normal",
+  hard: "Hard",
+  success: "Success",
+  cost: "Success at a cost",
+  fail: "Failure",
+};
 
 /** "成功 · 普通 · 掷出 13", then what it meant. */
 export function DiceLine({ dice }: { dice: Dice }) {
@@ -216,14 +200,20 @@ export function Menu({
   };
   const keys = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") return close();
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    if (!open || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
     e.preventDefault();
     const items = [...(wrap.current?.querySelectorAll<HTMLButtonElement>(".menu button:not(:disabled)") ?? [])];
     const at = items.indexOf(document.activeElement as HTMLButtonElement);
     items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   };
   return (
-    <span className="menu-wrap" ref={wrap} onKeyDown={keys}>
+    <span
+      className="menu-wrap"
+      ref={wrap}
+      onKeyDown={keys}
+      // Tabbing out of an open menu closes it.
+      onBlur={(e) => !wrap.current?.contains(e.relatedTarget as Node | null) && setOpen(false)}
+    >
       <button
         ref={button}
         type="button"

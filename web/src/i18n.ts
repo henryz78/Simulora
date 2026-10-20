@@ -238,6 +238,7 @@ const zh: Record<string, string> = {
   "Time moves on": "时间往前走",
   Thinking: "构思",
   Recording: "记录",
+  "Writing the story": "写",
   "That passage broke off; writing it again": "刚才那段断了，正在重写",
   "what was written is cleared": "已写的部分清掉了",
   "This turn was not written": "这一回合没写成",

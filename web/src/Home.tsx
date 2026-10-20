@@ -93,7 +93,9 @@ export function Home() {
               {t("No worlds yet")}
             </span>
             <span className="muted">
-              {t("Describe the story you want to play: the AI sets up its people, places and opening, or write it yourself.")}
+              {t(
+                "Describe the story you want to play: the AI sets up its people, places and opening, or write it yourself.",
+              )}
             </span>
             <a className="button primary" href="#/studio/new">
               {t("Build your first world")}
@@ -123,6 +125,9 @@ export function Home() {
                       <h3>{world.title}</h3>
                       <p className="clamp">{world.premise}</p>
                       <span className="muted small" style={{ marginTop: "auto", paddingTop: 6 }}>
+                        <span className="narrow-only">
+                          {lang === "zh" ? `${saves.length} 个存档 · ` : `${saves.length} saves · `}
+                        </span>
                         {when(playedAt(entry))}
                       </span>
                     </div>

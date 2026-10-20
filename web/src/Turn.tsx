@@ -49,7 +49,15 @@ export const seenIn = (node: TurnNode, state: WorldState) =>
   );
 
 /** The turn's opening line: who acted and how, or the opening, or the days the world lived alone. */
-export function ActorLine({ node, index, state }: { node: { actor: string; input: string; offline?: "world" | "all" | null }; index: number; state: WorldState }) {
+export function ActorLine({
+  node,
+  index,
+  state,
+}: {
+  node: { actor: string; input: string; offline?: "world" | "all" | null };
+  index: number;
+  state: WorldState;
+}) {
   if (index === 0) return <span className="label">{t("Opening")}</span>;
   if (node.offline)
     return (
@@ -58,7 +66,9 @@ export function ActorLine({ node, index, state }: { node: { actor: string; input
           {t("While you were away")} · {node.input}
         </span>
         <span className="muted small">
-          {node.offline === "all" ? t("the whole world lived those days, your character too") : t("the world lived those days; your character stayed")}
+          {node.offline === "all"
+            ? t("the whole world lived those days, your character too")
+            : t("the world lived those days; your character stayed")}
         </span>
       </div>
     );
@@ -88,6 +98,8 @@ export interface TurnTools {
   goTo: (id: string) => void;
   goToLatest: (id: string) => void;
   branch: (id: string) => void;
+  /** On the newest turn: take it back. */
+  undo?: () => void;
   /** Another's eyes: what is shown for this turn, and whether it is being written. */
   view?: { who: string; story: string };
   viewing: boolean;
@@ -205,22 +217,40 @@ export function Turn({
       )}
 
       {!tools.busy && (
-        <div role="toolbar" aria-label={t("This turn")} className="toolbar" style={compact ? { borderBottom: 0, paddingBottom: 0 } : undefined}>
+        <div
+          role="toolbar"
+          aria-label={t("This turn")}
+          className="toolbar"
+          style={compact ? { borderBottom: 0, paddingBottom: 0 } : undefined}
+        >
           {node.changes.length > 0 && (
-            <button className={open === "changes" ? "small on" : "small"} aria-expanded={open === "changes"} onClick={() => toggle("changes")}>
+            <button
+              className={open === "changes" ? "small on" : "small"}
+              aria-expanded={open === "changes"}
+              onClick={() => toggle("changes")}
+            >
               {t("Changes")} {node.changes.length}
             </button>
           )}
           {node.meanwhile && node.meanwhile.length > 0 && (
-            <button className={open === "meanwhile" ? "small on" : "small"} aria-expanded={open === "meanwhile"} onClick={() => toggle("meanwhile")}>
+            <button
+              className={open === "meanwhile" ? "small on" : "small"}
+              aria-expanded={open === "meanwhile"}
+              onClick={() => toggle("meanwhile")}
+            >
               {t("Meanwhile")} {node.meanwhile.length}
             </button>
           )}
           {seen.length > 0 && (
-            <Menu label={<>{tools.viewing ? t("Writing…") : t("Another's eyes")} ▾</>} title={t("Another's eyes")} disabled={tools.viewing}>
+            <Menu
+              label={<>{tools.viewing ? t("Writing…") : t("Another's eyes")} ▾</>}
+              title={t("Another's eyes")}
+              disabled={tools.viewing}
+            >
               {(close) =>
                 seen.map((c) => (
-                  <button type="button"
+                  <button
+                    type="button"
                     key={c.id}
                     role="menuitem"
                     onClick={() => {
@@ -237,10 +267,18 @@ export function Turn({
             </Menu>
           )}
           {tools.others.length > 0 && (
-            <Menu label={<>{t("Other paths")} {tools.others.length} ▾</>} title={t("Other paths")}>
+            <Menu
+              label={
+                <>
+                  {t("Other paths")} {tools.others.length} ▾
+                </>
+              }
+              title={t("Other paths")}
+            >
               {(close) =>
                 tools.others.map((o) => (
-                  <button type="button"
+                  <button
+                    type="button"
                     key={o.id}
                     role="menuitem"
                     onClick={() => {
@@ -268,18 +306,29 @@ export function Turn({
               </>
             ) : null
           ) : (
-            canResume && (
-              <Menu label={<>{t("More")} ⋯</>} title={t("More: go back here, branch from here")} className="quiet small">
+            (canResume || tools.undo) && (
+              <Menu
+                label={<>{t("More")} ⋯</>}
+                title={t("More: go back here, branch from here")}
+                className="quiet small"
+              >
                 {(close) => (
                   <>
-                    {!head && (
+                    {tools.undo && (
+                      <button type="button" role="menuitem" onClick={() => (close(), tools.undo!())}>
+                        {t("Undo last turn")}
+                      </button>
+                    )}
+                    {!head && canResume && (
                       <button type="button" role="menuitem" onClick={() => (close(), tools.goTo(node.id))}>
                         {t("Go back here")}
                       </button>
                     )}
-                    <button type="button" role="menuitem" onClick={() => (close(), tools.branch(node.id))}>
-                      {t("Branch from here")}
-                    </button>
+                    {canResume && (
+                      <button type="button" role="menuitem" onClick={() => (close(), tools.branch(node.id))}>
+                        {t("Branch from here")}
+                      </button>
+                    )}
                   </>
                 )}
               </Menu>

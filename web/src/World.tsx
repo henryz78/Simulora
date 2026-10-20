@@ -22,6 +22,7 @@ export function World({ worldId }: { worldId: string }) {
     );
   useEffect(() => void load(), [worldId]);
   const report = (e: Error) => setError(t(e.message));
+  const [starting, setStarting] = useState(false);
 
   const top = (
     <header className="topbar">
@@ -37,15 +38,27 @@ export function World({ worldId }: { worldId: string }) {
     return (
       <>
         {top}
-        <main className="world-page">{error ? <p className="error">{error}</p> : <p className="muted">{t("Loading…")}</p>}</main>
+        <main className="world-page">
+          {error ? <p className="error">{error}</p> : <p className="muted">{t("Loading…")}</p>}
+        </main>
       </>
     );
 
   const { world, saves } = entry;
   const sorted = [...saves].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const cover = coverOf(world);
-  const start = () =>
-    api.startSave(world.id, nextSaveName(saves)).then((s) => (location.hash = `#/play/${s.id}`), report);
+  // Once: a double click would start two games.
+  const start = () => {
+    if (starting) return;
+    setStarting(true);
+    api.startSave(world.id, nextSaveName(saves)).then(
+      (s) => (location.hash = `#/play/${s.id}`),
+      (e: Error) => {
+        setStarting(false);
+        report(e);
+      },
+    );
+  };
 
   return (
     <>
@@ -70,7 +83,7 @@ export function World({ worldId }: { worldId: string }) {
               {world.state.characters[0] && ` · ${t("you start as")} ${world.state.characters[0].name}`}
             </span>
             <div className="row" style={{ marginTop: 6 }}>
-              <button className="primary" onClick={start}>
+              <button className="primary" onClick={start} disabled={starting}>
                 {t("Start a new game")}
               </button>
               <a className="button" href={`#/studio/${world.id}`}>
@@ -78,7 +91,8 @@ export function World({ worldId }: { worldId: string }) {
               </a>
               <Menu label={<>{t("More")} ⋯</>} title={t("More")} className="quiet">
                 {(close) => (
-                  <button type="button"
+                  <button
+                    type="button"
                     role="menuitem"
                     className="danger-text"
                     onClick={() => {
@@ -121,7 +135,8 @@ export function World({ worldId }: { worldId: string }) {
               <Menu label="⋯" title={`${save.title} · ${t("More")}`} className="quiet small" align="right">
                 {(close) => (
                   <>
-                    <button type="button"
+                    <button
+                      type="button"
                       role="menuitem"
                       onClick={() => {
                         close();
@@ -130,7 +145,8 @@ export function World({ worldId }: { worldId: string }) {
                     >
                       {t("Rename")}
                     </button>
-                    <button type="button"
+                    <button
+                      type="button"
                       role="menuitem"
                       onClick={() => {
                         close();
@@ -141,7 +157,8 @@ export function World({ worldId }: { worldId: string }) {
                     >
                       {t("Branch from the latest turn")}
                     </button>
-                    <button type="button"
+                    <button
+                      type="button"
                       role="menuitem"
                       className="danger-text"
                       onClick={() => {

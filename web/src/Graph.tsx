@@ -12,14 +12,23 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
   const tied = new Set(state.relationships.flatMap((r) => [r.a, r.b]));
   const people = state.characters.filter((c) => tied.has(c.id));
   const size = 520;
-  const r = size / 2 - 90;
+  const r = size / 2 - 120;
   // Each name sits outside the circle, beyond its person, clear of the lines.
   const at = new Map(
     people.map((c, i) => {
       const angle = (i / people.length) * 2 * Math.PI - Math.PI / 2;
       const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
-      const anchor = cos > 0.3 ? ("start" as const) : cos < -0.3 ? ("end" as const) : ("middle" as const);
-      return [c.id, { x: size / 2 + r * cos, y: size / 2 + r * sin, lx: size / 2 + (r + 26) * cos, ly: size / 2 + (r + 26) * sin + 5, anchor }];
+      const anchor = cos > 0.12 ? ("start" as const) : cos < -0.12 ? ("end" as const) : ("middle" as const);
+      return [
+        c.id,
+        {
+          x: size / 2 + r * cos,
+          y: size / 2 + r * sin,
+          lx: size / 2 + (r + 26) * cos,
+          ly: size / 2 + (r + 26) * sin + 5,
+          anchor,
+        },
+      ];
     }),
   );
   const name = (id: string) => state.characters.find((c) => c.id === id)?.name ?? "?";
@@ -39,7 +48,7 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
           <p className="muted">{t("No ties recorded yet.")}</p>
         ) : (
           <>
-            <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={t("Relationship map")}>
+            <svg viewBox={`-80 0 ${size + 160} ${size}`} role="img" aria-label={t("Relationship map")}>
               {state.relationships.map((x, i) => {
                 const a = at.get(x.a);
                 const b = at.get(x.b);
@@ -53,7 +62,9 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
               })}
               {people.map((c) => {
                 const p = at.get(c.id)!;
-                const cls = ["node", c.id === me && "me", c.id === picked && "picked", c.gone && "gone"].filter(Boolean);
+                const cls = ["node", c.id === me && "me", c.id === picked && "picked", c.gone && "gone"].filter(
+                  Boolean,
+                );
                 return (
                   <g key={c.id} className={cls.join(" ")} onClick={() => setPicked(c.id)} style={{ cursor: "pointer" }}>
                     <circle cx={p.x} cy={p.y} r={18} />
@@ -61,7 +72,7 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
                       {initial(c.name)}
                     </text>
                     <text className="name" x={p.lx} y={p.ly} textAnchor={p.anchor}>
-                      {c.name.split(/[·・]/)[0]}
+                      {c.name}
                     </text>
                   </g>
                 );
@@ -70,7 +81,12 @@ export function Graph({ state, me, onClose }: { state: WorldState; me: string | 
             {/* The same people as buttons: the keyboard's way to the map. */}
             <div className="row" style={{ gap: 6 }} role="group" aria-label={t("Pick someone")}>
               {people.map((c) => (
-                <button key={c.id} className={c.id === picked ? "small on" : "small"} aria-pressed={c.id === picked} onClick={() => setPicked(c.id)}>
+                <button
+                  key={c.id}
+                  className={c.id === picked ? "small on" : "small"}
+                  aria-pressed={c.id === picked}
+                  onClick={() => setPicked(c.id)}
+                >
                   {c.name}
                 </button>
               ))}

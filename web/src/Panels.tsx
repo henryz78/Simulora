@@ -41,7 +41,8 @@ export function WorldPanel({
   const scene = mine?.placeId ?? null;
   const cast = state.characters.filter((c) => !c.gone);
   // Someone placed nowhere may be here, as the story reads it too.
-  const here = cast.filter((c) => !scene || !c.placeId || c.placeId === scene).sort((a) => (a.id === me ? -1 : 1));
+  const near = cast.filter((c) => !scene || !c.placeId || c.placeId === scene);
+  const here = [...near.filter((c) => c.id === me), ...near.filter((c) => c.id !== me)];
   const away = scene ? cast.filter((c) => c.placeId && c.placeId !== scene) : [];
   const gone = state.characters.filter((c) => c.gone);
   const secrets = state.facts.filter((f) => f.secret);
@@ -120,36 +121,38 @@ export function WorldPanel({
         {gone.map((c) => line(c, undefined, c.gone ?? ""))}
       </Fold>
 
-      <section>
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <h3 className="label">{t("Discovery book")}</h3>
-          <span className="badge secret">
-            {found.length} / {secrets.length}
-          </span>
-        </div>
-        {found.map((f) => (
-          <div className="note secret" key={f.id} style={{ padding: 12, gap: 4 }}>
-            <span>{f.text}</span>
-            <span className="muted small">
-              {f.revealNote && `${f.revealNote} · `}
-              {t(f.source === "ai" ? "Buried by the AI" : "Yours")}
+      {secrets.length > 0 && (
+        <section>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h3 className="label">{t("Discovery book")}</h3>
+            <span className="badge secret">
+              {found.length} / {secrets.length}
             </span>
           </div>
-        ))}
-        {showSecrets
-          ? hidden.map((f) => (
-              <div className="lock" key={f.id} style={{ padding: "8px 10px", alignItems: "flex-start" }}>
-                <Icon name="lock" />
-                <span>{f.text}</span>
-              </div>
-            ))
-          : hidden.length > 0 && (
-              <div className="lock">
-                <Icon name="lock" />
-                {lang === "zh" ? `还有 ${hidden.length} 个秘密没被发现` : `${hidden.length} secrets not found yet`}
-              </div>
-            )}
-      </section>
+          {found.map((f) => (
+            <div className="note secret" key={f.id} style={{ padding: 12, gap: 4 }}>
+              <span>{f.text}</span>
+              <span className="muted small">
+                {f.revealNote && `${f.revealNote} · `}
+                {t(f.source === "ai" ? "Buried by the AI" : "Yours")}
+              </span>
+            </div>
+          ))}
+          {showSecrets
+            ? hidden.map((f) => (
+                <div className="lock" key={f.id} style={{ padding: "8px 10px", alignItems: "flex-start" }}>
+                  <Icon name="lock" />
+                  <span>{f.text}</span>
+                </div>
+              ))
+            : hidden.length > 0 && (
+                <div className="lock">
+                  <Icon name="lock" />
+                  {lang === "zh" ? `还有 ${hidden.length} 个秘密没被发现` : `${hidden.length} secrets not found yet`}
+                </div>
+              )}
+        </section>
+      )}
 
       <section>
         <h3 className="label">
@@ -186,31 +189,37 @@ export function WorldPanel({
         </Fold>
       </section>
 
-      <section>
-        <h3 className="label">{t("Relationships")}</h3>
-        {ties.slice(-3).reverse().map((r) => (
-          <span key={`${r.a}-${r.b}`} style={{ fontSize: 14 }}>
-            <b style={{ fontWeight: 600 }}>{name(r.a === me ? r.b : r.a)}</b> · {r.text}
-          </span>
-        ))}
-        <Fold title={t("Older")} count={Math.max(0, ties.length - 3)}>
-          {ties.slice(0, -3).reverse().map((r) => (
-            <div className="kv" key={`${r.a}-${r.b}`}>
-              <span>
+      {state.relationships.length > 0 && (
+        <section>
+          <h3 className="label">{t("Relationships")}</h3>
+          {ties
+            .slice(-3)
+            .reverse()
+            .map((r) => (
+              <span key={`${r.a}-${r.b}`} style={{ fontSize: 14 }}>
                 <b style={{ fontWeight: 600 }}>{name(r.a === me ? r.b : r.a)}</b> · {r.text}
               </span>
-            </div>
-          ))}
-        </Fold>
-        {state.relationships.length > 0 && (
+            ))}
+          <Fold title={t("Older")} count={Math.max(0, ties.length - 3)}>
+            {ties
+              .slice(0, -3)
+              .reverse()
+              .map((r) => (
+                <div className="kv" key={`${r.a}-${r.b}`}>
+                  <span>
+                    <b style={{ fontWeight: 600 }}>{name(r.a === me ? r.b : r.a)}</b> · {r.text}
+                  </span>
+                </div>
+              ))}
+          </Fold>
           <div>
             <button className="small" onClick={onMap}>
               <Icon name="graph" />
               {t("Open the relationship map")}
             </button>
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       <Fold title={t("Places")} count={state.places.length}>
         {state.places.map((p) => (
@@ -243,10 +252,15 @@ export function HistoryPanel({
 }) {
   const [allNotes, setAllNotes] = useState(false);
   const chronicled = path.findLast((n) => Array.isArray(n.timeline));
-  const notes = chronicled?.memory ?? [];
+  // Newest first, in the memory and the timeline alike.
+  const notes = [...(chronicled?.memory ?? [])].sort((a, b) => b.turn - a.turn);
+  const timeline = [...(chronicled?.timeline ?? [])].reverse();
   const span = (from: number, to: number) => `${from}–${to}`;
-  // Newest first; the turn now being played is on the page itself.
-  const turns = path.map((node, i) => ({ node, i })).slice(1, -1).reverse();
+  // Newest first, down to the opening; the turn now being played is on the page itself.
+  const turns = path
+    .map((node, i) => ({ node, i }))
+    .slice(0, -1)
+    .reverse();
 
   return (
     <div className="panel-body">
@@ -277,10 +291,10 @@ export function HistoryPanel({
           )}
         </section>
       )}
-      {chronicled?.timeline?.length ? (
+      {timeline.length ? (
         <section>
           <h3 className="label">{t("Timeline")}</h3>
-          {chronicled.timeline.map((entry) => (
+          {timeline.map((entry) => (
             <div className="memo" key={entry.from}>
               <span className="t">{span(entry.from, entry.to)}</span>
               <span>{entry.text}</span>
@@ -298,10 +312,18 @@ export function HistoryPanel({
             const isOpen = expanded === node.id;
             return (
               <div key={node.id} id={`turn-${node.id}`}>
-                <button className="turn-row" aria-expanded={isOpen} onClick={() => setExpanded(isOpen ? null : node.id)}>
+                <button
+                  className="turn-row"
+                  aria-expanded={isOpen}
+                  onClick={() => setExpanded(isOpen ? null : node.id)}
+                >
                   <span className="n">{i}</span>
                   <span className="grow" style={{ fontWeight: isOpen ? 600 : 400 }}>
-                    {node.offline ? t("While you were away") : node.input || t("Let it unfold")}
+                    {i === 0
+                      ? t("Opening")
+                      : node.offline
+                        ? t("While you were away")
+                        : node.input || t("Let it unfold")}
                   </span>
                   {!tools.resumable(node.id) && <span className="muted small">{t("read only")}</span>}
                   <span className="muted">{isOpen ? "▾" : "▸"}</span>
@@ -327,7 +349,17 @@ export function HistoryPanel({
 }
 
 /** A few buttons, one of them pressed. */
-function Seg<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+function Seg<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+}) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 14 }}>
       {label}
@@ -342,7 +374,17 @@ function Seg<T extends string>({ label, value, options, onChange }: { label: str
   );
 }
 
-function Switch({ checked, title, hint, onChange }: { checked: boolean; title: string; hint: string; onChange: (v: boolean) => void }) {
+function Switch({
+  checked,
+  title,
+  hint,
+  onChange,
+}: {
+  checked: boolean;
+  title: string;
+  hint: string;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <label className="switch">
       <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -381,7 +423,9 @@ export function SettingsPanel({
             key={save.title}
             defaultValue={save.title}
             maxLength={200}
-            onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== save.title && rename(e.target.value.trim())}
+            onBlur={(e) =>
+              e.target.value.trim() && e.target.value.trim() !== save.title && rename(e.target.value.trim())
+            }
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           />
         </label>
@@ -400,35 +444,98 @@ export function SettingsPanel({
               e.target.value !== (save.notes ?? "") && saveNotes(e.target.value).then(() => setSaved(true))
             }
           />
-          {saved && <span className="muted small" role="status">{t("Saved")}</span>}
+          {saved && (
+            <span className="muted small" role="status">
+              {t("Saved")}
+            </span>
+          )}
         </label>
       </section>
 
       <section>
         <h3 className="label">{t("How the story is told")}</h3>
-        <Seg label={t("Writing")} value={s.style ?? "plain"} options={[["plain", t("Plain and clear")], ["literary", t("Literary")]]} onChange={(style) => change({ style })} />
-        <Seg label={t("Length")} value={s.length} options={[["short", t("Shorter")], ["auto", t("Standard length")], ["long", t("Longer")]]} onChange={(length) => change({ length })} />
-        <Seg label={t("Voice")} value={s.person} options={[["third", t("Third person")], ["second", t("Second person")]]} onChange={(person) => change({ person })} />
-        <Seg label={t("How much the others push the story")} value={s.pace} options={[["calm", t("Calm")], ["medium", t("Medium")], ["intense", t("Intense")]]} onChange={(pace) => change({ pace })} />
+        <Seg
+          label={t("Writing")}
+          value={s.style ?? "plain"}
+          options={[
+            ["plain", t("Plain and clear")],
+            ["literary", t("Literary")],
+          ]}
+          onChange={(style) => change({ style })}
+        />
+        <Seg
+          label={t("Length")}
+          value={s.length}
+          options={[
+            ["short", t("Shorter")],
+            ["auto", t("Standard length")],
+            ["long", t("Longer")],
+          ]}
+          onChange={(length) => change({ length })}
+        />
+        <Seg
+          label={t("Voice")}
+          value={s.person}
+          options={[
+            ["third", t("Third person")],
+            ["second", t("Second person")],
+          ]}
+          onChange={(person) => change({ person })}
+        />
+        <Seg
+          label={t("How much the others push the story")}
+          value={s.pace}
+          options={[
+            ["calm", t("Calm")],
+            ["medium", t("Medium")],
+            ["intense", t("Intense")],
+          ]}
+          onChange={(pace) => change({ pace })}
+        />
       </section>
 
       <section>
         <h3 className="label">{t("Play")}</h3>
-        <Switch checked={s.dice ?? false} title={t("Dice of fate")} hint={t("a risky attempt is settled by a die: success, success at a cost, or failure")} onChange={(dice) => change({ dice })} />
-        <Switch checked={s.meanwhile ?? true} title={t("The world moves on its own")} hint={t("every few turns, the people away act on their plans")} onChange={(meanwhile) => change({ meanwhile })} />
+        <Switch
+          checked={s.dice ?? false}
+          title={t("Dice of fate")}
+          hint={t("a risky attempt is settled by a die: success, success at a cost, or failure")}
+          onChange={(dice) => change({ dice })}
+        />
+        <Switch
+          checked={s.meanwhile ?? true}
+          title={t("The world moves on its own")}
+          hint={t("every few turns, the people away act on their plans")}
+          onChange={(meanwhile) => change({ meanwhile })}
+        />
         <label>
           <span>
             {t("Back after a day or more")}
-            <span className="hint">{t("the world lives those days first (up to seven), skipping the moment you left")}</span>
+            <span className="hint">
+              {t("the world lives those days first (up to seven), skipping the moment you left")}
+            </span>
           </span>
-          <select value={s.offline ?? "off"} onChange={(e) => change({ offline: e.target.value as Settings["offline"] })}>
+          <select
+            value={s.offline ?? "off"}
+            onChange={(e) => change({ offline: e.target.value as Settings["offline"] })}
+          >
             <option value="off">{t("The world waits")}</option>
             <option value="world">{t("The world, but my character stays")}</option>
             <option value="all">{t("The whole world, my character too")}</option>
           </select>
         </label>
-        <Switch checked={s.thinking ?? false} title={t("Deep thinking")} hint={t("better plotted, but the first words take 30-80 s")} onChange={(thinking) => change({ thinking })} />
-        <Switch checked={s.showSecrets} title={t("Show all secrets")} hint={t("spoils them: the undiscovered ones are listed in the discovery book")} onChange={(showSecrets) => change({ showSecrets })} />
+        <Switch
+          checked={s.thinking ?? false}
+          title={t("Deep thinking")}
+          hint={t("better plotted, but the first words take 30-80 s")}
+          onChange={(thinking) => change({ thinking })}
+        />
+        <Switch
+          checked={s.showSecrets}
+          title={t("Show all secrets")}
+          hint={t("spoils them: the undiscovered ones are listed in the discovery book")}
+          onChange={(showSecrets) => change({ showSecrets })}
+        />
       </section>
 
       <section>
