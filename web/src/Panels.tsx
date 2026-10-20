@@ -570,7 +570,7 @@ export function SettingsPanel({
           {t("Edit this world")}
         </a>
         <span className="hint" style={{ marginTop: 6 }}>
-          {t("Changes only apply to new saves")}
+          {t("The title, premise and rules change every save at once; people, places and facts are for new saves.")}
         </span>
       </div>
     </div>
