@@ -40,13 +40,21 @@ function describe(c: Change): string {
   }
 }
 
-/** Who a turn's scene can be seen through: the people its story names, not the one the player played. */
-export const seenIn = (node: TurnNode, state: WorldState) =>
-  (node.state ?? state).characters.filter(
+/**
+ * Who a turn's scene can be seen through: the people its story names, not the one the player played, and only those
+ * there: one merely spoken of was given a scene of their own, made up (2026-10-20). Someone placed nowhere may be there.
+ */
+export const seenIn = (node: TurnNode, state: WorldState) => {
+  const at = node.state ?? state;
+  const here = at.characters.find((c) => c.id === node.actor)?.placeId ?? null;
+  return at.characters.filter(
     (c) =>
       c.id !== node.actor &&
+      !c.gone &&
+      (!here || !c.placeId || c.placeId === here) &&
       [c.name, ...c.name.split(/[·・\s]+/)].some((part) => part.length >= 2 && node.story.includes(part)),
   );
+};
 
 /** The turn's opening line: who acted and how, or the opening, or the days the world lived alone. */
 export function ActorLine({

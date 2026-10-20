@@ -456,6 +456,19 @@ export function mentions(text: string, name: string): boolean {
  * The places this turn plays in when `actor` acts: their own, and any place or person the player's action names (it
  * may go there or call them in). Null for the director or someone nowhere in particular: then everything is told.
  */
+/** Whether `text` goes to, comes back to or is at a place: "我去茶馆", "回到大礼堂", "at breakfast in the Hall". */
+export function goesTo(text: string, name: string): boolean {
+  const parts = [name, ...name.split(/[与和及、·・，,/（）()\s]+/)].filter((part) =>
+    /[㐀-鿿]/.test(part) ? part.length >= 2 : part.length >= 3,
+  );
+  const escape = (part: string) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return parts.some(
+    (part) =>
+      new RegExp(`(去|到|回|进|来|在|往|走向|赶往)[^，。！？；,.!?;]{0,6}${escape(part)}`).test(text) ||
+      new RegExp(`\\b(to|at|in|into|back to)\\b(\\s+\\S+){0,3}\\s+${escape(part)}\\b`, "i").test(text),
+  );
+}
+
 export function sceneOf(state: WorldState, actor: string, input = "", afterJump = false): string[] | null {
   const own = state.characters.find((c) => c.id === actor)?.placeId;
   if (!own) return null;
@@ -469,9 +482,13 @@ export function sceneOf(state: WorldState, actor: string, input = "", afterJump 
       .map((c) => c.placeId!),
   ];
   // Days later the scene is wherever the player now says they are; where they were stays unless they name a place
-  // ("a week later Lan comes to see me" names a person, and the player is where they were).
-  // ponytail: a place named in passing ("I hear the mill burned") counts as going there; read the verb if it matters.
-  if (afterJump && places.length) return [...new Set(named)];
+  // ("a week later Lan comes to see me" names a person, and the player is where they were). Of the places named, the
+  // ones gone to or found in count ("听说磨坊着火了，我去茶馆" is at the teahouse); if none is, all of them do.
+  if (afterJump && places.length) {
+    const goneTo = state.places.filter((p) => places.includes(p.id) && goesTo(input, p.name)).map((p) => p.id);
+    const others = named.filter((id) => !places.includes(id));
+    return [...new Set([...(goneTo.length ? goneTo : places), ...others])];
+  }
   return [...new Set([own, ...named])];
 }
 

@@ -235,6 +235,10 @@ test("days later the scene is where the player now says they are, not where they
   assert.deepEqual(sceneOf(state, "c1", "Three days later", true), ["p1"], "named nowhere: where they were");
   assert.deepEqual(sceneOf(state, "c1", "Three days later Qing comes by", true), ["p1"], "a person named: still there");
   assert.deepEqual(sceneOf(state, "c1", "I go to the Hall"), ["p1", "p2"], "no jump: where they were, too");
+  state.places.push({ id: "p3", name: "磨坊", description: "" }, { id: "p4", name: "茶馆", description: "" });
+  assert.deepEqual(sceneOf(state, "c1", "三天后，听说磨坊着火了，我去茶馆", true), ["p4"], "a place heard of is not gone to");
+  assert.deepEqual(sceneOf(state, "c1", "三天后，磨坊", true), ["p3"], "named without a verb: still there");
+  assert.deepEqual(sceneOf(state, "c1", "Three days later, the Mill burned; at breakfast in the Hall", true), ["p2"]);
 });
 
 test("the player's own name pulls no place in: they are where they are", () => {
