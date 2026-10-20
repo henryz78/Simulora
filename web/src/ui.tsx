@@ -199,7 +199,13 @@ export function Menu({
     button.current?.focus();
   };
   const keys = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") return close();
+    if (e.key === "Escape" && open) {
+      // The menu closes, not the panel it sits in.
+      e.stopPropagation();
+      return close();
+    }
+    // Tabbing out of an open menu closes it.
+    if (e.key === "Tab") return setOpen(false);
     if (!open || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
     e.preventDefault();
     const items = [...(wrap.current?.querySelectorAll<HTMLButtonElement>(".menu button:not(:disabled)") ?? [])];
@@ -207,13 +213,7 @@ export function Menu({
     items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
   };
   return (
-    <span
-      className="menu-wrap"
-      ref={wrap}
-      onKeyDown={keys}
-      // Tabbing out of an open menu closes it.
-      onBlur={(e) => !wrap.current?.contains(e.relatedTarget as Node | null) && setOpen(false)}
-    >
+    <span className="menu-wrap" ref={wrap} onKeyDown={keys}>
       <button
         ref={button}
         type="button"

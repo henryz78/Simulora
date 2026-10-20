@@ -172,7 +172,7 @@ export function Play({ saveId }: { saveId: string }) {
   useEffect(() => {
     if (!overlay) return;
     opener.current = document.activeElement;
-    panelRef.current?.querySelector<HTMLElement>(".panel-head button, .panel-head [role=tab]")?.focus();
+    panelRef.current?.querySelector<HTMLElement>(".panel-head [aria-selected=true], .panel-head button")?.focus();
     const esc = (e: KeyboardEvent) => e.key === "Escape" && !document.querySelector("dialog[open]") && setPanel(null);
     document.addEventListener("keydown", esc);
     return () => {
@@ -315,7 +315,7 @@ export function Play({ saveId }: { saveId: string }) {
       .branch(
         saveId,
         nodeId,
-        `${save.title.replace(/ · .*$/, "")} · ${t("branch")} ${new Date().toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour: "2-digit", minute: "2-digit" })}`,
+        `${save.title.replace(/ · (分支|branch) \d{1,2}:\d{2}( [AP]M)?$/, "")} · ${t("branch")} ${new Date().toLocaleTimeString(lang === "zh" ? "zh-CN" : "en", { hour: "2-digit", minute: "2-digit" })}`,
       )
       .then((created) => (location.hash = `#/play/${created.id}`), report);
   const changeSettings = (patch: Partial<Settings>) => void api.settings(saveId, patch).then(setView, report);
@@ -464,7 +464,7 @@ export function Play({ saveId }: { saveId: string }) {
                   }}
                 >
                   ‹ {t("Previous turn")}
-                  {sepFor(previous.input || t("Let it unfold"))}
+                  {sepFor(path.length === 2 ? t("Opening") : previous.input || t("Let it unfold"))}
                 </button>
               </div>
             )}
