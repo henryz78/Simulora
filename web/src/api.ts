@@ -46,11 +46,12 @@ export async function playTurn(
   actor: string,
   input: string,
   on: { story: (text: string) => void; phase: (phase: string) => void; dice?: (dice: Dice) => void },
+  offline: "world" | "all" | null = null,
 ): Promise<TurnNode> {
   const response = await fetch(`/api/saves/${saveId}/turn`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ actor, input }),
+    body: JSON.stringify({ actor, input, offline }),
   });
   if (!response.ok || !response.body) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };

@@ -199,6 +199,7 @@ function normalizeSettings(raw: unknown, current: Settings): Settings {
     thinking: typeof v.thinking === "boolean" ? v.thinking : (current.thinking ?? false),
     meanwhile: typeof v.meanwhile === "boolean" ? v.meanwhile : (current.meanwhile ?? true),
     dice: typeof v.dice === "boolean" ? v.dice : (current.dice ?? false),
+    offline: pick(v.offline, ["off", "world", "all"], current.offline ?? "off"),
   };
 }
 
@@ -528,9 +529,9 @@ export function createApi(
 
   /** The changes and hooks of a whole reply, or null when they are missing or the reply is broken. */
   /** What some of the people away did, or nothing should the model fail. */
-  async function meanwhileStep(w: World, path: TurnNode[], away: string[], passed: string | null = null) {
+  async function meanwhileStep(w: World, path: TurnNode[], away: string[], passed: string | null = null, own: string | null = null) {
     try {
-      const report = (await writer.json(meanwhileMessages(w, path, away, passed))) as Record<string, unknown>;
+      const report = (await writer.json(meanwhileMessages(w, path, away, passed, own))) as Record<string, unknown>;
       const items = (Array.isArray(report.meanwhile) ? report.meanwhile : []).flatMap((item) => {
         const v = (item ?? {}) as Record<string, unknown>;
         const character = str(v.character, 200).trim();
@@ -612,6 +613,11 @@ export function createApi(
     if (actor !== "director" && !head.state.characters.some((c) => c.id === actor))
       fail(400, "Unknown character");
     const input = str(body.input, 4000).trim();
+    // The world living on while the player was away: a director's jump in time nobody wrote.
+    const offline =
+      actor === "director" && (body.offline === "world" || body.offline === "all") && timeJump(input)
+        ? (body.offline as "world" | "all")
+        : null;
     // Played again after leaving the story (say, the player goes on as their dead character's ghost): they are back.
     const resumed = inPlay(head.state, actor);
     const from = path.with(-1, { ...head, state: resumed });
@@ -628,7 +634,10 @@ export function createApi(
     const out = (c: Character) => (c.placeId ? !scene!.includes(c.placeId) : !mentions(lately, c.name));
     const away =
       scene && s.settings.meanwhile !== false && (passed || path.length % MEANWHILE_TURNS === 0)
-        ? resumed.characters.filter((c) => c !== me && !c.gone && out(c)).map((c) => c.name)
+        ? resumed.characters
+            // Living those days on their own wants, the player's character is one of those away too.
+            .filter((c) => (c !== me || offline === "all") && !c.gone && (c === me || out(c)))
+            .map((c) => c.name)
         : [];
     const early = !!passed && away.length > 0;
     if (busy.has(s.id)) fail(409, "A turn is already being written for this save");
@@ -644,7 +653,7 @@ export function createApi(
       let offstageChanges: Change[] = [];
       if (early) {
         event("phase", { phase: "passing" });
-        const moved = await within(meanwhileStep(w, from, away, passed));
+        const moved = await within(meanwhileStep(w, from, away, passed, offline === "all" ? mine : null));
         if (moved) {
           const keep = (name: string) => away.some((a) => same(a, name));
           offstageChanges = moved.changes.filter(offstageOnly(resumed, keep, scene ?? []));
@@ -690,7 +699,7 @@ export function createApi(
         sent = 0;
         const narrator = s.settings.thinking ? thinker : model;
         try {
-          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes, elsewhere, dice), {
+          for await (const piece of narrator.stream(narrationMessages(w, played, actor, input, s.settings, s.notes, elsewhere, dice, offline), {
             json: true,
           })) {
             reply += piece;
@@ -713,7 +722,10 @@ export function createApi(
         if (!closed && whole()) close();
       }
       if (!closed) throw new Error("The story broke off");
-      const story = fullWidth(readString(reply, "story").text).trim();
+      // Once in 550 turns the story ended on "地点： 图书馆与禁书区", the "where" written into it (2026-10-20): not kept.
+      const story = fullWidth(readString(reply, "story").text)
+        .trim()
+        .replace(/\n+\s*(地点|位置|where)\s*[:：][^\n]*$/i, "");
 
       // The story is never lost: if the record in the reply is missing or broken, a second request reads the
       // changes from the story, and if that fails too the turn keeps the story alone.
@@ -728,6 +740,9 @@ export function createApi(
         `turn.timing first=${firstAt - started}ms story=${storyAt - started}ms records=${Date.now() - storyAt}ms`,
       );
       const { state: changed, applied } = applyChanges(before, changes);
+      const told = elsewhere.filter(
+        (m) => stillAway(away, story, applied)(m.character) && !(mine && same(m.character, mine)),
+      );
       const node: TurnNode = {
         id: randomUUID(),
         worldId: w.id,
@@ -740,10 +755,13 @@ export function createApi(
         state: changed,
         ...(failed && { recordsFailed: true }),
         ...(dice && { dice }),
+        ...(offline && { offline }),
         // What the skipped time changed off the stage, so the turn can be recorded again from its parent.
         ...(offstageChanges.length && { offstage: offstageChanges }),
         // Someone the story then brings into the scene is no longer told as away.
-        ...(elsewhere.length && { meanwhile: elsewhere.filter((m) => stillAway(away, story, applied)(m.character)) }),
+        // Someone the story then brings into the scene is no longer told as away, nor the player's own character, whose
+        // days the story itself tells.
+        ...(told.length && { meanwhile: told }),
         createdAt: now(),
       };
       // Waited for a while at most, and not for a turn whose record failed: asked again, it starts from the parent.

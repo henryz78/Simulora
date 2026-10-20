@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultSettings, type TurnNode, type World } from "../shared/types.ts";
 import { normalizeDraft } from "../server/app.ts";
-import { fullWidth, hookMessages, interviewMessages, narrationMessages, timeJump, viewMessages } from "../server/prompts.ts";
+import { fullWidth, hookMessages, interviewMessages, meanwhileMessages, narrationMessages, timeJump, viewMessages } from "../server/prompts.ts";
 
 const world = (rules?: string): World =>
   ({
@@ -149,4 +149,19 @@ test("another's eyes are given their secrets only when the player sees every sec
   assert.doesNotMatch(told(false), /hid the ledger/);
   assert.match(told(true), /hid the ledger/);
   assert.match(told(false), /It ends where the passage ends, at: "Mei pours the tea\."/);
+});
+
+test("days away: the player's character stays put in one way, lives them too in the other", () => {
+  const w = world();
+  w.state.characters.push({ id: "c1", name: "Mei", persona: "", goals: "", placeId: null, notes: "", knows: [] });
+  const played = { ...opening, actor: "c1", state: w.state };
+  const tell = (offline: "world" | "all", did: { character: string; did: string }[]) =>
+    narrationMessages(w, [opening, played], "director", "3天后", defaultSettings, "", did, null, offline)[1]!.content;
+  const stays = tell("world", [{ character: "Lan", did: "Closed the shop." }]);
+  assert.match(stays, /Mei lived those days quietly where they were/);
+  assert.match(stays, /out of the player's sight[^\n]*Lan: Closed the shop/);
+  const lives = tell("all", [{ character: "mei", did: "Read in the library." }, { character: "Lan", did: "Closed the shop." }]);
+  assert.match(lives, /Mei lived those days too, on their own wants: Read in the library\./);
+  assert.doesNotMatch(lives, /out of the player's sight[^\n]*Read in the library/, "their own days are not unseen");
+  assert.match(meanwhileMessages(w, [opening, played], ["Mei", "Lan"], "3天后", "Mei")[0]!.content, /Mei is the player's own character/);
 });

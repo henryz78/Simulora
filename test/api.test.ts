@@ -277,3 +277,34 @@ test("the play makes chapters of ten turns; a whole one is kept, the one still p
   });
   assert.equal(none.status, 400);
 });
+
+test("the world living on while the player was away is a marked jump in time nobody played", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Away", opening: "Rain.",
+    state: { places: [{ id: "p1", name: "Inn" }, { id: "p2", name: "Mill" }], characters: [{ id: "c1", name: "Zhou", placeId: "p1" }, { id: "c2", name: "Lan", placeId: "p2" }] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  await playTurn(save.id, "c1", "wait");
+  const live = async (offline: string) => {
+    const r = await fetch(`${base}/saves/${save.id}/turn`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ actor: "director", input: "3天后", offline }),
+    });
+    const done = (await r.text()).split("\n\n").find((b) => b.startsWith("event: done"))!;
+    return (JSON.parse(/\ndata: (.*)/.exec(done)![1]!) as { node: TurnNode }).node;
+  };
+  const stays = await live("world");
+  assert.equal(stays.offline, "world");
+  assert.deepEqual(stays.meanwhile?.map((m) => m.character), ["Lan"], "the player's character stays out of it");
+  const all = await live("all");
+  assert.equal(all.offline, "all");
+  // The player's character lived those days too: what it did changed them, and the story tells it, not "meanwhile".
+  assert.ok(all.offstage?.some((c) => c.type === "status" && c.character === "Zhou"), "the player's character lives those days too");
+  assert.equal(all.meanwhile, undefined);
+  // Only a director's turn is the world's own.
+  const mine = await fetch(`${base}/saves/${save.id}/turn`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ actor: "c1", input: "wait", offline: "all" }),
+  });
+  assert.doesNotMatch(await mine.text(), /"offline":"all"/);
+});

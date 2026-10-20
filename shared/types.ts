@@ -86,6 +86,12 @@ export interface Settings {
   meanwhile: boolean;
   /** A risky attempt by the player's character is settled by a die, not by the storyteller. */
   dice: boolean;
+  /**
+   * Back after a day or more, the world has lived those days too (two to seven of them): "world", everyone but the
+   * player's character, who stays where they were and decides nothing; "all", the player's character too, on their own
+   * wants (the player's two ways, 2026-10-20).
+   */
+  offline: "off" | "world" | "all";
 }
 
 /** A risky attempt and how the die settled it. */
@@ -108,6 +114,7 @@ export const defaultSettings: Settings = {
   thinking: false,
   meanwhile: true,
   dice: false,
+  offline: "off",
 };
 
 export interface Save {
@@ -160,6 +167,8 @@ export interface TurnNode {
   offstage?: Change[];
   /** The die that settled the player's attempt this turn. */
   dice?: Dice;
+  /** The days the world lived while the player was away, and how: no one played this turn. */
+  offline?: "world" | "all";
   /** "上回说到": where the story stands after this turn, for a player coming back; written once when asked. */
   recap?: string;
   /** This turn's scene told again through another character's eyes, by character id; written once when asked. */

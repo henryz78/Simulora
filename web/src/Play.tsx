@@ -15,6 +15,7 @@ interface Pending {
   story: string;
   phase: "passing" | "story" | "changes";
   dice?: Dice;
+  offline?: "world" | "all" | null;
   error: string;
   since: number;
 }
@@ -187,14 +188,24 @@ export function Play({ saveId }: { saveId: string }) {
       void suggest();
     }
   }, [openingId]);
-  // Back after a break (six hours or more) to a story a few turns in: it opens with "上回说到".
-  const away = view && view.path.length > 3 && Date.now() - Date.parse(view.save.updatedAt) > 6 * 3600_000;
+  // Back after a break (six hours or more) to a story a few turns in: it opens with "上回说到". Judged once, as the save
+  // first loads: a tab left open a day must not start the days away as the player types.
+  const opened = useRef<SaveView | null>(null);
+  if (view && !opened.current) opened.current = view;
+  const hoursAway = opened.current ? (Date.now() - Date.parse(opened.current.save.updatedAt)) / 3600_000 : 0;
+  const away = opened.current !== null && opened.current.path.length > 3 && hoursAway > 6;
   const recalled = useRef(false);
   useEffect(() => {
-    if (away && !recalled.current) {
-      recalled.current = true;
-      recall();
-    }
+    if (!away || recalled.current || !view) return;
+    recalled.current = true;
+    // A day or more away, with the world set to live on: it lives those days first (two to seven), and that turn
+    // tells what changed; otherwise "上回说到".
+    const way = view.save.settings.offline;
+    // Not on a turn whose changes were never recorded: "Record again" comes first.
+    if ((way === "world" || way === "all") && hoursAway >= 24 && !view.path.at(-1)!.recordsFailed) {
+      const days = Math.min(7, Math.max(2, Math.round(hoursAway / 24)));
+      void send(lang === "zh" ? `${days}天后` : `${days} days later`, "director", view.path.at(-1)!.id, way);
+    } else recall();
   }, [away]);
   // The recap is read first: it opens at the top of the page.
   useEffect(() => {
@@ -230,8 +241,8 @@ export function Play({ saveId }: { saveId: string }) {
   const wanted = actor ?? (path.length === 1 ? (state.characters[0]?.id ?? "director") : head.actor);
   const current = state.characters.some((c) => c.id === wanted) ? wanted : "director";
 
-  async function send(text: string, as = current, from = head.id) {
-    setPending({ actor: as, input: text, story: "", phase: "story", error: "", since: Date.now() });
+  async function send(text: string, as = current, from = head.id, offline: "world" | "all" | null = null) {
+    setPending({ actor: as, input: text, story: "", phase: "story", error: "", since: Date.now(), offline });
     setInput("");
     setError("");
     try {
@@ -246,7 +257,7 @@ export function Play({ saveId }: { saveId: string }) {
                 ? { ...p, story: "", phase: "story" }
                 : { ...p, phase: phase === "passing" || phase === "story" ? phase : "changes" }),
           ),
-      });
+      }, offline);
       await load();
       setPending(null);
       const next = queuedRef.current;
@@ -254,6 +265,18 @@ export function Play({ saveId }: { saveId: string }) {
       // A turn whose changes were not recorded waits for "Record again" before anything is built on it.
       if (next && !node.recordsFailed) await send(next.text, next.actor, node.id);
     } catch (e) {
+      // The days away being lived already (the save open twice, or the page reloaded as it began): wait for them.
+      if (offline && (e as Error).message === "A turn is already being written for this save") {
+        for (let i = 0; i < 75; i++) {
+          await new Promise((done) => setTimeout(done, 2000));
+          const fresh = await api.save(saveId).catch(() => null);
+          if (fresh && fresh.path.at(-1)!.id !== from) {
+            setView(fresh);
+            setPending(null);
+            return;
+          }
+        }
+      }
       // The connection can drop after the server already saved the turn; then there is nothing to retry.
       const fresh = await api.save(saveId).catch(() => null);
       if (fresh && fresh.path.at(-1)!.parentId === from) {
@@ -325,7 +348,7 @@ export function Play({ saveId }: { saveId: string }) {
       <article className="turn" key={node.id}>
         {i > 0 && (
           <p className="action">
-            <strong>{actorLabel(state, node.actor)}</strong>
+            <strong>{node.offline ? t("While you were away") : actorLabel(state, node.actor)}</strong>
             {node.input ? `${sep}${node.input}` : ` · ${t("Let it unfold")}`}
           </p>
         )}
@@ -477,7 +500,7 @@ export function Play({ saveId }: { saveId: string }) {
         {pending && (
           <article className="turn pending" ref={pendingTop}>
             <p className="action">
-              <strong>{actorLabel(state, pending.actor)}</strong>
+              <strong>{pending.offline ? t("While you were away") : actorLabel(state, pending.actor)}</strong>
               {pending.input ? `${sep}${pending.input}` : ` · ${t("Let it unfold")}`}
             </p>
             {pending.dice && <DiceLine dice={pending.dice} />}
@@ -502,7 +525,9 @@ export function Play({ saveId }: { saveId: string }) {
             {pending.error && (
               <p className="error">
                 {pending.error}{" "}
-                <button onClick={() => send(pending.input, pending.actor)}>{t("Retry")}</button>
+                <button onClick={() => send(pending.input, pending.actor, head.id, pending.offline ?? null)}>
+                  {t("Retry")}
+                </button>
               </p>
             )}
           </article>
@@ -865,6 +890,23 @@ export function Play({ saveId }: { saveId: string }) {
                   {t("Dice of fate")}
                   <span className="small muted"> · {t("a risky attempt is settled by a die: success, success at a cost, or failure")}</span>
                 </span>
+              </label>
+              <label>
+                <span>
+                  {t("The world lives on while you are away")}
+                  <span className="small muted">
+                    {" "}
+                    · {t("back after a day or more, the world has lived those days too (up to seven)")}
+                  </span>
+                </span>
+                <select
+                  value={save.settings.offline ?? "off"}
+                  onChange={(e) => changeSettings({ offline: e.target.value as Settings["offline"] })}
+                >
+                  <option value="off">{t("Off")}</option>
+                  <option value="world">{t("The world, but my character stays")}</option>
+                  <option value="all">{t("The whole world, my character too")}</option>
+                </select>
               </label>
               <label className="check">
                 <input

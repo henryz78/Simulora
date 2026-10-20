@@ -1,6 +1,6 @@
 import type { Dice, MemoryNote, Settings, TimelineEntry, TurnNode, World, WorldState } from "../shared/types.ts";
 import type { Message } from "./model.ts";
-import { describeState, sceneOf } from "./state.ts";
+import { describeState, same, sceneOf } from "./state.ts";
 
 /** How many earlier turns the model reads in full. */
 const RECENT_TURNS = 6;
@@ -223,6 +223,7 @@ export function narrationMessages(
   notes = "",
   elsewhere: { character: string; did: string }[] = [],
   dice: Dice | null = null,
+  offline: "world" | "all" | null = null,
 ): Message[] {
   const state = path.at(-1)!.state;
   const name = actorName(state, actor);
@@ -317,10 +318,24 @@ export function narrationMessages(
       .join("\n\n"),
     "",
     // A skip in time: what the people away got up to, so the player comes back to a world that moved on.
-    ...(elsewhere.length
+    ...(elsewhere.some((m) => !who || !same(m.character, who))
       ? [
           "While the skipped time passed, out of the player's sight (their character learns of it only by what they " +
-            `would see, hear or be told on coming back): ${elsewhere.map((m) => `${m.character}: ${m.did}`).join(" ")}`,
+            `would see, hear or be told on coming back): ${elsewhere
+              .filter((m) => !who || !same(m.character, who))
+              .map((m) => `${m.character}: ${m.did}`)
+              .join(" ")}`,
+          "",
+        ]
+      : []),
+    // The player was away for days: how their own character spent them, as the player chose.
+    ...(offline && who
+      ? [
+          offline === "all"
+            ? `${who} lived those days too, on their own wants: ${elsewhere.find((m) => same(m.character, who))?.did ?? "as they would"}. ` +
+              "Tell it briefly as done, then where they are now, and stop where the player takes them up again."
+            : `${who} lived those days quietly where they were and did nothing that matters. Tell them as they are now, ` +
+              "the world changed around them; what they do next is the player's.",
           "",
         ]
       : []),
@@ -392,7 +407,13 @@ export function timeJump(input: string): string | null {
   return found;
 }
 
-export function meanwhileMessages(world: World, path: TurnNode[], away: string[], passed: string | null = null): Message[] {
+export function meanwhileMessages(
+  world: World,
+  path: TurnNode[],
+  away: string[],
+  passed: string | null = null,
+  own: string | null = null,
+): Message[] {
   const state = path.at(-1)!.state;
   return [
     {
@@ -414,7 +435,12 @@ export function meanwhileMessages(world: World, path: TurnNode[], away: string[]
               "would do (a letter written, a door locked, a walk to another place, a talk with someone else away), " +
               "true to who they are and to what they know.") +
           " Nobody does it in the player's scene or to the player's character; it may reach them later. Act on " +
-          "secrets, never explain them.",
+          "secrets, never explain them." +
+          // The player chose to have their own character live the days away too.
+          (own
+            ? ` ${own} is the player's own character: for these days they are away like the others, and live them ` +
+              "on their own wants, one of those you tell."
+            : ""),
         CONTENT_LINE,
         "Write in the world's own language. Return one JSON object:",
         `{"meanwhile": [{"character": name, "did": "one or two short sentences, at most 60 Chinese characters (40 English words)"}], ${passed ? '"where": {name: place, ...}, ' : ""}"changes": [...]}`,
