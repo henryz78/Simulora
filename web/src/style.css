@@ -1281,6 +1281,20 @@ dialog::backdrop {
 }
 .s-card.proposal {
   border-color: var(--edge);
+  margin-top: 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--edge);
+}
+.editor-top {
+  scroll-margin-top: 76px;
+}
+.studio-jump {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .studio-jump {
+    display: block;
+  }
 }
 .s-grid {
   display: grid;
@@ -1316,6 +1330,9 @@ button.chip[aria-pressed="true"] {
   background: var(--primary);
   color: var(--primary-ink);
   border-color: var(--primary);
+}
+button.chip.secret {
+  color: var(--secret);
 }
 button.chip.secret[aria-pressed="true"] {
   background: var(--secretbg);
@@ -1397,8 +1414,8 @@ textarea.secret-text {
   border-color: var(--secret);
   background: var(--secretbg);
 }
-.danger-text {
-  color: var(--fail) !important;
+button.danger-text {
+  color: var(--fail);
 }
 .studio-savebar {
   position: sticky;

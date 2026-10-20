@@ -274,7 +274,8 @@ function AiDraft({ onFill }: { onFill: (draft: WorldDraft) => void }) {
 type Asking =
   | { kind: "character"; character: Character }
   | { kind: "place"; place: Place; starting: number }
-  | { kind: "replace"; draft: WorldDraft };
+  | { kind: "replace"; draft: WorldDraft }
+  | { kind: "leave"; href: string };
 
 export function Studio({ worldId }: { worldId: string | null }) {
   const [draft, setDraft] = useState<WorldDraft | null>(worldId ? null : emptyDraft());
@@ -286,6 +287,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
   // A new world: built with the AI, or written from the start.
   const [mode, setMode] = useState<"ai" | "manual" | "filled">("ai");
   const [open, setOpen] = useState<string | null>(null);
+  // A new world once created: a second save updates it rather than making another.
+  const [createdId, setCreatedId] = useState<string | null>(null);
   const editorTop = useRef<HTMLDivElement>(null);
   useEffect(() => void (document.title = `${t("World studio")} · Simulora`), []);
   useEffect(() => {
@@ -319,13 +322,16 @@ export function Studio({ worldId }: { worldId: string | null }) {
   const setState = (patch: Partial<WorldState>) => setDraft({ ...draft, state: { ...s, ...patch } });
   const update = <T extends { id: string }>(items: T[], itemId: string, patch: Partial<T>) =>
     items.map((item) => (item.id === itemId ? { ...item, ...patch } : item));
-  const editing = worldId !== null || mode !== "ai";
+  // The editor shows for a world being edited, one written by hand, or once anything is in it.
+  const editing = worldId !== null || mode !== "ai" || JSON.stringify(draft) !== JSON.stringify(emptyDraft());
 
   const save = async (andPlay: boolean) => {
     setSaving(true);
     setStatus(null);
     try {
-      const world = worldId ? await api.updateWorld(worldId, draft) : await api.createWorld(draft);
+      const target = worldId ?? createdId;
+      const world = target ? await api.updateWorld(target, draft) : await api.createWorld(draft);
+      setCreatedId(world.id);
       setSaved(JSON.stringify(draft));
       if (andPlay) {
         const saves = (await api.worlds()).find((x) => x.world.id === world.id)?.saves ?? [];
@@ -384,7 +390,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
 
   const saveButtons = (
     <>
-      <button disabled={saving || (!changed && worldId !== null)} onClick={() => save(false)}>
+      <button disabled={saving || !draft.title.trim() || (!changed && worldId !== null)} onClick={() => save(false)}>
         {t("Save")}
       </button>
       <button className="primary" disabled={saving || !draft.title.trim()} onClick={() => save(true)}>
@@ -395,7 +401,16 @@ export function Studio({ worldId }: { worldId: string | null }) {
 
   return (
     <div className="studio">
-      <header className="topbar">
+      <header
+        className="topbar"
+        // Leaving by a link with changes not saved asks first (closing or reloading the tab asks the browser's way).
+        onClickCapture={(e) => {
+          const link = (e.target as Element).closest("a[href^='#']");
+          if (!changed || !link) return;
+          e.preventDefault();
+          setAsking({ kind: "leave", href: link.getAttribute("href")! });
+        }}
+      >
         <a href="#/" className="seal" aria-label={t("Your worlds")}>
           拟
         </a>
@@ -412,8 +427,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
           {worldId && <span className="muted small">· {t("Editing")}</span>}
         </nav>
         {(changed || status) && (
-          <span className={status?.error ? "error small" : "muted small"} role="status">
-            {status ? status.text : `● ${t("Changes not saved")}`}
+          <span className={!changed && status?.error ? "error small" : "muted small"} role="status">
+            {changed ? `● ${t("Changes not saved")}` : status!.text}
           </span>
         )}
         {editing && <span className="row wide">{saveButtons}</span>}
@@ -451,19 +466,23 @@ export function Studio({ worldId }: { worldId: string | null }) {
             </div>
           )}
 
-          {!worldId && mode !== "manual" && (
-            <AiDraft
-              onFill={(filled) => {
-                const empty = !draft.title && !draft.premise && !draft.opening && s.characters.length === 0;
-                if (empty) fill(filled);
-                else setAsking({ kind: "replace", draft: filled });
-              }}
-            />
+          {/* Kept while hidden: switching back finds the answers and the proposal as they were. */}
+          {!worldId && (
+            <div hidden={mode === "manual"}>
+              <AiDraft
+                onFill={(filled) => {
+                  const empty = !draft.title && !draft.premise && !draft.opening && s.characters.length === 0;
+                  if (empty) fill(filled);
+                  else setAsking({ kind: "replace", draft: filled });
+                }}
+              />
+            </div>
           )}
 
           {editing && (
             <>
-              <div ref={editorTop} className="studio-jump narrow-only">
+              <div ref={editorTop} className="editor-top" />
+              <div className="studio-jump">
                 <label htmlFor="jump" className="sr">
                   {t("Go to")}
                 </label>
@@ -545,7 +564,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
                       <button
                         className="person-head"
                         aria-expanded={expanded}
-                        aria-controls={`body-${c.id}`}
+                        aria-controls={expanded ? `body-${c.id}` : undefined}
                         onClick={() => setOpen(expanded ? null : c.id)}
                       >
                         <Avatar name={c.name || "?"} me={i === 0} />
@@ -556,7 +575,9 @@ export function Studio({ worldId }: { worldId: string | null }) {
                         <span className="muted small wide">
                           {s.places.find((p) => p.id === c.placeId)?.name ?? t("Nowhere")}
                         </span>
-                        <span className="muted">{expanded ? "▴" : "▾"}</span>
+                        <span className="muted" aria-hidden="true">
+                          {expanded ? "▴" : "▾"}
+                        </span>
                       </button>
                       {expanded && (
                         <div className="person-body" id={`body-${c.id}`}>
@@ -610,8 +631,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
                             />
                           </label>
                           {s.facts.length > 0 && (
-                            <div className="field">
-                              {t("What they know")}
+                            <div className="field" role="group" aria-labelledby={`knows-${c.id}`}>
+                              <span id={`knows-${c.id}`}>{t("What they know")}</span>
                               <span className="hint">
                                 {t(
                                   "Tap to switch. Purple is a secret: they know it, the player does not until it comes out.",
@@ -624,6 +645,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
                                     key={f.id}
                                     className={f.secret ? "chip secret" : "chip"}
                                     aria-pressed={c.knows.includes(f.id)}
+                                    title={f.text}
+                                    aria-label={`${f.secret ? `${t("Secret")}${sep}` : ""}${f.text}`}
                                     onClick={() => toggleKnows(c, f.id)}
                                   >
                                     {f.secret && <Icon name="lock" size={13} />}
@@ -635,8 +658,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
                             </div>
                           )}
                           {ties.length > 0 && (
-                            <div className="field">
-                              {t("Relationships")}
+                            <div className="field" role="group" aria-labelledby={`ties-${c.id}`}>
+                              <span id={`ties-${c.id}`}>{t("Relationships")}</span>
                               {ties.map((r) => (
                                 <span key={`${r.a}-${r.b}`} className="small">
                                   <b style={{ fontWeight: 600 }}>{charName(r.a === c.id ? r.b : r.a)}</b> · {r.text}
@@ -779,7 +802,7 @@ export function Studio({ worldId }: { worldId: string | null }) {
                           onClick={() => setState({ facts: update(s.facts, f.id, { secret: !f.secret }) })}
                         >
                           <Icon name="lock" size={13} />
-                          {f.secret ? t("Secret") : t("Make secret")}
+                          {t("Secret")}
                         </button>
                         {knowers > 0 && (
                           <span className="muted small">{lang === "zh" ? `${knowers} 人知道` : `${knowers} know`}</span>
@@ -847,6 +870,18 @@ export function Studio({ worldId }: { worldId: string | null }) {
 
       {editing && <div className="studio-savebar narrow-only">{saveButtons}</div>}
 
+      {asking?.kind === "leave" && (
+        <Confirm
+          title={t("Leave without saving?")}
+          text={t("The changes made here since the last save will be lost.")}
+          action={t("Leave without saving")}
+          onConfirm={() => {
+            setSaved(JSON.stringify(draft));
+            location.hash = asking.href;
+          }}
+          onClose={() => setAsking(null)}
+        />
+      )}
       {asking?.kind === "replace" && (
         <Confirm
           title={t("Replace what is in the editor?")}
