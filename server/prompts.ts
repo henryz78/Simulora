@@ -158,7 +158,7 @@ and places by name, to facts and threads by [id], keep every text short, and use
   people are decides who the story is told about in full)
 - {"type":"character","name":"what the story calls them","persona":...,"goals":...,"place":name}  (someone new
   is seen or heard in this passage; their name and ties only as the story tells them; never a placeholder for
-  someone not yet met)
+  someone not yet met; "place" is only a place's name, left out when the passage does not say where they are)
 - {"type":"leave","character":name,"note":"how they left the story, a few words"}  (whenever someone dies, goes
   far away for good or is out of the story for good: not a move. Someone out of the story is moved only when they
   come back into it in this passage, and that brings them back)

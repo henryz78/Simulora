@@ -126,6 +126,14 @@ test("someone new comes with their wants; someone who leaves the story is kept i
     ]),
   );
   assert.equal(state.characters.find((c) => c.name === "Lan")!.goals, "Get out");
+  const noted = applyChanges(state, parseChanges([{ type: "character", name: "Mei", persona: "", place: "城堡（今夜没来吃饭）" }]));
+  assert.equal(noted.state.places.at(-1)!.name, "城堡", "a note in brackets is no part of a new place's name");
+  const told = applyChanges(noted.state, parseChanges([
+    { type: "move", character: "Mei", place: "城堡。麦格答应按她说的次序摆出这些事，凯恩傍晚离校前留下待核笔迹的单子。" },
+    { type: "move", character: "Lan", place: "麦格答应按她说的次序摆出这些事，凯恩傍晚离校前留下待核笔迹的单子" },
+  ]));
+  assert.equal(told.state.places.length, noted.state.places.length, "a place told as a sentence is the place, a long one none");
+  assert.equal(told.applied.length, 1);
   assert.equal(state.characters.find((c) => c.name === "Qing")!.gone, "Went south for good");
   for (const scene of [sceneOf(state, "c1"), null]) {
     const told = describeState(state, { scene });

@@ -123,10 +123,13 @@ export function applyChanges(
   const character = (name: string) => state.characters.find((c) => same(c.name, name));
   const place = (name: string) => placeNamed(state, name);
   const placeOrNew = (name: string): Place | undefined => {
-    if (!name) return undefined;
-    const found = place(name);
+    // A note in brackets is no part of the name ("霍格沃茨城堡（今夜未在礼堂用餐）"), nor what follows the first sentence:
+    // a "where" once came back as the place and then the whole scene (2026-10-20). Past that, no place is made.
+    const bare = name.replace(/[（(][^）)]*[）)]/g, "").split(/[。；;！!？?\n]/)[0]!.trim();
+    const found = name && (place(name) ?? place(bare));
     if (found) return found;
-    const created = { id: newId("p"), name, description: "" };
+    if (!bare || bare.length > 30) return undefined;
+    const created = { id: newId("p"), name: bare, description: "" };
     state.places.push(created);
     return created;
   };

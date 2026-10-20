@@ -995,8 +995,18 @@ export function createApi(
           const turn = path.findIndex((n) => n.id === str(body.node, 64));
           if (turn < 1) fail(400, "Unknown turn");
           const character = str(body.character, 64);
-          if (!(path[turn]!.state ?? path.at(-1)!.state).characters.some((c) => c.id === character))
-            fail(400, "Unknown character");
+          // An old turn keeps no state of its own: told with the newest, turn 5 seen by Blackwood knew of turn 59
+          // (2026-10-20). The nearest state kept after it knows at most a few turns more.
+          let state = path.at(-1)!.state;
+          for (const n of path.slice(turn, -1)) {
+            const kept = store.node(n.id)!.state;
+            if (kept) {
+              state = kept;
+              break;
+            }
+          }
+          path[turn] = { ...path[turn]!, state };
+          if (!state.characters.some((c) => c.id === character)) fail(400, "Unknown character");
           const kept = store.node(path[turn]!.id)!.views?.[character];
           if (kept) return send(res, 200, { story: kept });
           // Kept close to the passage: at the default temperature it added lines and deeds of its own.
