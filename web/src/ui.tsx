@@ -26,6 +26,9 @@ const PATHS = {
   back: "M15 6l-6 6 6 6",
   pen: "M4 20l4-1 11-11-3-3L5 16z",
   sidebar: "M3 5h18v14H3zM15 5v14",
+  home: "M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5",
+  compass: "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M15.5 8.5l-2 5-5 2 2-5z",
+  user: "M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0M4 21a8 8 0 0 1 16 0",
 };
 
 export function Icon({ name, size = 16 }: { name: keyof typeof PATHS; size?: number }) {

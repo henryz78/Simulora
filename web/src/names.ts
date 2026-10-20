@@ -29,7 +29,8 @@ export function nextSaveName(saves: Pick<Save, "title">[]): string {
   return lang === "zh" ? `第 ${n} 局` : `Game ${n}`;
 }
 
-export const turnLabel = (n: number) => (lang === "zh" ? `第 ${n} 回合` : `Turn ${n}`);
+export const turnLabel = (n: number) =>
+  n === 0 ? (lang === "zh" ? "开场" : "Opening") : lang === "zh" ? `第 ${n} 回合` : `Turn ${n}`;
 
 /** "今天 13:54", "昨天", "3 天前", or the date. */
 export function when(iso: string, now = new Date()): string {

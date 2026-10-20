@@ -12,6 +12,7 @@ const emptyDraft = (): WorldDraft => ({
   premise: "",
   rules: "",
   opening: "",
+  tags: [],
   state: { clock: "", places: [], characters: [], facts: [], threads: [], relationships: [] },
 });
 
@@ -277,7 +278,7 @@ type Asking =
   | { kind: "replace"; draft: WorldDraft }
   | { kind: "leave"; href: string };
 
-export function Studio({ worldId }: { worldId: string | null }) {
+export function Studio({ worldId, manual = false }: { worldId: string | null; manual?: boolean }) {
   const [draft, setDraft] = useState<WorldDraft | null>(worldId ? null : emptyDraft());
   // What was last loaded or saved: the editor is "changed" when it differs.
   const [saved, setSaved] = useState(() => JSON.stringify(emptyDraft()));
@@ -285,8 +286,9 @@ export function Studio({ worldId }: { worldId: string | null }) {
   const [saving, setSaving] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   // A new world: built with the AI, or written from the start.
-  const [mode, setMode] = useState<"ai" | "manual" | "filled">("ai");
+  const [mode, setMode] = useState<"ai" | "manual" | "filled">(manual ? "manual" : "ai");
   const [open, setOpen] = useState<string | null>(null);
+  const [tagText, setTagText] = useState<string | null>(null);
   // A new world once created: a second save updates it rather than making another.
   const [createdId, setCreatedId] = useState<string | null>(null);
   const editorTop = useRef<HTMLDivElement>(null);
@@ -295,7 +297,9 @@ export function Studio({ worldId }: { worldId: string | null }) {
     if (worldId)
       api.world(worldId).then(
         (w) => {
-          const loaded = { title: w.title, premise: w.premise, rules: w.rules, opening: w.opening, state: w.state };
+          // Everything the author can change, tags and the sample it came from included.
+          const { id, createdAt, updatedAt, ...rest } = w;
+          const loaded = { ...rest, tags: w.tags ?? [] };
           setDraft(loaded);
           setSaved(JSON.stringify(loaded));
         },
@@ -346,7 +350,8 @@ export function Studio({ worldId }: { worldId: string | null }) {
     }
   };
   const fill = (filled: WorldDraft) => {
-    setDraft(filled);
+    // The AI's world has no tags of its own: the author's stay, as does the sample it came from.
+    setDraft({ ...filled, tags: draft?.tags ?? [], ...(draft?.from ? { from: draft.from } : {}) });
     setMode("filled");
     requestAnimationFrame(() => editorTop.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
   };
@@ -411,12 +416,12 @@ export function Studio({ worldId }: { worldId: string | null }) {
           setAsking({ kind: "leave", href: link.getAttribute("href")! });
         }}
       >
-        <a href="#/" className="seal" aria-label={t("Your worlds")}>
+        <a href="#/" className="seal" aria-label={t("Home")}>
           拟
         </a>
         <nav className="crumbs" aria-label={t("Where you are")}>
-          <a href="#/" className="muted wide" style={{ fontFamily: "var(--sans)", fontWeight: 400, fontSize: 14 }}>
-            {t("Your worlds")}
+          <a href="#/create" className="muted wide" style={{ fontFamily: "var(--sans)", fontWeight: 400, fontSize: 14 }}>
+            {t("Create")}
           </a>
           <span className="muted wide">/</span>
           {worldId ? (
@@ -510,6 +515,18 @@ export function Studio({ worldId }: { worldId: string | null }) {
                     style={{ fontSize: 20, fontWeight: 600 }}
                     value={draft.title}
                     onChange={(e) => set({ title: e.target.value })}
+                  />
+                </label>
+                <label>
+                  {t("Tags")}
+                  <span className="hint">{t("Genre and mood, apart by spaces, e.g. mystery wuxia: for finding it on Explore.")}</span>
+                  <input
+                    value={tagText ?? (draft.tags ?? []).join(" ")}
+                    onChange={(e) => {
+                      // The text as typed, spaces included; the tags as the server keeps them.
+                      setTagText(e.target.value);
+                      set({ tags: [...new Set(e.target.value.split(/[\s,，、]+/).filter(Boolean).map((x) => x.slice(0, 12)))].slice(0, 8) });
+                    }}
                   />
                 </label>
                 <label>

@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
-import type { Save, SaveSummary, SaveView, TurnNode, World } from "../shared/types.ts";
+import type { SampleIntro, SampleSummary, Save, SaveSummary, SaveView, TurnNode, World } from "../shared/types.ts";
 import { createApi } from "../server/app.ts";
 import { Store } from "../server/db.ts";
 import { fakeModel } from "../server/model.ts";
@@ -335,4 +335,38 @@ test("the world living on while the player was away is a marked jump in time nob
     body: JSON.stringify({ actor: "c1", input: "wait", offline: "all" }),
   });
   assert.doesNotMatch(await mine.text(), /"offline":"all"/);
+});
+
+test("the official samples: summaries and intros keep the world back, a copy starts a game", async () => {
+  const list = await call<SampleSummary[]>("GET", "/samples");
+  assert.ok(list.length >= 5, "the samples ship with the server");
+  for (const s of list) {
+    assert.ok(s.title && s.premise && s.tags.length > 0 && s.people > 0, `${s.id} is complete`);
+    assert.equal("state" in s || "rules" in s, false, "the list holds no world");
+    const intro = await call<SampleIntro>("GET", `/samples/${s.id}`);
+    assert.equal("state" in intro || "rules" in intro, false, "nor does the introduction");
+    assert.ok(intro.opening && intro.characters.length > 0);
+    const world = await call<World>("POST", `/samples/${s.id}/copy`);
+    assert.equal(world.from, s.id);
+    for (const secret of world.state.facts.filter((f) => f.secret))
+      assert.ok(!JSON.stringify([s, intro]).includes(secret.text), `${s.id} keeps its secrets back`);
+    assert.equal(world.title, s.title);
+    assert.ok(world.opening.startsWith(intro.opening) && world.state.characters.length === s.people);
+    const save = await call<Save>("POST", "/saves", { worldId: world.id, title: "第 1 局" });
+    assert.equal((await call<SaveView>("GET", `/saves/${save.id}`)).path.length, 1);
+  }
+  const r = await fetch(`${base}/samples/nope/copy`, { method: "POST", headers: { "content-type": "application/json" } });
+  assert.equal(r.status, 404);
+  assert.equal((await fetch(`${base}/samples/__proto__`)).status, 404);
+  // A copy to change is the player's own: playing the sample again does not pick it.
+  const own = await call<World>("POST", `/samples/${list[0]!.id}/copy`, { title: "改一改", toChange: true });
+  assert.equal(own.title, "改一改");
+  assert.equal(own.from, undefined);
+  // Tags and the sample a world came from survive an edit.
+  const w = await call<World>("POST", `/samples/${list[0]!.id}/copy`);
+  const edited = await call<World>("PUT", `/worlds/${w.id}`, { ...w, tags: ["悬疑", " 悬疑 ", "", 7, "x".repeat(40)] });
+  assert.deepEqual(edited.tags, ["悬疑", "x".repeat(12)]);
+  const many = await call<World>("PUT", `/worlds/${w.id}`, { ...w, tags: "abcdefghij".split("") });
+  assert.equal(many.tags?.length, 8);
+  assert.equal(edited.from, list[0]!.id);
 });

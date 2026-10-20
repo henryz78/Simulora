@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { defaultSettings, type TurnNode, type World } from "../shared/types.ts";
 import { normalizeDraft } from "../server/app.ts";
-import { fullWidth, hookMessages, interviewMessages, meanwhileMessages, narrationMessages, timeJump, viewMessages } from "../server/prompts.ts";
+import { fullWidth, hookMessages, interviewMessages, lastLine, meanwhileMessages, narrationMessages, timeJump, viewMessages } from "../server/prompts.ts";
 
 const world = (rules?: string): World =>
   ({
@@ -164,4 +164,10 @@ test("days away: the player's character stays put in one way, lives them too in 
   assert.match(lives, /Mei lived those days too, on their own wants: Read in the library\./);
   assert.doesNotMatch(lives, /out of the player's sight[^\n]*Read in the library/, "their own days are not unseen");
   assert.match(meanwhileMessages(w, [opening, played], ["Mei", "Lan"], "3天后", "Mei")[0]!.content, /Mei is the player's own character/);
+});
+
+test("the last line keeps a closing quote with its sentence", () => {
+  assert.equal(lastLine("他走了。她说：“好吧。”他抬起头，看看这个，又看看那个。"), "她说：“好吧。”他抬起头，看看这个，又看看那个。");
+  assert.equal(lastLine("“走吧。”"), "“走吧。”");
+  assert.equal(lastLine("他停下。（门开了。）她进来。"), "（门开了。）她进来。");
 });

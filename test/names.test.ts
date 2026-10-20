@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { coverOf, initial, nextSaveName, when } from "../web/src/names.ts";
+import { coverOf, initial, nextSaveName, turnLabel, when } from "../web/src/names.ts";
 import { lang } from "../web/src/i18n.ts";
 
 test("an initial is the first Chinese character, else the first letter", () => {
@@ -31,4 +31,9 @@ test("times read as today, yesterday, days ago, or a date", () => {
   assert.equal(when(new Date(2026, 9, 19, 23, 0).toISOString(), now), lang === "zh" ? "昨天" : "Yesterday");
   assert.equal(when(new Date(2026, 9, 17, 12, 0).toISOString(), now), lang === "zh" ? "3 天前" : "3 days ago");
   assert.doesNotMatch(when(new Date(2026, 5, 1).toISOString(), now), /ago|前/);
+});
+
+test("the opening is not turn 0", () => {
+  assert.equal(turnLabel(0), lang === "zh" ? "开场" : "Opening");
+  assert.equal(turnLabel(3), lang === "zh" ? "第 3 回合" : "Turn 3");
 });

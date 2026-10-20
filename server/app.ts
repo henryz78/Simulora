@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   defaultSettings,
@@ -13,6 +14,7 @@ import {
   type Thread,
   type TimelineEntry,
   type TurnNode,
+  type SampleSummary,
   type World,
   type WorldDraft,
   type Dice,
@@ -82,6 +84,15 @@ class HttpError extends Error {
 }
 
 const now = () => new Date().toISOString();
+/** The start of a description, whole sentences up to about 60 characters, for a one-line introduction. */
+function brief(text: string) {
+  let out = "";
+  for (const part of text.trim().split(/(?<=[。！？!?\n])/)) {
+    if (out.length >= 16 || out.length + part.length > 60) break;
+    out += part;
+  }
+  return out.trim() || (text.trim() && `${text.trim().slice(0, 60)}…`);
+}
 const str = (value: unknown, max = 4000) => (typeof value === "string" ? value.slice(0, max) : "");
 const list = (value: unknown): Record<string, unknown>[] =>
   Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
@@ -126,6 +137,8 @@ export function normalizeDraft(raw: unknown): WorldDraft {
     // The model now and then writes the rules as a list.
     rules: str(rulesText(v.rules), 20_000),
     opening: str(v.opening),
+    tags: [...new Set((Array.isArray(v.tags) ? v.tags : []).map((t) => str(t, 12).trim()).filter(Boolean))].slice(0, 8),
+    ...(typeof v.from === "string" && /^[\w-]{1,64}$/.test(v.from) ? { from: v.from } : {}),
     state: {
       clock: str(s.clock, 200),
       places,
@@ -379,6 +392,22 @@ export function createApi(
   }
 
   const world = (id: string) => store.world(id) ?? fail(404, "World not found");
+  // The official sample worlds: server/samples/<n>-<id>.json, listed in the order of n.
+  const sampleDir = `${import.meta.dirname}/samples`;
+  const samples = new Map(
+    readdirSync(sampleDir)
+      .filter((f) => f.endsWith(".json"))
+      .sort((a, b) => a.localeCompare(b, "en", { numeric: true }))
+      .map((f) => [f.replace(/^\d+-|\.json$/g, ""), normalizeDraft(JSON.parse(readFileSync(`${sampleDir}/${f}`, "utf8")))]),
+  );
+  const sampleSummary = (sid: string, d: WorldDraft): SampleSummary => ({
+    id: sid,
+    title: d.title,
+    premise: d.premise,
+    tags: d.tags ?? [],
+    people: d.state.characters.length,
+    places: d.state.places.length,
+  });
   const save = (id: string) => store.save(id) ?? fail(404, "Save not found");
   function fail(status: number, message: string): never {
     throw new HttpError(status, message);
@@ -907,6 +936,27 @@ export function createApi(
               }),
             })),
           );
+        // Only what the explore page shows: the whole world, with its secrets, stays here until it is copied.
+        case "GET /samples":
+          return send(res, 200, [...samples].map(([sid, d]) => sampleSummary(sid, d)));
+        case "GET /samples/:id": {
+          const d = samples.get(id) ?? fail(404, "Sample not found");
+          return send(res, 200, {
+            ...sampleSummary(id, d),
+            characters: d.state.characters.slice(0, 4).map((c) => ({ name: c.name, persona: brief(c.persona) })),
+            opening: d.opening.trim().split(/\n+/)[0],
+          });
+        }
+        case "POST /samples/:id/copy": {
+          const d = samples.get(id) ?? fail(404, "Sample not found");
+          // A copy to play remembers its sample, so playing again reuses it; a copy to change is the player's own.
+          const body = await readJson(req);
+          const title = str(body.title, 200).trim() || d.title;
+          const from = body.toChange === true ? {} : { from: id };
+          const w: World = { ...d, title, ...from, id: randomUUID(), createdAt: now(), updatedAt: now() };
+          store.putWorld(w);
+          return send(res, 201, w);
+        }
         case "POST /worlds": {
           const w: World = { ...normalizeDraft(await readJson(req)), id: randomUUID(), createdAt: now(), updatedAt: now() };
           store.putWorld(w);

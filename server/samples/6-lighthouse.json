@@ -1,0 +1,88 @@
+{
+ "title": "雾港灯塔",
+ "premise": "一个靠打鱼为生的海边小港，常年起雾。港口尽头的灯塔已经熄灭十年，守塔人老林在灯塔熄灭那晚失踪了。今夜，灯塔突然又亮了。",
+ "opening": "夜里十一点，雾港的人都被窗外的光惊醒——熄灭了整整十年的灯塔，又亮了。码头上，老林的女儿林晚提着一盏马灯，站在涨潮的水边，望着那道在雾里转动的光。",
+ "state": {
+  "clock": "深夜十一点",
+  "places": [
+   {
+    "id": "p4a1b720d",
+    "name": "码头",
+    "description": "湿滑的石阶、拴着的渔船、一间还亮着灯的鱼行"
+   },
+   {
+    "id": "p5a4bdba9",
+    "name": "灯塔",
+    "description": "港口尽头的岩石上，只能退潮时走过去，铁门生锈"
+   }
+  ],
+  "characters": [
+   {
+    "id": "c42539b75",
+    "name": "林晚",
+    "persona": "二十四岁，老林的女儿，在鱼行记账。倔强、话少，细心。",
+    "goals": "弄清父亲十年前为什么失踪",
+    "placeId": "p4a1b720d",
+    "notes": "",
+    "knows": []
+   },
+   {
+    "id": "c247add12",
+    "name": "陈伯",
+    "persona": "六十多岁的老渔民，老林当年最好的朋友，爱喝酒，嘴紧。",
+    "goals": "不让任何人上灯塔",
+    "placeId": "p4a1b720d",
+    "notes": "",
+    "knows": [
+     "f0422cd44"
+    ]
+   },
+   {
+    "id": "c690d18a5",
+    "name": "周所长",
+    "persona": "港口派出所所长，四十多岁，圆滑，爱面子。",
+    "goals": "尽快平息骚动，别让上面来人查",
+    "placeId": "p4a1b720d",
+    "notes": "",
+    "knows": [
+     "f0422cd44"
+    ]
+   }
+  ],
+  "facts": [
+   {
+    "id": "f1045dba8",
+    "text": "灯塔熄灭那晚，海上起了大风暴，港里沉了一条船。",
+    "secret": false,
+    "revealed": false,
+    "source": "author"
+   },
+   {
+    "id": "f0422cd44",
+    "text": "那晚沉的船上运的是走私货，陈伯和周所长当年都有份。",
+    "secret": true,
+    "revealed": false,
+    "source": "author"
+   },
+   {
+    "id": "f9eb57e0d",
+    "text": "点亮灯塔的是林晚的弟弟林潮——大家都以为他年少时出海淹死了。",
+    "secret": true,
+    "revealed": false,
+    "source": "author"
+   }
+  ],
+  "threads": [
+   {
+    "id": "ta242cc64",
+    "title": "是谁点亮了灯塔？",
+    "resolved": false,
+    "resolution": ""
+   }
+  ],
+  "relationships": []
+ },
+ "tags": [
+  "悬疑"
+ ]
+}

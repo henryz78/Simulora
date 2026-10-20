@@ -229,8 +229,8 @@ export function Play({ saveId }: { saveId: string }) {
             <b>{t("Could not open this save")}</b>
             <span className="small muted">{t(error)}</span>
             <div>
-              <a className="button small" href="#/">
-                {t("Your worlds")}
+              <a className="button small" href="#/me">
+                {t("Your saves")}
               </a>
             </div>
           </div>
@@ -407,7 +407,7 @@ export function Play({ saveId }: { saveId: string }) {
   return (
     <div className="play">
       <header className="topbar" inert={overlay}>
-        <a href="#/" className="seal" aria-label={t("Your worlds")}>
+        <a href="#/" className="seal" aria-label={t("Home")}>
           拟
         </a>
         <nav className="crumbs" aria-label={t("Where you are")}>

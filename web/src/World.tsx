@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import type { SaveSummary, World as WorldT } from "../../shared/types.ts";
 import { api } from "./api.ts";
 import { lang, t } from "./i18n.ts";
-import { Ask, Confirm, coverOf, Icon, LookButton, Menu, nextSaveName, turnLabel, when } from "./ui.tsx";
+import { Site } from "./Site.tsx";
+import { Ask, Confirm, coverOf, Icon, Menu, nextSaveName, turnLabel, when } from "./ui.tsx";
 
 /** One world: what it is, its saves (newest played first), a new game, editing, deleting. */
 export function World({ worldId }: { worldId: string }) {
@@ -23,28 +24,20 @@ export function World({ worldId }: { worldId: string }) {
   useEffect(() => void load(), [worldId]);
   const report = (e: Error) => setError(t(e.message));
   const [starting, setStarting] = useState(false);
-  useEffect(() => {
-    if (entry) document.title = `${entry.world.title} · Simulora`;
-  }, [entry?.world.title]);
-
-  const top = (
-    <header className="topbar">
-      <a className="button quiet small" href="#/">
-        <Icon name="back" />
-        {t("Your worlds")}
-      </a>
-      <span className="grow" />
-      <LookButton />
-    </header>
+  const back = (
+    <a className="button quiet small" href="#/create" style={{ alignSelf: "flex-start", marginBottom: -16 }}>
+      <Icon name="back" />
+      {t("Create")}
+    </a>
   );
   if (!entry)
     return (
-      <>
-        {top}
-        <main className="world-page">
+      <Site page="create" title="">
+        <div className="world-page">
+          {back}
           {error ? <p className="error">{error}</p> : <p className="muted">{t("Loading…")}</p>}
-        </main>
-      </>
+        </div>
+      </Site>
     );
 
   const { world, saves } = entry;
@@ -64,9 +57,9 @@ export function World({ worldId }: { worldId: string }) {
   };
 
   return (
-    <>
-      {top}
-      <main className="world-page">
+    <Site page="create" title={world.title}>
+      <div className="world-page">
+        {back}
         {error && <p className="error">{error}</p>}
         <section className="world-head">
           <div className="cover" style={{ background: cover.background }} aria-hidden="true">
@@ -180,7 +173,7 @@ export function World({ worldId }: { worldId: string }) {
             {t("New games are numbered on their own; rename them any time.")}
           </p>
         </section>
-      </main>
+      </div>
 
       {asking?.kind === "rename" && (
         <Ask
@@ -212,10 +205,10 @@ export function World({ worldId }: { worldId: string }) {
               : `The world and its ${saves.length} saves go, for good.`
           }
           action={t("Delete")}
-          onConfirm={() => api.deleteWorld(world.id).then(() => (location.hash = "#/"), report)}
+          onConfirm={() => api.deleteWorld(world.id).then(() => (location.hash = "#/create"), report)}
           onClose={() => setAsking(null)}
         />
       )}
-    </>
+    </Site>
   );
 }

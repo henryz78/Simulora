@@ -1,4 +1,4 @@
-import type { Dice, Save, SaveSummary, SaveView, Settings, TurnNode, World, WorldDraft } from "../../shared/types.ts";
+import type { Dice, SampleIntro, SampleSummary, Save, SaveSummary, SaveView, Settings, TurnNode, World, WorldDraft } from "../../shared/types.ts";
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -14,6 +14,11 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   worlds: () => call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds"),
   world: (id: string) => call<World>("GET", `/worlds/${id}`),
+  samples: () => call<SampleSummary[]>("GET", "/samples"),
+  sample: (id: string) => call<SampleIntro>("GET", `/samples/${id}`),
+  /** A copy to play, or, with a title, a copy to change. */
+  copySample: (id: string, title?: string) =>
+    call<World>("POST", `/samples/${id}/copy`, title ? { title, toChange: true } : {}),
   createWorld: (draft: WorldDraft) => call<World>("POST", "/worlds", draft),
   draft: (idea: string, draft: WorldDraft | null, feedback: string) =>
     call<WorldDraft>("POST", "/drafts", { idea, draft, feedback }),

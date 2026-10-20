@@ -65,6 +65,26 @@ export interface WorldDraft {
   rules: string;
   opening: string;
   state: WorldState;
+  /** Genres and moods, for finding the world on the explore page. */
+  tags?: string[];
+  /** The official sample this world was copied from. */
+  from?: string;
+}
+
+/** An official sample world, as the explore page lists it. */
+export interface SampleSummary {
+  id: string;
+  title: string;
+  premise: string;
+  tags: string[];
+  people: number;
+  places: number;
+}
+
+/** A sample world's introduction: its first few people and the opening's first paragraph. */
+export interface SampleIntro extends SampleSummary {
+  characters: { name: string; persona: string }[];
+  opening: string;
 }
 
 export interface World extends WorldDraft {
