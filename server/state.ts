@@ -315,6 +315,69 @@ export function bury(before: WorldState, raw: unknown): { state: WorldState; bur
   return { state, buried };
 }
 
+/** What the secret keeper decided: secrets the story let out, secrets rewritten to fit it, and new ones. */
+export interface Keep {
+  found: { id: string; how: string }[];
+  revised: { id: string; text: string; knownBy: string[] }[];
+  buried: { fact: Fact; knownBy: string[] }[];
+}
+
+/**
+ * Reads the keeper's report against a state: only a secret still hidden there can come out or be rewritten, and a new
+ * one must be new. Ids are written once, here, so the same decision lands alike on every turn it is applied to.
+ */
+export function readKeep(state: WorldState, raw: unknown): Keep {
+  const v = (raw ?? {}) as Record<string, unknown>;
+  const hidden = new Map(state.facts.filter((f) => f.secret && !f.revealed).map((f) => [f.id, f]));
+  const items = (list: unknown) =>
+    (Array.isArray(list) ? list.slice(0, 5) : []).map((x) => (x ?? {}) as Record<string, unknown>);
+  const id = (x: unknown) => text(x, 64).replace(/^\[|\]$/g, "");
+  const names = (x: unknown) => (Array.isArray(x) ? x.filter((n): n is string => typeof n === "string") : []);
+  const found = items(v.found)
+    .map((x) => ({ id: id(x.id), how: text(x.how, 300) }))
+    .filter((f, i, all) => hidden.has(f.id) && all.findIndex((g) => g.id === f.id) === i);
+  const out = new Set(found.map((f) => f.id));
+  const revised = items(v.revise)
+    .map((x) => ({ id: id(x.id), text: text(x.text, 600), knownBy: names(x.knownBy) }))
+    .filter((r) => hidden.has(r.id) && !out.has(r.id) && r.text && !same(r.text, hidden.get(r.id)!.text));
+  const buried = items(v.secrets)
+    .map((x) => ({ text: text(x.text, 600), knownBy: names(x.knownBy) }))
+    .filter((b) => b.text && !state.facts.some((f) => same(f.text, b.text)))
+    .map((b) => ({
+      fact: { id: newId("f"), text: b.text, secret: true, revealed: false, source: "ai" as const },
+      knownBy: b.knownBy,
+    }));
+  return { found, revised, buried };
+}
+
+/** Applies what the keeper decided to a state; a turn that already shows a secret found or rewritten keeps its own. */
+export function applyKeep(before: WorldState, keep: Keep): WorldState {
+  const state = structuredClone(before);
+  const know = (id: string, names: string[]) => {
+    for (const name of names) {
+      const who = state.characters.find((c) => same(c.name, name));
+      if (who && !who.knows.includes(id)) who.knows.push(id);
+    }
+  };
+  for (const f of keep.found) {
+    const fact = state.facts.find((x) => x.id === f.id);
+    if (fact && !fact.revealed) Object.assign(fact, { revealed: true, ...(f.how && { revealNote: f.how }) });
+  }
+  for (const r of keep.revised) {
+    const fact = state.facts.find((x) => x.id === r.id);
+    if (fact && !fact.revealed) {
+      fact.text = r.text;
+      know(r.id, r.knownBy);
+    }
+  }
+  for (const b of keep.buried) {
+    if (state.facts.some((f) => f.id === b.fact.id)) continue;
+    state.facts.push({ ...b.fact });
+    know(b.fact.id, b.knownBy);
+  }
+  return state;
+}
+
 /**
  * What the model stops reading when the turns up to the one whose state is `told` are trimmed: the facts and threads
  * the story added by then go (the timeline and the memory tell them now), and so do they from what each character
@@ -335,6 +398,22 @@ export function trimState(state: WorldState, told: WorldState, world: WorldState
     facts,
     threads: state.threads.filter((t) => !old.has(t.id)),
     characters: state.characters.map((c) => ({ ...c, knows: c.knows.filter((id) => kept.has(id)) })),
+  };
+}
+
+/**
+ * What the keeper did to a turn's secrets between two of its states: found or rewritten while the next turn was being
+ * written, so that turn takes them up too (new ones come with `carrySecrets`).
+ */
+export function keptSince(start: WorldState, now: WorldState): Keep {
+  const was = new Map(start.facts.filter((f) => f.secret && !f.revealed).map((f) => [f.id, f]));
+  const changed = now.facts.filter((f) => f.secret && was.has(f.id));
+  return {
+    found: changed.filter((f) => f.revealed).map((f) => ({ id: f.id, how: f.revealNote ?? "" })),
+    revised: changed
+      .filter((f) => !f.revealed && f.text !== was.get(f.id)!.text)
+      .map((f) => ({ id: f.id, text: f.text, knownBy: [] })),
+    buried: [],
   };
 }
 

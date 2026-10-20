@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { WorldState } from "../shared/types.ts";
-import { applyChanges, bury, describeState, inPlay, outcomeOf, parseChanges, placeNamed, sceneOf, stillAway, withWhere } from "../server/state.ts";
+import { applyChanges, applyKeep, bury, describeState, inPlay, keptSince, outcomeOf, parseChanges, placeNamed, readKeep, sceneOf, stillAway, withWhere } from "../server/state.ts";
 
 const world = (): WorldState => ({
   clock: "Night",
@@ -241,4 +241,30 @@ test("the player's own name pulls no place in: they are where they are", () => {
   const state = world();
   state.places.push({ id: "p2", name: "Hall", description: "" });
   assert.deepEqual(sceneOf(state, "c1", "Three days later Zhou eats in the Hall", true), ["p2"]);
+});
+
+test("the keeper finds, rewrites and buries only what it may, and the same decision lands alike on every turn", () => {
+  const before = world();
+  before.facts.push({ id: "s2", text: "Zhou owes the miller.", secret: true, revealed: false, source: "ai" });
+  const keep = readKeep(before, {
+    found: [{ id: "[s1]", how: "Qing said so." }, { id: "nope", how: "" }, { id: "s1", how: "again" }],
+    revise: [{ id: "s1", text: "Found ones are not rewritten." }, { id: "s2", text: "Zhou owes the inn.", knownBy: ["Zhou"] }],
+    secrets: [{ text: "The miller is Qing's brother.", knownBy: ["Qing"] }, { text: "Zhou owes the miller." }],
+  });
+  assert.deepEqual(keep.found, [{ id: "s1", how: "Qing said so." }], "an unknown id and a repeat are dropped");
+  assert.deepEqual(keep.revised.map((r) => r.id), ["s2"]);
+  assert.equal(keep.buried.length, 1, "a secret already there is not buried again");
+  const once = applyKeep(before, keep);
+  const twice = applyKeep(before, keep);
+  assert.deepEqual(once, twice, "same ids on every turn it lands on");
+  const s1 = once.facts.find((f) => f.id === "s1")!;
+  assert.equal(s1.revealed, true);
+  assert.equal(s1.revealNote, "Qing said so.");
+  assert.equal(once.facts.find((f) => f.id === "s2")!.text, "Zhou owes the inn.");
+  const buried = keep.buried[0]!.fact.id;
+  assert.ok(once.characters.find((c) => c.name === "Qing")!.knows.includes(buried));
+  // A turn written meanwhile takes up what changed in the turn it grew from.
+  const since = keptSince(before, once);
+  assert.deepEqual(since.found, [{ id: "s1", how: "Qing said so." }]);
+  assert.deepEqual(since.revised.map((r) => r.text), ["Zhou owes the inn."]);
 });

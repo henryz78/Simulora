@@ -147,6 +147,25 @@ test("the AI drafts a world and buries secrets at the start and as the story goe
   const view = await call<SaveView>("GET", `/saves/${save.id}`);
   assert.equal(ai(view).length, 2);
   assert.ok(ai(view).every((f) => !f.revealed));
+
+  // Every fourth turn the secrets are kept up with the story: a confession lets one out, shown on its turn, and the
+  // turn after it, grown while the keeper worked, has it found too.
+  for (let i = 0; i < 2; i++) await playTurn(save.id, "director", "");
+  await playTurn(save.id, "director", "CONFESS");
+  await playTurn(save.id, "director", "");
+  const kept = await call<SaveView>("GET", `/saves/${save.id}`);
+  const found = kept.path.at(-1)!.state.facts.filter((f) => f.secret && f.revealed);
+  assert.equal(found.length, 1, "the confessed secret is found");
+  assert.equal(found[0]!.revealNote, "Confessed at the door.");
+  assert.ok(kept.path[8]!.changes.some((c) => c.type === "reveal"), "shown on the turn it was found for");
+  // A secret the story moved past is rewritten to fit it, still hidden.
+  for (let i = 0; i < 2; i++) await playTurn(save.id, "director", "");
+  await playTurn(save.id, "director", "OVERTAKE");
+  await playTurn(save.id, "director", "");
+  const later = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.ok(
+    later.path.at(-1)!.state.facts.some((f) => f.secret && !f.revealed && f.text === "Rewritten to fit the story."),
+  );
 });
 
 test("every few turns the people away act on their own; someone the story brings in is left as it tells", async () => {

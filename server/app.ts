@@ -27,6 +27,7 @@ import {
   MERGE_ENTRIES,
   TIMELINE_TOKENS,
   buryMessages,
+  keepMessages,
   changeMessages,
   draftMessages,
   draftPrompt,
@@ -55,7 +56,10 @@ import {
 import {
   applyChanges,
   bury,
+  applyKeep,
   carrySecrets,
+  keptSince,
+  readKeep,
   inPlay,
   mentions,
   newId,
@@ -332,6 +336,45 @@ export function createApi(
       console.log(`secrets.buried ${buried.length}`);
     })()
       .catch((error) => console.warn("bury.failed", error instanceof Error ? error.message : error))
+      .finally(() => burying.delete(saveId));
+  }
+
+  /**
+   * Every few turns, in the background: the secrets still hidden are looked over against the story. Those it let out
+   * are marked found (and shown on the turn), those it moved past are rewritten to fit, and new ones are buried while
+   * fewer than MAX_HIDDEN wait. All of it lands on the turn it was asked for and every turn grown from it since.
+   */
+  function keepLater(saveId: string) {
+    if (burying.has(saveId)) return;
+    burying.add(saveId);
+    void (async () => {
+      const s = store.save(saveId);
+      const w = s && store.world(s.worldId);
+      if (!s || !w) return;
+      const origin = s.headId;
+      const path = store.path(origin);
+      const hidden = path.at(-1)!.state.facts.filter((f) => f.secret && !f.revealed).length;
+      const ask = () => model.json(keepMessages(w, path, MAX_HIDDEN - hidden));
+      const report = await ask().catch(ask);
+      const node = store.node(origin);
+      if (!node?.state) return;
+      const keep = readKeep(node.state, report);
+      // A secret found makes room for one more; never more than two at once.
+      keep.buried = keep.buried.slice(0, Math.max(0, Math.min(2, MAX_HIDDEN - hidden + keep.found.length)));
+      if (!keep.found.length && !keep.revised.length && !keep.buried.length) return;
+      const reveals = keep.found.map((f) => ({ type: "reveal" as const, fact: f.id, note: f.how }));
+      store.putNode({ ...node, state: applyKeep(node.state, keep), changes: [...node.changes, ...reveals] });
+      const tree = store.tree(node.worldId);
+      for (let i = 0, grown = [origin]; i < grown.length; i++) {
+        for (const child of tree.filter((n) => n.parentId === grown[i])) {
+          const later = store.node(child.id)!;
+          if (later.state) store.putNode({ ...later, state: applyKeep(later.state, keep) });
+          grown.push(child.id);
+        }
+      }
+      console.log(`secrets.kept found=${keep.found.length} revised=${keep.revised.length} buried=${keep.buried.length}`);
+    })()
+      .catch((error) => console.warn("keep.failed", error instanceof Error ? error.message : error))
       .finally(() => burying.delete(saveId));
   }
 
@@ -809,14 +852,15 @@ export function createApi(
           console.warn("trim.failed", error instanceof Error ? error.message : error); // the story is kept whole
         }
       }
-      // Secrets buried in the turn this one grows from while it was being written come along.
-      node.state = carrySecrets(store.node(head.id)!.state, node.state);
+      // Secrets buried, found or rewritten in the turn this one grows from while it was being written come along.
+      const grownFrom = store.node(head.id)!.state;
+      node.state = applyKeep(carrySecrets(grownFrom, node.state), keptSince(head.state, grownFrom));
       store.putNode(node);
       store.putSave({ ...save(s.id), headId: node.id, updatedAt: now() });
       event("done", { node });
-      // Every few turns the AI buries new secrets in what has happened, unless plenty still wait.
-      const hidden = node.state.facts.filter((f) => f.secret && !f.revealed).length;
-      if (path.length % BURY_EVERY === 0 && hidden < MAX_HIDDEN) buryLater(s.id);
+      // Every few turns the secrets are kept up with the story, and new ones buried while there is room. Not on a turn
+      // whose changes were never recorded: "Record again" rebuilds its state.
+      if (path.length % BURY_EVERY === 0 && !node.recordsFailed) keepLater(s.id);
       if (next.length - 1 - chronicleOf(next).at >= chronicleTurns) chronicleLater(s.id);
       // ponytail: a sweep of the whole tree every ten turns; a per-turn single forget if the tree gets huge.
       try {

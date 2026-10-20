@@ -161,6 +161,27 @@ export function Play({ saveId }: { saveId: string }) {
   useEffect(() => {
     if (view) document.title = `${view.world.title} · ${view.save.title} · Simulora`;
   }, [view?.world.title, view?.save.title]);
+  // Secrets found in the background since the player last looked (the keeper works after a turn, when its page may
+  // already be read): shown once, at the top. What this browser has seen is kept per save.
+  const [fresh, setFresh] = useState<string[]>([]);
+  const revealedNow = (view?.path.at(-1)!.state.facts ?? []).filter((f) => f.secret && f.revealed).map((f) => f.id);
+  useEffect(() => {
+    if (!view) return;
+    const key = `simulora.seen.${saveId}`;
+    let seen: string[] | null = null;
+    try {
+      seen = JSON.parse(localStorage.getItem(key) ?? "null") as string[] | null;
+    } catch {
+      // nothing kept: nothing is new
+    }
+    const onHead = new Set(view.path.at(-1)!.changes.flatMap((c) => (c.type === "reveal" ? [c.fact] : [])));
+    setFresh(seen ? revealedNow.filter((id) => !seen!.includes(id) && !onHead.has(id)) : []);
+    try {
+      localStorage.setItem(key, JSON.stringify(revealedNow));
+    } catch {
+      // a private window: shown again next time, no harm
+    }
+  }, [revealedNow.join()]);
   // Each tab opens at its top.
   const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -443,6 +464,38 @@ export function Play({ saveId }: { saveId: string }) {
                 </button>
               </div>
             )}
+            {fresh.map((id) => {
+              const fact = state.facts.find((f) => f.id === id);
+              const secrets = state.facts.filter((f) => f.secret);
+              return (
+                fact && (
+                  <div className="note secret" role="status" key={id}>
+                    <b className="row" style={{ gap: 8 }}>
+                      <Icon name="unlock" />
+                      {t("A secret comes out")} · {t("found")} {secrets.filter((f) => f.revealed).length} /{" "}
+                      {secrets.length}
+                    </b>
+                    <p className="serif" style={{ fontSize: 17, lineHeight: 1.8 }}>
+                      {fact.text}
+                    </p>
+                    {fact.revealNote && (
+                      <span className="muted small">
+                        {t("How it came out")}
+                        {sepFor(fact.revealNote)}
+                      </span>
+                    )}
+                    <div className="row">
+                      <button className="small" onClick={() => setPanel("world")}>
+                        {t("See the discovery book")}
+                      </button>
+                      <button className="quiet small" onClick={() => setFresh(fresh.filter((x) => x !== id))}>
+                        {t("Close")}
+                      </button>
+                    </div>
+                  </div>
+                )
+              );
+            })}
             {recap !== null && (
               <div className="note" style={{ background: "transparent", border: "1px solid var(--edge)" }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>

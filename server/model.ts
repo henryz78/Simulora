@@ -323,6 +323,20 @@ export function fakeModel(): Model {
           ],
         };
       }
+      // The keeper: a story that says CONFESS lets the first hidden secret out, OVERTAKE rewrites it.
+      if (system.includes("You keep the secrets of a story world")) {
+        const content = messages.at(-1)!.content;
+        const hidden = content.split("Secrets the player has NOT discovered")[1] ?? "";
+        const first = /- \[([^\]]+)\]/.exec(hidden)?.[1];
+        // The later word in the story decides.
+        const confessed = content.lastIndexOf("CONFESS") > content.lastIndexOf("OVERTAKE");
+        const overtaken = content.lastIndexOf("OVERTAKE") > content.lastIndexOf("CONFESS");
+        return {
+          found: first && confessed ? [{ id: first, how: "Confessed at the door." }] : [],
+          revise: first && overtaken ? [{ id: first, text: "Rewritten to fit the story.", knownBy: [] }] : [],
+          secrets: system.includes("bury up to") ? [{ text: `Kept and buried at ${content.length}.`, knownBy: [] }] : [],
+        };
+      }
       if (system.includes("hide its secrets"))
         return { secrets: [{ text: `A buried secret, told in ${messages.at(-1)!.content.length} characters.`, knownBy: [] }] };
       if (system.includes("You design the world"))

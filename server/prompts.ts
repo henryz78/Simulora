@@ -874,6 +874,47 @@ export function buryMessages(world: World, path: TurnNode[]): Message[] {
   ];
 }
 
+// The secrets were buried in the first four turns of a 60-turn game and never looked at again: the story moved past
+// them (the one who paid became someone else), so none could come out, and with five still hidden no new one was
+// buried (2026-10-20). Every few turns they are kept up with the story: found, rewritten, or joined by new ones.
+/** Looks over the hidden secrets against the story: which came out, which to rewrite, and new ones if there is room. */
+export function keepMessages(world: World, path: TurnNode[], room: number): Message[] {
+  const state = path.at(-1)!.state;
+  return [
+    {
+      role: "system",
+      content: [
+        "You keep the secrets of a story world. The story has moved on: look over the secrets still hidden from the " +
+          "player against what the story has told.",
+        "1. found: a secret whose heart the story has already made plain to the player's character: someone said or " +
+          "confessed it, they found it, or it happened before their eyes. A detail still hidden, or told a little " +
+          "differently, does not hold it back. A hint, a guess or a lie is not enough.",
+        "2. revise: a secret still hidden that the story has since contradicted or moved past (it names someone the " +
+          "story showed was not the one, a thing that has changed hands, a plan already overtaken): rewrite it so it " +
+          "is true of the world as the story now stands, keeping its heart where you can, and still hidden. Leave a " +
+          "secret that still fits as it is.",
+        room > 0
+          ? `3. secrets: bury up to ${Math.min(2, room)} new ones grounded in what has happened lately: the hidden ` +
+            'truth behind a specific unexplained detail, odd reaction or open question. Say which in "because".'
+          : "3. secrets: none this time; enough are hidden.",
+        'Return one JSON object: {"found": [{"id": "the secret\'s [id]", "how": "how it came out, one sentence"}], ' +
+          '"revise": [{"id": "the secret\'s [id]", "text": "the secret as it now stands, one or two sentences", ' +
+          '"knownBy": [names of characters who know it]}], "secrets": [{"text": ..., "knownBy": [...], ' +
+          '"because": ...}]}. Any list may be empty. A secret is concrete and surprising, fits everything the story ' +
+          "has established, and can come out later through the story (a search, evidence, a confession). Bring in " +
+          "no new main characters. Write in the same language as the world's own text.",
+        CONTENT_LINE,
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: [worldHeader(world, state), "", ...chronicleLines(path), `Story so far:\n${recentStory(path, state)}`].join(
+        "\n",
+      ),
+    },
+  ];
+}
+
 /** The parts of a world draft the AI writes, with names in place of ids. */
 export interface PlainDraft {
   title: string;
