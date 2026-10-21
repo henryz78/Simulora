@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SampleIntro, SampleSummary, SaveSummary, World } from "../../shared/types.ts";
 import { afterSignIn, api, type Me } from "./api.ts";
 import { lang, t } from "./i18n.ts";
-import { coverOf, Dialog, Icon, LookButton, nextSaveName, turnLabel, when } from "./ui.tsx";
+import { coverOf, Dialog, homeArt, Icon, LookButton, nextSaveName, turnLabel, when } from "./ui.tsx";
 
 type Shelf = { world: World; saves: SaveSummary[] }[];
 type Page = "home" | "explore" | "create" | "me";
@@ -159,7 +159,7 @@ export function Home() {
         {problem}
         {loading}
         {worlds?.length === 0 && (
-          <section className="welcome">
+          <section className="welcome" style={{ backgroundImage: `var(--welcome-shade), url(${homeArt})` }}>
             <h1 className="serif">{t("Pick a world and begin a story")}</h1>
             <p className="muted">
               {t("Every world has its people, places and secrets. Play one of these, or build your own.")}

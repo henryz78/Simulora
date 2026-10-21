@@ -2,9 +2,27 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Dice } from "../../shared/types.ts";
 import { lang, t } from "./i18n.ts";
-import { initial } from "./names.ts";
+import { coverOf as plainCover, initial } from "./names.ts";
 
-export { coverOf, initial, nextSaveName, turnLabel, when } from "./names.ts";
+export { initial, nextSaveName, turnLabel, when } from "./names.ts";
+
+// Pictures for the official samples, by sample id; Vite gives each a hashed, long-cached address.
+const ART: Record<string, string> = Object.fromEntries(
+  Object.entries(import.meta.glob<string>("./art/*.jpg", { eager: true, import: "default" })).map(([path, url]) => [
+    path.slice(6, -4),
+    url,
+  ]),
+);
+export const homeArt = ART.home!;
+
+/** A world's cover: a sample (or a game copied from one) shows its picture, any other world its colour and mark. */
+export function coverOf(world: { id: string; title: string; from?: string }) {
+  const plain = plainCover(world);
+  const art = ART[world.from ?? world.id];
+  if (!art) return plain;
+  // Darker at the foot, so the line of text laid over a card's picture stays readable.
+  return { background: `linear-gradient(transparent 50%, rgb(0 0 0 / 0.55)), center / cover url(${art}), ${plain.background}`, mark: "" };
+}
 
 const PATHS = {
   clock: "M12 8v4l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",

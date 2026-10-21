@@ -92,6 +92,7 @@ const types: Record<string, string> = {
   ".js": "text/javascript",
   ".css": "text/css",
   ".svg": "image/svg+xml",
+  ".jpg": "image/jpeg",
   ".woff2": "font/woff2",
 };
 const dist = join(root, "web", "dist");

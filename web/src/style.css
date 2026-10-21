@@ -650,7 +650,7 @@ dialog::backdrop {
   border-color: var(--edge);
 }
 .world-card .cover {
-  height: 112px;
+  aspect-ratio: 2 / 1;
 }
 .world-card .body {
   padding: 14px 16px 16px;
@@ -753,10 +753,20 @@ dialog::backdrop {
   gap: 12px;
 }
 .welcome {
+  --welcome-shade: linear-gradient(90deg, rgb(12 13 18 / 0.92) 25%, rgb(12 13 18 / 0.2) 70%);
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 12px;
-  padding: 32px 0 8px;
+  min-height: 340px;
+  padding: 40px 44px;
+  border-radius: 18px;
+  background: #0c0d12 right center / cover no-repeat;
+  color: #f3ece2;
+}
+.welcome p.muted {
+  max-width: 26em;
+  color: rgb(243 236 226 / 0.78);
 }
 .welcome h1 {
   font-size: 32px;
@@ -780,8 +790,8 @@ dialog::backdrop {
   gap: 28px;
 }
 .intro-head .cover {
-  flex: 0 0 220px;
-  height: 280px;
+  flex: 1 1 100%;
+  aspect-ratio: 5 / 2;
   border-radius: 16px;
   justify-content: center;
   align-items: center;
@@ -924,7 +934,13 @@ dialog::backdrop {
     flex: 0 0 auto;
   }
   .intro-head .cover {
-    display: none;
+    aspect-ratio: 2 / 1;
+  }
+  .welcome {
+    --welcome-shade: linear-gradient(rgb(12 13 18 / 0.55), rgb(12 13 18 / 0.9) 75%);
+    min-height: 300px;
+    padding: 28px 22px;
+    justify-content: flex-end;
   }
   .intro-body h1.serif {
     font-size: 26px;
