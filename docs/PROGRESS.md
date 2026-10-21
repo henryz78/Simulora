@@ -96,7 +96,12 @@ Play / Turn / Panels / Novel / Graph，样式整份重写。用无界面 Chrome 
   （后台等 90 秒后提前）；放弃的等待（骰子、与此同时超时）离开队伍不花额度；当天请求数存库，线上上限 1800，
   到 85% 不开新动作、90% 后台停。数字都能用环境变量改。
 - 防 524：回合流每 15 秒心跳；其他接口 10 秒没回完就先发头、再定时发空格，结果最后写，失败放在 JSON 里。
-- 下一步：上线（服务器、Tunnel、实测 524 和收信），之后管理员页面。
+- 上线（2026-10-21）：https://simu.hyzvo.com 。作者的服务器（Ubuntu 24.04，另有 nginx、docker 等服务，都没动），
+  root 运行；Node 24 在 `/opt/simulora-node`（系统 Node 22 不动），代码在 `/opt/simulora`，数据在 `/var/lib/simulora`，
+  配置 `/etc/simulora.env`，服务 `simulora`（systemd，只听 127.0.0.1:5180）；Cloudflare Tunnel `simulora`，配置
+  `/etc/cloudflared/config.yml`。部署：本机打包 server、shared、web/dist 传上去，重启服务。实测经 Tunnel 150 秒的
+  流式和普通回复都不断；服务器能连 Gmail 465。部署用本机的专用密钥登录（`~/.ssh/simulora_deploy`）。
+- 下一步：管理员页面（邀请码、用户、用量）；部署脚本。
 
 ## 已知问题（都不挡游玩）
 
