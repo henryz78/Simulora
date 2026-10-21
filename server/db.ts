@@ -1,13 +1,18 @@
 import { DatabaseSync } from "node:sqlite";
 import type { NodeSummary, Save, TurnNode, World } from "../shared/types.ts";
 
+/** Who owns everything made on this machine before there were accounts, and everything in local mode. */
+export const LOCAL_USER = "local";
+
 // ponytail: whole records stored as JSON; add columns when a query needs to filter inside them.
+// A world belongs to a user; its saves and turns belong to whoever owns the world.
 export class Store {
   #db: DatabaseSync;
 
   constructor(path: string) {
     this.#db = new DatabaseSync(path);
     this.#db.exec(`
+      pragma busy_timeout = 5000;
       pragma journal_mode = wal;
       create table if not exists worlds (id text primary key, data text not null);
       create table if not exists saves (id text primary key, world_id text not null, data text not null);
@@ -16,6 +21,10 @@ export class Store {
       create index if not exists saves_world on saves (world_id);
       create index if not exists nodes_world on nodes (world_id);
     `);
+    const columns = this.#db.prepare("pragma table_info(worlds)").all() as { name: string }[];
+    if (!columns.some((c) => c.name === "user_id"))
+      this.#db.exec(`alter table worlds add column user_id text not null default '${LOCAL_USER}'`);
+    this.#db.exec("create index if not exists worlds_user on worlds (user_id)");
   }
 
   #all<T>(sql: string, ...params: string[]): T[] {
@@ -30,12 +39,20 @@ export class Store {
     return row ? (JSON.parse(row.data) as T) : undefined;
   }
 
-  worlds = () => this.#all<World>("select data from worlds");
-  world = (id: string) => this.#one<World>("select data from worlds where id = ?", id);
-  putWorld(world: World) {
+  worlds = (userId: string) => this.#all<World>("select data from worlds where user_id = ?", userId);
+  /** A world, only if it is this user's; without a user, any world (for work the server does on its own). */
+  world(id: string, userId?: string) {
+    return userId === undefined
+      ? this.#one<World>("select data from worlds where id = ?", id)
+      : this.#all<World>("select data from worlds where id = ? and user_id = ?", id, userId)[0];
+  }
+  /** Saves a world; its owner is set when it is made and never changed by a later save. */
+  putWorld(world: World, userId: string) {
     this.#db
-      .prepare("insert or replace into worlds (id, data) values (?, ?)")
-      .run(world.id, JSON.stringify(world));
+      .prepare(
+        "insert into worlds (id, data, user_id) values (?, ?, ?) on conflict (id) do update set data = excluded.data",
+      )
+      .run(world.id, JSON.stringify(world), userId);
   }
   deleteWorld(id: string) {
     for (const table of ["nodes", "saves"])
@@ -44,10 +61,21 @@ export class Store {
   }
 
   saves = (worldId: string) => this.#all<Save>("select data from saves where world_id = ?", worldId);
-  save = (id: string) => this.#one<Save>("select data from saves where id = ?", id);
+  /** A save, only if its world is this user's; without a user, any save. */
+  save(id: string, userId?: string) {
+    return userId === undefined
+      ? this.#one<Save>("select data from saves where id = ?", id)
+      : this.#all<Save>(
+          "select s.data from saves s join worlds w on w.id = s.world_id where s.id = ? and w.user_id = ?",
+          id,
+          userId,
+        )[0];
+  }
   putSave(save: Save) {
     this.#db
-      .prepare("insert or replace into saves (id, world_id, data) values (?, ?, ?)")
+      .prepare(
+        "insert into saves (id, world_id, data) values (?, ?, ?) on conflict (id) do update set data = excluded.data",
+      )
       .run(save.id, save.worldId, JSON.stringify(save));
   }
   deleteSave(id: string) {
@@ -57,7 +85,10 @@ export class Store {
   node = (id: string) => this.#one<TurnNode>("select data from nodes where id = ?", id);
   putNode(node: TurnNode) {
     this.#db
-      .prepare("insert or replace into nodes (id, world_id, parent_id, data) values (?, ?, ?, ?)")
+      .prepare(
+        `insert into nodes (id, world_id, parent_id, data) values (?, ?, ?, ?)
+         on conflict (id) do update set data = excluded.data`,
+      )
       .run(node.id, node.worldId, node.parentId, JSON.stringify(node));
   }
 

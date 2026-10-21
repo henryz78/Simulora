@@ -19,7 +19,7 @@ import {
   type WorldDraft,
   type Dice,
 } from "../shared/types.ts";
-import type { Store } from "./db.ts";
+import { LOCAL_USER, type Store } from "./db.ts";
 import { parseJsonObject, readString, type Model } from "./model.ts";
 import {
   BURY_EVERY,
@@ -312,6 +312,8 @@ export function createApi(
     keepStates = 10,
     chronicleTurns = CHRONICLE_TURNS,
     timelineTokens = TIMELINE_TOKENS,
+    // Who is asking: one user on this machine; the signed-in player on the public site.
+    userOf = (_req: IncomingMessage): string => LOCAL_USER,
   } = {},
 ) {
   const busy = new Set<string>();
@@ -391,7 +393,9 @@ export function createApi(
       .finally(() => burying.delete(saveId));
   }
 
-  const world = (id: string) => store.world(id) ?? fail(404, "World not found");
+  // A world or save asked for by a player: only their own, else "not found". The server's own work reads any.
+  const world = (id: string, user: string) => store.world(id, user) ?? fail(404, "World not found");
+  const worldOf = (s: Save) => store.world(s.worldId) ?? fail(404, "World not found");
   // The official sample worlds: server/samples/<n>-<id>.json, listed in the order of n.
   const sampleDir = `${import.meta.dirname}/samples`;
   const samples = new Map(
@@ -408,7 +412,7 @@ export function createApi(
     people: d.state.characters.length,
     places: d.state.places.length,
   });
-  const save = (id: string) => store.save(id) ?? fail(404, "Save not found");
+  const save = (id: string, user: string) => store.save(id, user) ?? fail(404, "Save not found");
   function fail(status: number, message: string): never {
     throw new HttpError(status, message);
   }
@@ -418,7 +422,7 @@ export function createApi(
     const latest = path.findLastIndex((n) => Array.isArray(n.timeline));
     return {
       save: s,
-      world: world(s.worldId),
+      world: worldOf(s),
       path: path.map((node, i) => (i === latest ? { ...node, memory: node.memory, timeline: node.timeline } : node)),
       tree: store.tree(s.worldId),
     };
@@ -676,10 +680,10 @@ export function createApi(
     }
   }
 
-  async function turn(req: IncomingMessage, res: ServerResponse, saveId: string) {
-    const s = save(saveId);
+  async function turn(req: IncomingMessage, res: ServerResponse, saveId: string, user: string) {
+    const s = save(saveId, user);
     const body = await readJson(req);
-    const w = world(s.worldId);
+    const w = worldOf(s);
     const path = store.path(s.headId);
     const head = path.at(-1)!;
     const actor = str(body.actor, 64) || "director";
@@ -885,7 +889,7 @@ export function createApi(
       const grownFrom = store.node(head.id)!.state;
       node.state = applyKeep(carrySecrets(grownFrom, node.state), keptSince(head.state, grownFrom));
       store.putNode(node);
-      store.putSave({ ...save(s.id), headId: node.id, updatedAt: now() });
+      store.putSave({ ...(store.save(s.id) ?? fail(404, "Save not found")), headId: node.id, updatedAt: now() });
       event("done", { node });
       // Every few turns the secrets are kept up with the story, and new ones buried while there is room. Not on a turn
       // whose changes were never recorded: "Record again" rebuilds its state.
@@ -912,6 +916,8 @@ export function createApi(
     const route = `${req.method} /${parts.map((p, i) => (i % 2 === 1 ? ":id" : p)).join("/")}`;
     const id = parts[1] ?? "";
     try {
+      // Inside the try: a request nobody may make is answered, not left to crash the server.
+      const user = userOf(req);
       // A plain cross-site form or no-cors fetch cannot send this header without asking first.
       if (req.method !== "GET" && !req.headers["content-type"]?.startsWith("application/json"))
         fail(415, "Expected JSON");
@@ -921,7 +927,7 @@ export function createApi(
           return send(
             res,
             200,
-            store.worlds().map((w) => ({
+            store.worlds(user).map((w) => ({
               world: w,
               saves: store.saves(w.id).map((s) => {
                 const head = store.node(s.headId);
@@ -954,12 +960,12 @@ export function createApi(
           const title = str(body.title, 200).trim() || d.title;
           const from = body.toChange === true ? {} : { from: id };
           const w: World = { ...d, title, ...from, id: randomUUID(), createdAt: now(), updatedAt: now() };
-          store.putWorld(w);
+          store.putWorld(w, user);
           return send(res, 201, w);
         }
         case "POST /worlds": {
           const w: World = { ...normalizeDraft(await readJson(req)), id: randomUUID(), createdAt: now(), updatedAt: now() };
-          store.putWorld(w);
+          store.putWorld(w, user);
           return send(res, 201, w);
         }
         case "POST /drafts": {
@@ -1001,26 +1007,26 @@ export function createApi(
           return send(res, 200, result);
         }
         case "GET /worlds/:id":
-          return send(res, 200, world(id));
+          return send(res, 200, world(id, user));
         case "PUT /worlds/:id": {
-          const old = world(id);
+          const old = world(id, user);
           const w: World = { ...old, ...normalizeDraft(await readJson(req)), updatedAt: now() };
-          store.putWorld(w);
+          store.putWorld(w, user);
           return send(res, 200, w);
         }
         case "DELETE /worlds/:id":
-          world(id);
+          world(id, user);
           store.deleteWorld(id);
           return send(res, 200, {});
         case "POST /saves": {
           const body = await readJson(req);
-          return send(res, 201, startSave(world(str(body.worldId, 64)), str(body.title, 200)));
+          return send(res, 201, startSave(world(str(body.worldId, 64), user), str(body.title, 200)));
         }
         case "GET /saves/:id":
-          return send(res, 200, view(save(id)));
+          return send(res, 200, view(save(id, user)));
         case "PATCH /saves/:id": {
           const body = await readJson(req);
-          const s = save(id);
+          const s = save(id, user);
           if (busy.has(s.id)) fail(409, "A turn is being written");
           const next: Save = {
             ...s,
@@ -1039,11 +1045,11 @@ export function createApi(
           return send(res, 200, view(next));
         }
         case "DELETE /saves/:id":
-          save(id);
+          save(id, user);
           store.deleteSave(id);
           return send(res, 200, {});
         case "POST /saves/:id/branch": {
-          const s = save(id);
+          const s = save(id, user);
           const body = await readJson(req);
           const target = store.node(str(body.nodeId, 64) || s.headId);
           if (!target || target.worldId !== s.worldId) fail(400, "Unknown turn");
@@ -1060,11 +1066,11 @@ export function createApi(
           return send(res, 201, branch);
         }
         case "POST /saves/:id/turn":
-          return await turn(req, res, id);
+          return await turn(req, res, id, user);
         case "POST /saves/:id/chapter": {
           // Chapter n holds turns n*10+1 to (n+1)*10. A whole chapter is written once and kept on its last turn; the one
           // still being played is written afresh each time.
-          const s = save(id);
+          const s = save(id, user);
           const body = await readJson(req);
           const path = store.path(s.headId);
           const n = Number(body.chapter);
@@ -1086,7 +1092,7 @@ export function createApi(
           for (let attempt = 0; attempt < 2 && !chapter.text; attempt++) {
             let text = "";
             try {
-              for await (const piece of writer.stream(chapterMessages(world(s.worldId), path, from, to))) text += piece;
+              for await (const piece of writer.stream(chapterMessages(worldOf(s), path, from, to))) text += piece;
             } catch (error) {
               console.warn("chapter.failed", error instanceof Error ? error.message : error);
             }
@@ -1098,7 +1104,7 @@ export function createApi(
         }
         case "POST /saves/:id/view": {
           // Told once for a turn and a character, and kept; the world does not change.
-          const s = save(id);
+          const s = save(id, user);
           const body = await readJson(req);
           const path = store.path(s.headId);
           const turn = path.findIndex((n) => n.id === str(body.node, 64));
@@ -1120,7 +1126,7 @@ export function createApi(
           if (kept) return send(res, 200, { story: kept });
           // Kept close to the passage: at the default temperature it added lines and deeds of its own.
           const ask = () =>
-            writer.json(viewMessages(world(s.worldId), path, turn, character, s.settings), { temperature: 0 });
+            writer.json(viewMessages(worldOf(s), path, turn, character, s.settings), { temperature: 0 });
           const told = fullWidth(str(((await ask().catch(ask)) as Record<string, unknown>).story, 6000)).trim();
           if (!told) fail(502, "The model gave no story");
           // Told with every secret, it is not kept: later, with the secrets hidden again, it would give them away.
@@ -1130,7 +1136,7 @@ export function createApi(
         }
         case "POST /saves/:id/interview": {
           // Out of the story: nothing is stored and the world does not change.
-          const s = save(id);
+          const s = save(id, user);
           const body = await readJson(req);
           const path = store.path(s.headId);
           const character = str(body.character, 64);
@@ -1144,32 +1150,32 @@ export function createApi(
             return q && a ? [{ q, a }] : [];
           });
           const ask = () =>
-            writer.json(interviewMessages(world(s.worldId), path, character, talk, question, s.settings.showSecrets));
+            writer.json(interviewMessages(worldOf(s), path, character, talk, question, s.settings.showSecrets));
           const answer = str(((await ask().catch(ask)) as Record<string, unknown>).answer, 2000).trim();
           if (!answer) fail(502, "The model gave no answer");
           return send(res, 200, { answer });
         }
         case "POST /saves/:id/recap": {
           // Written once for the turn it stops at, and kept: coming back again, the player does not wait.
-          const s = save(id);
+          const s = save(id, user);
           const path = store.path(s.headId);
           const head = path.at(-1)!;
           if (head.recap) return send(res, 200, { recap: head.recap });
-          const ask = () => writer.json(recapMessages(world(s.worldId), path));
+          const ask = () => writer.json(recapMessages(worldOf(s), path));
           const recap = str(((await ask().catch(ask)) as Record<string, unknown>).recap, 2000).trim();
           if (!recap) fail(502, "The model gave no recap");
           store.putNode({ ...store.node(head.id)!, recap });
           return send(res, 200, { recap });
         }
         case "POST /saves/:id/hooks": {
-          const s = save(id);
+          const s = save(id, user);
           if (busy.has(s.id)) fail(409, "A turn is being written");
           const path = store.path(s.headId);
           // The provider now and then fails a request for no reason; one more try covers it.
           // At the opening nobody has acted yet: the hooks are for whoever the player has chosen to start as.
           const body = await readJson(req);
           const actor = path.length === 1 ? str(body.actor, 64) || "director" : path.at(-1)!.actor;
-          const ask = () => model.json(hookMessages(world(s.worldId), path, actor));
+          const ask = () => model.json(hookMessages(worldOf(s), path, actor));
           const report = (await ask().catch(ask)) as Record<string, unknown>;
           const hooks = parseHooks(report.hooks);
           if (hooks.length === 0) fail(502, "The model gave no suggestions");
@@ -1179,7 +1185,7 @@ export function createApi(
           return send(res, 200, head);
         }
         case "POST /saves/:id/records": {
-          const s = save(id);
+          const s = save(id, user);
           const head = store.node(s.headId)!;
           const parent = head.parentId ? store.node(head.parentId) : undefined;
           if (!head.recordsFailed || !parent) fail(400, "Nothing to record again");
@@ -1192,7 +1198,7 @@ export function createApi(
             // What the secret keeper does to this turn while it is recorded again is taken up, as in `turn`.
             const start = head.state;
             const who = placedOne([...store.path(parent.id).slice(0, -1), { ...parent, state: before }], head.actor);
-            const { changes, hooks, failed } = await record(world(s.worldId), before, head.story, head.actor, who);
+            const { changes, hooks, failed } = await record(worldOf(s), before, head.story, head.actor, who);
             if (failed) fail(502, "Could not record the changes");
             const { applied, state: changed } = applyChanges(before, changes);
             // A recap written before the changes were recorded tells the turn without them: it goes.
@@ -1203,7 +1209,7 @@ export function createApi(
               ? Math.min(path.findIndex((n) => n.id === rest.trimmed) + 1, chronicleOf(path).at + 1)
               : 0;
             const told = known > 0 ? path[known - 1]!.state : undefined;
-            const rebuilt = carrySecrets(rest.state, told ? trimState(changed, told, world(s.worldId).state) : changed);
+            const rebuilt = carrySecrets(rest.state, told ? trimState(changed, told, worldOf(s).state) : changed);
             const state = applyKeep(rebuilt, keptSince(start, rest.state));
             // The keeper's reveals on this turn stay with it.
             const reveals = rest.changes.filter((c) => c.type === "reveal" && !applied.some((a) => a.type === "reveal" && a.fact === c.fact));
@@ -1211,7 +1217,7 @@ export function createApi(
             store.putNode(node);
             // The keeper skipped this turn while its changes were missing: it looks now.
             if ((path.length - 1) % BURY_EVERY === 0) keepLater(s.id);
-            return send(res, 200, view(save(s.id)));
+            return send(res, 200, view(save(s.id, user)));
           } finally {
             busy.delete(s.id);
           }

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { SampleIntro, SampleSummary, Save, SaveSummary, SaveView, TurnNode, World } from "../shared/types.ts";
 import { createApi } from "../server/app.ts";
-import { Store } from "../server/db.ts";
+import { LOCAL_USER, Store } from "../server/db.ts";
 import { fakeModel } from "../server/model.ts";
 import { outcomeOf } from "../server/state.ts";
 
@@ -15,7 +15,8 @@ let base = "";
 
 before(async () => {
   const store = new Store(join(mkdtempSync(join(tmpdir(), "simulora-")), "test.db"));
-  const api = createApi(store, fakeModel());
+  // Requests name their user in a header here; the public site will take it from the session.
+  const api = createApi(store, fakeModel(), { userOf: (req) => String(req.headers["x-user"] ?? LOCAL_USER) });
   server = createServer((req, res) => void api(req, res));
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
@@ -369,4 +370,55 @@ test("the official samples: summaries and intros keep the world back, a copy sta
   const many = await call<World>("PUT", `/worlds/${w.id}`, { ...w, tags: "abcdefghij".split("") });
   assert.equal(many.tags?.length, 8);
   assert.equal(edited.from, list[0]!.id);
+});
+
+test("a player sees and changes only their own worlds and saves", async () => {
+  const world = await call<World>("POST", "/worlds", {
+    title: "Mine",
+    opening: "Rain.",
+    state: { characters: [{ id: "c1", name: "Lan" }], places: [], facts: [], threads: [], relationships: [] },
+  });
+  const save = await call<Save>("POST", "/saves", { worldId: world.id });
+  const as = (user: string, method: string, path: string, body: unknown = {}) =>
+    fetch(base + path, {
+      method,
+      headers: { "content-type": "application/json", "x-user": user },
+      body: method === "GET" ? undefined : JSON.stringify(body),
+    });
+  const other = await (await as("someone", "GET", "/worlds")).json();
+  assert.deepEqual(other, [], "another player's list is empty");
+  const tries: [string, string, unknown?][] = [
+    ["GET", `/worlds/${world.id}`],
+    ["PUT", `/worlds/${world.id}`, world],
+    ["DELETE", `/worlds/${world.id}`],
+    ["POST", "/saves", { worldId: world.id }],
+    ["GET", `/saves/${save.id}`],
+    ["PATCH", `/saves/${save.id}`, { title: "taken" }],
+    ["POST", `/saves/${save.id}/branch`, {}],
+    ["POST", `/saves/${save.id}/turn`, { actor: "c1", input: "hi" }],
+    ["POST", `/saves/${save.id}/chapter`, { chapter: 1 }],
+    ["POST", `/saves/${save.id}/view`, { node: save.headId, character: "c1" }],
+    ["POST", `/saves/${save.id}/interview`, { character: "c1", talk: [], question: "?" }],
+    ["POST", `/saves/${save.id}/recap`],
+    ["POST", `/saves/${save.id}/hooks`, { actor: "c1" }],
+    ["POST", `/saves/${save.id}/records`],
+    ["DELETE", `/saves/${save.id}`],
+  ];
+  for (const [method, path, body] of tries)
+    assert.equal((await as("someone", method, path, body)).status, 404, `${method} ${path}`);
+  // Their own save cannot be pointed at a turn of this world, and what they copy is theirs alone.
+  const theirs = await (await as("someone", "POST", `/samples/${(await call<{ id: string }[]>("GET", "/samples"))[0]!.id}/copy`)).json();
+  const theirSave = await (await as("someone", "POST", "/saves", { worldId: theirs.id })).json();
+  assert.equal((await as("someone", "PATCH", `/saves/${theirSave.id}`, { headId: save.headId })).status, 400);
+  assert.equal((await as("someone", "POST", `/saves/${theirSave.id}/branch`, { nodeId: save.headId })).status, 400);
+  const lists = async (user: string) =>
+    ((await (await as(user, "GET", "/worlds")).json()) as { world: World }[]).map((x) => x.world.id);
+  assert.deepEqual(await lists("someone"), [theirs.id]);
+  assert.ok(!(await lists(LOCAL_USER)).includes(theirs.id));
+  // Still there, unchanged, for its owner; an edit by the owner keeps it theirs.
+  const mine = await call<SaveView>("GET", `/saves/${save.id}`);
+  assert.equal(mine.save.title, save.title);
+  await call<World>("PUT", `/worlds/${world.id}`, { ...world, title: "Still mine" });
+  assert.equal((await as("someone", "GET", `/worlds/${world.id}`)).status, 404);
+  assert.equal((await call<World>("GET", `/worlds/${world.id}`)).title, "Still mine");
 });
