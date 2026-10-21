@@ -11,3 +11,4 @@ Thumbs.db
 .brevo-key.txt
 .smtp.txt
 /art/
+.deploy.env

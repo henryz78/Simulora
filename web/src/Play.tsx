@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Dice, NodeSummary, SaveView, Settings, TurnNode } from "../../shared/types.ts";
 import { api, playTurn } from "./api.ts";
+import { FeedbackButton } from "./Feedback.tsx";
 import { Graph } from "./Graph.tsx";
 import { lang, t } from "./i18n.ts";
 import { Novel } from "./Novel.tsx";
@@ -40,6 +41,8 @@ export function Play({ saveId }: { saveId: string }) {
   const [error, setError] = useState("");
   const [actor, setActor] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  // The server asked, once a turn was in: how is the game going?
+  const [askFeedback, setAskFeedback] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   // Docked beside the story on a wide screen from the start; elsewhere it opens when asked.
   const [panel, setPanel] = useState<Panel>(wide() ? "world" : null);
@@ -279,6 +282,7 @@ export function Play({ saveId }: { saveId: string }) {
           story: (piece) => setPending((p) => p && { ...p, story: p.story + piece, ahead: undefined }),
           dice: (dice) => setPending((p) => p && { ...p, dice }),
           queue: (ahead) => setPending((p) => p && { ...p, ahead: ahead >= 0 ? ahead : undefined }),
+          ask: () => setAskFeedback(true),
           phase: (phase) =>
             setPending(
               (p) =>
@@ -427,6 +431,7 @@ export function Play({ saveId }: { saveId: string }) {
             <span className="muted small">· {turnLabel(path.length - 1)}</span>
           </span>
         </nav>
+        <FeedbackButton saveId={saveId} ask={askFeedback} onAsked={() => setAskFeedback(false)} />
         {/* One way into the panel, on every screen; the top bar is left for the app's own pages later. */}
         <button
           className={panel ? "small on" : "quiet small"}

@@ -135,10 +135,15 @@ export class Accounts {
       create table if not exists sessions (token text primary key, user_id text not null, expires_at integer not null);
       create index if not exists sessions_user on sessions (user_id);
       create table if not exists limits (key text primary key, count integer not null);
+      create table if not exists feedback (
+        id integer primary key, user_id text not null, at integer not null, rating integer, text text not null,
+        page text not null, context text not null);
     `);
     // A player's own daily points, set by the admin; empty means the site's.
     const columns = db.prepare("select name from pragma_table_info('users')").all() as { name: string }[];
     if (!columns.some((c) => c.name === "daily_points")) db.exec("alter table users add column daily_points real");
+    // How many points the player had spent in all when the game last asked how it is going.
+    if (!columns.some((c) => c.name === "asked_at")) db.exec("alter table users add column asked_at real not null default 0");
   }
 
   #mac = (text: string) => createHmac("sha256", this.#key).update(text).digest("hex");
@@ -362,7 +367,53 @@ export class Accounts {
       revoked: !!i.revoked,
     }));
     const asked = this.#db.prepare("select count from limits where key = ?").get(`all:${this.#day()}`) as { count: number } | undefined;
-    return { users, invites, mail: { asked: asked?.count ?? 0, limit: this.#mailPerDay } };
+    // Who played on which day: a day counts once points were spent and kept (a turn is one).
+    const played = this.#db.prepare("select user_id, day, points from usage where points > 0").all() as { user_id: string; day: string; points: number }[];
+    const week = Array.from({ length: 7 }, (_, i) => new Date(this.#now() + 8 * 3600_000 - i * 86_400_000).toISOString().slice(0, 10));
+    const daily = week.map((day) => {
+      const rows = played.filter((r) => r.day === day);
+      return { day, players: rows.length, points: rows.reduce((sum, r) => sum + r.points, 0) };
+    });
+    const feedback = this.#db
+      .prepare(
+        `select f.id, f.at, f.rating, f.text, f.page, f.context, coalesce(u.email, '(deleted)') email from feedback f
+         left join users u on u.id = f.user_id order by f.at desc limit 100`,
+      )
+      .all() as { id: number; at: number; rating: number | null; text: string; page: string; context: string; email: string }[];
+    return {
+      users: users.map((u) => {
+        const days = played.filter((r) => r.user_id === u.id).map((r) => r.day).sort();
+        return { ...u, days: days.length, lastDay: days.at(-1) ?? null };
+      }),
+      invites,
+      mail: { asked: asked?.count ?? 0, limit: this.#mailPerDay },
+      daily,
+      feedback,
+    };
+  }
+
+  /**
+   * Whether the game should now ask a player how it is going: once their points spent in all pass 10 (a new
+   * player's first impression), and once more past 50; each once, whatever device. Never the admin.
+   */
+  askNow(userId: string): boolean {
+    const row = this.#db
+      .prepare("select u.role, u.asked_at, coalesce(sum(g.points), 0) spent from users u left join usage g on g.user_id = u.id where u.id = ? group by u.id")
+      .get(userId) as { role: string; asked_at: number; spent: number } | undefined;
+    if (!row || row.role === "admin") return false;
+    const mark = [50, 10].find((m) => row.spent >= m);
+    if (!mark || row.asked_at >= mark) return false;
+    this.#db.prepare("update users set asked_at = ? where id = ?").run(mark, userId);
+    return true;
+  }
+
+  /** A player's word to the admin: from the button, or a rating when the game asks; at most 20 a day each. */
+  addFeedback(userId: string, entry: { rating: number | null; text: string; page: string; context: string }) {
+    const recent = this.#db.prepare("select count(*) n from feedback where user_id = ? and at > ?").get(userId, this.#now() - 86_400_000) as { n: number };
+    if (recent.n >= 20) throw new AccountError(429, "Thanks! That is plenty for today");
+    this.#db
+      .prepare("insert into feedback (user_id, at, rating, text, page, context) values (?, ?, ?, ?, ?, ?)")
+      .run(userId, this.#now(), entry.rating, entry.text, entry.page, entry.context);
   }
 
   /** An invite not yet used can no longer be. */
@@ -396,6 +447,7 @@ export class Accounts {
       this.#db.prepare("delete from sessions where user_id = ?").run(id);
       this.#db.prepare("delete from login_codes where email = ?").run(user.email);
       this.#db.prepare("delete from usage where user_id = ?").run(id);
+      this.#db.prepare("delete from feedback where user_id = ?").run(id);
       this.#db.prepare("update invites set used_by = 'deleted', reserved_for = null where used_by = ?").run(id);
       this.#db.prepare("delete from users where id = ?").run(id);
       this.#db.exec("commit");

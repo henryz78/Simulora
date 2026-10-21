@@ -59,6 +59,53 @@ export function Admin() {
               </div>
             </section>
 
+            <section className="list" aria-labelledby="week">
+              <h2 id="week" className="serif">
+                最近 7 天
+              </h2>
+              <p className="muted small">每天有几个玩家用过点数、一共用了多少点（一个回合约 1 点）。包括你自己。</p>
+              <table className="week">
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>玩家</th>
+                    <th>点数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {view.daily.map((d) => (
+                    <tr key={d.day}>
+                      <td>{d.day.slice(5).replace("-", "/")}</td>
+                      <td>{d.players}</td>
+                      <td>{num(d.points)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+            <section className="list" aria-labelledby="feedback">
+              <h2 id="feedback" className="serif">
+                反馈
+              </h2>
+              {view.feedback.length === 0 && <p className="muted list-row">还没有反馈。</p>}
+              {view.feedback.map((f) => (
+                <div className="list-row feedback-row" key={f.id}>
+                  <span className="muted small">
+                    {f.email} · {at(f.at)}
+                    {f.rating !== null && <> · <b>{["", "不太行", "还可以", "很喜欢"][f.rating]}</b>（游戏询问时）</>}
+                  </span>
+                  {f.text && <p>{f.text}</p>}
+                  {f.context && (
+                    <details>
+                      <summary className="muted small">当时的情况</summary>
+                      <p className="small" style={{ whiteSpace: "pre-wrap" }}>{f.context}</p>
+                    </details>
+                  )}
+                </div>
+              ))}
+            </section>
+
             <section className="list" aria-labelledby="invites">
               <h2 id="invites" className="serif">
                 邀请码
@@ -160,7 +207,8 @@ function Player({ user: u, act }: { user: AdminView["users"][number]; act: (work
         <br />
         <span className="muted small">
           今天用了 {num(u.points.used)}
-          {u.points.limit !== null && ` / ${num(u.points.limit)}`} 点 · {u.worlds} 个世界 · {at(u.createdAt)} 加入
+          {u.points.limit !== null && ` / ${num(u.points.limit)}`} 点 · {u.worlds} 个世界 · {at(u.createdAt)} 加入 ·{" "}
+          {u.lastDay ? `玩过 ${u.days} 天，最近 ${u.lastDay.slice(5).replace("-", "/")}` : "还没玩过"}
         </span>
       </div>
       {!admin && (

@@ -19,7 +19,11 @@ export interface AdminView {
     ownPoints: number | null;
     points: { used: number; limit: number | null };
     worlds: number;
+    days: number;
+    lastDay: string | null;
   }[];
+  daily: { day: string; players: number; points: number }[];
+  feedback: { id: number; at: number; rating: number | null; text: string; page: string; context: string; email: string }[];
   invites: { code: string; createdAt: number; heldFor: string | null; usedBy: string | null; usedAt: number | null; revoked: boolean }[];
   mail: { asked: number; limit: number };
   calls: { today: number; limit: number | null };
@@ -68,6 +72,8 @@ export const api = {
   verify: (email: string, code: string, invite: string) => call<object>("POST", "/auth/verify", { email, code, invite }),
   signOut: () => call<object>("POST", "/auth/signout", {}),
   deleteAccount: (email: string) => call<object>("DELETE", "/auth/me", { email }),
+  feedback: (entry: { rating: number | null; text: string; page: string; saveId?: string }) =>
+    call<object>("POST", "/feedback", entry),
   admin: () => call<AdminView>("GET", "/admin"),
   createInvites: (count: number) => call<{ codes: string[] }>("POST", "/invites", { count }),
   revokeInvite: (code: string) => call<object>("DELETE", `/invites/${code}`, {}),
@@ -116,6 +122,8 @@ export async function playTurn(
     dice?: (dice: Dice) => void;
     /** Waiting for the model: how many go first. */
     queue?: (ahead: number) => void;
+    /** The server asks: time to ask the player how the game is going. */
+    ask?: () => void;
   },
   offline: "world" | "all" | null = null,
 ): Promise<TurnNode> {
@@ -143,7 +151,10 @@ export async function playTurn(
       if (name === "dice") on.dice?.(data as unknown as Dice);
       if (name === "queue") on.queue?.(Number(data?.ahead ?? 0));
       if (name === "error") throw new Error(String(data?.message ?? "The turn failed"));
-      if (name === "done") return data?.node as TurnNode;
+      if (name === "done") {
+        if (data?.ask) on.ask?.();
+        return data?.node as TurnNode;
+      }
     }
   }
   throw new Error("The connection closed before the turn finished");

@@ -984,7 +984,14 @@ export function createApi(
       node.state = applyKeep(carrySecrets(grownFrom, node.state), keptSince(head.state, grownFrom));
       store.putNode(node);
       store.putSave({ ...(store.save(s.id) ?? fail(404, "Save not found")), headId: node.id, updatedAt: now() });
-      event("done", { node });
+      // Now and then, once the turn is in, the game asks the player how it is going (see `Accounts.askNow`).
+      let ask = false;
+      try {
+        ask = accounts?.askNow(user) ?? false;
+      } catch (error) {
+        console.warn("ask.failed", error instanceof Error ? error.message : error); // the turn is saved; only the question is lost
+      }
+      event("done", { node, ask });
       // Every few turns the secrets are kept up with the story, and new ones buried while there is room. Not on a turn
       // whose changes were never recorded: "Record again" rebuilds its state.
       if (path.length % BURY_EVERY === 0 && !node.recordsFailed) keepLater(s.id);
@@ -1101,6 +1108,29 @@ export function createApi(
             calls: { today: gate?.today() ?? 0, limit: gate && Number.isFinite(gate.limit) ? gate.limit : null },
             problems: problems.slice(0, 50),
           });
+        }
+        // A player's feedback; from inside a game it carries where they were, so the admin sees what they saw.
+        case "POST /feedback": {
+          if (!accounts) fail(404, "Not found");
+          const body = await readJson(req);
+          const text = str(body.text, 2000).trim();
+          const rating = [1, 2, 3].includes(body.rating as number) ? (body.rating as number) : null;
+          if (!text && rating === null) fail(400, "Write a few words first");
+          let context = "";
+          const s = typeof body.saveId === "string" ? store.save(body.saveId, user) : undefined;
+          if (s) {
+            const head = store.node(s.headId);
+            const w = worldOf(s);
+            context = [
+              `${w.title} · ${s.title} · 第 ${store.depth(s.headId)} 回合`,
+              head?.input ? `玩家：${head.input}` : "",
+              head?.story ? `……${head.story.slice(-600)}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n");
+          }
+          accounts.addFeedback(user, { rating, text, page: str(body.page, 200), context });
+          return send(res, 201, {});
         }
         case "POST /invites": {
           const accts = adminOnly(req);

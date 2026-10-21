@@ -12,7 +12,8 @@
     "start": "node --disable-warning=ExperimentalWarning server/main.ts --prod",
     "typecheck": "tsc",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "react": "^19.2.0",

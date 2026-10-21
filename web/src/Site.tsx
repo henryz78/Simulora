@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SampleIntro, SampleSummary, SaveSummary, World } from "../../shared/types.ts";
 import { afterSignIn, api, type Me } from "./api.ts";
 import { lang, t } from "./i18n.ts";
+import { FeedbackButton } from "./Feedback.tsx";
 import { coverOf, Dialog, homeArt, Icon, LookButton, nextSaveName, turnLabel, when } from "./ui.tsx";
 
 type Shelf = { world: World; saves: SaveSummary[] }[];
@@ -44,6 +45,7 @@ export function Site({ page, title, children }: { page: Page; title: string; chi
           {links(false)}
         </nav>
         <span className="grow" />
+        <FeedbackButton />
         <LookButton />
       </header>
       <main className="site-main" ref={main} tabIndex={-1}>
@@ -845,17 +847,17 @@ export function SignIn({ join: joining, invite: given }: { join: boolean; invite
 // ── What is kept, where it goes, and how to delete it ──
 const PRIVACY: Record<"zh" | "en", [string, string][]> = {
   zh: [
-    ["我们存什么", "你的邮箱；你创建的世界、存档和故事；每天用了多少。没有密码，登录用的是邮件验证码。"],
+    ["我们存什么", "你的邮箱；你创建的世界、存档和故事；每天用了多少；你发的反馈（在游戏里发的会附上那一局最近一回合的内容）。没有密码，登录用的是邮件验证码。"],
     ["会发给谁", "你写的内容和故事会发给 AI 服务商（ModelScope）来续写；验证码邮件经 Gmail 发出。除此之外不给任何人，也不用来做广告。"],
     ["Cookie", "只有一个用来保持登录的 Cookie，30 天有效。没有统计，没有广告。"],
-    ["怎么删除", "在“我的”里删除账号：账号和你所有的世界、存档会立刻删除，不能恢复。服务器日志只记出错和用量这类技术信息，不记故事内容。"],
+    ["怎么删除", "在“我的”里删除账号：账号和你所有的世界、存档、反馈会立刻删除，不能恢复。服务器日志只记出错和用量这类技术信息，不记故事内容。"],
     ["测试版", "现在是邀请制内测：没有备份，数据可能丢失；规则和额度可能调整。请不要用它写违法内容，违反的账号会被停用。"],
   ],
   en: [
-    ["What we keep", "Your email address; the worlds, saves and stories you make; how much you play each day. No password: you sign in with a code by email."],
+    ["What we keep", "Your email address; the worlds, saves and stories you make; how much you play each day; feedback you send (from inside a game, with that game's latest turn). No password: you sign in with a code by email."],
     ["Who sees it", "What you write and the story go to the AI provider (ModelScope), which writes the story on; sign-in codes are sent through Gmail. Nobody else, and nothing is used for ads."],
     ["Cookies", "One, to keep you signed in for 30 days. No analytics, no ads."],
-    ["Deleting", "Delete your account under Mine: the account and all your worlds and saves go at once, for good. The server's logs hold errors and usage counts, never your story."],
+    ["Deleting", "Delete your account under Mine: the account and all your worlds, saves and feedback go at once, for good. The server's logs hold errors and usage counts, never your story."],
     ["Beta", "This is an invite-only beta: there are no backups and data may be lost; rules and limits may change. Nothing illegal, please: accounts that do so are closed."],
   ],
 };

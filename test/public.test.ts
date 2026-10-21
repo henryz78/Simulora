@@ -147,6 +147,19 @@ test("the admin page: only the admin sees it; invites, a player's points, closin
     assert.equal(await me(), 2);
     assert.equal((await boss("POST", `/users/${bossId}`, { active: false })).status, 400, "not the admin's own account");
 
+    // Feedback from inside a game carries where the player was; from someone else's save, nothing of it.
+    const world = (await (await player("POST", `/samples/${(await (await player("GET", "/samples")).json())[0].id}/copy`)).json()) as { id: string; title: string };
+    const save = (await (await player("POST", "/saves", { worldId: world.id })).json()) as { id: string };
+    assert.equal((await player("POST", "/feedback", { text: "  ", page: "#/" })).status, 400);
+    assert.equal((await player("POST", "/feedback", { text: "开头很好", page: `#/play/${save.id}`, saveId: save.id })).status, 201);
+    assert.equal((await boss("POST", "/feedback", { rating: 2, text: "", page: "#/", saveId: save.id })).status, 201);
+    const notes = ((await (await boss("GET", "/admin")).json()) as { feedback: { email: string; text: string; context: string }[] }).feedback;
+    assert.equal(notes.length, 2);
+    const fromPlayer = notes.find((f) => f.email === "p@163.com")!;
+    assert.equal(fromPlayer.text, "开头很好");
+    assert.match(fromPlayer.context, new RegExp(`^${world.title} · `));
+    assert.equal(notes.find((f) => f.email === "boss@qq.com")!.context, "", "not the admin's save to quote");
+
     // Closed: signed out at once, and no new code; reopened, they can sign in again.
     assert.equal((await boss("POST", `/users/${p.id}`, { active: false })).status, 200);
     assert.equal((await player("GET", "/worlds")).status, 401);

@@ -209,3 +209,32 @@ test("a database from before players had their own daily points gains the column
   accounts.setUser("u1", { points: 3 });
   assert.equal(accounts.points("u1").limit, 3);
 });
+
+test("the game asks how it is going once points spent pass 10, again past 50, never the admin; feedback goes with the account", () => {
+  const store = new Store(join(mkdtempSync(join(tmpdir(), "simulora-")), "test.db"));
+  let clock = Date.UTC(2026, 9, 21, 4);
+  const accounts = new Accounts(store.sql, { key: Buffer.alloc(32), admin: "boss@qq.com", send: async () => {}, points: 40, now: () => clock });
+  store.sql.exec("insert into users (id, email, role, status, created_at) values ('p', 'p@qq.com', 'player', 'active', 0), ('b', 'boss@qq.com', 'admin', 'active', 0)");
+  const asks: boolean[] = [];
+  for (let i = 0; i < 12; i++) {
+    accounts.spend("p", 1);
+    asks.push(accounts.askNow("p"));
+  }
+  assert.deepEqual(asks.map((a, i) => (a ? i + 1 : 0)).filter(Boolean), [10], "asked once, at the 10th point");
+  clock += 86_400_000; // a new day: points spent in all still count
+  for (let i = 0; i < 38; i++) accounts.spend("p", 1);
+  assert.equal(accounts.askNow("p"), true, "past 50");
+  assert.equal(accounts.askNow("p"), false);
+  for (let i = 0; i < 12; i++) accounts.spend("b", 1);
+  assert.equal(accounts.askNow("b"), false, "never the admin");
+
+  accounts.addFeedback("p", { rating: 3, text: "好玩", page: "#/play/x", context: "" });
+  const seen = accounts.overview();
+  assert.equal(seen.feedback[0]?.email, "p@qq.com");
+  assert.equal(seen.users.find((u) => u.id === "p")?.days, 2);
+  assert.equal(seen.daily[0]?.players, 2, "today: the player and the admin");
+  for (let i = 0; i < 19; i++) accounts.addFeedback("p", { rating: null, text: "x", page: "", context: "" });
+  assert.throws(() => accounts.addFeedback("p", { rating: null, text: "x", page: "", context: "" }), AccountError, "20 a day");
+  accounts.deleteUser("p");
+  assert.equal(accounts.overview().feedback.length, 0, "gone with the account");
+});
