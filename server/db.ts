@@ -27,6 +27,17 @@ export class Store {
     this.#db.exec("create index if not exists worlds_user on worlds (user_id)");
   }
 
+  /** The same database, for the public site's accounts. */
+  get sql() {
+    return this.#db;
+  }
+
+  /** Saves and turns left behind by a world deleted while a turn or background task was still writing. */
+  deleteOrphans() {
+    for (const table of ["nodes", "saves"])
+      this.#db.exec(`delete from ${table} where world_id not in (select id from worlds)`);
+  }
+
   #all<T>(sql: string, ...params: string[]): T[] {
     return this.#db
       .prepare(sql)

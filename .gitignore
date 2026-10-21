@@ -9,3 +9,4 @@ work/
 .DS_Store
 Thumbs.db
 .brevo-key.txt
+.smtp.txt

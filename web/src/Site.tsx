@@ -1,9 +1,9 @@
 // The site around the game: home, explore, create and mine, under one top bar (a tab bar on phones).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SampleIntro, SampleSummary, SaveSummary, World } from "../../shared/types.ts";
-import { api } from "./api.ts";
+import { afterSignIn, api, type Me } from "./api.ts";
 import { lang, t } from "./i18n.ts";
-import { coverOf, Icon, LookButton, nextSaveName, turnLabel, when } from "./ui.tsx";
+import { coverOf, Dialog, Icon, LookButton, nextSaveName, turnLabel, when } from "./ui.tsx";
 
 type Shelf = { world: World; saves: SaveSummary[] }[];
 type Page = "home" | "explore" | "create" | "me";
@@ -549,6 +549,7 @@ export function Mine() {
   return (
     <Site page="me" title={t("Mine")}>
       <div className="site-page narrow">
+        <Account />
         <h1 className="serif">{t("Your saves")}</h1>
         {problem}
         {loading}
@@ -590,6 +591,272 @@ export function Mine() {
             })}
           </section>
         )}
+      </div>
+    </Site>
+  );
+}
+
+/** Who is playing, read once per page. */
+function useMe() {
+  const [me, setMe] = useState<Me | null>(null);
+  useEffect(() => void api.me().then(setMe, () => setMe(null)), []);
+  return me;
+}
+
+// ── The account, on the public site: who is signed in, signing out, and leaving for good ──
+function Account() {
+  const me = useMe();
+  const [leaving, setLeaving] = useState(false);
+  if (me?.mode !== "public" || !me.user) return null;
+  const { email, role } = me.user;
+  return (
+    <section className="account" aria-label={t("Account")}>
+      <div className="grow" style={{ minWidth: 0 }}>
+        <b>{email}</b> {role === "admin" && <span className="tag">{t("Admin")}</span>}
+        <br />
+        <a className="muted small" href="#/privacy">
+          {t("Privacy")}
+        </a>
+      </div>
+      <button className="small" onClick={() => api.signOut().then(() => (location.hash = "#/login"))}>
+        {t("Sign out")}
+      </button>
+      {role !== "admin" && (
+        <button className="small quiet danger-text" onClick={() => setLeaving(true)}>
+          {t("Delete account…")}
+        </button>
+      )}
+      {leaving && <DeleteAccount email={email} onClose={() => setLeaving(false)} />}
+    </section>
+  );
+}
+
+function DeleteAccount({ email, onClose }: { email: string; onClose: () => void }) {
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const title = t("Delete your account?");
+  return (
+    <Dialog className="confirm" label={title} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setBusy(true);
+          api.deleteAccount(typed).then(
+            () => (location.hash = "#/login"),
+            (err: Error) => {
+              setBusy(false);
+              setError(t(err.message));
+            },
+          );
+        }}
+      >
+        <h2 style={{ fontSize: 17 }}>{title}</h2>
+        <p className="muted" style={{ lineHeight: 1.7 }}>
+          {t("Your account, every world you made and every save go at once, for good.")}
+        </p>
+        <label>
+          {lang === "zh" ? `输入 ${email} 确认` : `Type ${email} to confirm`}
+          <input autoFocus value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+        </label>
+        {error && <p className="error">{error}</p>}
+        <div className="actions">
+          <button type="button" onClick={onClose}>
+            {t("Cancel")}
+          </button>
+          <button type="submit" className="danger" disabled={busy || typed.trim().toLowerCase() !== email}>
+            {t("Delete everything")}
+          </button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+// ── Signing in, or joining with an invite: a code by email either way ──
+export function SignIn({ join: joining, invite: given }: { join: boolean; invite: string }) {
+  const me = useMe();
+  const [join, setJoin] = useState(joining);
+  const [email, setEmail] = useState("");
+  const [invite, setInvite] = useState(given.toUpperCase());
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [wait, setWait] = useState(0);
+  useEffect(() => {
+    if (wait <= 0) return;
+    const tick = setTimeout(() => setWait(wait - 1), 1000);
+    return () => clearTimeout(tick);
+  }, [wait]);
+  const work = (job: () => Promise<unknown>) => {
+    setBusy(true);
+    setError("");
+    job()
+      .catch((e: Error) => setError(t(e.message)))
+      .finally(() => setBusy(false));
+  };
+  const send = () =>
+    work(async () => {
+      await api.sendCode(email, join ? invite : "");
+      setSent(true);
+      setWait(60);
+    });
+  const verify = () =>
+    work(async () => {
+      await api.verify(email, code, join ? invite : "");
+      afterSignIn();
+    });
+  if (me?.mode === "local")
+    return (
+      <Site page="me" title={t("Sign in")}>
+        <div className="site-page narrow">
+          <p className="muted">{t("On this machine there is nothing to sign in to.")}</p>
+        </div>
+      </Site>
+    );
+  const note = join
+    ? lang === "zh"
+      ? `验证码已发到 ${email}，10 分钟内有效。没收到的话看看垃圾箱。`
+      : `A code is on its way to ${email}; it works for 10 minutes. Not there? Look in spam.`
+    : lang === "zh"
+      ? `如果 ${email} 已经注册，验证码已经发过去了，10 分钟内有效。没收到的话看看垃圾箱。`
+      : `If ${email} has an account, a code is on its way; it works for 10 minutes. Not there? Look in spam.`;
+  return (
+    <Site page="me" title={join ? t("Join") : t("Sign in")}>
+      <div className="site-page sign-in">
+        <h1 className="serif">{join ? t("Join the beta") : t("Sign in")}</h1>
+        <p className="muted">
+          {join
+            ? t("Simulora is invite-only for now. Your invite code and an email address are all it takes.")
+            : t("We email you a code; no password.")}
+        </p>
+        <form
+          className="s-card"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (sent) verify();
+            else send();
+          }}
+        >
+          <label>
+            {t("Email")}
+            <input
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              disabled={sent}
+              placeholder="you@qq.com"
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          {join && (
+            <label>
+              {t("Invite code")}
+              <input
+                required
+                value={invite}
+                disabled={sent}
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setInvite(e.target.value.toUpperCase())}
+              />
+            </label>
+          )}
+          {sent && (
+            <>
+              <p className="muted small" role="status">
+                {note}
+              </p>
+              <label>
+                {t("Code")}
+                <input
+                  autoFocus
+                  required
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                />
+              </label>
+            </>
+          )}
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="row">
+            <button type="submit" className="primary" disabled={busy}>
+              {sent ? (join ? t("Join") : t("Sign in")) : t("Email me a code")}
+            </button>
+            {sent && (
+              <>
+                <button type="button" disabled={busy || wait > 0} onClick={send}>
+                  {wait > 0 ? (lang === "zh" ? `重新发送（${wait} 秒）` : `Send again (${wait}s)`) : t("Send again")}
+                </button>
+                <button
+                  type="button"
+                  className="quiet"
+                  onClick={() => {
+                    setSent(false);
+                    setCode("");
+                    setError("");
+                  }}
+                >
+                  {t("Use another address")}
+                </button>
+              </>
+            )}
+          </div>
+        </form>
+        {!sent && (
+          <button type="button" className="quiet" style={{ alignSelf: "flex-start" }} onClick={() => setJoin(!join)}>
+            {join ? t("Have an account? Sign in") : t("Have an invite code? Join")}
+          </button>
+        )}
+        <p className="muted small">
+          {t("Common mailboxes only: QQ, 163, 126, Gmail, Outlook, iCloud and the like.")}{" "}
+          <a href="#/privacy">{t("Privacy")}</a>
+        </p>
+      </div>
+    </Site>
+  );
+}
+
+// ── What is kept, where it goes, and how to delete it ──
+const PRIVACY: Record<"zh" | "en", [string, string][]> = {
+  zh: [
+    ["我们存什么", "你的邮箱；你创建的世界、存档和故事；每天用了多少。没有密码，登录用的是邮件验证码。"],
+    ["会发给谁", "你写的内容和故事会发给 AI 服务商（ModelScope）来续写；验证码邮件经 Gmail 发出。除此之外不给任何人，也不用来做广告。"],
+    ["Cookie", "只有一个用来保持登录的 Cookie，30 天有效。没有统计，没有广告。"],
+    ["怎么删除", "在“我的”里删除账号：账号和你所有的世界、存档会立刻删除，不能恢复。服务器日志只记出错和用量这类技术信息，不记故事内容。"],
+    ["测试版", "现在是邀请制内测：没有备份，数据可能丢失；规则和额度可能调整。请不要用它写违法内容，违反的账号会被停用。"],
+  ],
+  en: [
+    ["What we keep", "Your email address; the worlds, saves and stories you make; how much you play each day. No password: you sign in with a code by email."],
+    ["Who sees it", "What you write and the story go to the AI provider (ModelScope), which writes the story on; sign-in codes are sent through Gmail. Nobody else, and nothing is used for ads."],
+    ["Cookies", "One, to keep you signed in for 30 days. No analytics, no ads."],
+    ["Deleting", "Delete your account under Mine: the account and all your worlds and saves go at once, for good. The server's logs hold errors and usage counts, never your story."],
+    ["Beta", "This is an invite-only beta: there are no backups and data may be lost; rules and limits may change. Nothing illegal, please: accounts that do so are closed."],
+  ],
+};
+
+export function Privacy() {
+  return (
+    <Site page="me" title={t("Privacy")}>
+      <div className="site-page narrow">
+        <h1 className="serif">{t("Privacy")}</h1>
+        {PRIVACY[lang === "zh" ? "zh" : "en"].map(([head, text]) => (
+          <section key={head} className="site-section">
+            <h2 className="serif">{head}</h2>
+            <p style={{ lineHeight: 1.8 }}>{text}</p>
+          </section>
+        ))}
       </div>
     </Site>
   );

@@ -1,17 +1,49 @@
 import type { Dice, SampleIntro, SampleSummary, Save, SaveSummary, SaveView, Settings, TurnNode, World, WorldDraft } from "../../shared/types.ts";
 
+/** Who is playing: on this machine nobody signs in; on the public site, the signed-in player, if any. */
+export type Me = { mode: "local" } | { mode: "public"; user: { email: string; role: "player" | "admin" } | null };
+
+/** The server wants an account: off to sign in, coming back here after. */
+function signInFirst() {
+  try {
+    if (!location.hash.startsWith("#/login")) sessionStorage.setItem("simulora.back", location.hash);
+  } catch {
+    // Without storage the player lands on the home page after signing in.
+  }
+  location.hash = "#/login";
+}
+
+/** Where to go once signed in. */
+export function afterSignIn() {
+  let back = "";
+  try {
+    back = sessionStorage.getItem("simulora.back") ?? "";
+    sessionStorage.removeItem("simulora.back");
+  } catch {
+    // As above.
+  }
+  location.hash = back && !/^#\/(login|join)/.test(back) ? back : "#/";
+}
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method,
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const value = (await response.json()) as T & { error?: string };
+  if (response.status === 401 && !path.startsWith("/auth")) signInFirst();
+  // A refusal before the API (a wrong address, a page from another site) comes with no body.
+  const value = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`);
   return value;
 }
 
 export const api = {
+  me: () => call<Me>("GET", "/auth/me"),
+  sendCode: (email: string, invite: string) => call<object>("POST", "/auth/code", { email, invite }),
+  verify: (email: string, code: string, invite: string) => call<object>("POST", "/auth/verify", { email, code, invite }),
+  signOut: () => call<object>("POST", "/auth/signout", {}),
+  deleteAccount: (email: string) => call<object>("DELETE", "/auth/me", { email }),
   worlds: () => call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds"),
   world: (id: string) => call<World>("GET", `/worlds/${id}`),
   samples: () => call<SampleSummary[]>("GET", "/samples"),
@@ -58,6 +90,7 @@ export async function playTurn(
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ actor, input, offline }),
   });
+  if (response.status === 401) signInFirst();
   if (!response.ok || !response.body) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `HTTP ${response.status}`);

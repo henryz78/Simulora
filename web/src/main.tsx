@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { lang } from "./i18n.ts";
 import { Play } from "./Play.tsx";
-import { Create, Explore, Home, Mine, SamplePage } from "./Site.tsx";
+import { Create, Explore, Home, Mine, Privacy, SamplePage, SignIn } from "./Site.tsx";
 import { Studio } from "./Studio.tsx";
 import { World } from "./World.tsx";
 import "./style.css";
@@ -10,7 +10,7 @@ import "./ui.tsx"; // sets the day or night look before the first paint
 
 /**
  * Routes: #/ · #/explore[?q=&tag=] · #/explore/<sampleId> · #/create · #/me · #/world/<worldId> ·
- * #/studio/new[/manual] · #/studio/<worldId> · #/play/<saveId>
+ * #/studio/new[/manual] · #/studio/<worldId> · #/play/<saveId> · #/login · #/join[/<invite>] · #/privacy
  */
 function App() {
   const [hash, setHash] = useState(location.hash);
@@ -27,6 +27,8 @@ function App() {
   if (page === "world") return <World key={id} worldId={id} />;
   if (page === "explore") return id ? <SamplePage key={id} id={id} /> : <Explore query={new URLSearchParams(query)} />;
   if (page === "create") return <Create />;
+  if (page === "login" || page === "join") return <SignIn key={page} join={page === "join"} invite={id} />;
+  if (page === "privacy") return <Privacy />;
   if (page === "me") return <Mine />;
   return <Home />;
 }

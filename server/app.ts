@@ -19,6 +19,7 @@ import {
   type WorldDraft,
   type Dice,
 } from "../shared/types.ts";
+import { AccountError, type Accounts, clientIp, sessionCookie } from "./accounts.ts";
 import { LOCAL_USER, type Store } from "./db.ts";
 import { parseJsonObject, readString, type Model } from "./model.ts";
 import {
@@ -74,6 +75,10 @@ import {
   trimState,
   withWhere,
 } from "./state.ts";
+
+const signIn = (): never => {
+  throw new HttpError(401, "Sign in first");
+};
 
 class HttpError extends Error {
   status: number;
@@ -289,8 +294,8 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
 }
 
-function send(res: ServerResponse, status: number, value: unknown) {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+function send(res: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}) {
+  res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers });
   res.end(JSON.stringify(value));
 }
 
@@ -312,8 +317,11 @@ export function createApi(
     keepStates = 10,
     chronicleTurns = CHRONICLE_TURNS,
     timelineTokens = TIMELINE_TOKENS,
-    // Who is asking: one user on this machine; the signed-in player on the public site.
-    userOf = (_req: IncomingMessage): string => LOCAL_USER,
+    // The public site's accounts; without them this is one user's game on their own machine.
+    accounts = undefined as Accounts | undefined,
+    // Who is asking: one user on this machine (tests name others); on the public site, the signed-in player.
+    userOf = (req: IncomingMessage): string =>
+      accounts ? (accounts.userOf(req)?.id ?? signIn()) : LOCAL_USER,
   } = {},
 ) {
   const busy = new Set<string>();
@@ -522,7 +530,7 @@ export function createApi(
     try {
       return parseJsonObject(reply) as Record<string, unknown>;
     } catch (error) {
-      console.warn("chronicle.reply", reply.length, JSON.stringify(reply.slice(0, 120)));
+      console.warn("chronicle.reply", reply.length); // the story itself stays out of the log
       throw error;
     }
   }
@@ -916,12 +924,53 @@ export function createApi(
     const route = `${req.method} /${parts.map((p, i) => (i % 2 === 1 ? ":id" : p)).join("/")}`;
     const id = parts[1] ?? "";
     try {
-      // Inside the try: a request nobody may make is answered, not left to crash the server.
-      const user = userOf(req);
+      // Inside the try: a request nobody may make is answered, not left to crash the server. Signing in and the
+      // samples need no account; everything else does.
+      const open = parts[0] === "auth" || (req.method === "GET" && parts[0] === "samples");
+      const user = open ? "" : userOf(req);
       // A plain cross-site form or no-cors fetch cannot send this header without asking first.
       if (req.method !== "GET" && !req.headers["content-type"]?.startsWith("application/json"))
         fail(415, "Expected JSON");
       switch (route) {
+        case "GET /auth/:id": {
+          if (id !== "me") fail(404, "Not found");
+          if (!accounts) return send(res, 200, { mode: "local" });
+          const me = accounts.userOf(req);
+          return send(res, 200, { mode: "public", user: me && { email: me.email, role: me.role } });
+        }
+        case "POST /auth/:id": {
+          if (!accounts) fail(404, "Not found");
+          const body = await readJson(req);
+          if (id === "code") {
+            accounts.sendCode(str(body.email, 320), str(body.invite, 64), clientIp(req));
+            return send(res, 200, {});
+          }
+          if (id === "verify") {
+            const { token, user: me } = accounts.verify(
+              str(body.email, 320), str(body.code, 16), str(body.invite, 64), clientIp(req));
+            return send(res, 200, { email: me.email, role: me.role }, { "set-cookie": sessionCookie(token) });
+          }
+          if (id === "signout") {
+            accounts.signOut(req);
+            return send(res, 200, {}, { "set-cookie": sessionCookie(null) });
+          }
+          return fail(404, "Not found");
+        }
+        case "DELETE /auth/:id": {
+          // The account and everything in it, once the player has typed their address again.
+          if (!accounts || id !== "me") fail(404, "Not found");
+          const me = accounts.userOf(req) ?? fail(401, "Sign in first");
+          if (str((await readJson(req)).email, 320).trim().toLowerCase() !== me.email)
+            fail(400, "Type your email address to confirm");
+          const worlds = store.worlds(me.id);
+          if (worlds.some((w) => store.saves(w.id).some((s) => busy.has(s.id))))
+            fail(409, "A turn is being written; try again when it is done");
+          if (me.role === "admin") fail(400, "The admin account cannot be deleted here");
+          // The worlds first: if this stops halfway, the account is still there to delete again.
+          for (const w of worlds) store.deleteWorld(w.id);
+          accounts.deleteUser(me.id);
+          return send(res, 200, {}, { "set-cookie": sessionCookie(null) });
+        }
         case "GET /worlds":
           // Each save with how far it is, its last line and the secrets found: the home page's "continue" card.
           return send(
@@ -1227,7 +1276,8 @@ export function createApi(
       }
     } catch (error) {
       if (res.headersSent) return;
-      if (error instanceof HttpError) return send(res, error.status, { error: error.message });
+      if (error instanceof HttpError || error instanceof AccountError)
+        return send(res, error.status, { error: error.message });
       console.error("api.failed", error);
       return send(res, 500, { error: error instanceof Error ? error.message : "Server error" });
     }

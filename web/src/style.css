@@ -942,6 +942,42 @@ dialog::backdrop {
   }
 }
 
+.account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.account .tag {
+  margin-left: 4px;
+}
+.site-page.sign-in {
+  max-width: 480px;
+  gap: 16px;
+}
+.sign-in form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sign-in label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sign-in input {
+  min-height: 44px;
+  font-size: 16px;
+}
+.sign-in input[autocomplete="one-time-code"] {
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── World detail ───────────────────────────────────────────────────────── */
 .world-page {
   max-width: 1000px;
