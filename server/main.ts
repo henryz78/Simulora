@@ -93,6 +93,7 @@ const types: Record<string, string> = {
   ".css": "text/css",
   ".svg": "image/svg+xml",
   ".jpg": "image/jpeg",
+  ".png": "image/png",
   ".woff2": "font/woff2",
 };
 const dist = join(root, "web", "dist");

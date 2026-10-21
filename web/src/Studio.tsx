@@ -417,7 +417,7 @@ export function Studio({ worldId, manual = false }: { worldId: string | null; ma
         }}
       >
         <a href="#/" className="seal" aria-label={t("Home")}>
-          拟
+          <img src="/favicon.png" alt="" />
         </a>
         <nav className="crumbs" aria-label={t("Where you are")}>
           <a href="#/create" className="muted wide" style={{ fontFamily: "var(--sans)", fontWeight: 400, fontSize: 14 }}>

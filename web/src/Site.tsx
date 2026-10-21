@@ -37,7 +37,7 @@ export function Site({ page, title, children }: { page: Page; title: string; chi
     <div className="site">
       <header className="topbar">
         <a href="#/" className="seal" aria-label={t("Home")}>
-          拟
+          <img src="/favicon.png" alt="" />
         </a>
         <span className="brand">Simulora</span>
         <nav className="site-nav wide" aria-label={t("Site")}>

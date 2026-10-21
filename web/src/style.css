@@ -10,8 +10,6 @@
   --muted: #675f53;
   --line: #e2d9c9;
   --edge: #887d6a; /* control outlines, 3:1 on every ground */
-  --seal: #a13a24; /* the mark in the corner, nowhere else */
-  --seal-ink: #ffffff;
   --primary: #23201b;
   --primary-ink: #fbf8f2;
   --speech: #2b5a88;
@@ -38,8 +36,6 @@
   --muted: #a19c91;
   --line: #2c3039;
   --edge: #6b7080;
-  --seal: #e0866b;
-  --seal-ink: #1a1310;
   --primary: #ece6da;
   --primary-ink: #121317;
   --speech: #9dc4f2;
@@ -383,16 +379,13 @@ label.check input {
   display: inline-flex;
   width: 30px;
   height: 30px;
-  border-radius: 7px;
-  align-items: center;
-  justify-content: center;
-  background: var(--seal);
-  color: var(--seal-ink);
-  font-family: var(--serif);
-  font-weight: 700;
-  font-size: 16px;
-  text-decoration: none;
+  border-radius: 6px;
+  overflow: hidden;
   flex: 0 0 auto;
+}
+.seal img {
+  width: 100%;
+  height: 100%;
 }
 
 /* Notes in the flow: a raised box, or one coloured by what it says. */

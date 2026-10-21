@@ -411,7 +411,7 @@ export function Play({ saveId }: { saveId: string }) {
     <div className="play">
       <header className="topbar" inert={overlay}>
         <a href="#/" className="seal" aria-label={t("Home")}>
-          拟
+          <img src="/favicon.png" alt="" />
         </a>
         <nav className="crumbs" aria-label={t("Where you are")}>
           <a href={`#/world/${world.id}`}>{world.title}</a>
