@@ -52,13 +52,13 @@ export function afterSignIn() {
   location.hash = back && !/^#\/(login|join)/.test(back) ? back : "#/";
 }
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function call<T>(method: string, path: string, body?: unknown, stay = false): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method,
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (response.status === 401 && !path.startsWith("/auth")) signInFirst();
+  if (response.status === 401 && !path.startsWith("/auth") && !stay) signInFirst();
   // A refusal before the API (a wrong address, a page from another site) comes with no body.
   const value = (await response.json().catch(() => ({}))) as T & { error?: string };
   // A long reply comes as 200 and carries a failure inside it.
@@ -78,7 +78,8 @@ export const api = {
   createInvites: (count: number) => call<{ codes: string[] }>("POST", "/invites", { count }),
   revokeInvite: (code: string) => call<object>("DELETE", `/invites/${code}`, {}),
   setPlayer: (id: string, change: { points?: number | null; active?: boolean }) => call<object>("POST", `/users/${id}`, change),
-  worlds: () => call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds"),
+  /** `stay`: a visitor not signed in stays on the page (and is told "Sign in first") instead of being sent to sign in. */
+  worlds: (stay = false) => call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds", undefined, stay),
   world: (id: string) => call<World>("GET", `/worlds/${id}`),
   samples: () => call<SampleSummary[]>("GET", "/samples"),
   sample: (id: string) => call<SampleIntro>("GET", `/samples/${id}`),

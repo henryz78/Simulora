@@ -5,15 +5,26 @@ import { api, type Me } from "./api.ts";
 import { t } from "./i18n.ts";
 import { Dialog, Icon } from "./ui.tsx";
 
-// Whether this is the public site with someone signed in: asked on each page, since signing in changes no page.
-function useSignedIn() {
-  const [yes, setYes] = useState(false);
+// Who is here, on the public site: someone signed in, or a visitor; asked on each page, since signing in changes
+// no page. On this machine, or until known, neither.
+function useViewer() {
+  const [who, setWho] = useState<"in" | "out" | null>(null);
   useEffect(() => {
     let live = true;
-    api.me().then((me: Me) => live && setYes(me.mode === "public" && !!me.user), () => {});
+    api.me().then((me: Me) => live && setWho(me.mode === "public" ? (me.user ? "in" : "out") : null), () => {});
     return () => void (live = false);
   }, []);
-  return yes;
+  return who;
+}
+
+/** For a visitor on the public site: the way to sign in, in the top bar. */
+export function SignInButton() {
+  if (useViewer() !== "out") return null;
+  return (
+    <a className="button small" href="#/login">
+      {t("Sign in")}
+    </a>
+  );
 }
 
 const RATINGS: [number, string][] = [
@@ -24,7 +35,7 @@ const RATINGS: [number, string][] = [
 
 /** The button in the top bar; `ask` opens the same dialog by itself, as the game asking. */
 export function FeedbackButton({ saveId, ask = false, onAsked }: { saveId?: string; ask?: boolean; onAsked?: () => void }) {
-  const signedIn = useSignedIn();
+  const signedIn = useViewer() === "in";
   const [open, setOpen] = useState<"button" | "ask" | null>(null);
   useEffect(() => {
     if (ask && signedIn) setOpen("ask");

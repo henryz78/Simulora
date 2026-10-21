@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SampleIntro, SampleSummary, SaveSummary, World } from "../../shared/types.ts";
 import { afterSignIn, api, type Me } from "./api.ts";
 import { lang, t } from "./i18n.ts";
-import { FeedbackButton } from "./Feedback.tsx";
+import { FeedbackButton, SignInButton } from "./Feedback.tsx";
+import { Landing } from "./Landing.tsx";
 import { coverOf, Dialog, homeArt, Icon, LookButton, nextSaveName, turnLabel, when } from "./ui.tsx";
 
 type Shelf = { world: World; saves: SaveSummary[] }[];
@@ -46,6 +47,7 @@ export function Site({ page, title, children }: { page: Page; title: string; chi
         </nav>
         <span className="grow" />
         <FeedbackButton />
+        <SignInButton />
         <LookButton />
       </header>
       <main className="site-main" ref={main} tabIndex={-1}>
@@ -58,15 +60,23 @@ export function Site({ page, title, children }: { page: Page; title: string; chi
   );
 }
 
-/** Reads the worlds, and the samples when asked, with a retry on failure. */
-function useData(samples: boolean) {
+/**
+ * Reads the worlds, and the samples when asked, with a retry on failure. With `guests`, a visitor not signed in on
+ * the public site stays (`guest`, with no worlds) instead of being sent to sign in.
+ */
+function useData(samples: boolean, guests = false) {
   const [worlds, setWorlds] = useState<Shelf | null>(null);
   const [list, setList] = useState<SampleSummary[] | null>(samples ? null : []);
   const [error, setError] = useState("");
+  const [guest, setGuest] = useState(false);
   const load = () => {
     setError("");
     const fail = (e: Error) => setError(e.message);
-    api.worlds().then(setWorlds, fail);
+    api.worlds(guests).then(setWorlds, (e: Error) => {
+      if (!guests || e.message !== "Sign in first") return fail(e);
+      setGuest(true);
+      setWorlds([]);
+    });
     if (samples) api.samples().then(setList, fail);
   };
   useEffect(load, []);
@@ -82,7 +92,7 @@ function useData(samples: boolean) {
     </div>
   );
   const loading = !error && (!worlds || !list) && <p className="muted">{t("Loading…")}</p>;
-  return { worlds, samples: list, problem, loading, reload: load };
+  return { worlds, samples: list, problem, loading, reload: load, guest };
 }
 
 /** When a world was last played, or edited if never. */
@@ -107,7 +117,7 @@ function Tags({ tags }: { tags?: string[] }) {
   );
 }
 
-function SampleCard({ sample, mine }: { sample: SampleSummary; mine: boolean }) {
+export function SampleCard({ sample, mine }: { sample: SampleSummary; mine: boolean }) {
   const cover = coverOf(sample);
   return (
     <a className="world-card" href={`#/explore/${sample.id}`}>
@@ -151,7 +161,9 @@ const copied = (shelf: Shelf | null, id: string) => shelf?.some((x) => x.world.f
 
 // ── Home: what to play next ──
 export function Home() {
-  const { worlds, samples, problem, loading } = useData(true);
+  const { worlds, samples, problem, loading, guest } = useData(true, true);
+  // Someone not signed in on the public site: what Simulora is, and the way in.
+  if (guest) return <Landing samples={samples} />;
   const last = worlds && allSaves(worlds)[0];
   const recent = worlds ? byPlayed(worlds).filter((x) => x.world.id !== last?.world.id).slice(0, 3) : [];
   return (
@@ -251,7 +263,7 @@ export function Home() {
 
 // ── Explore: the sample worlds, searched and filtered; both kept in the address ──
 export function Explore({ query }: { query: URLSearchParams }) {
-  const { worlds, samples, problem, loading } = useData(true);
+  const { worlds, samples, problem, loading } = useData(true, true);
   const [q, setQ] = useState(query.get("q") ?? "");
   const [tag, setTag] = useState(query.get("tag") ?? "");
   // The site's "Explore" link, or going back, changes the address under this page: follow it.
@@ -357,7 +369,7 @@ export function Explore({ query }: { query: URLSearchParams }) {
 // ── A sample's introduction: play it, or copy it to change ──
 export function SamplePage({ id }: { id: string }) {
   const [intro, setIntro] = useState<SampleIntro | null>(null);
-  const { worlds, problem, reload } = useData(false);
+  const { worlds, problem, reload } = useData(false, true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
