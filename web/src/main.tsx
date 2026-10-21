@@ -1,5 +1,6 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Admin } from "./Admin.tsx";
 import { lang } from "./i18n.ts";
 import { Play } from "./Play.tsx";
 import { Create, Explore, Home, Mine, Privacy, SamplePage, SignIn } from "./Site.tsx";
@@ -10,7 +11,7 @@ import "./ui.tsx"; // sets the day or night look before the first paint
 
 /**
  * Routes: #/ · #/explore[?q=&tag=] · #/explore/<sampleId> · #/create · #/me · #/world/<worldId> ·
- * #/studio/new[/manual] · #/studio/<worldId> · #/play/<saveId> · #/login · #/join[/<invite>] · #/privacy
+ * #/studio/new[/manual] · #/studio/<worldId> · #/play/<saveId> · #/login · #/join[/<invite>] · #/privacy · #/admin
  */
 function App() {
   const [hash, setHash] = useState(location.hash);
@@ -30,6 +31,7 @@ function App() {
   if (page === "login" || page === "join") return <SignIn key={page} join={page === "join"} invite={id} />;
   if (page === "privacy") return <Privacy />;
   if (page === "me") return <Mine />;
+  if (page === "admin") return <Admin />;
   return <Home />;
 }
 

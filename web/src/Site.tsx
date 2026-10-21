@@ -627,6 +627,11 @@ function Account() {
           {t("Privacy")}
         </a>
       </div>
+      {role === "admin" && (
+        <a className="button small" href="#/admin">
+          {t("Admin page")}
+        </a>
+      )}
       <button className="small" onClick={() => api.signOut().then(() => (location.hash = "#/login"))}>
         {t("Sign out")}
       </button>

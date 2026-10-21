@@ -8,6 +8,24 @@ export type Me =
       user: { email: string; role: "player" | "admin"; points: { used: number; limit: number | null } } | null;
     };
 
+/** What the admin page shows. */
+export interface AdminView {
+  users: {
+    id: string;
+    email: string;
+    role: "player" | "admin";
+    status: string;
+    createdAt: number;
+    ownPoints: number | null;
+    points: { used: number; limit: number | null };
+    worlds: number;
+  }[];
+  invites: { code: string; createdAt: number; heldFor: string | null; usedBy: string | null; usedAt: number | null; revoked: boolean }[];
+  mail: { asked: number; limit: number };
+  calls: { today: number; limit: number | null };
+  problems: { at: number; text: string }[];
+}
+
 /** The server wants an account: off to sign in, coming back here after. */
 function signInFirst() {
   try {
@@ -50,6 +68,10 @@ export const api = {
   verify: (email: string, code: string, invite: string) => call<object>("POST", "/auth/verify", { email, code, invite }),
   signOut: () => call<object>("POST", "/auth/signout", {}),
   deleteAccount: (email: string) => call<object>("DELETE", "/auth/me", { email }),
+  admin: () => call<AdminView>("GET", "/admin"),
+  createInvites: (count: number) => call<{ codes: string[] }>("POST", "/invites", { count }),
+  revokeInvite: (code: string) => call<object>("DELETE", `/invites/${code}`, {}),
+  setPlayer: (id: string, change: { points?: number | null; active?: boolean }) => call<object>("POST", `/users/${id}`, change),
   worlds: () => call<{ world: World; saves: SaveSummary[] }[]>("GET", "/worlds"),
   world: (id: string) => call<World>("GET", `/worlds/${id}`),
   samples: () => call<SampleSummary[]>("GET", "/samples"),

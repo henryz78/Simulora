@@ -85,7 +85,18 @@ const records = fake
 const model = { stream: story.stream, json: records.json };
 // The "deep thinking" setting: the same model at the provider's default effort.
 const thinker = fake ? story : live(storyModel, process.env.SIMULORA_THINKING_REASONING ?? "");
-const api = createApi(store, model, { thinker, writer: story, accounts, gate });
+// The latest warnings (a failed model request, a mail that did not go), kept for the admin page as well as the log.
+// ponytail: in memory, so a restart forgets them; the full record is the system log (journalctl -u simulora).
+const problems: { at: number; text: string }[] = [];
+const warn = console.warn.bind(console);
+console.warn = (...args: unknown[]) => {
+  const text = args.map((a) => (a instanceof Error ? a.message : String(a))).join(" ");
+  // A provider's error may quote part of a key; the page shows it masked.
+  problems.unshift({ at: Date.now(), text: text.replace(/(sk|ms)-[\w-]{6,}|Bearer\s+\S+/gi, "***").slice(0, 500) });
+  problems.length = Math.min(problems.length, 50);
+  warn(...args);
+};
+const api = createApi(store, model, { thinker, writer: story, accounts, gate, problems });
 
 const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

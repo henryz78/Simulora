@@ -197,3 +197,15 @@ test("points: spent before the work, given back once if it comes to nothing; the
   accounts.spend(admin.id, 1000);
   assert.equal(accounts.points(admin.id).limit, null);
 });
+
+test("a database from before players had their own daily points gains the column, once", () => {
+  const store = new Store(join(mkdtempSync(join(tmpdir(), "simulora-")), "test.db"));
+  store.sql.exec("create table users (id text primary key, email text not null unique, role text not null, status text not null, created_at integer not null)");
+  store.sql.exec("insert into users values ('u1', 'old@qq.com', 'player', 'active', 0)");
+  const open = () => new Accounts(store.sql, { key: Buffer.alloc(32), admin: "boss@qq.com", send: async () => {}, points: 7 });
+  open();
+  const accounts = open();
+  assert.deepEqual(accounts.points("u1"), { used: 0, limit: 7 });
+  accounts.setUser("u1", { points: 3 });
+  assert.equal(accounts.points("u1").limit, 3);
+});

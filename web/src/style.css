@@ -1966,3 +1966,40 @@ button.danger-text {
 .scene-top {
   scroll-margin-top: 80px;
 }
+
+/* The admin page */
+.admin .stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.admin .stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.admin .stats b {
+  font-size: 22px;
+}
+.admin .list-row {
+  flex-wrap: wrap;
+}
+.admin code {
+  font-size: 13.5px;
+  letter-spacing: 0.04em;
+}
+.admin .problem {
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.admin .problem code {
+  flex: 1 1 320px;
+  min-width: 0;
+  font-size: 12.5px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}

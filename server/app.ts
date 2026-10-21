@@ -326,6 +326,8 @@ export function createApi(
     gate = undefined as Gate | undefined,
     // How long a reply may stay silent before its headers go out and spaces keep it open.
     keepOpen = 10_000,
+    // The server's latest warnings, newest first, for the admin page.
+    problems = [] as { at: number; text: string }[],
     // Who is asking: one user on this machine (tests name others); on the public site, the signed-in player.
     userOf = (req: IncomingMessage): string =>
       accounts ? (accounts.userOf(req)?.id ?? signIn()) : LOCAL_USER,
@@ -1008,6 +1010,10 @@ export function createApi(
     }
   }
 
+  /** The accounts, for the admin only: to anyone else, and on this machine, these pages do not exist. */
+  const adminOnly = (req: IncomingMessage): Accounts =>
+    accounts && accounts.userOf(req)?.role === "admin" ? accounts : fail(404, "Not found");
+
   return async function api(req: IncomingMessage, res: ServerResponse) {
     const url = new URL(req.url ?? "/", "http://local");
     const parts = url.pathname.split("/").filter(Boolean).slice(1); // drop "api"
@@ -1078,6 +1084,42 @@ export function createApi(
           for (const w of worlds) store.deleteWorld(w.id);
           accounts.deleteUser(me.id);
           return send(res, 200, {}, { "set-cookie": sessionCookie(null) });
+        }
+        // The admin page: who plays and how much, the invites, the day's model requests, and what went wrong lately.
+        // Anyone else is told there is nothing here.
+        case "GET /admin": {
+          const accts = adminOnly(req);
+          const worlds = new Map(
+            (store.sql.prepare("select user_id, count(*) n from worlds group by user_id").all() as { user_id: string; n: number }[]).map(
+              (r) => [r.user_id, r.n],
+            ),
+          );
+          const { users, ...rest } = accts.overview();
+          return send(res, 200, {
+            ...rest,
+            users: users.map((u) => ({ ...u, worlds: worlds.get(u.id) ?? 0 })),
+            calls: { today: gate?.today() ?? 0, limit: gate && Number.isFinite(gate.limit) ? gate.limit : null },
+            problems: problems.slice(0, 50),
+          });
+        }
+        case "POST /invites": {
+          const accts = adminOnly(req);
+          const count = Number((await readJson(req)).count);
+          if (!Number.isInteger(count) || count < 1 || count > 50) fail(400, "Make 1 to 50 at a time");
+          return send(res, 201, { codes: accts.createInvites(count) });
+        }
+        case "DELETE /invites/:id":
+          adminOnly(req).revokeInvite(id);
+          return send(res, 200, {});
+        case "POST /users/:id": {
+          const accts = adminOnly(req);
+          const body = await readJson(req);
+          const points = body.points;
+          if (points !== undefined && points !== null && !(Number.isInteger(points) && (points as number) >= 0 && (points as number) <= 1000))
+            fail(400, "Daily points are a whole number from 0 to 1000");
+          if (body.active !== undefined && typeof body.active !== "boolean") fail(400, "Expected active: true or false");
+          accts.setUser(id, { points: points as number | null | undefined, active: body.active as boolean | undefined });
+          return send(res, 200, {});
         }
         case "GET /worlds":
           // Each save with how far it is, its last line and the secrets found: the home page's "continue" card.

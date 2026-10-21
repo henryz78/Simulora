@@ -87,6 +87,78 @@ test("on the public site, everything but signing in and the samples needs an acc
   }
 });
 
+test("the admin page: only the admin sees it; invites, a player's points, closing an account", async () => {
+  const store = new Store(join(mkdtempSync(join(tmpdir(), "simulora-")), "test.db"));
+  const codes: string[] = [];
+  const accounts = new Accounts(store.sql, {
+    key: Buffer.alloc(32, 2),
+    admin: "boss@qq.com",
+    send: async (_to, subject) => void codes.push(/\d{6}/.exec(subject)![0]),
+    points: 2,
+  });
+  const problems = [{ at: 1, text: "model.failed 500" }];
+  const api = createApi(store, fakeModel(), { accounts, problems });
+  const server = createServer((req, res) => void api(req, res));
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  const as = (cookie: string) => (method: string, path: string, body?: unknown) =>
+    fetch(base + path, {
+      method,
+      headers: { "content-type": "application/json", "cf-connecting-ip": "1.2.3.4", cookie },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const signIn = async (email: string, invite = "") => {
+    await as("")("POST", "/auth/code", { email, invite });
+    await new Promise((done) => setImmediate(done));
+    const ok = await as("")("POST", "/auth/verify", { email, code: codes.at(-1), invite });
+    assert.equal(ok.status, 200);
+    return as((ok.headers.get("set-cookie") ?? "").split(";")[0]!);
+  };
+  try {
+    const boss = await signIn("boss@qq.com");
+    const made = (await (await boss("POST", "/invites", { count: 2 })).json()) as { codes: string[] };
+    assert.equal(made.codes.length, 2);
+    assert.equal((await boss("POST", "/invites", { count: 51 })).status, 400);
+    const player = await signIn("p@163.com", made.codes[0]);
+    assert.equal((await player("GET", "/admin")).status, 404, "a player is told there is nothing there");
+    assert.equal((await player("POST", "/invites", { count: 1 })).status, 404);
+    assert.equal((await as("")("GET", "/admin")).status, 401);
+
+    type View = { users: { id: string; email: string; points: { limit: number | null } }[]; invites: { code: string; usedBy: string | null; revoked: boolean }[]; problems: unknown[] };
+    const view = async () => (await (await boss("GET", "/admin")).json()) as View;
+    let seen = await view();
+    assert.deepEqual(seen.problems, problems);
+    assert.equal(seen.invites.find((i) => i.code === made.codes[0])?.usedBy, "p@163.com");
+    const p = seen.users.find((u) => u.email === "p@163.com")!;
+    assert.equal(p.points.limit, 2);
+    const bossId = seen.users.find((u) => u.email === "boss@qq.com")!.id;
+
+    // An invite used cannot be withdrawn; one unused can, and then it no longer works.
+    assert.equal((await boss("DELETE", `/invites/${made.codes[0]}`, {})).status, 400);
+    assert.equal((await boss("DELETE", `/invites/${made.codes[1]}`, {})).status, 200);
+    assert.equal((await as("")("POST", "/auth/code", { email: "q@163.com", invite: made.codes[1] })).status, 400);
+
+    // A player's own daily points, then back to the site's.
+    assert.equal((await boss("POST", `/users/${p.id}`, { points: 1.5 })).status, 400);
+    assert.equal((await boss("POST", `/users/${p.id}`, { points: 50 })).status, 200);
+    const me = async () => ((await (await player("GET", "/auth/me")).json()) as { user: { points: { limit: number } } }).user.points.limit;
+    assert.equal(await me(), 50);
+    assert.equal((await boss("POST", `/users/${p.id}`, { points: null })).status, 200);
+    assert.equal(await me(), 2);
+    assert.equal((await boss("POST", `/users/${bossId}`, { active: false })).status, 400, "not the admin's own account");
+
+    // Closed: signed out at once, and no new code; reopened, they can sign in again.
+    assert.equal((await boss("POST", `/users/${p.id}`, { active: false })).status, 200);
+    assert.equal((await player("GET", "/worlds")).status, 401);
+    await assert.rejects(signIn("p@163.com"));
+    assert.equal((await boss("POST", `/users/${p.id}`, { active: true })).status, 200);
+    seen = await view();
+    assert.equal(seen.users.length, 2);
+  } finally {
+    server.close();
+  }
+});
+
 /** Starts the real server with these arguments and environment; resolves once it listens, or with its exit code. */
 async function start(args: string[], env: Record<string, string>) {
   const port = 20_000 + Math.floor(Math.random() * 20_000);

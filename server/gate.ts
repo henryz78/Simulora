@@ -66,6 +66,11 @@ export class Gate {
     return this.#today;
   }
 
+  /** The day's allowance, in requests (Infinity when there is none). */
+  get limit() {
+    return this.#dayLimit;
+  }
+
   /** Whether new work should start: a margin is kept for work already under way. */
   open = (share = 0.85) => this.today() < this.#dayLimit * share;
 

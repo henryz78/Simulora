@@ -136,6 +136,9 @@ export class Accounts {
       create index if not exists sessions_user on sessions (user_id);
       create table if not exists limits (key text primary key, count integer not null);
     `);
+    // A player's own daily points, set by the admin; empty means the site's.
+    const columns = db.prepare("select name from pragma_table_info('users')").all() as { name: string }[];
+    if (!columns.some((c) => c.name === "daily_points")) db.exec("alter table users add column daily_points real");
   }
 
   #mac = (text: string) => createHmac("sha256", this.#key).update(text).digest("hex");
@@ -286,11 +289,13 @@ export class Accounts {
 
   /** Today's points: used, and how many a day; the admin's are not counted. */
   points(userId: string): { used: number; limit: number | null } {
-    const user = this.#db.prepare("select role from users where id = ?").get(userId) as { role: string } | undefined;
+    const user = this.#db.prepare("select role, daily_points from users where id = ?").get(userId) as
+      | { role: string; daily_points: number | null }
+      | undefined;
     const row = this.#db.prepare("select points from usage where user_id = ? and day = ?").get(userId, this.#day()) as
       | { points: number }
       | undefined;
-    return { used: row?.points ?? 0, limit: user?.role === "admin" ? null : this.#points };
+    return { used: row?.points ?? 0, limit: user?.role === "admin" ? null : (user?.daily_points ?? this.#points) };
   }
 
   /** Takes `cost` points from today's, or refuses; returns the way to give them back if the work comes to nothing. */
@@ -323,6 +328,60 @@ export class Accounts {
       this.#db.prepare("insert into invites (code, created_at) values (?, ?)").run(code, this.#now());
       return code;
     });
+  }
+
+  /** What the admin page shows: every account with today's points, every invite, and today's sign-in mail. */
+  overview() {
+    const users = (
+      this.#db
+        .prepare("select id, email, role, status, created_at, daily_points from users order by created_at desc")
+        .all() as { id: string; email: string; role: string; status: string; created_at: number; daily_points: number | null }[]
+    ).map((u) => ({
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      createdAt: u.created_at,
+      ownPoints: u.daily_points,
+      points: this.points(u.id),
+    }));
+    const invites = (
+      this.#db
+        .prepare(
+          `select i.code, i.created_at, i.reserved_for, i.used_by, i.used_at, i.revoked, u.email from invites i
+           left join users u on u.id = i.used_by order by i.created_at desc, i.code`,
+        )
+        .all() as { code: string; created_at: number; reserved_for: string | null; used_by: string | null; used_at: number | null; revoked: number; email: string | null }[]
+    ).map((i) => ({
+      code: i.code,
+      createdAt: i.created_at,
+      // Who asked for a code with it but has not signed in yet.
+      heldFor: i.used_by ? null : i.reserved_for,
+      usedBy: i.used_by ? (i.email ?? "(deleted)") : null,
+      usedAt: i.used_at,
+      revoked: !!i.revoked,
+    }));
+    const asked = this.#db.prepare("select count from limits where key = ?").get(`all:${this.#day()}`) as { count: number } | undefined;
+    return { users, invites, mail: { asked: asked?.count ?? 0, limit: this.#mailPerDay } };
+  }
+
+  /** An invite not yet used can no longer be. */
+  revokeInvite(code: string) {
+    const done = this.#db.prepare("update invites set revoked = 1 where code = ? and used_by is null").run(code);
+    if (done.changes !== 1) throw new AccountError(400, "Only an unused invite can be withdrawn");
+  }
+
+  /** The admin changes a player: their own daily points (null for the site's), or closes or reopens the account. */
+  setUser(id: string, change: { points?: number | null; active?: boolean }) {
+    const user = this.#db.prepare("select role from users where id = ?").get(id) as { role: string } | undefined;
+    if (!user) throw new AccountError(404, "No such player");
+    if (user.role === "admin") throw new AccountError(400, "The admin account cannot be changed here");
+    if (change.points !== undefined) this.#db.prepare("update users set daily_points = ? where id = ?").run(change.points, id);
+    if (change.active !== undefined) {
+      this.#db.prepare("update users set status = ? where id = ?").run(change.active ? "active" : "disabled", id);
+      // Signed out everywhere at once; a closed account cannot ask for a code either.
+      if (!change.active) this.#db.prepare("delete from sessions where user_id = ?").run(id);
+    }
   }
 
   /** The account and what it alone holds; the invite it used stays spent. Its worlds go first, by the caller. */
