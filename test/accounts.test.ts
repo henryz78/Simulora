@@ -179,3 +179,21 @@ test("deleting an account ends its sessions; ownerless worlds are swept", () => 
   assert.equal(store.world("w1"), undefined);
   assert.ok(store.world("w2"), "the local user's worlds stay");
 });
+
+test("points: spent before the work, given back once if it comes to nothing; the admin's are not counted", () => {
+  const { accounts, lastCode, later } = setup();
+  const [invite] = accounts.createInvites(1);
+  accounts.sendCode("p@163.com", invite!, "1.1.1.1");
+  const player = accounts.verify("p@163.com", lastCode(), invite!, "1.1.1.1").user;
+  const refund = accounts.spend(player.id, 29);
+  assert.deepEqual(accounts.points(player.id), { used: 29, limit: 30 });
+  fails(() => accounts.spend(player.id, 2), 429);
+  refund();
+  refund();
+  assert.equal(accounts.points(player.id).used, 0);
+  later(61);
+  accounts.sendCode("boss@qq.com", "", "1.1.1.1");
+  const admin = accounts.verify("boss@qq.com", lastCode(), "", "1.1.1.1").user;
+  accounts.spend(admin.id, 1000);
+  assert.equal(accounts.points(admin.id).limit, null);
+});

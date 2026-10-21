@@ -608,11 +608,20 @@ function Account() {
   const me = useMe();
   const [leaving, setLeaving] = useState(false);
   if (me?.mode !== "public" || !me.user) return null;
-  const { email, role } = me.user;
+  const { email, role, points } = me.user;
+  const left = points.limit === null ? null : Math.max(0, points.limit - points.used);
   return (
     <section className="account" aria-label={t("Account")}>
       <div className="grow" style={{ minWidth: 0 }}>
         <b>{email}</b> {role === "admin" && <span className="tag">{t("Admin")}</span>}
+        <br />
+        <span className="muted small">
+          {left === null
+            ? t("No daily limit")
+            : lang === "zh"
+              ? `今天还剩 ${left} 点（共 ${points.limit} 点，北京时间 0 点恢复）`
+              : `${left} of ${points.limit} points left today (back at midnight, Beijing time)`}
+        </span>{" "}
         <br />
         <a className="muted small" href="#/privacy">
           {t("Privacy")}

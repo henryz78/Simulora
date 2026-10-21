@@ -19,6 +19,7 @@ test("on the public site, everything but signing in and the samples needs an acc
     key: Buffer.alloc(32, 1),
     admin: "boss@qq.com",
     send: async (_to, subject) => void codes.push(/\d{6}/.exec(subject)![0]),
+    points: 2,
   });
   const api = createApi(store, fakeModel(), { accounts });
   const server = createServer((req, res) => void api(req, res));
@@ -47,11 +48,34 @@ test("on the public site, everything but signing in and the samples needs an acc
     assert.match(set, new RegExp(`^${SESSION_COOKIE}=[\\w-]{40,}; Path=/; HttpOnly; Secure; SameSite=Lax`));
     assert.equal(ok.headers.get("cache-control"), "no-store");
     cookie = set.split(";")[0]!;
-    assert.deepEqual(await (await call("GET", "/auth/me")).json(), { mode: "public", user: { email: "p@163.com", role: "player" } });
+    const me = async () => (await (await call("GET", "/auth/me")).json()) as { user: { points: { used: number; limit: number } } };
+    assert.deepEqual(await (await call("GET", "/auth/me")).json(), {
+      mode: "public",
+      user: { email: "p@163.com", role: "player", points: { used: 0, limit: 2 } },
+    });
 
     // Their own world, gone with the account once they confirm with their address.
     const world = (await (await call("POST", `/samples/${(await (await call("GET", "/samples")).json())[0].id}/copy`)).json()) as World;
     assert.equal((await call("GET", `/worlds/${world.id}`)).status, 200);
+
+    // Points: a turn is one, new suggestions half; past the day's, refused before anything is asked.
+    const save = (await (await call("POST", "/saves", { worldId: world.id })).json()) as { id: string };
+    const lead = world.state.characters[0]!.id;
+    // The first suggestions of a new game are free: the page asks for them on its own.
+    assert.equal((await call("POST", `/saves/${save.id}/hooks`, { actor: lead })).status, 200);
+    assert.equal((await me()).user.points.used, 0);
+    const played = await call("POST", `/saves/${save.id}/turn`, { actor: lead, input: "看看四周" });
+    assert.match(await played.text(), /event: done/);
+    assert.equal((await me()).user.points.used, 1);
+    assert.equal((await call("POST", `/saves/${save.id}/hooks`, { actor: lead })).status, 200);
+    assert.equal((await call("POST", `/saves/${save.id}/hooks`, { actor: lead })).status, 200);
+    assert.equal((await me()).user.points.used, 2);
+    const refused = await call("POST", `/saves/${save.id}/turn`, { actor: lead, input: "再看看" });
+    assert.equal(refused.status, 429);
+    assert.equal((await me()).user.points.used, 2);
+    // A player has at most ten worlds.
+    for (let i = 0; i < 9; i++) assert.equal((await call("POST", "/worlds", { title: `w${i}` })).status, 201);
+    assert.equal((await call("POST", "/worlds", { title: "one too many" })).status, 400);
     assert.equal((await call("DELETE", "/auth/me", { email: "someone@163.com" })).status, 400);
     const gone = await call("DELETE", "/auth/me", { email: "P@163.com" });
     assert.equal(gone.status, 200);
@@ -125,5 +149,39 @@ test("the public server answers only its own address, and changes only from its 
     assert.equal((await post(site)).status, 200);
   } finally {
     server.stop();
+  }
+});
+
+test("a slow reply keeps the line open with spaces, and a failure arrives inside it", async () => {
+  const store = new Store(join(mkdtempSync(join(tmpdir(), "simulora-")), "test.db"));
+  const fake = fakeModel();
+  let fails = false;
+  const slow: typeof fake = {
+    stream: async function* (messages, options) {
+      await new Promise((done) => setTimeout(done, 250));
+      if (fails) throw new Error("The model request failed");
+      yield* fake.stream(messages, options);
+    },
+    json: fake.json,
+  };
+  const api = createApi(store, fake, { writer: slow, thinker: slow, keepOpen: 40 });
+  const server = createServer((req, res) => void api(req, res));
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api`;
+  const draft = () =>
+    fetch(`${base}/drafts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ idea: "雾港" }) });
+  try {
+    const ok = await draft();
+    assert.equal(ok.status, 200);
+    const text = await ok.text();
+    assert.match(text, /^ +\{/, "spaces first, then the world");
+    assert.ok((JSON.parse(text) as World).opening);
+    fails = true;
+    const bad = await draft();
+    assert.equal(bad.status, 200, "the headers went out before the failure");
+    const failure = (await bad.json()) as { error: string; status: number };
+    assert.ok(failure.error && failure.status >= 500, JSON.stringify(failure));
+  } finally {
+    server.close();
   }
 });

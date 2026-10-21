@@ -5,6 +5,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { Accounts } from "./accounts.ts";
 import { createApi } from "./app.ts";
 import { Store } from "./db.ts";
+import { Gate } from "./gate.ts";
 import { smtpMailer } from "./mail.ts";
 import { fakeModel, openAICompatibleModel } from "./model.ts";
 
@@ -44,13 +45,33 @@ if (pub) {
     admin: process.env.ADMIN_EMAIL!,
     ...(process.env.SIMULORA_MAIL_DOMAINS ? { domains: process.env.SIMULORA_MAIL_DOMAINS.split(",") } : {}),
     ...(process.env.SIMULORA_MAIL_PER_DAY ? { mailPerDay: Number(process.env.SIMULORA_MAIL_PER_DAY) } : {}),
+    ...(process.env.SIMULORA_POINTS ? { points: Number(process.env.SIMULORA_POINTS) } : {}),
   });
   accounts.deleteOwnerless();
   store.deleteOrphans();
 }
+// Every request to the provider waits its turn here: a few at a time, a ceiling a minute, and on the public site the
+// day's allowance (ModelScope gives about 2000 a day; the rest is kept for work under way and for tomorrow's start).
+const env = (name: string, fallback: number) => {
+  const value = Number(process.env[name]);
+  return process.env[name] && Number.isFinite(value) && value > 0 ? value : fallback;
+};
+store.sql.exec("create table if not exists model_calls (day text primary key, count integer not null)");
+const gate = new Gate({
+  slots: env("SIMULORA_SLOTS", 3),
+  perMinute: env("SIMULORA_PER_MINUTE", 20),
+  dayLimit: env("SIMULORA_DAY_LIMIT", pub ? 1800 : Infinity),
+  remember: {
+    read: (day) => (store.sql.prepare("select count from model_calls where day = ?").get(day) as { count: number } | undefined)?.count ?? 0,
+    write: (day, count) =>
+      void store.sql
+        .prepare("insert into model_calls (day, count) values (?, ?) on conflict (day) do update set count = excluded.count")
+        .run(day, count),
+  },
+});
 // The story and the records of what changed can use different models.
 const live = (model: string, reasoning: string) =>
-  openAICompatibleModel({ profilePath: join(root, ".secret.txt"), model, reasoning });
+  openAICompatibleModel({ profilePath: join(root, ".secret.txt"), model, reasoning, gate });
 // DeepSeek-V4.1-Flash wrote the liveliest scenes in the 2026-10-17 comparison; since 2026-10-19 the provider serves
 // only its 1017 version. Without thinking ("none") its first words come in about 3 s instead of 30-60 s, and the
 // prose is as good. The records and the buried secrets think a little ("low"): without thinking they mark hinted
@@ -64,7 +85,7 @@ const records = fake
 const model = { stream: story.stream, json: records.json };
 // The "deep thinking" setting: the same model at the provider's default effort.
 const thinker = fake ? story : live(storyModel, process.env.SIMULORA_THINKING_REASONING ?? "");
-const api = createApi(store, model, { thinker, writer: story, accounts });
+const api = createApi(store, model, { thinker, writer: story, accounts, gate });
 
 const types: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

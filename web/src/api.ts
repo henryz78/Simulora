@@ -1,7 +1,12 @@
 import type { Dice, SampleIntro, SampleSummary, Save, SaveSummary, SaveView, Settings, TurnNode, World, WorldDraft } from "../../shared/types.ts";
 
 /** Who is playing: on this machine nobody signs in; on the public site, the signed-in player, if any. */
-export type Me = { mode: "local" } | { mode: "public"; user: { email: string; role: "player" | "admin" } | null };
+export type Me =
+  | { mode: "local" }
+  | {
+      mode: "public";
+      user: { email: string; role: "player" | "admin"; points: { used: number; limit: number | null } } | null;
+    };
 
 /** The server wants an account: off to sign in, coming back here after. */
 function signInFirst() {
@@ -34,7 +39,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   if (response.status === 401 && !path.startsWith("/auth")) signInFirst();
   // A refusal before the API (a wrong address, a page from another site) comes with no body.
   const value = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`);
+  // A long reply comes as 200 and carries a failure inside it.
+  if (!response.ok || value.error) throw new Error(value.error ?? `HTTP ${response.status}`);
   return value;
 }
 
@@ -82,7 +88,13 @@ export async function playTurn(
   saveId: string,
   actor: string,
   input: string,
-  on: { story: (text: string) => void; phase: (phase: string) => void; dice?: (dice: Dice) => void },
+  on: {
+    story: (text: string) => void;
+    phase: (phase: string) => void;
+    dice?: (dice: Dice) => void;
+    /** Waiting for the model: how many go first. */
+    queue?: (ahead: number) => void;
+  },
   offline: "world" | "all" | null = null,
 ): Promise<TurnNode> {
   const response = await fetch(`/api/saves/${saveId}/turn`, {
@@ -107,6 +119,7 @@ export async function playTurn(
       if (name === "story") on.story(String(data?.text ?? ""));
       if (name === "phase") on.phase(String(data?.phase ?? ""));
       if (name === "dice") on.dice?.(data as unknown as Dice);
+      if (name === "queue") on.queue?.(Number(data?.ahead ?? 0));
       if (name === "error") throw new Error(String(data?.message ?? "The turn failed"));
       if (name === "done") return data?.node as TurnNode;
     }

@@ -88,6 +88,7 @@ export class Accounts {
   #admin: string | null;
   #domains: readonly string[];
   #mailPerDay: number;
+  #points: number;
   #now: () => number;
 
   constructor(
@@ -99,20 +100,32 @@ export class Accounts {
       domains = MAIL_DOMAINS,
       // Gmail sends about 500 a day; past this nobody can sign in until tomorrow, but the account stays in good standing.
       mailPerDay = 300,
+      // Each player's daily points: a turn is one.
+      points = 30,
       now = Date.now,
-    }: { key: Buffer; send: SendMail; admin: string; domains?: readonly string[]; mailPerDay?: number; now?: () => number },
+    }: {
+      key: Buffer;
+      send: SendMail;
+      admin: string;
+      domains?: readonly string[];
+      mailPerDay?: number;
+      points?: number;
+      now?: () => number;
+    },
   ) {
     this.#db = db;
     this.#key = key;
     this.#send = send;
     this.#domains = domains;
     this.#mailPerDay = mailPerDay;
+    this.#points = points;
     this.#now = now;
     this.#admin = canonicalEmail(admin, domains);
     if (!this.#admin) throw new Error("ADMIN_EMAIL is not an address that can sign in");
     db.exec(`
       create table if not exists users (
         id text primary key, email text not null unique, role text not null, status text not null, created_at integer not null);
+      create table if not exists usage (user_id text not null, day text not null, points real not null, primary key (user_id, day));
       create table if not exists invites (
         code text primary key, created_at integer not null, reserved_for text, used_by text, used_at integer,
         revoked integer not null default 0);
@@ -271,6 +284,32 @@ export class Accounts {
     return row ? { id: row.id, email: row.email, role: row.role } : null;
   }
 
+  /** Today's points: used, and how many a day; the admin's are not counted. */
+  points(userId: string): { used: number; limit: number | null } {
+    const user = this.#db.prepare("select role from users where id = ?").get(userId) as { role: string } | undefined;
+    const row = this.#db.prepare("select points from usage where user_id = ? and day = ?").get(userId, this.#day()) as
+      | { points: number }
+      | undefined;
+    return { used: row?.points ?? 0, limit: user?.role === "admin" ? null : this.#points };
+  }
+
+  /** Takes `cost` points from today's, or refuses; returns the way to give them back if the work comes to nothing. */
+  spend(userId: string, cost: number): () => void {
+    const { limit } = this.points(userId);
+    const day = this.#day();
+    this.#db.prepare("insert into usage (user_id, day, points) values (?, ?, 0) on conflict do nothing").run(userId, day);
+    const taken = this.#db
+      .prepare("update usage set points = points + ? where user_id = ? and day = ? and points + ? <= ?")
+      .run(cost, userId, day, cost, limit ?? Number.MAX_SAFE_INTEGER);
+    if (taken.changes !== 1) throw new AccountError(429, "Today's points are used up; they come back at midnight, Beijing time");
+    let given = false;
+    return () => {
+      if (given) return;
+      given = true;
+      this.#db.prepare("update usage set points = max(0, points - ?) where user_id = ? and day = ?").run(cost, userId, day);
+    };
+  }
+
   signOut(req: IncomingMessage) {
     const token = tokenOf(req);
     if (token) this.#db.prepare("delete from sessions where token = ?").run(this.#mac(token));
@@ -297,6 +336,7 @@ export class Accounts {
     try {
       this.#db.prepare("delete from sessions where user_id = ?").run(id);
       this.#db.prepare("delete from login_codes where email = ?").run(user.email);
+      this.#db.prepare("delete from usage where user_id = ?").run(id);
       this.#db.prepare("update invites set used_by = 'deleted', reserved_for = null where used_by = ?").run(id);
       this.#db.prepare("delete from users where id = ?").run(id);
       this.#db.exec("commit");

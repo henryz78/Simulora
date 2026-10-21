@@ -21,6 +21,8 @@ interface Pending {
   restarted: boolean;
   dice?: Dice;
   offline?: "world" | "all" | null;
+  /** Waiting for the model behind others: how many go first. */
+  ahead?: number;
   error: string;
   since: number;
 }
@@ -274,8 +276,9 @@ export function Play({ saveId }: { saveId: string }) {
         as,
         text,
         {
-          story: (piece) => setPending((p) => p && { ...p, story: p.story + piece }),
+          story: (piece) => setPending((p) => p && { ...p, story: p.story + piece, ahead: undefined }),
           dice: (dice) => setPending((p) => p && { ...p, dice }),
+          queue: (ahead) => setPending((p) => p && { ...p, ahead: ahead >= 0 ? ahead : undefined }),
           phase: (phase) =>
             setPending(
               (p) =>
@@ -574,7 +577,15 @@ export function Play({ saveId }: { saveId: string }) {
                     {pending.passed &&
                       step(t("Time moves on"), pending.phase === "passing", pending.phase !== "passing")}
                     {step(
-                      t("Thinking"),
+                      pending.ahead !== undefined && !pending.story
+                        ? lang === "zh"
+                          ? pending.ahead > 0
+                            ? `排队中，前面还有 ${pending.ahead} 个`
+                            : "排队中，下一个就是你"
+                          : pending.ahead > 0
+                            ? `Waiting: ${pending.ahead} ahead`
+                            : "Waiting: you are next"
+                        : t("Thinking"),
                       pending.phase === "story" && !pending.story,
                       pending.phase === "changes" || !!pending.story,
                     )}

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { Gate } from "./gate.ts";
 
 export interface Message {
   role: "system" | "user" | "assistant";
@@ -40,6 +41,8 @@ export interface ModelConfig {
   model: string;
   /** Sent as reasoning_effort when set; empty leaves the provider default. */
   reasoning: string;
+  /** Shared by every model: each request to the provider waits its turn there. */
+  gate?: Gate;
 }
 
 export function openAICompatibleModel(config: ModelConfig): Model {
@@ -63,14 +66,19 @@ export function openAICompatibleModel(config: ModelConfig): Model {
     });
   // The provider now and then fails a good request (a 400 "Invalid request parameters" about one in eight times on
   // 2026-10-18, or a 429 or 5xx); after a short wait it passes.
+  // Each try waits its turn at the gate, and holds its place until the reply is read (`leave`).
+  // The time allowed starts once through the gate (`signal` is asked for then), not while waiting there.
   const request = async (
     messages: Message[],
     extra: Record<string, unknown>,
-    signal: AbortSignal = AbortSignal.timeout(180_000),
-  ) => {
+    started: () => AbortSignal = () => AbortSignal.timeout(180_000),
+  ): Promise<{ response: Response; leave: () => void }> => {
     for (let attempt = 1; ; attempt++) {
+      const leave = config.gate ? await config.gate.enter() : () => {};
+      const signal = started();
       // The provider was out of reach for a few seconds at a time during a long test (2026-10-19): wait and retry.
       const response = await send(messages, extra, signal).catch((error: Error) => {
+        leave();
         if (attempt === 3 || signal.aborted) throw error;
         return null;
       });
@@ -78,10 +86,17 @@ export function openAICompatibleModel(config: ModelConfig): Model {
         await new Promise((done) => setTimeout(done, attempt * 1500));
         continue;
       }
-      if (response.ok || attempt === 3 || ![400, 429, 500, 502, 503, 504].includes(response.status)) return response;
-      const body = await response.text();
+      if (response.status === 429 && attempt === 3) config.gate?.pause();
+      if (response.ok || attempt === 3 || ![400, 429, 500, 502, 503, 504, 524].includes(response.status))
+        return { response, leave };
+      // The slot goes back first: reading a failed reply can fail too.
+      leave();
+      // "Too many": everyone waits, rather than each asking again at once.
+      if (response.status === 429) config.gate?.pause();
+      const body = await response.text().catch(() => "");
       // Too long a prompt or too high a max_tokens fails every time: give up at once.
-      if (/max_tokens|context|too long|maximum/i.test(body)) return new Response(body, { status: response.status });
+      if (/max_tokens|context|too long|maximum/i.test(body) && response.status !== 429)
+        return { response: new Response(body, { status: response.status }), leave };
       console.warn("model.retry", response.status, body.slice(0, 200));
       await new Promise((done) => setTimeout(done, attempt * 1500));
     }
@@ -97,14 +112,18 @@ export function openAICompatibleModel(config: ModelConfig): Model {
       const json = options?.json ? { response_format: { type: "json_object" } } : {};
       // A long reply may take minutes to write, so a stream is given up only when it goes quiet for 3 minutes.
       const quiet = new AbortController();
-      const timer = setTimeout(() => quiet.abort(new Error("The model went quiet")), 180_000).unref();
-      const response = await request(messages, { stream: true, ...json }, quiet.signal);
-      if (!response.ok || !response.body) throw await failed(response);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const { response, leave } = await request(messages, { stream: true, ...json }, () => {
+        timer ??= setTimeout(() => quiet.abort(new Error("The model went quiet")), 180_000).unref();
+        timer.refresh();
+        return quiet.signal;
+      });
       const decoder = new TextDecoder();
       let buffer = "";
       try {
+        if (!response.ok || !response.body) throw await failed(response);
         for await (const chunk of response.body) {
-          timer.refresh();
+          timer?.refresh();
           buffer += decoder.decode(chunk, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
@@ -124,17 +143,22 @@ export function openAICompatibleModel(config: ModelConfig): Model {
         }
       } finally {
         clearTimeout(timer);
+        leave();
       }
     },
     async json(messages, options) {
       const temperature = options?.temperature;
-      const response = await request(messages, {
+      const { response, leave } = await request(messages, {
         response_format: { type: "json_object" },
         ...(temperature !== undefined && { temperature }),
       });
-      if (!response.ok) throw await failed(response);
-      const body = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-      return parseJsonObject(body.choices?.[0]?.message?.content ?? "");
+      try {
+        if (!response.ok) throw await failed(response);
+        const body = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+        return parseJsonObject(body.choices?.[0]?.message?.content ?? "");
+      } finally {
+        leave();
+      }
     },
   };
 }

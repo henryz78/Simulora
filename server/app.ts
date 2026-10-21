@@ -21,6 +21,7 @@ import {
 } from "../shared/types.ts";
 import { AccountError, type Accounts, clientIp, sessionCookie } from "./accounts.ts";
 import { LOCAL_USER, type Store } from "./db.ts";
+import { GateError, lane, type Gate } from "./gate.ts";
 import { parseJsonObject, readString, type Model } from "./model.ts";
 import {
   BURY_EVERY,
@@ -295,6 +296,8 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 }
 
 function send(res: ServerResponse, status: number, value: unknown, headers: Record<string, string> = {}) {
+  // Headers already sent to keep a long reply open: what is left is the body, a failure inside it.
+  if (res.headersSent) return void res.end(JSON.stringify(status < 400 ? value : { ...(value as object), status }));
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers });
   res.end(JSON.stringify(value));
 }
@@ -319,12 +322,49 @@ export function createApi(
     timelineTokens = TIMELINE_TOKENS,
     // The public site's accounts; without them this is one user's game on their own machine.
     accounts = undefined as Accounts | undefined,
+    // The model requests' gate: whether the day's allowance still lets new work start.
+    gate = undefined as Gate | undefined,
+    // How long a reply may stay silent before its headers go out and spaces keep it open.
+    keepOpen = 10_000,
     // Who is asking: one user on this machine (tests name others); on the public site, the signed-in player.
     userOf = (req: IncomingMessage): string =>
       accounts ? (accounts.userOf(req)?.id ?? signIn()) : LOCAL_USER,
   } = {},
 ) {
   const busy = new Set<string>();
+  // New games whose free first suggestions were asked for.
+  const freeHooks = new Set<string>();
+  // On the public site, players with a turn or a world being written: one at a time each.
+  const acting = new Set<string>();
+  const startActing = (user: string) => {
+    if (!accounts) return () => {};
+    if (acting.has(user)) fail(409, "Your other story is still being written; wait for it to finish");
+    acting.add(user);
+    return () => void acting.delete(user);
+  };
+  /** Points for work that asks the model, on the public site; given back if the work comes to nothing. */
+  const pay = (user: string, cost: number) => {
+    if (gate && !gate.open()) fail(429, "The site's AI allowance for today is used up; try again tomorrow");
+    return accounts ? accounts.spend(user, cost) : () => {};
+  };
+  async function charged<T>(user: string, cost: number, work: () => Promise<T>): Promise<T> {
+    const refund = pay(user, cost);
+    try {
+      return await work();
+    } catch (error) {
+      refund();
+      throw error;
+    }
+  }
+  // On the public site a player has at most this many worlds, and saves in a world.
+  const MAX_WORLDS = 10;
+  const MAX_SAVES = 20;
+  const roomForWorld = (user: string) => {
+    if (accounts && store.worlds(user).length >= MAX_WORLDS) fail(400, "You have 10 worlds already; delete one first");
+  };
+  const roomForSave = (worldId: string) => {
+    if (accounts && store.saves(worldId).length >= MAX_SAVES) fail(400, "This world has 20 saves already; delete one first");
+  };
   // Saves whose secrets are being buried. Burying takes the model a minute or more, so nobody waits for it.
   const burying = new Set<string>();
   // Saves whose timeline and memory are being written, likewise, and when it last failed.
@@ -334,7 +374,9 @@ export function createApi(
   function buryLater(saveId: string) {
     if (burying.has(saveId)) return;
     burying.add(saveId);
-    void (async () => {
+    // The server's own work: it waits behind the players' at the gate.
+    void lane.run({ background: true }, async () => {
+      if (gate && !gate.open(0.9)) return;
       const s = store.save(saveId);
       const w = s && store.world(s.worldId);
       if (!s || !w) return;
@@ -357,7 +399,7 @@ export function createApi(
         }
       }
       console.log(`secrets.buried ${buried.length}`);
-    })()
+    })
       .catch((error) => console.warn("bury.failed", error instanceof Error ? error.message : error))
       .finally(() => burying.delete(saveId));
   }
@@ -370,7 +412,9 @@ export function createApi(
   function keepLater(saveId: string) {
     if (burying.has(saveId)) return console.log("secrets.keep.skipped", "the last bury or keep is still running");
     burying.add(saveId);
-    void (async () => {
+    // The server's own work: it waits behind the players' at the gate.
+    void lane.run({ background: true }, async () => {
+      if (gate && !gate.open(0.9)) return;
       const s = store.save(saveId);
       const w = s && store.world(s.worldId);
       if (!s || !w) return;
@@ -396,7 +440,7 @@ export function createApi(
         }
       }
       console.log(`secrets.kept found=${keep.found.length} revised=${keep.revised.length} buried=${keep.buried.length}`);
-    })()
+    })
       .catch((error) => console.warn("keep.failed", error instanceof Error ? error.message : error))
       .finally(() => burying.delete(saveId));
   }
@@ -590,7 +634,9 @@ export function createApi(
     // After a failure, a few minutes pass before the next try: each try is two model requests.
     if (chronicling.has(saveId) || Date.now() - (chronicleFailed.get(saveId) ?? 0) < 5 * 60_000) return;
     chronicling.add(saveId);
-    void (async () => {
+    // The server's own work: it waits behind the players' at the gate.
+    void lane.run({ background: true }, async () => {
+      if (gate && !gate.open(0.9)) return;
       const s = store.save(saveId);
       const w = s && store.world(s.worldId);
       if (!s || !w) return;
@@ -604,7 +650,7 @@ export function createApi(
         store.putNode(path[end]!);
         console.log(`chronicle.written to=${end} notes=${notes.length} entries=${timeline.length}`);
       }
-    })()
+    })
       .catch((error) => {
         console.warn("chronicle.failed", error instanceof Error ? error.message : error);
         chronicleFailed.set(saveId, Date.now());
@@ -658,8 +704,27 @@ export function createApi(
   }
 
   /** At most `ms` of waiting for the step; then the turn goes on without it. */
-  const within = <T,>(step: Promise<T>, ms = 40_000) =>
-    Promise.race([step, new Promise<null>((done) => setTimeout(done, ms, null).unref())]);
+  /**
+   * Work a turn can go on without: started now, waited for at most `ms` when asked. Given up (by time, or `stop`),
+   * it leaves the queue at the gate if it is still waiting there, rather than spend a request on nobody.
+   */
+  const within = <T,>(work: () => Promise<T>) => {
+    const giveUp = new AbortController();
+    const step = lane.run({ ...lane.getStore(), signal: giveUp.signal }, work).catch(() => null);
+    return {
+      wait: (ms = 40_000) =>
+        Promise.race([
+          step,
+          new Promise<null>((done) =>
+            setTimeout(() => {
+              giveUp.abort();
+              done(null);
+            }, ms).unref(),
+          ),
+        ]),
+      stop: () => giveUp.abort(),
+    };
+  };
 
   /**
    * What the offstage step may change: where people away are, how they are and their ties, never anyone
@@ -726,19 +791,38 @@ export function createApi(
         : [];
     const early = !!passed && away.length > 0;
     if (busy.has(s.id)) fail(409, "A turn is already being written for this save");
+    const done = startActing(user);
+    // A turn costs a point; one that thinks it through or skips time costs two.
+    let refund: () => void;
+    try {
+      refund = pay(user, passed || s.settings.thinking ? 2 : 1);
+    } catch (error) {
+      done();
+      throw error;
+    }
     busy.add(s.id);
-    const offstage = away.length && !early ? meanwhileStep(w, from, away) : null;
+    // Waiting at the gate, the player is told how many go first: for everything this turn starts.
+    const tell: { queued?: (ahead: number) => void } = {};
+    const offstage =
+      away.length && !early ? lane.run({ tell }, () => within(() => meanwhileStep(w, from, away))) : null;
 
     res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" });
-    const event = (name: string, data: unknown) => res.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
+    // Nothing is written once the reply has ended: a step given up may still report from the queue.
+    const event = (name: string, data: unknown) =>
+      void (res.writableEnded || res.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`));
+    // Cloudflare closes a reply that sends nothing for 100 s: the headers now, then a comment every 15 s.
+    res.write(": open\n\n");
+    const beat = setInterval(() => void (res.writableEnded || res.write(": ping\n\n")), 15_000);
+    tell.queued = (ahead) => event("queue", { ahead });
     try {
+      return await lane.run({ tell }, async () => {
       const started = Date.now();
       let before = resumed;
       let elsewhere: { character: string; did: string }[] = [];
       let offstageChanges: Change[] = [];
       if (early) {
         event("phase", { phase: "passing" });
-        const moved = await within(meanwhileStep(w, from, away, passed, offline === "all" ? mine : null));
+        const moved = await within(() => meanwhileStep(w, from, away, passed, offline === "all" ? mine : null)).wait();
         if (moved) {
           const keep = (name: string) => away.some((a) => same(a, name));
           offstageChanges = moved.changes.filter(offstageOnly(resumed, keep, scene ?? []));
@@ -751,7 +835,7 @@ export function createApi(
       const played = path.with(-1, { ...head, state: before });
       // With the dice on, a risky attempt by the player's character is settled before the story is told.
       const dice =
-        s.settings.dice && actor !== "director" && input ? await within(rollFor(w, played, actor, input), 10_000) : null;
+        s.settings.dice && actor !== "director" && input ? await within(() => rollFor(w, played, actor, input)).wait(10_000) : null;
       if (dice) event("dice", dice);
       let firstAt = 0;
       let storyAt = 0;
@@ -850,7 +934,7 @@ export function createApi(
         createdAt: now(),
       };
       // Waited for a while at most, and not for a turn whose record failed: asked again, it starts from the parent.
-      const moved = failed || !offstage ? null : await within(offstage);
+      const moved = failed || !offstage ? null : await offstage.wait();
       if (moved) {
         // Someone the turn named, touched or now shares the player's place with is in the scene, as the story tells.
         const here = changed.characters.find((c) => c.name === mine)?.placeId;
@@ -909,11 +993,17 @@ export function createApi(
       } catch (error) {
         console.warn("forget.failed", error instanceof Error ? error.message : error);
       }
+      });
     } catch (error) {
+      refund();
       console.warn("turn.failed", error instanceof Error ? error.message : error);
       event("error", { message: error instanceof Error ? error.message : "The turn failed" });
     } finally {
+      offstage?.stop();
+      tell.queued = undefined;
+      clearInterval(beat);
       busy.delete(s.id);
+      done();
       res.end();
     }
   }
@@ -923,6 +1013,21 @@ export function createApi(
     const parts = url.pathname.split("/").filter(Boolean).slice(1); // drop "api"
     const route = `${req.method} /${parts.map((p, i) => (i % 2 === 1 ? ":id" : p)).join("/")}`;
     const id = parts[1] ?? "";
+    // Cloudflare gives up on a reply that sends nothing for 100 s, and writing a world takes minutes. A reply not
+    // done in `keepOpen` (10 s) sends its headers, then a space as often; the JSON comes last, a failure inside it
+    // as { error }. A stream (a turn) writes its own headers first and is left alone; so is signing in, whose
+    // replies set cookies and are quick.
+    let held = false;
+    const beat = setInterval(() => {
+      if (parts[0] === "auth") return clearInterval(beat);
+      if (res.writableEnded || (res.headersSent && !held)) return clearInterval(beat);
+      if (!res.headersSent) {
+        held = true;
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+      }
+      res.write(" ");
+    }, keepOpen);
+    res.on("close", () => clearInterval(beat));
     try {
       // Inside the try: a request nobody may make is answered, not left to crash the server. Signing in and the
       // samples need no account; everything else does.
@@ -936,7 +1041,10 @@ export function createApi(
           if (id !== "me") fail(404, "Not found");
           if (!accounts) return send(res, 200, { mode: "local" });
           const me = accounts.userOf(req);
-          return send(res, 200, { mode: "public", user: me && { email: me.email, role: me.role } });
+          return send(res, 200, {
+            mode: "public",
+            user: me && { email: me.email, role: me.role, points: accounts.points(me.id) },
+          });
         }
         case "POST /auth/:id": {
           if (!accounts) fail(404, "Not found");
@@ -1006,6 +1114,7 @@ export function createApi(
           const d = samples.get(id) ?? fail(404, "Sample not found");
           // A copy to play remembers its sample, so playing again reuses it; a copy to change is the player's own.
           const body = await readJson(req);
+          roomForWorld(user);
           const title = str(body.title, 200).trim() || d.title;
           const from = body.toChange === true ? {} : { from: id };
           const w: World = { ...d, title, ...from, id: randomUUID(), createdAt: now(), updatedAt: now() };
@@ -1013,14 +1122,17 @@ export function createApi(
           return send(res, 201, w);
         }
         case "POST /worlds": {
-          const w: World = { ...normalizeDraft(await readJson(req)), id: randomUUID(), createdAt: now(), updatedAt: now() };
+          const draft = normalizeDraft(await readJson(req));
+          roomForWorld(user);
+          const w: World = { ...draft, id: randomUUID(), createdAt: now(), updatedAt: now() };
           store.putWorld(w, user);
           return send(res, 201, w);
         }
         case "POST /drafts": {
           const body = await readJson(req);
           // A pasted prompt for another AI runs to thousands of characters.
-          const idea = str(body.idea, 60_000).trim();
+          // On the public site a description is kept to a few pages.
+          const idea = str(body.idea, accounts ? 4000 : 60_000).trim();
           const feedback = str(body.feedback, 10_000).trim();
           if (!idea) fail(400, "Describe the world first");
           const draft = body.draft ? toPlain(normalizeDraft(body.draft)) : null;
@@ -1028,12 +1140,13 @@ export function createApi(
           // A world is built once and carries the whole game, so it is thought through; quickly if that fails or
           // comes back without an opening or anyone in it.
           const messages = draftMessages(idea, draft, feedback);
-          const result = await carefully(async (by) => {
+          const done = startActing(user);
+          const result = await charged(user, 3, () => carefully(async (by) => {
             const world = fromPlain(await streamJson(by, messages));
             if (!world.opening || world.state.characters.length === 0) throw new HttpError(502, "The model gave no usable world");
             return world;
             // The player waits about four minutes for each thinking try.
-          }, 1);
+          }, 1)).finally(done);
           return send(res, 200, result);
         }
         case "POST /drafts/:id": {
@@ -1069,7 +1182,9 @@ export function createApi(
           return send(res, 200, {});
         case "POST /saves": {
           const body = await readJson(req);
-          return send(res, 201, startSave(world(str(body.worldId, 64), user), str(body.title, 200)));
+          const w = world(str(body.worldId, 64), user);
+          roomForSave(w.id);
+          return send(res, 201, startSave(w, str(body.title, 200)));
         }
         case "GET /saves/:id":
           return send(res, 200, view(save(id, user)));
@@ -1100,6 +1215,7 @@ export function createApi(
         case "POST /saves/:id/branch": {
           const s = save(id, user);
           const body = await readJson(req);
+          roomForSave(s.worldId);
           const target = store.node(str(body.nodeId, 64) || s.headId);
           if (!target || target.worldId !== s.worldId) fail(400, "Unknown turn");
           if (!target.state) fail(400, "That turn is too far back to resume; go back to a nearby saved point");
@@ -1137,17 +1253,20 @@ export function createApi(
               ? { from, title, text: rest.join("\n").trim() }
               : { from, title: "", text: fullWidth(reply).trim() };
           };
-          let chapter = read("");
-          for (let attempt = 0; attempt < 2 && !chapter.text; attempt++) {
-            let text = "";
-            try {
-              for await (const piece of writer.stream(chapterMessages(worldOf(s), path, from, to))) text += piece;
-            } catch (error) {
-              console.warn("chapter.failed", error instanceof Error ? error.message : error);
+          const chapter = await charged(user, 1, async () => {
+            let chapter = read("");
+            for (let attempt = 0; attempt < 2 && !chapter.text; attempt++) {
+              let text = "";
+              try {
+                for await (const piece of writer.stream(chapterMessages(worldOf(s), path, from, to))) text += piece;
+              } catch (error) {
+                console.warn("chapter.failed", error instanceof Error ? error.message : error);
+              }
+              chapter = read(text);
             }
-            chapter = read(text);
-          }
-          if (!chapter.text) fail(502, "The model gave no chapter");
+            if (!chapter.text) fail(502, "The model gave no chapter");
+            return chapter;
+          });
           if (whole) store.putNode({ ...store.node(path[to]!.id)!, chapter });
           return send(res, 200, chapter);
         }
@@ -1176,8 +1295,10 @@ export function createApi(
           // Kept close to the passage: at the default temperature it added lines and deeds of its own.
           const ask = () =>
             writer.json(viewMessages(worldOf(s), path, turn, character, s.settings), { temperature: 0 });
-          const told = fullWidth(str(((await ask().catch(ask)) as Record<string, unknown>).story, 6000)).trim();
-          if (!told) fail(502, "The model gave no story");
+          const told = await charged(user, 1, async () => {
+            const told = fullWidth(str(((await ask().catch(ask)) as Record<string, unknown>).story, 6000)).trim();
+            return told || fail(502, "The model gave no story");
+          });
           // Told with every secret, it is not kept: later, with the secrets hidden again, it would give them away.
           const node = store.node(path[turn]!.id)!;
           if (!s.settings.showSecrets) store.putNode({ ...node, views: { ...node.views, [character]: told } });
@@ -1200,8 +1321,10 @@ export function createApi(
           });
           const ask = () =>
             writer.json(interviewMessages(worldOf(s), path, character, talk, question, s.settings.showSecrets));
-          const answer = str(((await ask().catch(ask)) as Record<string, unknown>).answer, 2000).trim();
-          if (!answer) fail(502, "The model gave no answer");
+          const answer = await charged(user, 1, async () => {
+            const answer = str(((await ask().catch(ask)) as Record<string, unknown>).answer, 2000).trim();
+            return answer || fail(502, "The model gave no answer");
+          });
           return send(res, 200, { answer });
         }
         case "POST /saves/:id/recap": {
@@ -1211,8 +1334,10 @@ export function createApi(
           const head = path.at(-1)!;
           if (head.recap) return send(res, 200, { recap: head.recap });
           const ask = () => writer.json(recapMessages(worldOf(s), path));
-          const recap = str(((await ask().catch(ask)) as Record<string, unknown>).recap, 2000).trim();
-          if (!recap) fail(502, "The model gave no recap");
+          const recap = await charged(user, 1, async () => {
+            const recap = str(((await ask().catch(ask)) as Record<string, unknown>).recap, 2000).trim();
+            return recap || fail(502, "The model gave no recap");
+          });
           store.putNode({ ...store.node(head.id)!, recap });
           return send(res, 200, { recap });
         }
@@ -1225,9 +1350,13 @@ export function createApi(
           const body = await readJson(req);
           const actor = path.length === 1 ? str(body.actor, 64) || "director" : path.at(-1)!.actor;
           const ask = () => model.json(hookMessages(worldOf(s), path, actor));
-          const report = (await ask().catch(ask)) as Record<string, unknown>;
-          const hooks = parseHooks(report.hooks);
-          if (hooks.length === 0) fail(502, "The model gave no suggestions");
+          // The first suggestions of a new game come on their own; asking for others costs half a point.
+          const first = path.length === 1 && !path[0]!.hooks?.length && !freeHooks.has(s.id);
+          if (first) freeHooks.add(s.id);
+          const hooks = await charged(user, first ? 0 : 0.5, async () => {
+            const hooks = parseHooks(((await ask().catch(ask)) as Record<string, unknown>).hooks);
+            return hooks.length > 0 ? hooks : fail(502, "The model gave no suggestions");
+          });
           // Read the turn again: secrets may have been buried in it while the model was writing.
           const head = { ...store.node(path.at(-1)!.id)!, hooks };
           store.putNode(head);
@@ -1247,8 +1376,10 @@ export function createApi(
             // What the secret keeper does to this turn while it is recorded again is taken up, as in `turn`.
             const start = head.state;
             const who = placedOne([...store.path(parent.id).slice(0, -1), { ...parent, state: before }], head.actor);
-            const { changes, hooks, failed } = await record(worldOf(s), before, head.story, head.actor, who);
-            if (failed) fail(502, "Could not record the changes");
+            const { changes, hooks } = await charged(user, 0.5, async () => {
+              const recorded = await record(worldOf(s), before, head.story, head.actor, who);
+              return recorded.failed ? fail(502, "Could not record the changes") : recorded;
+            });
             const { applied, state: changed } = applyChanges(before, changes);
             // A recap written before the changes were recorded tells the turn without them: it goes.
             const { recordsFailed: _, recap: __, ...rest } = store.node(head.id)!;
@@ -1275,8 +1406,8 @@ export function createApi(
           return send(res, 404, { error: "Not found" });
       }
     } catch (error) {
-      if (res.headersSent) return;
-      if (error instanceof HttpError || error instanceof AccountError)
+      if (res.headersSent && !held) return;
+      if (error instanceof HttpError || error instanceof AccountError || error instanceof GateError)
         return send(res, error.status, { error: error.message });
       console.error("api.failed", error);
       return send(res, 500, { error: error instanceof Error ? error.message : "Server error" });
